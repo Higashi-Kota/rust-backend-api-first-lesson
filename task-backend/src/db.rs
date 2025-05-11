@@ -1,6 +1,6 @@
 // src/db.rs
-use sea_orm::{Database, DatabaseConnection, DbErr};
 use crate::config::Config;
+use sea_orm::{Database, DatabaseConnection, DbErr};
 // use sea_orm_migration::DbErr as MigrationDbErr; // sea_orm_migration::DbErr を使う場合 (今回は不要)
 
 pub type DbPool = DatabaseConnection;

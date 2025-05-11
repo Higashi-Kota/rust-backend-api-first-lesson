@@ -1,8 +1,8 @@
 // src/api/dto/task_dto.rs
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+use crate::domain::task_model;
 use chrono::{DateTime, Utc};
-use crate::domain::task_model; // task_model を参照
+use serde::{Deserialize, Serialize};
+use uuid::Uuid; // task_model を参照
 
 // --- Request DTOs ---
 
@@ -48,7 +48,6 @@ pub struct BatchUpdateTaskDto {
 pub struct BatchDeleteTaskDto {
     pub ids: Vec<Uuid>,
 }
-
 
 // --- Response DTO ---
 

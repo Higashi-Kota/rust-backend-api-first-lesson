@@ -1,8 +1,8 @@
 // src/domain/task_model.rs
+use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*; // Uuid, ActiveModelBehavior, ActiveModelTrait などを含む
 use sea_orm::{ConnectionTrait, DbErr, Set}; // ActiveValue, Set, ConnectionTrait, DbErr を明示的にインポート
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc}; // Utc をインポート
+use serde::{Deserialize, Serialize}; // Utc をインポート
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "tasks")]
@@ -26,7 +26,7 @@ pub enum Relation {}
 impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
         Self {
-            id: Set(Uuid::new_v4()), // Uuid は prelude::* から
+            id: Set(Uuid::new_v4()),     // Uuid は prelude::* から
             created_at: Set(Utc::now()), // Utc は chrono::Utc
             updated_at: Set(Utc::now()), // Utc は chrono::Utc
             ..ActiveModelTrait::default()
@@ -38,7 +38,8 @@ impl ActiveModelBehavior for ActiveModel {
     where
         C: ConnectionTrait,
     {
-        if !insert { // 更新の場合のみ updated_at を更新
+        if !insert {
+            // 更新の場合のみ updated_at を更新
             self.updated_at = Set(Utc::now()); // Utc は chrono::Utc
         }
         Ok(self)
