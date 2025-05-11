@@ -2,7 +2,7 @@
 use task_backend::{
     api::dto::task_dto::{
         BatchCreateTaskDto, BatchDeleteTaskDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto,
-        CreateTaskDto, TaskFilterDto, UpdateTaskDto,
+        CreateTaskDto, TaskFilterDto,
     },
     service::task_service::TaskService,
 };

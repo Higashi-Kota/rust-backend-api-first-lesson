@@ -1,12 +1,9 @@
 // tests/unit/repository_tests.rs
 use chrono::Utc;
 use task_backend::{
-    api::dto::task_dto::{
-        BatchDeleteTaskDto, BatchUpdateTaskItemDto, CreateTaskDto, TaskFilterDto, UpdateTaskDto,
-    },
+    api::dto::task_dto::{BatchUpdateTaskItemDto, CreateTaskDto, TaskFilterDto, UpdateTaskDto},
     repository::task_repository::TaskRepository,
 };
-use uuid::Uuid;
 
 use crate::common;
 

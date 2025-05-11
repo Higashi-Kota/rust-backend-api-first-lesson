@@ -6,7 +6,7 @@ use uuid::Uuid; // task_model を参照
 
 // --- Request DTOs ---
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)] // Serialize を追加
 pub struct CreateTaskDto {
     pub title: String,
     pub description: Option<String>,
@@ -14,7 +14,7 @@ pub struct CreateTaskDto {
     pub due_date: Option<DateTime<Utc>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)] // Serialize を追加
 pub struct UpdateTaskDto {
     pub title: Option<String>,
     pub description: Option<String>, // Option<Option<String>> で明示的な null 設定も可能
@@ -24,12 +24,12 @@ pub struct UpdateTaskDto {
 
 // --- Batch Request DTOs ---
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)] // Serialize を追加
 pub struct BatchCreateTaskDto {
     pub tasks: Vec<CreateTaskDto>,
 }
 
-#[derive(Deserialize, Debug, Clone)] // Clone を追加
+#[derive(Deserialize, Serialize, Debug, Clone)] // Serialize を追加
 pub struct BatchUpdateTaskItemDto {
     pub id: Uuid,
     // UpdateTaskDto と同じフィールドを持つか、必要なフィールドだけにするか選択
@@ -39,19 +39,19 @@ pub struct BatchUpdateTaskItemDto {
     pub due_date: Option<DateTime<Utc>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)] // Serialize を追加
 pub struct BatchUpdateTaskDto {
     pub tasks: Vec<BatchUpdateTaskItemDto>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)] // Serialize を追加
 pub struct BatchDeleteTaskDto {
     pub ids: Vec<Uuid>,
 }
 
 // --- Response DTO ---
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
 pub struct TaskDto {
     pub id: Uuid,
     pub title: String,
@@ -78,27 +78,27 @@ impl From<task_model::Model> for TaskDto {
 }
 
 // --- Batch Response DTOs (任意) ---
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
 pub struct BatchCreateResponseDto {
     pub created_tasks: Vec<TaskDto>,
     // pub errors: Vec<String>, // エラーがあった場合の詳細など
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
 pub struct BatchUpdateResponseDto {
     pub updated_count: usize,
     // pub updated_tasks: Vec<TaskDto>, // 更新後のタスクを返す場合
     // pub errors: Vec<String>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
 pub struct BatchDeleteResponseDto {
     pub deleted_count: usize,
     // pub errors: Vec<String>,
 }
 
 // --- フィルタリング用DTO ---
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Serialize, Debug, Default)] // Serialize を追加
 pub struct TaskFilterDto {
     pub status: Option<String>,
     pub title_contains: Option<String>,
@@ -114,13 +114,13 @@ pub struct TaskFilterDto {
 }
 
 // --- ページネーション用DTO ---
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
 pub struct PaginatedTasksDto {
     pub tasks: Vec<TaskDto>,
     pub pagination: PaginationDto,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
 pub struct PaginationDto {
     pub current_page: u64,
     pub page_size: u64,

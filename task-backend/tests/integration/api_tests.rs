@@ -5,7 +5,6 @@ use axum::{
     Router,
 };
 use serde_json::{json, Value};
-use std::net::SocketAddr;
 use task_backend::{
     api::{
         dto::task_dto::{CreateTaskDto, TaskDto, UpdateTaskDto},
@@ -41,7 +40,7 @@ async fn test_health_endpoint() {
     let res = app.oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     assert_eq!(&body[..], b"OK");
 }
 
@@ -61,7 +60,7 @@ async fn test_create_task_endpoint() {
     let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::CREATED);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let task: TaskDto = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(task.title, "Test Task");
@@ -85,7 +84,7 @@ async fn test_get_task_endpoint() {
 
     let res = app.oneshot(create_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let created_task: TaskDto = serde_json::from_slice(&body).unwrap();
 
     // 作成したタスクを取得
@@ -98,7 +97,7 @@ async fn test_get_task_endpoint() {
     let res = app.oneshot(get_req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let task: TaskDto = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(task.id, created_task.id);
@@ -133,7 +132,7 @@ async fn test_list_tasks_endpoint() {
     let res = app.oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let tasks: Vec<TaskDto> = serde_json::from_slice(&body).unwrap();
 
     assert!(tasks.len() >= 3);
@@ -154,7 +153,7 @@ async fn test_update_task_endpoint() {
         .unwrap();
 
     let res = app.clone().oneshot(create_req).await.unwrap();
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let created_task: TaskDto = serde_json::from_slice(&body).unwrap();
 
     // 更新データを準備
@@ -176,7 +175,7 @@ async fn test_update_task_endpoint() {
     let res = app.clone().oneshot(update_req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let updated_task: TaskDto = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(updated_task.id, created_task.id);
@@ -201,7 +200,7 @@ async fn test_delete_task_endpoint() {
         .unwrap();
 
     let res = app.clone().oneshot(create_req).await.unwrap();
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let created_task: TaskDto = serde_json::from_slice(&body).unwrap();
 
     // タスクを削除
@@ -257,7 +256,7 @@ async fn test_batch_operations_endpoints() {
     let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::CREATED);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let create_result: Value = serde_json::from_slice(&body).unwrap();
 
     // 作成されたタスクのIDを取得
@@ -293,7 +292,7 @@ async fn test_batch_operations_endpoints() {
     let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let update_result: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(update_result["updated_count"], 2);
@@ -317,8 +316,8 @@ async fn test_batch_operations_endpoints() {
     assert_eq!(res1.status(), StatusCode::OK);
     assert_eq!(res2.status(), StatusCode::OK);
 
-    let body1 = body::to_bytes(res1.into_body()).await.unwrap();
-    let body2 = body::to_bytes(res2.into_body()).await.unwrap();
+    let body1 = body::to_bytes(res1.into_body(), usize::MAX).await.unwrap();
+    let body2 = body::to_bytes(res2.into_body(), usize::MAX).await.unwrap();
 
     let task1: TaskDto = serde_json::from_slice(&body1).unwrap();
     let task2: TaskDto = serde_json::from_slice(&body2).unwrap();
@@ -343,7 +342,7 @@ async fn test_batch_operations_endpoints() {
     let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let delete_result: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(delete_result["deleted_count"], 2);
@@ -415,7 +414,7 @@ async fn test_filter_endpoint() {
     let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     let filtered_tasks = result["tasks"].as_array().unwrap();
@@ -431,7 +430,7 @@ async fn test_filter_endpoint() {
     let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     let filtered_tasks = result["tasks"].as_array().unwrap();
@@ -447,7 +446,7 @@ async fn test_filter_endpoint() {
     let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     let filtered_tasks = result["tasks"].as_array().unwrap();
@@ -463,7 +462,7 @@ async fn test_filter_endpoint() {
     let res = app.oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     let filtered_tasks = result["tasks"].as_array().unwrap();
@@ -503,7 +502,7 @@ async fn test_pagination_endpoint() {
     let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let page1_result: Value = serde_json::from_slice(&body).unwrap();
 
     let page1_tasks = page1_result["tasks"].as_array().unwrap();
@@ -526,7 +525,7 @@ async fn test_pagination_endpoint() {
     let res = app.oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let page2_result: Value = serde_json::from_slice(&body).unwrap();
 
     let page2_tasks = page2_result["tasks"].as_array().unwrap();
@@ -558,7 +557,7 @@ async fn test_validation() {
     let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(error["error_type"], "validation_errors");
@@ -581,7 +580,7 @@ async fn test_validation() {
     let res = app.oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(error["error_type"], "validation_errors");
@@ -603,7 +602,7 @@ async fn test_not_found_error() {
     let res = app.oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(error["error_type"], "not_found");
@@ -627,7 +626,7 @@ async fn test_invalid_uuid_error() {
     let res = app.oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-    let body = body::to_bytes(res.into_body()).await.unwrap();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(error["error_type"], "invalid_uuid");
