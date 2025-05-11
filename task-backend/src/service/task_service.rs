@@ -140,7 +140,7 @@ impl TaskService {
         let offset = filter.offset.unwrap_or(0);
         let current_page = if limit > 0 { offset / limit + 1 } else { 1 };
         let total_pages = if limit > 0 {
-            (total_count + limit - 1) / limit
+            total_count.div_ceil(limit)
         } else {
             1
         };
@@ -175,7 +175,7 @@ impl TaskService {
         let task_dtos: Vec<TaskDto> = tasks.into_iter().map(Into::into).collect();
 
         // ページネーション情報を計算
-        let total_pages = (total_count + page_size - 1) / page_size;
+        let total_pages = total_count.div_ceil(page_size);
 
         let pagination = PaginationDto {
             current_page: page,
