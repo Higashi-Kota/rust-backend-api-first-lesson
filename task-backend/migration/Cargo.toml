@@ -1,0 +1,21 @@
+# migration/Cargo.toml
+[package]
+name = "migration"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "migration"
+path = "src/lib.rs"
+
+[dependencies]
+async-std = { version = "1", features = [
+  "attributes",
+  "tokio1",
+] } # SeaORM のマイグレーションが内部で使用
+# sea-orm-migration のバージョンはプロジェクト本体の sea-orm と合わせる
+sea-orm-migration = { version = "1.1.11", features = [
+  "runtime-tokio-rustls",
+  "sqlx-postgres",
+] }
