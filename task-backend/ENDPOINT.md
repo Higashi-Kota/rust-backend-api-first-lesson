@@ -275,3 +275,232 @@ curl -X GET http://localhost:3000/tasks/invalid-uuid | jq
 ```
 
 これらの curl コマンドを使用して、API の各エンドポイントが正しく動作していることを確認できます。また、エラー処理も適切に実装されているかを検証できます。
+
+## ページネーション付きタスク一覧の取得
+
+### ページネーション付きタスク一覧取得 (GET /tasks/paginated)
+
+```bash
+curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=5"
+```
+
+レスポンス例:
+
+```json
+{
+  "tasks": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "title": "テストタスク1",
+      "description": "これはテスト用のタスクです",
+      "status": "todo",
+      "due_date": "2025-06-01T00:00:00Z",
+      "created_at": "2025-05-11T07:36:38.000000Z",
+      "updated_at": "2025-05-11T07:36:38.000000Z"
+    }
+    // ... 他のタスク（最大5件）
+  ],
+  "pagination": {
+    "current_page": 1,
+    "page_size": 5,
+    "total_items": 12,
+    "total_pages": 3,
+    "has_next_page": true,
+    "has_previous_page": false
+  }
+}
+```
+
+### 2 ページ目の取得
+
+```bash
+curl -X GET "http://localhost:3000/tasks/paginated?page=2&page_size=5"
+```
+
+## フィルタリングの使用例
+
+### ステータスでフィルタリング
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter?status=todo&limit=10"
+```
+
+レスポンス例:
+
+```json
+{
+  "tasks": [
+    // statusが"todo"のタスク一覧
+  ],
+  "pagination": {
+    "current_page": 1,
+    "page_size": 10,
+    "total_items": 7,
+    "total_pages": 1,
+    "has_next_page": false,
+    "has_previous_page": false
+  }
+}
+```
+
+### タイトルで検索
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter?title_contains=重要&limit=10"
+```
+
+レスポンス例:
+
+```json
+{
+  "tasks": [
+    // タイトルに"重要"を含むタスク一覧
+  ],
+  "pagination": {
+    "current_page": 1,
+    "page_size": 10,
+    "total_items": 3,
+    "total_pages": 1,
+    "has_next_page": false,
+    "has_previous_page": false
+  }
+}
+```
+
+### 期日で絞り込み
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter?due_date_before=2025-06-30T00:00:00Z&due_date_after=2025-06-01T00:00:00Z"
+```
+
+レスポンス例:
+
+```json
+{
+  "tasks": [
+    // 2025年6月1日〜6月30日が期限のタスク一覧
+  ],
+  "pagination": {
+    // ページネーション情報
+  }
+}
+```
+
+### 複合条件でフィルタリング
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter?status=in_progress&title_contains=開発&sort_by=due_date&sort_order=asc"
+```
+
+レスポンス例:
+
+```json
+{
+  "tasks": [
+    // 「進行中」で、タイトルに「開発」を含むタスクを期日の早い順に表示
+  ],
+  "pagination": {
+    // ページネーション情報
+  }
+}
+```
+
+### オフセットとリミットを指定した検索
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter?status=todo&offset=5&limit=5"
+```
+
+レスポンス例:
+
+```json
+{
+  "tasks": [
+    // todoステータスのタスクのうち、6件目から5件を表示
+  ],
+  "pagination": {
+    "current_page": 2,
+    "page_size": 5,
+    "total_items": 15,
+    "total_pages": 3,
+    "has_next_page": true,
+    "has_previous_page": true
+  }
+}
+```
+
+## ソート機能のテスト
+
+### 作成日の新しい順（デフォルト）
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter"
+```
+
+### タイトルのアルファベット順
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter?sort_by=title&sort_order=asc"
+```
+
+### 期日の迫っている順
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter?sort_by=due_date&sort_order=asc"
+```
+
+## 複合テストケース
+
+### 保守的なページサイズ制限のテスト
+
+非常に大きな page_size を指定した場合でも、システム側で制限されることを確認します：
+
+```bash
+curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=1000"
+```
+
+結果として最大 100 件のみが返されるはずです。
+
+### エラーケースのテスト
+
+不正な並び替えフィールドを指定した場合：
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter?sort_by=invalid_field"
+```
+
+この場合、デフォルトの並び順（作成日の降順）で結果が返されます。
+
+## パフォーマンス関連テスト
+
+### 大量のタスクを作成してフィルタリングのパフォーマンスを確認
+
+まず、テスト用に多数のタスクを一括作成します：
+
+```bash
+curl -X POST http://localhost:3000/tasks/batch/create \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tasks": [
+      {"title": "パフォーマンステスト1", "status": "todo"},
+      {"title": "パフォーマンステスト2", "status": "todo"},
+      {"title": "パフォーマンステスト3", "status": "in_progress"},
+      {"title": "パフォーマンステスト4", "status": "in_progress"},
+      {"title": "パフォーマンステスト5", "status": "completed"}
+    ]
+  }'
+```
+
+次に、フィルタリングとページネーションを組み合わせてパフォーマンスを確認します：
+
+```bash
+curl -X GET "http://localhost:3000/tasks/filter?title_contains=パフォーマンス&page=1&page_size=2"
+```
+
+レスポンス時間を確認するには、time コマンドを使用できます：
+
+```bash
+time curl -s -X GET "http://localhost:3000/tasks/filter?title_contains=パフォーマンス&page=1&page_size=2" > /dev/null
+```
+
+フィルタリング機能とページネーションが正常に動作し、効率的にクエリが実行されていることが確認できます。

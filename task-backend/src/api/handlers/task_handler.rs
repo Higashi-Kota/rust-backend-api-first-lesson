@@ -1,6 +1,6 @@
 // src/api/handlers/task_handler.rs
 use axum::{
-    extract::{Path, State, Json},
+    extract::{Path, State, Json, Query},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post, patch},
@@ -9,6 +9,7 @@ use axum::{
 use std::sync::Arc;
 use uuid::Uuid;
 use chrono::Utc;
+use serde::Deserialize;
 use crate::service::task_service::TaskService;
 use crate::api::dto::task_dto::*;
 use crate::error::{AppResult, AppError};
@@ -18,6 +19,13 @@ use crate::error::{AppResult, AppError};
 #[derive(Clone)]
 pub struct AppState {
     pub task_service: Arc<TaskService>,
+}
+
+// ページネーションパラメータ
+#[derive(Deserialize, Debug)]
+pub struct PaginationParams {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
 }
 
 // --- CRUD Handlers ---
@@ -279,6 +287,26 @@ pub async fn delete_tasks_batch_handler(
     Ok(Json(response_dto))
 }
 
+// フィルタリング用ハンドラー
+pub async fn filter_tasks_handler(
+    State(app_state): State<AppState>,
+    Query(filter): Query<TaskFilterDto>,
+) -> AppResult<Json<PaginatedTasksDto>> {
+    let paginated_tasks = app_state.task_service.filter_tasks(filter).await?;
+    Ok(Json(paginated_tasks))
+}
+
+// ページネーション付きタスク一覧ハンドラー
+pub async fn list_tasks_paginated_handler(
+    State(app_state): State<AppState>,
+    Query(params): Query<PaginationParams>,
+) -> AppResult<Json<PaginatedTasksDto>> {
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(10);
+    
+    let paginated_tasks = app_state.task_service.list_tasks_paginated(page, page_size).await?;
+    Ok(Json(paginated_tasks))
+}
 
 // --- Router Setup ---
 pub fn task_router(app_state: AppState) -> Router {
@@ -287,6 +315,14 @@ pub fn task_router(app_state: AppState) -> Router {
             "/tasks",
             get(list_tasks_handler)
             .post(create_task_handler)
+        )
+        .route(
+            "/tasks/paginated",
+            get(list_tasks_paginated_handler)
+        )
+        .route(
+            "/tasks/filter",
+            get(filter_tasks_handler)
         )
         .route(
             "/tasks/:id",

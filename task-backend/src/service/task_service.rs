@@ -2,7 +2,7 @@
 use std::sync::Arc;
 use uuid::Uuid;
 use crate::repository::task_repository::TaskRepository;
-use crate::api::dto::task_dto::{CreateTaskDto, UpdateTaskDto, BatchCreateTaskDto, BatchUpdateTaskDto, BatchDeleteTaskDto, TaskDto, BatchCreateResponseDto, BatchUpdateResponseDto, BatchDeleteResponseDto, BatchUpdateTaskItemDto};
+use crate::api::dto::task_dto::{CreateTaskDto, UpdateTaskDto, BatchCreateTaskDto, BatchUpdateTaskDto, BatchDeleteTaskDto, TaskDto, BatchCreateResponseDto, BatchUpdateResponseDto, BatchDeleteResponseDto, BatchUpdateTaskItemDto, TaskFilterDto, PaginatedTasksDto, PaginationDto};
 use crate::error::{AppResult, AppError};
 use crate::db::DbPool; // DbPool をインポート
 
@@ -100,5 +100,61 @@ impl TaskService {
         }
         let delete_result = self.repo.delete_many(payload.ids).await?;
         Ok(BatchDeleteResponseDto { deleted_count: delete_result.rows_affected as usize })
+    }
+
+    // フィルタリング機能を追加
+    pub async fn filter_tasks(&self, filter: TaskFilterDto) -> AppResult<PaginatedTasksDto> {
+        let (tasks, total_count) = self.repo.find_with_filter(&filter).await?;
+        
+        // タスクモデルをDTOに変換
+        let task_dtos: Vec<TaskDto> = tasks.into_iter().map(Into::into).collect();
+        
+        // ページネーション情報を計算
+        let limit = filter.limit.unwrap_or(10);
+        let offset = filter.offset.unwrap_or(0);
+        let current_page = if limit > 0 { offset / limit + 1 } else { 1 };
+        let total_pages = if limit > 0 { (total_count + limit - 1) / limit } else { 1 };
+        
+        let pagination = PaginationDto {
+            current_page,
+            page_size: limit,
+            total_items: total_count,
+            total_pages,
+            has_next_page: current_page < total_pages,
+            has_previous_page: current_page > 1,
+        };
+        
+        Ok(PaginatedTasksDto {
+            tasks: task_dtos,
+            pagination,
+        })
+    }
+    
+    // ページネーション付きのタスク一覧取得
+    pub async fn list_tasks_paginated(&self, page: u64, page_size: u64) -> AppResult<PaginatedTasksDto> {
+        let page = if page == 0 { 1 } else { page };
+        let page_size = if page_size == 0 { 10 } else { page_size };
+        
+        let (tasks, total_count) = self.repo.find_all_paginated(page, page_size).await?;
+        
+        // タスクモデルをDTOに変換
+        let task_dtos: Vec<TaskDto> = tasks.into_iter().map(Into::into).collect();
+        
+        // ページネーション情報を計算
+        let total_pages = (total_count + page_size - 1) / page_size;
+        
+        let pagination = PaginationDto {
+            current_page: page,
+            page_size,
+            total_items: total_count,
+            total_pages,
+            has_next_page: page < total_pages,
+            has_previous_page: page > 1,
+        };
+        
+        Ok(PaginatedTasksDto {
+            tasks: task_dtos,
+            pagination,
+        })
     }
 }

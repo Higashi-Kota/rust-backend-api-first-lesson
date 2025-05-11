@@ -97,3 +97,36 @@ pub struct BatchDeleteResponseDto {
     pub deleted_count: usize,
     // pub errors: Vec<String>,
 }
+
+// --- フィルタリング用DTO ---
+#[derive(Deserialize, Debug, Default)]
+pub struct TaskFilterDto {
+    pub status: Option<String>,
+    pub title_contains: Option<String>,
+    pub description_contains: Option<String>,
+    pub due_date_before: Option<DateTime<Utc>>,
+    pub due_date_after: Option<DateTime<Utc>>,
+    pub created_after: Option<DateTime<Utc>>,
+    pub created_before: Option<DateTime<Utc>>,
+    pub limit: Option<u64>,
+    pub offset: Option<u64>,
+    pub sort_by: Option<String>, // "title", "due_date", "created_at", "status"
+    pub sort_order: Option<String>, // "asc" or "desc"
+}
+
+// --- ページネーション用DTO ---
+#[derive(Serialize, Debug)]
+pub struct PaginatedTasksDto {
+    pub tasks: Vec<TaskDto>,
+    pub pagination: PaginationDto,
+}
+
+#[derive(Serialize, Debug)]
+pub struct PaginationDto {
+    pub current_page: u64,
+    pub page_size: u64,
+    pub total_items: u64,
+    pub total_pages: u64,
+    pub has_next_page: bool,
+    pub has_previous_page: bool,
+}
