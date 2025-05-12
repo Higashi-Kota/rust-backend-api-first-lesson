@@ -17,13 +17,15 @@ use uuid::Uuid;
 
 use crate::common;
 
-// APIテスト用ヘルパー関数
+// APIテスト用ヘルパー関数 - /health エンドポイントを追加
 async fn setup_app() -> Router {
     let db = common::db::TestDatabase::new().await;
     let service = std::sync::Arc::new(TaskService::new(db.connection));
     let app_state = AppState {
         task_service: service,
     };
+
+    // task_routerは既に/healthエンドポイントを含むので、そのまま使用
     task_router(app_state)
 }
 

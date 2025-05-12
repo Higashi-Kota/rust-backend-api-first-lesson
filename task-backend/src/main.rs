@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let task_service = Arc::new(TaskService::new(db_pool.clone()));
     let app_state = AppState { task_service };
 
-    let app_router = task_router(app_state).route("/health", axum::routing::get(|| async { "OK" }));
+    let app_router = task_router(app_state);
 
     tracing::info!(
         "Router configured. Server listening on {}",

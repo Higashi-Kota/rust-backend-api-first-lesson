@@ -361,6 +361,11 @@ pub async fn list_tasks_paginated_handler(
     Ok(Json(paginated_tasks))
 }
 
+// ヘルスチェックハンドラーを追加
+async fn health_check_handler() -> &'static str {
+    "OK"
+}
+
 // --- Router Setup ---
 pub fn task_router(app_state: AppState) -> Router {
     Router::new()
@@ -376,5 +381,7 @@ pub fn task_router(app_state: AppState) -> Router {
         .route("/tasks/batch/create", post(create_tasks_batch_handler))
         .route("/tasks/batch/update", patch(update_tasks_batch_handler))
         .route("/tasks/batch/delete", post(delete_tasks_batch_handler))
+        // ヘルスチェックエンドポイントを追加
+        .route("/health", get(health_check_handler))
         .with_state(app_state)
 }
