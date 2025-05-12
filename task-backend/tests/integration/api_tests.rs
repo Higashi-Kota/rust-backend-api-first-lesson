@@ -5,18 +5,17 @@ use axum::{
     http::{Request, StatusCode},
     Router,
 };
-use sea_orm::Statement;
-use serde_json::{json, Value};
+use sea_orm::{ConnectionTrait, Statement}; // ConnectionTraitをインポート
 use task_backend::{
     api::{
-        dto::task_dto::{CreateTaskDto, TaskDto, UpdateTaskDto},
+        dto::task_dto::TaskDto, // 未使用のDTOを削除
         handlers::task_handler::{task_router, AppState},
     },
     service::task_service::TaskService,
 };
 use tokio::sync::OnceCell;
 use tower::ServiceExt;
-use uuid::Uuid;
+// uuid::Uuid のインポートも削除（未使用）
 
 use crate::common;
 
