@@ -14,7 +14,7 @@ use crate::common;
 async fn test_create_task_service() {
     // データベースをセットアップ
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection);
+    let service = TaskService::new(db.connection.clone());
 
     // タスク作成
     let task_dto = common::create_test_task();
@@ -29,7 +29,7 @@ async fn test_create_task_service() {
 #[tokio::test]
 async fn test_get_task_service() {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection);
+    let service = TaskService::new(db.connection.clone());
 
     // タスク作成
     let task_dto = common::create_test_task();
@@ -47,7 +47,7 @@ async fn test_get_task_service() {
 #[tokio::test]
 async fn test_list_tasks_service() {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection);
+    let service = TaskService::new(db.connection.clone());
 
     // 複数のタスクを作成
     service
@@ -69,7 +69,7 @@ async fn test_list_tasks_service() {
 #[tokio::test]
 async fn test_update_task_service() {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection);
+    let service = TaskService::new(db.connection.clone());
 
     // タスク作成
     let task_dto = common::create_test_task();
@@ -92,7 +92,7 @@ async fn test_update_task_service() {
 #[tokio::test]
 async fn test_delete_task_service() {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection);
+    let service = TaskService::new(db.connection.clone());
 
     // タスク作成
     let task_dto = common::create_test_task();
@@ -109,7 +109,7 @@ async fn test_delete_task_service() {
 #[tokio::test]
 async fn test_batch_operations_service() {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection);
+    let service = TaskService::new(db.connection.clone());
 
     // バッチ作成
     let batch_create_dto = BatchCreateTaskDto {
@@ -177,7 +177,7 @@ async fn test_batch_operations_service() {
 #[tokio::test]
 async fn test_filter_tasks_service() {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection);
+    let service = TaskService::new(db.connection.clone());
 
     // フィルタテスト用のタスクを作成
     service
@@ -253,7 +253,7 @@ async fn test_filter_tasks_service() {
 #[tokio::test]
 async fn test_paginated_tasks_service() {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection);
+    let service = TaskService::new(db.connection.clone());
 
     // ページネーションテスト用のタスクを作成
     for i in 1..=15 {

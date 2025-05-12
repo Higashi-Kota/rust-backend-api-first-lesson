@@ -2,9 +2,10 @@
 use crate::api::dto::task_dto::*;
 use crate::error::{AppError, AppResult};
 use crate::service::task_service::TaskService;
+use async_trait::async_trait;
 use axum::{
-    extract::{Json, Path, Query, State},
-    http::StatusCode,
+    extract::{FromRequestParts, Json, Path, Query, State},
+    http::{request::Parts, StatusCode},
     response::IntoResponse,
     routing::{get, patch, post},
     Router,
@@ -19,6 +20,29 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct AppState {
     pub task_service: Arc<TaskService>,
+}
+
+// カスタムUUID抽出器
+pub struct UuidPath(pub Uuid);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for UuidPath
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        // パスパラメータを文字列として最初に抽出
+        let Path(path_str) = Path::<String>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| AppError::ValidationError("無効なパスパラメータ".to_string()))?;
+
+        // UUIDをパースして独自のエラータイプを返す
+        let uuid = Uuid::parse_str(&path_str).map_err(AppError::UuidError)?;
+
+        Ok(UuidPath(uuid))
+    }
 }
 
 // ページネーションパラメータ
@@ -79,7 +103,7 @@ pub async fn create_task_handler(
 
 pub async fn get_task_handler(
     State(app_state): State<AppState>,
-    Path(id): Path<Uuid>,
+    UuidPath(id): UuidPath,
 ) -> AppResult<Json<TaskDto>> {
     let task_dto = app_state.task_service.get_task(id).await?;
     Ok(Json(task_dto))
@@ -94,7 +118,7 @@ pub async fn list_tasks_handler(
 
 pub async fn update_task_handler(
     State(app_state): State<AppState>,
-    Path(id): Path<Uuid>,
+    UuidPath(id): UuidPath,
     Json(payload): Json<UpdateTaskDto>,
 ) -> AppResult<Json<TaskDto>> {
     // バリデーション強化
@@ -153,7 +177,7 @@ pub async fn update_task_handler(
 
 pub async fn delete_task_handler(
     State(app_state): State<AppState>,
-    Path(id): Path<Uuid>,
+    UuidPath(id): UuidPath,
 ) -> AppResult<StatusCode> {
     app_state.task_service.delete_task(id).await?;
     Ok(StatusCode::NO_CONTENT)
