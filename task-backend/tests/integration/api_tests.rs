@@ -82,19 +82,19 @@ async fn test_get_task_endpoint() {
         .body(Body::from(serde_json::to_string(&task_dto).unwrap()))
         .unwrap();
 
-    let res = app.oneshot(create_req).await.unwrap();
+    let res = app.clone().oneshot(create_req).await.unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let created_task: TaskDto = serde_json::from_slice(&body).unwrap();
 
     // 作成したタスクを取得
     let get_req = Request::builder()
-        .uri(&format!("/tasks/{}", created_task.id))
+        .uri(format!("/tasks/{}", created_task.id))
         .method("GET")
         .body(Body::empty())
         .unwrap();
 
-    let res = app.oneshot(get_req).await.unwrap();
+    let res = app.clone().oneshot(get_req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
@@ -129,7 +129,7 @@ async fn test_list_tasks_endpoint() {
         .body(Body::empty())
         .unwrap();
 
-    let res = app.oneshot(req).await.unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
@@ -166,7 +166,7 @@ async fn test_update_task_endpoint() {
 
     // タスクを更新
     let update_req = Request::builder()
-        .uri(&format!("/tasks/{}", created_task.id))
+        .uri(format!("/tasks/{}", created_task.id))
         .method("PATCH")
         .header("Content-Type", "application/json")
         .body(Body::from(serde_json::to_string(&update_dto).unwrap()))
@@ -205,7 +205,7 @@ async fn test_delete_task_endpoint() {
 
     // タスクを削除
     let delete_req = Request::builder()
-        .uri(&format!("/tasks/{}", created_task.id))
+        .uri(format!("/tasks/{}", created_task.id))
         .method("DELETE")
         .body(Body::empty())
         .unwrap();
@@ -216,12 +216,12 @@ async fn test_delete_task_endpoint() {
 
     // 削除されたことを確認
     let get_req = Request::builder()
-        .uri(&format!("/tasks/{}", created_task.id))
+        .uri(format!("/tasks/{}", created_task.id))
         .method("GET")
         .body(Body::empty())
         .unwrap();
 
-    let res = app.oneshot(get_req).await.unwrap();
+    let res = app.clone().oneshot(get_req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
 }
@@ -459,7 +459,7 @@ async fn test_filter_endpoint() {
         .body(Body::empty())
         .unwrap();
 
-    let res = app.oneshot(req).await.unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
@@ -522,7 +522,7 @@ async fn test_pagination_endpoint() {
         .body(Body::empty())
         .unwrap();
 
-    let res = app.oneshot(req).await.unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::OK);
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
@@ -561,7 +561,7 @@ async fn test_validation() {
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].as_array().unwrap().len() > 0);
+    assert!(!error["errors"].as_array().unwrap().is_empty());
 
     // 無効なステータス値を持つタスク
     let invalid_task = json!({
@@ -577,14 +577,14 @@ async fn test_validation() {
         .body(Body::from(invalid_task.to_string()))
         .unwrap();
 
-    let res = app.oneshot(req).await.unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].as_array().unwrap().len() > 0);
+    assert!(!error["errors"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -594,12 +594,12 @@ async fn test_not_found_error() {
     // 存在しないIDでタスクを取得
     let non_existent_id = Uuid::new_v4();
     let req = Request::builder()
-        .uri(&format!("/tasks/{}", non_existent_id))
+        .uri(format!("/tasks/{}", non_existent_id))
         .method("GET")
         .body(Body::empty())
         .unwrap();
 
-    let res = app.oneshot(req).await.unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::NOT_FOUND);
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
@@ -623,7 +623,7 @@ async fn test_invalid_uuid_error() {
         .body(Body::empty())
         .unwrap();
 
-    let res = app.oneshot(req).await.unwrap();
+    let res = app.clone().oneshot(req).await.unwrap();
 
     assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
