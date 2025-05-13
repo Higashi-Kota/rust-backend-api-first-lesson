@@ -162,11 +162,6 @@ impl TestDatabase {
             schema_name,
         }
     }
-
-    // スキーマ名を取得するメソッドを追加
-    pub fn get_schema_name(&self) -> &str {
-        &self.schema_name
-    }
 }
 
 impl Drop for TestDatabase {

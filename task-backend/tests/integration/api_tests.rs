@@ -4,7 +4,8 @@ use axum::{
     http::{Request, StatusCode},
     Router,
 };
-use sea_orm::{ConnectionTrait, Statement};
+use migration::{Migrator, MigratorTrait};
+use sea_orm::{ConnectionTrait, DatabaseBackend, DbBackend, Statement};
 use serde_json::{json, Value};
 // ConnectionTraitをインポート
 use task_backend::{
@@ -20,41 +21,83 @@ use uuid::Uuid;
 
 use crate::common;
 
+// 共有データベーススキーマ名を保存するためのOnceCell
+static SHARED_SCHEMA: OnceCell<String> = OnceCell::const_new();
+
 // APIテスト用のルーターを一度だけ初期化する
 static APP: OnceCell<Router> = OnceCell::const_new();
 
+// 共有スキーマ名を取得または初期化する関数
+async fn get_or_create_schema() -> &'static String {
+    SHARED_SCHEMA
+        .get_or_init(|| async {
+            // 固定のスキーマ名を使用（UUID は一度だけ生成）
+            let schema_name = format!(
+                "api_test_shared_{}",
+                Uuid::new_v4().to_string().replace('-', "")
+            );
+
+            // テスト用DBコンテナの情報を取得
+            let db = common::db::TestDatabase::new().await;
+
+            // 基本接続を使用（初期設定用）
+            let admin_conn = db.connection.clone();
+
+            // 共有スキーマを作成
+            let create_schema = format!("CREATE SCHEMA IF NOT EXISTS \"{}\";", schema_name);
+            admin_conn
+                .execute(Statement::from_string(DbBackend::Postgres, create_schema))
+                .await
+                .expect("スキーマ作成に失敗");
+
+            // スキーマのsearch_pathを設定
+            let set_path = format!("SET search_path TO \"{}\";", schema_name);
+            admin_conn
+                .execute(Statement::from_string(DbBackend::Postgres, set_path))
+                .await
+                .expect("search pathの設定に失敗");
+
+            // マイグレーションを実行
+            Migrator::up(&admin_conn, None)
+                .await
+                .expect("マイグレーション失敗");
+
+            println!("APIテスト用の共有スキーマを作成しました: {}", schema_name);
+            schema_name
+        })
+        .await
+}
+
 // APIテスト用ヘルパー関数
 async fn get_test_app() -> &'static Router {
-    APP.get_or_init(|| async {
-        // テストデータベースを作成
-        let db = common::db::TestDatabase::new().await;
+    // 先に共有スキーマを初期化しておく
+    let schema_name = get_or_create_schema().await;
 
-        // スキーマコンテキストの設定を確認・記録（デバッグ用）
-        let schema_query = "SHOW search_path;";
-        let schema_result = db
-            .connection
+    APP.get_or_init(|| async {
+        // テストデータベースを作成し、既存の共有スキーマを参照するよう設定
+        let db = common::db::TestDatabase::new().await;
+        let connection = db.connection.clone();
+
+        // 明示的に共有スキーマをデフォルトの検索パスとして設定
+        let set_search_path = format!("SET search_path TO \"{}\";", schema_name);
+        connection
+            .execute(Statement::from_string(DbBackend::Postgres, set_search_path))
+            .await
+            .expect("search pathの設定に失敗");
+
+        // 検索パスの設定を確認
+        let schema_result = connection
             .query_one(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                schema_query.to_string(),
+                DatabaseBackend::Postgres,
+                "SHOW search_path;".to_string(),
             ))
             .await
             .unwrap();
 
         println!("APIテスト用のsearch_path設定: {:?}", schema_result);
 
-        // テストスキーマで検索パスを明示的に設定（念のため）
-        let schema_name = db.get_schema_name();
-        let set_search_path = format!("SET search_path TO \"{}\";", schema_name);
-        db.connection
-            .execute(Statement::from_string(
-                sea_orm::DatabaseBackend::Postgres,
-                set_search_path,
-            ))
-            .await
-            .expect("search pathの設定に失敗");
-
         // TaskServiceを作成
-        let service = std::sync::Arc::new(TaskService::new(db.connection.clone()));
+        let service = std::sync::Arc::new(TaskService::new(connection));
         let app_state = AppState {
             task_service: service,
         };
@@ -65,8 +108,35 @@ async fn get_test_app() -> &'static Router {
     .await
 }
 
+// 各テスト実行前に呼び出すクリーンアップ関数
+async fn cleanup_test_data() {
+    let schema_name = get_or_create_schema().await;
+
+    // 新しいテスト用データベース接続を作成
+    let db = common::db::TestDatabase::new().await;
+    let connection = db.connection.clone();
+
+    // 検索パスを共有スキーマに設定
+    let set_search_path = format!("SET search_path TO \"{}\";", schema_name);
+    connection
+        .execute(Statement::from_string(DbBackend::Postgres, set_search_path))
+        .await
+        .expect("search pathの設定に失敗");
+
+    // tasksテーブルのデータを削除
+    let truncate_query = format!("TRUNCATE TABLE \"{}\".tasks CASCADE;", schema_name);
+    match connection
+        .execute(Statement::from_string(DbBackend::Postgres, truncate_query))
+        .await
+    {
+        Ok(_) => println!("テストデータをクリーンアップしました: {}", schema_name),
+        Err(e) => println!("クリーンアップエラー (無視可): {:?}", e),
+    }
+}
+
 #[tokio::test]
 async fn test_health_endpoint() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     let req = Request::builder()
@@ -84,6 +154,7 @@ async fn test_health_endpoint() {
 
 #[tokio::test]
 async fn test_create_task_endpoint() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     let task_dto = common::create_test_task();
@@ -108,6 +179,7 @@ async fn test_create_task_endpoint() {
 
 #[tokio::test]
 async fn test_get_task_endpoint() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // まずタスクを作成
@@ -144,6 +216,7 @@ async fn test_get_task_endpoint() {
 
 #[tokio::test]
 async fn test_list_tasks_endpoint() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // いくつかのタスクを作成
@@ -178,6 +251,7 @@ async fn test_list_tasks_endpoint() {
 
 #[tokio::test]
 async fn test_update_task_endpoint() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // まずタスクを作成
@@ -225,6 +299,7 @@ async fn test_update_task_endpoint() {
 
 #[tokio::test]
 async fn test_delete_task_endpoint() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // まずタスクを作成
@@ -266,6 +341,7 @@ async fn test_delete_task_endpoint() {
 
 #[tokio::test]
 async fn test_batch_operations_endpoints() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // バッチ作成テスト
@@ -407,6 +483,7 @@ async fn test_batch_operations_endpoints() {
 
 #[tokio::test]
 async fn test_filter_endpoint() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // テストデータを作成
@@ -509,6 +586,7 @@ async fn test_filter_endpoint() {
 
 #[tokio::test]
 async fn test_pagination_endpoint() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // ページネーションテスト用のタスクを作成
@@ -576,6 +654,7 @@ async fn test_pagination_endpoint() {
 
 #[tokio::test]
 async fn test_validation() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // 空のタイトルを持つ無効なタスク
@@ -627,6 +706,7 @@ async fn test_validation() {
 
 #[tokio::test]
 async fn test_not_found_error() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // 存在しないIDでタスクを取得
@@ -652,6 +732,7 @@ async fn test_not_found_error() {
 
 #[tokio::test]
 async fn test_invalid_uuid_error() {
+    cleanup_test_data().await;
     let app = get_test_app().await;
 
     // 無効なUUIDでタスクを取得
