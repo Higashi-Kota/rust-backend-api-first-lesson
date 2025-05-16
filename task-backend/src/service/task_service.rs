@@ -8,16 +8,23 @@ use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::repository::task_repository::TaskRepository;
 use std::sync::Arc;
-use uuid::Uuid; // DbPool をインポート
+use uuid::Uuid;
 
 pub struct TaskService {
-    repo: Arc<TaskRepository>, // Arc でラップしてスレッドセーフな参照カウント
+    repo: Arc<TaskRepository>,
 }
 
 impl TaskService {
     pub fn new(db_pool: DbPool) -> Self {
         Self {
             repo: Arc::new(TaskRepository::new(db_pool)),
+        }
+    }
+
+    // スキーマを指定するコンストラクタを追加
+    pub fn with_schema(db_pool: DbPool, schema: String) -> Self {
+        Self {
+            repo: Arc::new(TaskRepository::with_schema(db_pool, schema)),
         }
     }
 
@@ -42,8 +49,6 @@ impl TaskService {
     }
 
     pub async fn update_task(&self, id: Uuid, payload: UpdateTaskDto) -> AppResult<TaskDto> {
-        // 先に存在確認をするか、リポジトリ層の update が None を返したら NotFound にするか
-        // ここではリポジトリ層の結果で判断
         let updated_task = self.repo.update(id, payload).await?.ok_or_else(|| {
             AppError::NotFound(format!("Task with id {} not found for update", id))
         })?;
@@ -72,35 +77,16 @@ impl TaskService {
                 created_tasks: vec![],
             });
         }
-        // SeaORM の insert_many は成功したモデルのリストではなく、last_insert_id (Postgresでは通常使えない) を返す。
-        // そのため、挿入後に再度取得するか、個別に挿入して結果を収集する必要がある。
-        // ここでは簡単化のため、リポジトリの create_many が InsertResult を返し、
-        // それをそのまま使うか、あるいは個別に作成してDTOを組み立てる。
-        // 今回は個別に作成し、成功したものを集める形にしてみる（エラーハンドリングが複雑になる可能性）
-        // または、リポジトリ側で挿入したモデルを返すように変更する（要検討）
 
-        // 例: 個別に作成し、結果を収集 (トランザクションを張るのが望ましい)
-        let mut created_task_dtos = Vec::new();
-        for task_payload in payload.tasks {
-            // 本来はトランザクション内で実行すべき
-            match self.repo.create(task_payload).await {
-                Ok(task_model) => created_task_dtos.push(task_model.into()),
-                Err(e) => {
-                    // エラー処理: 一部失敗した場合どうするか？ (全体をロールバック or 失敗を通知)
-                    // ここではシンプルにエラーをログに出してスキップする例 (本番では不適切)
-                    eprintln!("Failed to create a task in batch: {:?}", e);
-                    // return Err(AppError::DbErr(e)); // または全体を失敗させる
-                }
-            }
-        }
+        // リポジトリの create_many メソッドを使用
+        let created_models = self.repo.create_many(payload.tasks).await?;
+
+        // モデルをDTOに変換
+        let created_task_dtos = created_models.into_iter().map(Into::into).collect();
+
         Ok(BatchCreateResponseDto {
             created_tasks: created_task_dtos,
         })
-
-        // もし `repo.create_many` が挿入したモデルを返すようにリファクタリングした場合:
-        // let created_models = self.repo.create_many(payload.tasks).await?; // 仮に Vec<task_model::Model> を返すと仮定
-        // let dtos = created_models.into_iter().map(Into::into).collect();
-        // Ok(BatchCreateResponseDto { created_tasks: dtos })
     }
 
     pub async fn update_tasks_batch(

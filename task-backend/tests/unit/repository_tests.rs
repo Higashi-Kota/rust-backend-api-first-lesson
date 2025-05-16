@@ -7,11 +7,17 @@ use task_backend::{
 
 use crate::common;
 
+// リポジトリテスト用のセットアップヘルパー関数
+async fn setup_test_repository() -> (common::db::TestDatabase, TaskRepository) {
+    let db = common::db::TestDatabase::new().await;
+    let repo = TaskRepository::with_schema(db.connection.clone(), db.schema_name.clone());
+    (db, repo)
+}
+
 #[tokio::test]
 async fn test_create_task() {
-    // データベースをセットアップ
-    let db = common::db::TestDatabase::new().await;
-    let repo = TaskRepository::new(db.connection.clone());
+    // セットアップ
+    let (_db, repo) = setup_test_repository().await;
 
     // テスト用タスクを作成
     let task_dto = common::create_test_task();
@@ -26,8 +32,7 @@ async fn test_create_task() {
 
 #[tokio::test]
 async fn test_find_by_id() {
-    let db = common::db::TestDatabase::new().await;
-    let repo = TaskRepository::new(db.connection.clone());
+    let (_db, repo) = setup_test_repository().await;
 
     // タスクを作成してIDを取得
     let task_dto = common::create_test_task();
@@ -44,8 +49,7 @@ async fn test_find_by_id() {
 
 #[tokio::test]
 async fn test_find_all() {
-    let db = common::db::TestDatabase::new().await;
-    let repo = TaskRepository::new(db.connection.clone());
+    let (_db, repo) = setup_test_repository().await;
 
     // 複数のタスクを作成
     let task1 = common::create_test_task_with_title("Task 1");
@@ -57,14 +61,18 @@ async fn test_find_all() {
     // すべてのタスクを取得
     let tasks = repo.find_all().await.unwrap();
 
-    // 少なくとも2つのタスクがあることを確認
-    assert!(tasks.len() >= 2);
+    // 正確に2つのタスクがあることを確認
+    assert_eq!(tasks.len(), 2);
+
+    // タスクのタイトルを確認
+    let titles: Vec<String> = tasks.iter().map(|t| t.title.clone()).collect();
+    assert!(titles.contains(&"Task 1".to_string()));
+    assert!(titles.contains(&"Task 2".to_string()));
 }
 
 #[tokio::test]
 async fn test_update_task() {
-    let db = common::db::TestDatabase::new().await;
-    let repo = TaskRepository::new(db.connection.clone());
+    let (_db, repo) = setup_test_repository().await;
 
     // タスクを作成
     let task_dto = common::create_test_task();
@@ -92,8 +100,7 @@ async fn test_update_task() {
 
 #[tokio::test]
 async fn test_delete_task() {
-    let db = common::db::TestDatabase::new().await;
-    let repo = TaskRepository::new(db.connection.clone());
+    let (_db, repo) = setup_test_repository().await;
 
     // タスクを作成
     let task_dto = common::create_test_task();
@@ -111,8 +118,7 @@ async fn test_delete_task() {
 
 #[tokio::test]
 async fn test_find_with_filter() {
-    let db = common::db::TestDatabase::new().await;
-    let repo = TaskRepository::new(db.connection.clone());
+    let (_db, repo) = setup_test_repository().await;
 
     // テスト用タスクをいくつか作成
     let task1 = CreateTaskDto {
@@ -148,8 +154,8 @@ async fn test_find_with_filter() {
 
     let (filtered_tasks, count) = repo.find_with_filter(&filter).await.unwrap();
 
-    // "todo"ステータスのタスクが少なくとも2つあることを確認
-    assert!(filtered_tasks.len() >= 2);
+    // "todo"ステータスのタスクが2つあることを確認
+    assert_eq!(filtered_tasks.len(), 2);
     assert_eq!(filtered_tasks.len() as u64, count);
 
     // タイトルによるフィルタリング
@@ -158,10 +164,11 @@ async fn test_find_with_filter() {
         ..Default::default()
     };
 
-    let (filtered_tasks, _) = repo.find_with_filter(&filter).await.unwrap();
+    let (filtered_tasks, count) = repo.find_with_filter(&filter).await.unwrap();
 
-    // "Important"を含むタスクが少なくとも2つあることを確認
-    assert!(filtered_tasks.len() >= 2);
+    // "Important"を含むタスクが2つあることを確認
+    assert_eq!(filtered_tasks.len(), 2);
+    assert_eq!(filtered_tasks.len() as u64, count);
 
     // 複合フィルタリング
     let filter = TaskFilterDto {
@@ -170,10 +177,11 @@ async fn test_find_with_filter() {
         ..Default::default()
     };
 
-    let (filtered_tasks, _) = repo.find_with_filter(&filter).await.unwrap();
+    let (filtered_tasks, count) = repo.find_with_filter(&filter).await.unwrap();
 
-    // "todo"ステータスで"Important"を含むタスクが少なくとも1つあることを確認
-    assert!(!filtered_tasks.is_empty());
+    // "todo"ステータスで"Important"を含むタスクが2つあることを確認
+    assert_eq!(filtered_tasks.len(), 2);
+    assert_eq!(filtered_tasks.len() as u64, count);
 
     // すべてのフィルタ条件が一致しないケース
     let filter = TaskFilterDto {
@@ -190,8 +198,7 @@ async fn test_find_with_filter() {
 
 #[tokio::test]
 async fn test_batch_operations() {
-    let db = common::db::TestDatabase::new().await;
-    let repo = TaskRepository::new(db.connection.clone());
+    let (_db, repo) = setup_test_repository().await;
 
     // 複数のタスクを一括作成用に準備
     let batch_tasks = vec![
@@ -248,8 +255,7 @@ async fn test_batch_operations() {
 
 #[tokio::test]
 async fn test_pagination() {
-    let db = common::db::TestDatabase::new().await;
-    let repo = TaskRepository::new(db.connection.clone());
+    let (_db, repo) = setup_test_repository().await;
 
     // 多数のタスクを作成
     for i in 1..=12 {
@@ -268,8 +274,8 @@ async fn test_pagination() {
     // 1ページ目には5件のタスクがあること
     assert_eq!(page1_tasks.len(), 5);
 
-    // 合計件数は少なくとも12件あること
-    assert!(total_count >= 12);
+    // 合計件数は12件であること
+    assert_eq!(total_count, 12);
 
     // 2ページ目を取得
     let (page2_tasks, _) = repo.find_all_paginated(2, 5).await.unwrap();

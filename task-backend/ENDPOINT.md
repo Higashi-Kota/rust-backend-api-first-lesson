@@ -212,7 +212,7 @@ curl -X POST http://localhost:3000/tasks/batch/delete \
 ### 9. ヘルスチェック (GET /health)
 
 ```bash
-curl -X GET http://localhost:3000/health | jq
+curl -X GET http://localhost:3000/health | awk 4
 ```
 
 レスポンス例:
@@ -281,7 +281,7 @@ curl -X GET http://localhost:3000/tasks/invalid-uuid | jq
 ### ページネーション付きタスク一覧取得 (GET /tasks/paginated)
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=5"
+curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=5" | jq
 ```
 
 レスポンス例:
@@ -314,7 +314,7 @@ curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=5"
 ### 2 ページ目の取得
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/paginated?page=2&page_size=5"
+curl -X GET "http://localhost:3000/tasks/paginated?page=2&page_size=5" | jq
 ```
 
 ## フィルタリングの使用例
@@ -322,7 +322,7 @@ curl -X GET "http://localhost:3000/tasks/paginated?page=2&page_size=5"
 ### ステータスでフィルタリング
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter?status=todo&limit=10"
+curl -X GET "http://localhost:3000/tasks/filter?status=todo&limit=10" | jq
 ```
 
 レスポンス例:
@@ -346,7 +346,7 @@ curl -X GET "http://localhost:3000/tasks/filter?status=todo&limit=10"
 ### タイトルで検索
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter?title_contains=重要&limit=10"
+curl -X GET "http://localhost:3000/tasks/filter?title_contains=重要&limit=10" | jq
 ```
 
 レスポンス例:
@@ -370,7 +370,7 @@ curl -X GET "http://localhost:3000/tasks/filter?title_contains=重要&limit=10"
 ### 期日で絞り込み
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter?due_date_before=2025-06-30T00:00:00Z&due_date_after=2025-06-01T00:00:00Z"
+curl -X GET "http://localhost:3000/tasks/filter?due_date_before=2025-06-30T00:00:00Z&due_date_after=2025-06-01T00:00:00Z" | jq
 ```
 
 レスポンス例:
@@ -389,7 +389,7 @@ curl -X GET "http://localhost:3000/tasks/filter?due_date_before=2025-06-30T00:00
 ### 複合条件でフィルタリング
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter?status=in_progress&title_contains=開発&sort_by=due_date&sort_order=asc"
+curl -X GET "http://localhost:3000/tasks/filter?status=in_progress&title_contains=開発&sort_by=due_date&sort_order=asc" | jq
 ```
 
 レスポンス例:
@@ -408,7 +408,7 @@ curl -X GET "http://localhost:3000/tasks/filter?status=in_progress&title_contain
 ### オフセットとリミットを指定した検索
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter?status=todo&offset=5&limit=5"
+curl -X GET "http://localhost:3000/tasks/filter?status=todo&offset=5&limit=5" | jq
 ```
 
 レスポンス例:
@@ -434,19 +434,19 @@ curl -X GET "http://localhost:3000/tasks/filter?status=todo&offset=5&limit=5"
 ### 作成日の新しい順（デフォルト）
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter"
+curl -X GET "http://localhost:3000/tasks/filter" | jq
 ```
 
 ### タイトルのアルファベット順
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter?sort_by=title&sort_order=asc"
+curl -X GET "http://localhost:3000/tasks/filter?sort_by=title&sort_order=asc" | jq
 ```
 
 ### 期日の迫っている順
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter?sort_by=due_date&sort_order=asc"
+curl -X GET "http://localhost:3000/tasks/filter?sort_by=due_date&sort_order=asc" | jq
 ```
 
 ## 複合テストケース
@@ -456,7 +456,7 @@ curl -X GET "http://localhost:3000/tasks/filter?sort_by=due_date&sort_order=asc"
 非常に大きな page_size を指定した場合でも、システム側で制限されることを確認します：
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=1000"
+curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=1000" | jq
 ```
 
 結果として最大 100 件のみが返されるはずです。
@@ -466,7 +466,7 @@ curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=1000"
 不正な並び替えフィールドを指定した場合：
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter?sort_by=invalid_field"
+curl -X GET "http://localhost:3000/tasks/filter?sort_by=invalid_field" | jq
 ```
 
 この場合、デフォルトの並び順（作成日の降順）で結果が返されます。
@@ -488,13 +488,13 @@ curl -X POST http://localhost:3000/tasks/batch/create \
       {"title": "パフォーマンステスト4", "status": "in_progress"},
       {"title": "パフォーマンステスト5", "status": "completed"}
     ]
-  }'
+  }' | jq
 ```
 
 次に、フィルタリングとページネーションを組み合わせてパフォーマンスを確認します：
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/filter?title_contains=パフォーマンス&page=1&page_size=2"
+curl -X GET "http://localhost:3000/tasks/filter?title_contains=パフォーマンス&page=1&page_size=2" | jq
 ```
 
 レスポンス時間を確認するには、time コマンドを使用できます：

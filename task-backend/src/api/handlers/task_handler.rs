@@ -16,7 +16,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 // アプリケーションの状態を保持する構造体 (axum の State で渡される)
-// Clone が必要
+// スキーマを追加
 #[derive(Clone)]
 pub struct AppState {
     pub task_service: Arc<TaskService>,
@@ -391,6 +391,7 @@ async fn health_check_handler() -> &'static str {
 }
 
 // --- Router Setup ---
+// スキーマを指定できるようにルーター構築関数を修正
 pub fn task_router(app_state: AppState) -> Router {
     Router::new()
         .route("/tasks", get(list_tasks_handler).post(create_task_handler))
@@ -408,4 +409,10 @@ pub fn task_router(app_state: AppState) -> Router {
         // ヘルスチェックエンドポイントを追加
         .route("/health", get(health_check_handler))
         .with_state(app_state)
+}
+
+// スキーマを指定したルーター構築用ヘルパー関数を追加
+pub fn task_router_with_schema(task_service: Arc<TaskService>) -> Router {
+    let app_state = AppState { task_service };
+    task_router(app_state)
 }

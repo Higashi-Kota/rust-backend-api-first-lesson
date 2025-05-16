@@ -10,11 +10,17 @@ use uuid::Uuid;
 
 use crate::common;
 
+// サービステスト用のセットアップヘルパー関数
+async fn setup_test_service() -> (common::db::TestDatabase, TaskService) {
+    let db = common::db::TestDatabase::new().await;
+    let service = TaskService::with_schema(db.connection.clone(), db.schema_name.clone());
+    (db, service)
+}
+
 #[tokio::test]
 async fn test_create_task_service() {
     // データベースをセットアップ
-    let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+    let (_db, service) = setup_test_service().await;
 
     // タスク作成
     let task_dto = common::create_test_task();
@@ -28,8 +34,7 @@ async fn test_create_task_service() {
 
 #[tokio::test]
 async fn test_get_task_service() {
-    let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+    let (_db, service) = setup_test_service().await;
 
     // タスク作成
     let task_dto = common::create_test_task();
@@ -46,8 +51,7 @@ async fn test_get_task_service() {
 
 #[tokio::test]
 async fn test_list_tasks_service() {
-    let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+    let (_db, service) = setup_test_service().await;
 
     // 複数のタスクを作成
     service
@@ -63,13 +67,16 @@ async fn test_list_tasks_service() {
     let tasks = service.list_tasks().await.unwrap();
 
     // 検証
-    assert!(tasks.len() >= 2);
+    assert_eq!(tasks.len(), 2);
+    // タスクのタイトルを確認
+    let titles: Vec<String> = tasks.iter().map(|t| t.title.clone()).collect();
+    assert!(titles.contains(&"Task A".to_string()));
+    assert!(titles.contains(&"Task B".to_string()));
 }
 
 #[tokio::test]
 async fn test_update_task_service() {
-    let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+    let (_db, service) = setup_test_service().await;
 
     // タスク作成
     let task_dto = common::create_test_task();
@@ -91,8 +98,7 @@ async fn test_update_task_service() {
 
 #[tokio::test]
 async fn test_delete_task_service() {
-    let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+    let (_db, service) = setup_test_service().await;
 
     // タスク作成
     let task_dto = common::create_test_task();
@@ -108,8 +114,7 @@ async fn test_delete_task_service() {
 
 #[tokio::test]
 async fn test_batch_operations_service() {
-    let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+    let (_db, service) = setup_test_service().await;
 
     // バッチ作成
     let batch_create_dto = BatchCreateTaskDto {
@@ -176,8 +181,7 @@ async fn test_batch_operations_service() {
 
 #[tokio::test]
 async fn test_filter_tasks_service() {
-    let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+    let (_db, service) = setup_test_service().await;
 
     // フィルタテスト用のタスクを作成
     service
@@ -219,8 +223,8 @@ async fn test_filter_tasks_service() {
 
     let result = service.filter_tasks(filter).await.unwrap();
 
-    // 検証 - todoステータスのタスクが少なくとも2つあるはず
-    assert!(result.tasks.len() >= 2);
+    // 検証 - todoステータスのタスクが2つあるはず
+    assert_eq!(result.tasks.len(), 2);
     assert_eq!(result.pagination.page_size, 10);
 
     // タイトルでフィルタリング
@@ -232,8 +236,8 @@ async fn test_filter_tasks_service() {
 
     let result = service.filter_tasks(filter).await.unwrap();
 
-    // 検証 - "Another"を含むタスクが少なくとも1つあるはず
-    assert!(!result.tasks.is_empty());
+    // 検証 - "Another"を含むタスクが1つあるはず
+    assert_eq!(result.tasks.len(), 1);
     assert!(result.tasks.iter().any(|t| t.title.contains("Another")));
 
     // 該当タスクなしのケース
@@ -252,8 +256,7 @@ async fn test_filter_tasks_service() {
 
 #[tokio::test]
 async fn test_paginated_tasks_service() {
-    let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+    let (_db, service) = setup_test_service().await;
 
     // ページネーションテスト用のタスクを作成
     for i in 1..=15 {
@@ -275,7 +278,7 @@ async fn test_paginated_tasks_service() {
     assert_eq!(page1_result.tasks.len(), 5);
     assert_eq!(page1_result.pagination.current_page, 1);
     assert_eq!(page1_result.pagination.page_size, 5);
-    assert!(page1_result.pagination.total_items >= 15);
+    assert_eq!(page1_result.pagination.total_items, 15);
     assert!(page1_result.pagination.has_next_page);
     assert!(!page1_result.pagination.has_previous_page);
 
