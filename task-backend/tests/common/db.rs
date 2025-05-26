@@ -1,8 +1,6 @@
-//! テスト用データベースヘルパー（SeaORMとtestcontainers‑rs v0.24を使用）
-
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, DbBackend, DbErr, Statement};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::time::Duration;
 use testcontainers_modules::{
     postgres::Postgres,
@@ -13,62 +11,71 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 // 全テスト共有のPostgresコンテナとポート
-static POSTGRES_CONTAINER: OnceCell<Arc<Mutex<ContainerAsync<Postgres>>>> = OnceCell::const_new();
+static POSTGRES_CONTAINER: OnceCell<Mutex<Weak<Mutex<ContainerAsync<Postgres>>>>> =
+    OnceCell::const_new();
 static DB_PORT: OnceCell<u16> = OnceCell::const_new();
 
-async fn get_or_create_container() -> u16 {
-    let _container_ref = POSTGRES_CONTAINER
-        .get_or_init(|| async {
-            // Postgres設定
-            let image = Postgres::default()
-                .with_tag("15-alpine")
-                .with_env_var("POSTGRES_USER", "postgres")
-                .with_env_var("POSTGRES_PASSWORD", "postgres")
-                .with_env_var("POSTGRES_DB", "test_db");
-
-            // コンテナ起動
-            let container = image.start().await.expect("PostgreSQLコンテナの起動に失敗");
-            let port = container
-                .get_host_port_ipv4(5432)
-                .await
-                .expect("マップされたポートの取得に失敗");
-
-            DB_PORT.set(port).expect("DB_PORTの設定に失敗");
-
-            // コンテナが起動したら少し待機する（安定化のため）
-            tokio::time::sleep(Duration::from_secs(2)).await;
-
-            Arc::new(Mutex::new(container))
-        })
+async fn get_or_create_container() -> Arc<Mutex<ContainerAsync<Postgres>>> {
+    // Weak ポインタでコンテナを管理し、必要なら起動
+    let mut guard = POSTGRES_CONTAINER
+        .get_or_init(|| async { Mutex::new(Weak::new()) })
+        .await
+        .lock()
         .await;
+    if let Some(container_arc) = guard.upgrade() {
+        // すでにコンテナが存在する場合はそれを利用
+        drop(guard);
+        container_arc
+    } else {
+        // 新しい Postgres コンテナを起動（初回のみ）
+        let image = Postgres::default()
+            .with_tag("15-alpine")
+            .with_env_var("POSTGRES_USER", "postgres")
+            .with_env_var("POSTGRES_PASSWORD", "postgres")
+            .with_env_var("POSTGRES_DB", "test_db");
+        let container = image.start().await.expect("PostgreSQLコンテナの起動に失敗");
+        let port = container
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("マップされたポートの取得に失敗");
+        DB_PORT.set(port).expect("DB_PORTの設定に失敗");
 
-    *DB_PORT.get().expect("DB_PORTが設定されていません")
+        // コンテナ安定化のため少し待機
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // コンテナを Arc 管理下に置き、Weak ポインタを格納
+        let new_container_arc = Arc::new(Mutex::new(container));
+        *guard = Arc::downgrade(&new_container_arc);
+        drop(guard);
+        new_container_arc
+    }
 }
 
 pub struct TestDatabase {
     pub connection: DatabaseConnection,
     pub schema_name: String,
+    #[allow(dead_code)]
+    // この行を追加して警告を抑制 フィールドを 削除してしまうと強参照が失われ、最後のテストが終わる前にコンテナが Drop される可能性があるので、保持は必須です。
+    _container: Arc<Mutex<ContainerAsync<Postgres>>>, // コンテナ参照を保持
 }
 
 impl TestDatabase {
     // 標準のコンストラクタ
     pub async fn new() -> Self {
-        // 新しいスキーマ名を生成
         let schema_name = format!("test_{}", Uuid::new_v4().to_string().replace('-', ""));
         Self::with_schema(schema_name).await
     }
 
-    // 明示的にスキーマ名を指定するコンストラクタを追加
+    // スキーマ名を指定するコンストラクタ
     pub async fn with_schema(schema_name: String) -> Self {
-        // 共有コンテナを取得またはポートを作成
-        let port = get_or_create_container().await;
+        // 共有コンテナを取得（必要に応じ起動）
+        let container_arc = get_or_create_container().await;
+        let port = *DB_PORT.get().expect("DB_PORTが設定されていません");
 
         info!("テストスキーマを作成: {}", schema_name);
 
-        // データベース接続URL
+        // 管理者用の基本接続を作成
         let url = format!("postgres://postgres:postgres@localhost:{}/test_db", port);
-
-        // 基本接続を作成（初期設定用）
         let admin_conn = Self::create_connection(&url, None)
             .await
             .expect("データベース接続の作成に失敗");
@@ -79,7 +86,7 @@ impl TestDatabase {
             .await
             .expect("スキーマ作成に失敗");
 
-        // 新しいコネクションを作成（指定されたスキーマを検索パスに設定）
+        // テスト用の接続を作成（検索パスにスキーマを設定）
         let connection = Self::create_connection(&url, Some(&schema_name))
             .await
             .expect("テスト用データベース接続の作成に失敗");
@@ -93,12 +100,12 @@ impl TestDatabase {
 
         // テーブルが正しく作成されたか確認
         Self::verify_schema(&connection, &schema_name).await;
-
         info!("テストデータベースの準備完了: {}", schema_name);
 
         Self {
             connection,
             schema_name,
+            _container: container_arc, // コンテナ参照を保存
         }
     }
 
@@ -108,7 +115,6 @@ impl TestDatabase {
         schema: Option<&str>,
     ) -> Result<DatabaseConnection, DbErr> {
         use sea_orm::ConnectOptions;
-
         let mut opt = ConnectOptions::new(url.to_string());
         opt.max_connections(10)
             .min_connections(1)
@@ -116,20 +122,14 @@ impl TestDatabase {
             .acquire_timeout(Duration::from_secs(10))
             .idle_timeout(Duration::from_secs(10))
             .max_lifetime(Duration::from_secs(30))
-            .sqlx_logging(true); // テスト中のSQLクエリログを有効化
-
-        // スキーマ検索パスを設定（指定されている場合）
+            .sqlx_logging(true);
         if let Some(schema_name) = schema {
             opt.set_schema_search_path(schema_name.to_string());
         }
-
         let connection = Database::connect(opt).await?;
-
-        // 明示的に検索パスを設定（指定されている場合）
         if let Some(schema_name) = schema {
             Self::set_schema_search_path(&connection, schema_name).await?;
         }
-
         Ok(connection)
     }
 
@@ -151,14 +151,12 @@ impl TestDatabase {
 
     // スキーマの整合性を確認
     async fn verify_schema(conn: &DatabaseConnection, schema: &str) {
-        // テーブルが正しく作成されたか確認
         let tables_query = r#"
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = $1
             ORDER BY table_name;
         "#;
-
         let results = conn
             .query_all(Statement::from_sql_and_values(
                 DbBackend::Postgres,
@@ -167,19 +165,14 @@ impl TestDatabase {
             ))
             .await
             .expect("テーブル一覧取得に失敗");
-
         if results.is_empty() {
             panic!("スキーマ {} にテーブルが作成されていません", schema);
         }
-
         let table_names: Vec<String> = results
             .iter()
             .map(|row| row.try_get("", "table_name").unwrap_or_default())
             .collect();
-
         debug!("スキーマ {} のテーブル一覧: {:?}", schema, table_names);
-
-        // 特に tasks テーブルが存在するか確認
         if !table_names.contains(&"tasks".to_string()) {
             panic!("スキーマ {} に tasks テーブルが見つかりません", schema);
         }
@@ -191,7 +184,6 @@ impl Drop for TestDatabase {
         // テスト終了時にスキーマをクリーンアップ
         let schema_name = self.schema_name.clone();
         let connection = self.connection.clone();
-
         tokio::spawn(async move {
             debug!("スキーマ削除開始: {}", schema_name);
             let drop_schema = format!("DROP SCHEMA IF EXISTS \"{}\" CASCADE;", schema_name);
