@@ -30,12 +30,6 @@ jobs:
         ports:
           - 5432:5432
 
-    strategy:
-      matrix:
-        # $ cargo --version
-        # cargo 1.86.0 (adf9b6ad1 2025-02-28)
-        rust: [1.86.0] # ローカルと同じバージョン
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,7 +37,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
+          # rust-toolchain.tomlが自動的に読み込まれる
           components: rustfmt, clippy
 
       # アプリケーションなのでCargo.lockを信頼し、再現可能なビルドを保証
@@ -65,9 +59,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-${{ matrix.rust }}-
             ${{ runner.os }}-cargo-
 
       - name: Install system dependencies
