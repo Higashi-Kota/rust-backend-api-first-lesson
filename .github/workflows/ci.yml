@@ -44,6 +44,18 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
 
+      # アプリケーションなのでCargo.lockを信頼し、再現可能なビルドを保証
+      - name: Verify reproducible build with Cargo.lock
+        run: |
+          cd task-backend
+          # Cargo.lockが存在することを確認
+          if [ ! -f Cargo.lock ]; then
+            echo "ERROR: Cargo.lock not found. This should be committed for applications."
+            exit 1
+          fi
+          # Cargo.lockを使用してビルド（再現可能性のため）
+          cargo check --locked
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
