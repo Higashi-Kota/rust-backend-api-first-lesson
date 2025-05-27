@@ -12,7 +12,7 @@ impl MigrationTrait for Migration {
             .create_table(
                 Table::create()
                     .table(Alias::new("tasks")) // <<<--- ここを Alias::new("tasks") に変更
-                    .if_not_exists()    // テーブルが存在しない場合のみ作成
+                    .if_not_exists() // テーブルが存在しない場合のみ作成
                     .col(
                         ColumnDef::new(Task::Id) // "Post::Id" から "Task::Id" に変更、型定義も変更
                             .uuid()
@@ -60,7 +60,7 @@ impl MigrationTrait for Migration {
             .drop_table(
                 Table::drop()
                     .table(Alias::new("tasks")) // <<<--- ここも Alias::new("tasks") に変更
-                    .to_owned()
+                    .to_owned(),
             )
             .await
     }
@@ -68,10 +68,11 @@ impl MigrationTrait for Migration {
 
 /// Iden Enum for the 'tasks' table and its columns
 #[derive(DeriveIden)]
-enum Task { // "Post" から "Task" に変更
+enum Task {
+    // "Post" から "Task" に変更
     // Table, // テーブル名は Alias で直接指定するので、このバリアントは必須ではなくなります。
-              // もし他の箇所で Task::Table を参照していなければ削除してもOK。
-              // カラム名を定義するためにはこの enum は有用です。
+    // もし他の箇所で Task::Table を参照していなければ削除してもOK。
+    // カラム名を定義するためにはこの enum は有用です。
     Id,
     Title,
     Description,

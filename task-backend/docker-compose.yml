@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  app:
+    # Option 1: ローカルでビルド (開発時推奨)
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Option 2: GitHub Container Registry からプル (CI/CDでビルドされたイメージを使用)
+    # 使用する場合は上の build セクションをコメントアウトして、以下のコメントを外してください
+    # image: ghcr.io/YOUR_USERNAME/YOUR_REPO:latest
+    #
+    # 実際の使用例 (YOUR_USERNAMEとYOUR_REPOを実際の値に置き換えてください):
+    # image: ghcr.io/john-doe/task-management-system:latest
+
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/taskdb
+      - SERVER_ADDR=0.0.0.0:3000
+      - RUST_LOG=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=taskdb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  # マイグレーション用のサービス
+  migration:
+    # ローカルビルドの場合
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # GitHub Container Registry からプルする場合 (上のappサービスと同じイメージを使用)
+    # image: ghcr.io/YOUR_USERNAME/YOUR_REPO:latest
+
+    environment:
+      - DATABASE_URL=postgres://postgres:password@postgres:5432/taskdb
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["migration", "up"]
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
