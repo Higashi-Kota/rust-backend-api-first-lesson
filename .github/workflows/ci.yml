@@ -84,7 +84,7 @@ jobs:
         run: |
           cd task-backend
           # マイグレーション実行
-          cargo run --bin migration -- up
+          cd migration && cargo run -- up && cd ..
           # テスト実行
           cargo test --verbose --locked
           # 統合テスト実行
