@@ -1,0 +1,23 @@
+# Rust toolchain configuration for the entire workspace
+# This ensures all workspace members use the same Rust version and components
+
+[toolchain]
+# Specify the Rust version to use
+# Using a specific version ensures reproducible builds across environments
+channel = "1.86.0"
+
+# Components to install with the toolchain
+# rustfmt: Code formatting tool
+# clippy: Linting tool for catching common mistakes
+components = ["rustfmt", "clippy"]
+
+# Additional targets (empty for default target only)
+# Add targets here if you need cross-compilation
+# Example: targets = ["x86_64-unknown-linux-musl", "aarch64-unknown-linux-gnu"]
+targets = []
+
+# Profile determines what components are installed by default
+# "minimal" installs only rustc, rust-std, and cargo
+# This keeps the installation size small while allowing us to specify
+# additional components explicitly above
+profile = "minimal"

@@ -1,0 +1,99 @@
+# Build artifacts
+target/
+**/target/
+
+# Cargo lock backup files
+Cargo.lock.bak
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.*.local
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test files and coverage
+coverage/
+*.lcov
+
+# Documentation build
+docs/_build/
+site/
+book/
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile.*
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Development tools and temporary files
+*.tmp
+*.temp
+.docker/
+
+# Rust-specific
+**/*.rs.bk
+**/*.pdb
+
+# Workspace-specific exclusions
+# Don't include migration test data
+migration/test_data/
+
+# Don't include example configurations
+**/example.env
+**/config.example.*
+
+# Don't include benchmark results
+**/benches/results/
+
+# Don't include profiling data
+**/profiling/
+
+# Development scripts
+scripts/dev/
+scripts/test/
+
+# Local development overrides
+docker-compose.override.yml
+.env.override
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary build files
+.cargo/
+rust-toolchain

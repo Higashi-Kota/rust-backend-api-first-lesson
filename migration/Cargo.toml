@@ -1,0 +1,25 @@
+[package]
+name = "migration"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Database migration scripts for task-backend"
+publish = false
+
+[lib]
+name = "migration"
+path = "src/lib.rs"
+
+[dependencies]
+# Async standard library - using workspace dependencies
+async-std = { workspace = true }
+
+# Sea ORM migration - using workspace dependencies
+sea-orm-migration = { workspace = true }
+
+# Inherit workspace lints
+[lints]
+workspace = true

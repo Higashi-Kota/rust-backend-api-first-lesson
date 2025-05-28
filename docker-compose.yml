@@ -12,7 +12,7 @@ services:
     # image: ghcr.io/YOUR_USERNAME/YOUR_REPO:latest
     #
     # 実際の使用例 (YOUR_USERNAMEとYOUR_REPOを実際の値に置き換えてください):
-    # image: ghcr.io/john-doe/task-management-system:latest
+    # image: ghcr.io/higashi-kota/rust-backend-api-first-lesson:latest
 
     ports:
       - "3000:3000"
@@ -23,6 +23,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migration:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - app-network
@@ -54,13 +56,14 @@ services:
       dockerfile: Dockerfile
 
     # GitHub Container Registry からプルする場合 (上のappサービスと同じイメージを使用)
-    # image: ghcr.io/YOUR_USERNAME/YOUR_REPO:latest
+    # image: ghcr.io/higashi-kota/rust-backend-api-first-lesson:latest
 
     environment:
       - DATABASE_URL=postgres://postgres:password@postgres:5432/taskdb
     depends_on:
       postgres:
         condition: service_healthy
+    # ワークスペース対応: migration バイナリを直接実行
     command: ["migration", "up"]
     networks:
       - app-network

@@ -1,0 +1,103 @@
+[workspace]
+members = [
+    "task-backend",
+    "migration",
+]
+default-members = ["task-backend"]
+resolver = "2"
+
+# Workspace-wide package information
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Higashi Kota <higashi.kota@gri.jp>"]
+license = "MIT"
+repository = "https://github.com/Higashi-Kota/rust-backend-api-first-lesson"
+homepage = "https://github.com/Higashi-Kota/rust-backend-api-first-lesson"
+description = "Task management backend API with Rust, Axum, and PostgreSQL"
+keywords = ["rust", "axum", "api", "postgres", "task-management"]
+categories = ["web-programming", "database"]
+
+# Workspace-wide dependencies that can be inherited by members
+[workspace.dependencies]
+# Web framework and async runtime
+axum = { version = "0.7", features = ["macros", "json"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = "0.5"
+hyper = "1.2"
+
+# Database and ORM
+sea-orm = { version = "1.1.12", features = [
+    "runtime-tokio-rustls",
+    "sqlx-postgres",
+    "macros",
+] }
+sea-orm-migration = "1.1.12"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+
+# Error handling
+thiserror = "1.0"
+
+# Configuration and environment
+dotenvy = "0.15"
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Async standard library (for migration)
+async-std = { version = "1", features = ["attributes", "tokio1"] }
+
+# Development and testing dependencies
+reqwest = { version = "0.12", features = ["json"] }
+testcontainers = { version = "0.24.0", features = ["blocking"] }
+testcontainers-modules = { version = "0.12.0", default-features = false, features = [
+    "postgres",
+] }
+once_cell = "1"
+
+# Workspace-wide lints and settings
+[workspace.lints.rust]
+# unsafe_code = "forbid"
+# missing_docs = "warn"
+
+[workspace.lints.clippy]
+# # Performance lints
+# large_enum_variant = "warn"
+# large_stack_arrays = "warn"
+# large_types_passed_by_value = "warn"
+
+# # Style lints
+# enum_glob_use = "warn"
+# missing_errors_doc = "warn"
+# missing_panics_doc = "warn"
+# needless_pass_by_value = "warn"
+# redundant_clone = "warn"
+# semicolon_if_nothing_returned = "warn"
+# unreadable_literal = "warn"
+# unused_self = "warn"
+
+# Correctness lints
+cloned_instead_of_copied = "warn"
+inefficient_to_string = "warn"
+map_unwrap_or = "warn"
+
+[profile.dev]
+# Faster compilation for development
+debug = 1
+
+[profile.release]
+# Optimize for size and performance in release builds
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
