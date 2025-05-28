@@ -105,7 +105,7 @@ clean:
 dev-setup:
 	@if [ ! -f .env ]; then \
 		echo "Creating .env file..."; \
-		echo "DATABASE_URL=postgres://postgres:postgres@localhost:5432/task_db" > .env; \
+		echo "DATABASE_URL=postgres://postgres:password@localhost:5432/taskdb" > .env; \
 		echo "SERVER_ADDR=0.0.0.0:3000" >> .env; \
 		echo "RUST_LOG=info" >> .env; \
 		echo "RUST_BACKTRACE=1" >> .env; \
