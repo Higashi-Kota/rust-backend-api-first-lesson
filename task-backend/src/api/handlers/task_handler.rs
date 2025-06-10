@@ -2,7 +2,6 @@
 use crate::api::dto::task_dto::*;
 use crate::error::{AppError, AppResult};
 use crate::service::task_service::TaskService;
-use async_trait::async_trait;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
@@ -25,7 +24,7 @@ pub struct AppState {
 // カスタムUUID抽出器
 pub struct UuidPath(pub Uuid);
 
-#[async_trait]
+// #[async_trait] を削除し、通常の async fn 構文を使用
 impl<S> FromRequestParts<S> for UuidPath
 where
     S: Send + Sync,
@@ -398,7 +397,7 @@ pub fn task_router(app_state: AppState) -> Router {
         .route("/tasks/paginated", get(list_tasks_paginated_handler))
         .route("/tasks/filter", get(filter_tasks_handler))
         .route(
-            "/tasks/:id",
+            "/tasks/{id}",
             get(get_task_handler)
                 .patch(update_task_handler)
                 .delete(delete_task_handler),
