@@ -34,15 +34,21 @@ async fn test_token_refresh_success() {
     let response: Value = serde_json::from_slice(&body).unwrap();
 
     // レスポンス構造の検証
-    assert!(response["access_token"].is_string());
-    assert!(response["refresh_token"].is_string());
-    assert!(response["access_token_expires_in"].is_number());
-    assert!(response["refresh_token_expires_in"].is_number());
-    assert_eq!(response["token_type"], "Bearer");
+    assert!(response["tokens"].is_object());
+    let tokens = &response["tokens"];
+    assert!(tokens["access_token"].is_string());
+    assert!(tokens["refresh_token"].is_string());
+    assert!(tokens["access_token_expires_in"].is_number());
+    assert!(tokens["refresh_token_expires_in"].is_number());
+    assert_eq!(tokens["token_type"], "Bearer");
+
+    // タイムスタンプフィールドの検証
+    assert!(tokens["access_token_expires_at"].is_string());
+    assert!(tokens["should_refresh_at"].is_string());
 
     // 新しいトークンが発行されていることを確認
-    let new_access_token = response["access_token"].as_str().unwrap();
-    let new_refresh_token = response["refresh_token"].as_str().unwrap();
+    let new_access_token = tokens["access_token"].as_str().unwrap();
+    let new_refresh_token = tokens["refresh_token"].as_str().unwrap();
 
     assert_ne!(new_access_token, user.access_token);
     assert_ne!(new_refresh_token, refresh_token);
@@ -327,7 +333,10 @@ async fn test_token_refresh_rate_limiting() {
             if res.status() == StatusCode::OK {
                 let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
                 let response: Value = serde_json::from_slice(&body).unwrap();
-                current_refresh_token = response["refresh_token"].as_str().unwrap().to_string();
+                current_refresh_token = response["tokens"]["refresh_token"]
+                    .as_str()
+                    .unwrap()
+                    .to_string();
             }
         }
         // 後半でレート制限がかかる可能性（実装次第）

@@ -9,6 +9,7 @@
 - **パスワード**: Argon2でハッシュ化
 - **CSRF保護**: SameSite cookieとCSRFトークン
 - **セキュリティヘッダー**: 各レスポンスに自動付与
+- **タイムスタンプ**: すべて UTC（ISO 8601形式）で提供、フロントエンドで各地域の時刻に変換
 
 ## 📋 認証エンドポイント一覧
 
@@ -22,21 +23,21 @@ curl -X POST http://localhost:3000/auth/signup \
   -d '{
     "username": "testuser",
     "email": "test@example.com",
-    "password": "SecurePass123!",
-    "password_confirmation": "SecurePass123!"
+    "password": "SecurePass123!"
   }' | jq
 ```
 
 #### 成功レスポンス例 (201 Created):
 ```json
 {
-  "message": "User registered successfully",
+  "message": "Registration successful",
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "testuser",
     "email": "test@example.com",
     "email_verified": false,
     "is_active": true,
+    "last_login_at": null,
     "created_at": "2025-06-12T10:00:00Z",
     "updated_at": "2025-06-12T10:00:00Z"
   },
@@ -45,10 +46,24 @@ curl -X POST http://localhost:3000/auth/signup \
     "refresh_token": "550e8400-e29b-41d4-a716-446655440001",
     "access_token_expires_in": 900,
     "refresh_token_expires_in": 604800,
-    "token_type": "Bearer"
+    "token_type": "Bearer",
+    "access_token_expires_at": "2024-12-06T12:15:00Z",
+    "should_refresh_at": "2024-12-06T12:12:00Z"
   }
 }
 ```
+
+#### 📋 レスポンス内 Tokens フィールド説明
+
+| フィールド | 説明 | 例 |
+|-----------|------|-----|
+| `access_token` | JWTアクセストークン（15分有効） | `eyJ0eXAiOiJKV1Qi...` |
+| `refresh_token` | リフレッシュトークン（7日有効） | `550e8400-e29b-41d4...` |
+| `access_token_expires_in` | アクセストークン有効期限（秒） | `900` |
+| `refresh_token_expires_in` | リフレッシュトークン有効期限（秒） | `604800` |
+| `token_type` | トークンタイプ | `Bearer` |
+| `access_token_expires_at` | アクセストークン有効期限（UTC） | `2024-12-06T12:15:00Z` |
+| `should_refresh_at` | 推奨リフレッシュ時刻（80%時点、UTC） | `2024-12-06T12:12:00Z` |
 
 #### バリデーションエラー例 (400 Bad Request):
 ```bash
@@ -57,8 +72,7 @@ curl -X POST http://localhost:3000/auth/signup \
   -d '{
     "username": "a",
     "email": "invalid-email",
-    "password": "123",
-    "password_confirmation": "321"
+    "password": "123"
   }' | jq
 ```
 
@@ -66,10 +80,9 @@ curl -X POST http://localhost:3000/auth/signup \
 ```json
 {
   "errors": [
-    "username: Username must be at least 3 characters long",
+    "username: Username must be between 3 and 30 characters",
     "email: Invalid email format",
-    "password: Password must be at least 8 characters long",
-    "password_confirmation: Password confirmation does not match"
+    "password: Password must be at least 8 characters"
   ],
   "error_type": "validation_errors"
 }
@@ -91,13 +104,14 @@ curl -X POST http://localhost:3000/auth/signin \
 #### 成功レスポンス例 (200 OK):
 ```json
 {
-  "message": "Successfully signed in",
+  "message": "Login successful",
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "testuser",
     "email": "test@example.com",
     "email_verified": false,
     "is_active": true,
+    "last_login_at": "2024-12-06T11:58:00Z",
     "created_at": "2025-06-12T10:00:00Z",
     "updated_at": "2025-06-12T10:00:00Z"
   },
@@ -106,7 +120,9 @@ curl -X POST http://localhost:3000/auth/signin \
     "refresh_token": "550e8400-e29b-41d4-a716-446655440002",
     "access_token_expires_in": 900,
     "refresh_token_expires_in": 604800,
-    "token_type": "Bearer"
+    "token_type": "Bearer",
+    "access_token_expires_at": "2024-12-06T12:15:00Z",
+    "should_refresh_at": "2024-12-06T12:12:00Z"
   }
 }
 ```
@@ -144,13 +160,24 @@ curl -X POST http://localhost:3000/auth/refresh \
 #### 成功レスポンス例 (200 OK):
 ```json
 {
-  "message": "Token refreshed successfully",
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "username": "testuser",
+    "email": "test@example.com",
+    "email_verified": false,
+    "is_active": true,
+    "last_login_at": "2024-12-06T12:00:00Z",
+    "created_at": "2025-06-12T10:00:00Z",
+    "updated_at": "2025-06-12T10:00:00Z"
+  },
   "tokens": {
     "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
     "refresh_token": "550e8400-e29b-41d4-a716-446655440003",
     "access_token_expires_in": 900,
     "refresh_token_expires_in": 604800,
-    "token_type": "Bearer"
+    "token_type": "Bearer",
+    "access_token_expires_at": "2024-12-06T12:15:00Z",
+    "should_refresh_at": "2024-12-06T12:12:00Z"
   }
 }
 ```
@@ -182,6 +209,7 @@ curl -X GET http://localhost:3000/auth/me \
     "email": "test@example.com",
     "email_verified": false,
     "is_active": true,
+    "last_login_at": "2024-12-06T11:58:00Z",
     "created_at": "2025-06-12T10:00:00Z",
     "updated_at": "2025-06-12T10:00:00Z"
   }
@@ -333,8 +361,7 @@ SIGNUP_RESPONSE=$(curl -s -X POST http://localhost:3000/auth/signup \
   -d '{
     "username": "newuser",
     "email": "newuser@example.com",
-    "password": "SecurePass123!",
-    "password_confirmation": "SecurePass123!"
+    "password": "SecurePass123!"
   }')
 
 # アクセストークンを抽出
@@ -415,6 +442,43 @@ curl -X POST http://localhost:3000/auth/signout \
 - レート制限に達している
 - しばらく待ってからリトライ
 
+## 🌐 フロントエンド実装例
+
+### UTC タイムスタンプの活用
+
+```typescript
+// トークン情報を日本時間で表示
+function displayTokenInfo(tokens: TokenPair) {
+  const expiresAt = new Date(tokens.access_token_expires_at);
+  const refreshAt = new Date(tokens.should_refresh_at);
+  
+  const jstFormatter = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  
+  console.log(`トークン有効期限: ${jstFormatter.format(expiresAt)}`);
+  console.log(`推奨更新時刻: ${jstFormatter.format(refreshAt)}`);
+}
+
+// 自動リフレッシュの実装
+class SessionManager {
+  setupAutoRefresh(tokens: TokenPair) {
+    const refreshTime = new Date(tokens.should_refresh_at);
+    const msUntilRefresh = refreshTime.getTime() - Date.now();
+    
+    if (msUntilRefresh > 0) {
+      setTimeout(() => this.refreshToken(), msUntilRefresh);
+    }
+  }
+}
+```
+
 ## 📝 注意事項
 
 1. **本番環境では必ずHTTPS**を使用してください
@@ -423,3 +487,4 @@ curl -X POST http://localhost:3000/auth/signout \
 4. **パスワードはArgon2**でハッシュ化されています
 5. **セキュリティヘッダー**が全レスポンスに付与されます
 6. **レート制限**が認証エンドポイントに適用されています
+7. **タイムスタンプはUTC**で提供されるため、フロントエンドで地域時刻に変換してください

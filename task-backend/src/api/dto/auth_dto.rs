@@ -106,11 +106,6 @@ pub struct LogoutResponse {
 pub struct TokenRefreshResponse {
     pub user: SafeUser,
     pub tokens: TokenPair,
-    pub access_token: String,
-    pub refresh_token: String,
-    pub access_token_expires_in: i64,  // 秒
-    pub refresh_token_expires_in: i64, // 秒
-    pub token_type: String,
 }
 
 /// パスワードリセット要求レスポンス
@@ -375,5 +370,48 @@ mod tests {
         // 間違った確認テキスト
         request.confirmation = "WRONG_CONFIRMATION".to_string();
         assert!(request.validate_deletion().is_err());
+    }
+
+    #[test]
+    fn test_auth_response_serialization() {
+        use crate::domain::user_model::SafeUser;
+        use crate::utils::jwt::TokenPair;
+        use uuid::Uuid;
+
+        let safe_user = SafeUser {
+            id: Uuid::new_v4(),
+            email: "test@example.com".to_string(),
+            username: "testuser".to_string(),
+            is_active: true,
+            email_verified: false,
+            last_login_at: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let token_pair = TokenPair::new(
+            "test_access_token".to_string(),
+            "test_refresh_token".to_string(),
+            15, // 15分
+            7,  // 7日
+            "2024-01-01T12:15:00Z".to_string(),
+            "2024-01-01T12:12:00Z".to_string(),
+        );
+
+        let auth_response = AuthResponse {
+            user: safe_user,
+            tokens: token_pair,
+            message: "Test message".to_string(),
+        };
+
+        // シリアライゼーションが成功することを確認
+        let serialized = serde_json::to_string(&auth_response);
+        assert!(serialized.is_ok());
+
+        let json_str = serialized.unwrap();
+        // tokensオブジェクト内にタイムスタンプフィールドがあることを確認
+        assert!(json_str.contains("tokens"));
+        assert!(json_str.contains("access_token_expires_at"));
+        assert!(json_str.contains("should_refresh_at"));
     }
 }

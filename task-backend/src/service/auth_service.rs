@@ -2,7 +2,7 @@
 use crate::api::dto::auth_dto::*;
 use crate::domain::password_reset_token_model::TokenValidationError;
 use crate::domain::refresh_token_model::CreateRefreshToken;
-use crate::domain::user_model::{SafeUser, UserClaims};
+use crate::domain::user_model::UserClaims;
 use crate::error::{AppError, AppResult};
 use crate::repository::password_reset_token_repository::PasswordResetTokenRepository;
 use crate::repository::refresh_token_repository::RefreshTokenRepository;
@@ -313,21 +313,17 @@ impl AuthService {
 
         info!(user_id = %user_id, "Access token refreshed successfully");
 
-        let token_pair = TokenPair::new(
+        let token_pair = TokenPair::create_with_jwt_manager(
             access_token.clone(),
             new_refresh_token.clone(),
             15, // 15分
             7,  // 7日
+            &self.jwt_manager,
         );
 
         Ok(TokenRefreshResponse {
             user: user.into(),
             tokens: token_pair,
-            access_token,
-            refresh_token: new_refresh_token,
-            access_token_expires_in: 15 * 60,           // 15分（秒）
-            refresh_token_expires_in: 7 * 24 * 60 * 60, // 7日（秒）
-            token_type: "Bearer".to_string(),
         })
     }
 
@@ -535,14 +531,14 @@ impl AuthService {
     // --- アカウント管理 ---
 
     /// 現在のユーザー情報取得
-    pub async fn get_current_user(&self, user_id: Uuid) -> AppResult<SafeUser> {
+    pub async fn get_current_user(&self, user_id: Uuid) -> AppResult<CurrentUserResponse> {
         let user = self
             .user_repo
             .find_by_id(user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
-        Ok(user.into())
+        Ok(CurrentUserResponse { user: user.into() })
     }
 
     /// アカウント削除
@@ -632,11 +628,12 @@ impl AuthService {
 
         self.refresh_token_repo.create(create_refresh_token).await?;
 
-        Ok(TokenPair::new(
+        Ok(TokenPair::create_with_jwt_manager(
             access_token,
             refresh_token,
             15, // 15分
             7,  // 7日
+            &self.jwt_manager,
         ))
     }
 

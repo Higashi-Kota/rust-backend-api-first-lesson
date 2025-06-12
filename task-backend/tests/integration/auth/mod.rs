@@ -6,3 +6,4 @@ pub mod refresh_tests;
 pub mod signin_tests;
 pub mod signout_tests;
 pub mod signup_tests;
+pub mod token_timestamp_tests;

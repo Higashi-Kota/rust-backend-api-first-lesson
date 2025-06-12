@@ -46,21 +46,21 @@ curl -X POST http://localhost:3000/auth/signup \
   -d '{
     "username": "newuser",
     "email": "newuser@example.com",
-    "password": "SecurePass123!",
-    "password_confirmation": "SecurePass123!"
+    "password": "SecurePass123!"
   }' | jq
 ```
 
 #### 成功レスポンス例 (201 Created):
 ```json
 {
-  "message": "User registered successfully",
+  "message": "Registration successful",
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "newuser",
     "email": "newuser@example.com",
     "email_verified": false,
     "is_active": true,
+    "last_login_at": null,
     "created_at": "2025-06-12T10:00:00Z",
     "updated_at": "2025-06-12T10:00:00Z"
   },
@@ -69,7 +69,9 @@ curl -X POST http://localhost:3000/auth/signup \
     "refresh_token": "550e8400-e29b-41d4-a716-446655440001",
     "access_token_expires_in": 900,
     "refresh_token_expires_in": 604800,
-    "token_type": "Bearer"
+    "token_type": "Bearer",
+    "access_token_expires_at": "2024-12-06T12:15:00Z",
+    "should_refresh_at": "2024-12-06T12:12:00Z"
   }
 }
 ```
@@ -81,8 +83,7 @@ curl -X POST http://localhost:3000/auth/signup \
   -d '{
     "username": "a",
     "email": "invalid-email",
-    "password": "123",
-    "password_confirmation": "321"
+    "password": "123"
   }' | jq
 ```
 
@@ -90,10 +91,9 @@ curl -X POST http://localhost:3000/auth/signup \
 ```json
 {
   "errors": [
-    "username: Username must be at least 3 characters long",
+    "username: Username must be between 3 and 30 characters",
     "email: Invalid email format",
-    "password: Password must be at least 8 characters long",
-    "password_confirmation: Password confirmation does not match"
+    "password: Password must be at least 8 characters"
   ],
   "error_type": "validation_errors"
 }
@@ -106,8 +106,7 @@ curl -X POST http://localhost:3000/auth/signup \
   -d '{
     "username": "existinguser",
     "email": "existing@example.com",
-    "password": "SecurePass123!",
-    "password_confirmation": "SecurePass123!"
+    "password": "SecurePass123!"
   }' | jq
 ```
 
@@ -135,13 +134,14 @@ curl -X POST http://localhost:3000/auth/signin \
 #### 成功レスポンス例 (200 OK):
 ```json
 {
-  "message": "Successfully signed in",
+  "message": "Login successful",
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "username": "newuser",
     "email": "newuser@example.com",
     "email_verified": false,
     "is_active": true,
+    "last_login_at": "2024-12-06T11:58:00Z",
     "created_at": "2025-06-12T10:00:00Z",
     "updated_at": "2025-06-12T10:00:00Z"
   },
@@ -150,7 +150,9 @@ curl -X POST http://localhost:3000/auth/signin \
     "refresh_token": "550e8400-e29b-41d4-a716-446655440002",
     "access_token_expires_in": 900,
     "refresh_token_expires_in": 604800,
-    "token_type": "Bearer"
+    "token_type": "Bearer",
+    "access_token_expires_at": "2024-12-06T12:15:00Z",
+    "should_refresh_at": "2024-12-06T12:12:00Z"
   }
 }
 ```
@@ -206,13 +208,24 @@ curl -X POST http://localhost:3000/auth/refresh \
 #### 成功レスポンス例 (200 OK):
 ```json
 {
-  "message": "Token refreshed successfully",
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "username": "newuser",
+    "email": "newuser@example.com",
+    "email_verified": false,
+    "is_active": true,
+    "last_login_at": "2024-12-06T11:58:00Z",
+    "created_at": "2025-06-12T10:00:00Z",
+    "updated_at": "2025-06-12T10:00:00Z"
+  },
   "tokens": {
     "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
     "refresh_token": "550e8400-e29b-41d4-a716-446655440003",
     "access_token_expires_in": 900,
     "refresh_token_expires_in": 604800,
-    "token_type": "Bearer"
+    "token_type": "Bearer",
+    "access_token_expires_at": "2024-12-06T12:15:00Z",
+    "should_refresh_at": "2024-12-06T12:12:00Z"
   }
 }
 ```
@@ -281,8 +294,7 @@ curl -X POST http://localhost:3000/auth/reset-password \
   -H "Content-Type: application/json" \
   -d '{
     "token": "reset-token-from-email",
-    "new_password": "NewSecurePass123!",
-    "new_password_confirmation": "NewSecurePass123!"
+    "new_password": "NewSecurePass123!"
   }' | jq
 ```
 
@@ -299,8 +311,7 @@ curl -X POST http://localhost:3000/auth/reset-password \
   -H "Content-Type: application/json" \
   -d '{
     "token": "invalid-token",
-    "new_password": "NewSecurePass123!",
-    "new_password_confirmation": "NewSecurePass123!"
+    "new_password": "NewSecurePass123!"
   }' | jq
 ```
 
@@ -341,8 +352,7 @@ SIGNUP_RESPONSE=$(curl -s -X POST http://localhost:3000/auth/signup \
   -d '{
     "username": "demouser",
     "email": "demo@example.com",
-    "password": "DemoPass123!",
-    "password_confirmation": "DemoPass123!"
+    "password": "DemoPass123!"
   }')
 
 echo $SIGNUP_RESPONSE | jq
@@ -381,8 +391,7 @@ curl -X POST http://localhost:3000/auth/reset-password \
   -H "Content-Type: application/json" \
   -d '{
     "token": "actual-reset-token-from-email",
-    "new_password": "NewDemoPass123!",
-    "new_password_confirmation": "NewDemoPass123!"
+    "new_password": "NewDemoPass123!"
   }' | jq
 ```
 
@@ -503,8 +512,7 @@ time curl -s -o /dev/null -X POST http://localhost:3000/auth/signup \
   -d '{
     "username": "perftest",
     "email": "perftest@example.com",
-    "password": "PerfTest123!",
-    "password_confirmation": "PerfTest123!"
+    "password": "PerfTest123!"
   }'
 ```
 

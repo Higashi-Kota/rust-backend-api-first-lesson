@@ -425,12 +425,12 @@ pub async fn me_handler(
     State(app_state): State<AuthAppState>,
     user: AuthenticatedUser,
 ) -> AppResult<Json<CurrentUserResponse>> {
-    let safe_user = app_state
+    let current_user_response = app_state
         .auth_service
         .get_current_user(user.0.user_id)
         .await?;
 
-    Ok(Json(CurrentUserResponse { user: safe_user }))
+    Ok(Json(current_user_response))
 }
 
 /// アカウント削除

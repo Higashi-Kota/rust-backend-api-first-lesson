@@ -307,6 +307,44 @@ impl JwtManager {
         let remaining = exp - Utc::now();
         remaining.num_days().max(0)
     }
+
+    /// アクセストークンの有効期限をISO 8601形式で取得
+    pub fn get_access_token_expires_at(&self, claims: &AccessTokenClaims) -> String {
+        DateTime::from_timestamp(claims.exp, 0)
+            .unwrap_or_else(Utc::now)
+            .to_rfc3339()
+    }
+
+    /// アクセストークンのリフレッシュ推奨時刻をISO 8601形式で取得（80%時点）
+    pub fn get_should_refresh_at(&self, claims: &AccessTokenClaims) -> String {
+        let issued_at = DateTime::from_timestamp(claims.iat, 0).unwrap_or_else(Utc::now);
+        let expires_at = DateTime::from_timestamp(claims.exp, 0).unwrap_or_else(Utc::now);
+
+        // 有効期限の80%時点を計算
+        let total_duration = expires_at - issued_at;
+        let refresh_duration_secs = (total_duration.num_seconds() as f64 * 0.8) as i64;
+        let refresh_duration = Duration::seconds(refresh_duration_secs);
+        let should_refresh_at = issued_at + refresh_duration;
+
+        should_refresh_at.to_rfc3339()
+    }
+
+    /// 現在時刻からアクセストークンの有効期限をISO 8601形式で計算
+    pub fn calculate_access_token_expires_at(&self) -> String {
+        let expires_at = Utc::now() + Duration::minutes(self.config.access_token_expiry_minutes);
+        expires_at.to_rfc3339()
+    }
+
+    /// 現在時刻からアクセストークンのリフレッシュ推奨時刻をISO 8601形式で計算（80%時点）
+    pub fn calculate_should_refresh_at(&self) -> String {
+        let now = Utc::now();
+        let total_duration = Duration::minutes(self.config.access_token_expiry_minutes);
+        let refresh_duration_secs = (total_duration.num_seconds() as f64 * 0.8) as i64;
+        let refresh_duration = Duration::seconds(refresh_duration_secs);
+        let should_refresh_at = now + refresh_duration;
+
+        should_refresh_at.to_rfc3339()
+    }
 }
 
 /// トークンペア
@@ -317,6 +355,8 @@ pub struct TokenPair {
     pub access_token_expires_in: i64,  // 秒
     pub refresh_token_expires_in: i64, // 秒
     pub token_type: String,
+    pub access_token_expires_at: String, // ISO 8601 UTC時刻
+    pub should_refresh_at: String,       // ISO 8601 UTC時刻（80%時点）
 }
 
 impl TokenPair {
@@ -325,6 +365,8 @@ impl TokenPair {
         refresh_token: String,
         access_expiry_minutes: i64,
         refresh_expiry_days: i64,
+        access_token_expires_at: String,
+        should_refresh_at: String,
     ) -> Self {
         Self {
             access_token,
@@ -332,7 +374,30 @@ impl TokenPair {
             access_token_expires_in: access_expiry_minutes * 60,
             refresh_token_expires_in: refresh_expiry_days * 24 * 60 * 60,
             token_type: "Bearer".to_string(),
+            access_token_expires_at,
+            should_refresh_at,
         }
+    }
+
+    /// JwtManagerを使って完全なTokenPairを作成
+    pub fn create_with_jwt_manager(
+        access_token: String,
+        refresh_token: String,
+        access_expiry_minutes: i64,
+        refresh_expiry_days: i64,
+        jwt_manager: &JwtManager,
+    ) -> Self {
+        let access_token_expires_at = jwt_manager.calculate_access_token_expires_at();
+        let should_refresh_at = jwt_manager.calculate_should_refresh_at();
+
+        Self::new(
+            access_token,
+            refresh_token,
+            access_expiry_minutes,
+            refresh_expiry_days,
+            access_token_expires_at,
+            should_refresh_at,
+        )
     }
 }
 
@@ -477,5 +542,89 @@ mod tests {
         // 期限切れチェック
         let is_expired = jwt_manager.is_token_expired(&token).unwrap();
         assert!(!is_expired);
+    }
+
+    #[test]
+    fn test_timestamp_calculations() {
+        let config = create_test_config();
+        let jwt_manager = JwtManager::new(config).unwrap();
+        let user_claims = create_test_user_claims();
+
+        // アクセストークンを生成
+        let access_token = jwt_manager
+            .generate_access_token(user_claims.clone())
+            .unwrap();
+
+        // トークンから クレームを取得
+        let claims = jwt_manager.verify_access_token(&access_token).unwrap();
+
+        // タイムスタンプ計算のテスト
+        let expires_at = jwt_manager.get_access_token_expires_at(&claims);
+        let should_refresh_at = jwt_manager.get_should_refresh_at(&claims);
+
+        // フォーマットが正しいことを確認（ISO 8601）
+        assert!(DateTime::parse_from_rfc3339(&expires_at).is_ok());
+        assert!(DateTime::parse_from_rfc3339(&should_refresh_at).is_ok());
+
+        // リフレッシュ時刻が有効期限より前であることを確認
+        let expires_dt = DateTime::parse_from_rfc3339(&expires_at).unwrap();
+        let refresh_dt = DateTime::parse_from_rfc3339(&should_refresh_at).unwrap();
+        assert!(refresh_dt < expires_dt);
+
+        // 現在時刻ベースの計算もテスト
+        let calc_expires_at = jwt_manager.calculate_access_token_expires_at();
+        let calc_should_refresh_at = jwt_manager.calculate_should_refresh_at();
+
+        assert!(DateTime::parse_from_rfc3339(&calc_expires_at).is_ok());
+        assert!(DateTime::parse_from_rfc3339(&calc_should_refresh_at).is_ok());
+    }
+
+    #[test]
+    fn test_token_pair_with_timestamps() {
+        let config = create_test_config();
+        let jwt_manager = JwtManager::new(config).unwrap();
+
+        // create_with_jwt_managerメソッドのテスト
+        let token_pair = TokenPair::create_with_jwt_manager(
+            "test_access_token".to_string(),
+            "test_refresh_token".to_string(),
+            15, // 15分
+            7,  // 7日
+            &jwt_manager,
+        );
+
+        // フィールドが正しく設定されていることを確認
+        assert_eq!(token_pair.access_token, "test_access_token");
+        assert_eq!(token_pair.refresh_token, "test_refresh_token");
+        assert_eq!(token_pair.access_token_expires_in, 15 * 60);
+        assert_eq!(token_pair.refresh_token_expires_in, 7 * 24 * 60 * 60);
+        assert_eq!(token_pair.token_type, "Bearer");
+
+        // タイムスタンプフィールドが有効なISO 8601形式であることを確認
+        assert!(DateTime::parse_from_rfc3339(&token_pair.access_token_expires_at).is_ok());
+        assert!(DateTime::parse_from_rfc3339(&token_pair.should_refresh_at).is_ok());
+
+        // should_refresh_atがaccess_token_expires_atより前であることを確認
+        let expires_at = DateTime::parse_from_rfc3339(&token_pair.access_token_expires_at).unwrap();
+        let refresh_at = DateTime::parse_from_rfc3339(&token_pair.should_refresh_at).unwrap();
+        assert!(refresh_at < expires_at);
+
+        // 手動newメソッドのテスト
+        let manual_token_pair = TokenPair::new(
+            "manual_access".to_string(),
+            "manual_refresh".to_string(),
+            10,
+            5,
+            "2024-01-01T12:10:00Z".to_string(),
+            "2024-01-01T12:08:00Z".to_string(),
+        );
+
+        assert_eq!(manual_token_pair.access_token_expires_in, 10 * 60);
+        assert_eq!(manual_token_pair.refresh_token_expires_in, 5 * 24 * 60 * 60);
+        assert_eq!(
+            manual_token_pair.access_token_expires_at,
+            "2024-01-01T12:10:00Z"
+        );
+        assert_eq!(manual_token_pair.should_refresh_at, "2024-01-01T12:08:00Z");
     }
 }
