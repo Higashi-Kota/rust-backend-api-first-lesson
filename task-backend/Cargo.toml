@@ -49,12 +49,33 @@ dotenvy = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
+# JWT and Authentication - using workspace dependencies
+jsonwebtoken = { workspace = true }
+argon2 = { workspace = true }
+rand = { workspace = true }
+validator = { workspace = true }
+
+# Email sending - using workspace dependencies
+lettre = { workspace = true }
+
+# Additional security and utilities - using workspace dependencies
+base64 = { workspace = true }
+hex = { workspace = true }
+sha2 = { workspace = true }
+time = { workspace = true }
+
+# Enhanced Axum features - using workspace dependencies
+axum-extra = { workspace = true }
+
+# Pattern matching and lazy statics - using workspace dependencies
+regex = { workspace = true }
+once_cell = { workspace = true }
+
 [dev-dependencies]
 # Development and testing dependencies - using workspace dependencies
 reqwest = { workspace = true }
 testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true }
-once_cell = { workspace = true }
 
 # Inherit workspace lints
 [lints]

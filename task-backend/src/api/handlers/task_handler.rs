@@ -1,7 +1,10 @@
 // src/api/handlers/task_handler.rs
+use crate::api::dto::auth_dto::CookieConfig;
 use crate::api::dto::task_dto::*;
+use crate::api::handlers::auth_handler::{AuthenticatedUser, HasJwtManager};
 use crate::error::{AppError, AppResult};
 use crate::service::task_service::TaskService;
+use crate::utils::jwt::JwtManager;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
@@ -12,6 +15,7 @@ use axum::{
 use chrono::Utc;
 use serde::Deserialize;
 use std::sync::Arc;
+use tracing::info;
 use uuid::Uuid;
 
 // アプリケーションの状態を保持する構造体 (axum の State で渡される)
@@ -19,6 +23,18 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct AppState {
     pub task_service: Arc<TaskService>,
+    pub jwt_manager: Arc<JwtManager>,
+    pub cookie_config: CookieConfig,
+}
+
+impl HasJwtManager for AppState {
+    fn jwt_manager(&self) -> &Arc<JwtManager> {
+        &self.jwt_manager
+    }
+
+    fn cookie_config(&self) -> &CookieConfig {
+        &self.cookie_config
+    }
 }
 
 // カスタムUUID抽出器
@@ -35,10 +51,12 @@ where
         // パスパラメータを文字列として最初に抽出
         let Path(path_str) = Path::<String>::from_request_parts(parts, state)
             .await
-            .map_err(|_| AppError::ValidationError("無効なパスパラメータ".to_string()))?;
+            .map_err(|_| AppError::ValidationErrors(vec!["Invalid path parameter".to_string()]))?;
 
-        // UUIDをパースして独自のエラータイプを返す
-        let uuid = Uuid::parse_str(&path_str).map_err(AppError::UuidError)?;
+        // UUIDをパースして検証エラー形式で返す
+        let uuid = Uuid::parse_str(&path_str).map_err(|_| {
+            AppError::ValidationErrors(vec![format!("Invalid UUID format: '{}'", path_str)])
+        })?;
 
         Ok(UuidPath(uuid))
     }
@@ -55,6 +73,7 @@ pub struct PaginationParams {
 
 pub async fn create_task_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
     Json(payload): Json<CreateTaskDto>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション強化
@@ -96,27 +115,72 @@ pub async fn create_task_handler(
         return Err(AppError::ValidationErrors(validation_errors));
     }
 
-    let task_dto = app_state.task_service.create_task(payload).await?;
+    info!(
+        user_id = %user.0.user_id,
+        username = %user.0.username,
+        task_title = %payload.title,
+        "Creating new task"
+    );
+
+    let task_dto = app_state
+        .task_service
+        .create_task_for_user(user.0.user_id, payload)
+        .await?;
+
+    info!(
+        user_id = %user.0.user_id,
+        task_id = %task_dto.id,
+        "Task created successfully"
+    );
+
     Ok((StatusCode::CREATED, Json(task_dto)))
 }
 
 pub async fn get_task_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
     UuidPath(id): UuidPath,
 ) -> AppResult<Json<TaskDto>> {
-    let task_dto = app_state.task_service.get_task(id).await?;
+    info!(
+        user_id = %user.0.user_id,
+        task_id = %id,
+        "Getting task"
+    );
+
+    let task_dto = app_state
+        .task_service
+        .get_task_for_user(user.0.user_id, id)
+        .await?;
+
     Ok(Json(task_dto))
 }
 
 pub async fn list_tasks_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
 ) -> AppResult<Json<Vec<TaskDto>>> {
-    let tasks = app_state.task_service.list_tasks().await?;
+    info!(
+        user_id = %user.0.user_id,
+        "Listing user tasks"
+    );
+
+    let tasks = app_state
+        .task_service
+        .list_tasks_for_user(user.0.user_id)
+        .await?;
+
+    info!(
+        user_id = %user.0.user_id,
+        task_count = %tasks.len(),
+        "Tasks retrieved successfully"
+    );
+
     Ok(Json(tasks))
 }
 
 pub async fn update_task_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
     UuidPath(id): UuidPath,
     Json(payload): Json<UpdateTaskDto>,
 ) -> AppResult<Json<TaskDto>> {
@@ -170,15 +234,48 @@ pub async fn update_task_handler(
         return Err(AppError::ValidationErrors(validation_errors));
     }
 
-    let task_dto = app_state.task_service.update_task(id, payload).await?;
+    info!(
+        user_id = %user.0.user_id,
+        task_id = %id,
+        "Updating task"
+    );
+
+    let task_dto = app_state
+        .task_service
+        .update_task_for_user(user.0.user_id, id, payload)
+        .await?;
+
+    info!(
+        user_id = %user.0.user_id,
+        task_id = %id,
+        "Task updated successfully"
+    );
+
     Ok(Json(task_dto))
 }
 
 pub async fn delete_task_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
     UuidPath(id): UuidPath,
 ) -> AppResult<StatusCode> {
-    app_state.task_service.delete_task(id).await?;
+    info!(
+        user_id = %user.0.user_id,
+        task_id = %id,
+        "Deleting task"
+    );
+
+    app_state
+        .task_service
+        .delete_task_for_user(user.0.user_id, id)
+        .await?;
+
+    info!(
+        user_id = %user.0.user_id,
+        task_id = %id,
+        "Task deleted successfully"
+    );
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -186,6 +283,7 @@ pub async fn delete_task_handler(
 
 pub async fn create_tasks_batch_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
     Json(payload): Json<BatchCreateTaskDto>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション強化
@@ -252,12 +350,29 @@ pub async fn create_tasks_batch_handler(
         return Err(AppError::ValidationErrors(validation_errors));
     }
 
-    let response_dto = app_state.task_service.create_tasks_batch(payload).await?;
+    info!(
+        user_id = %user.0.user_id,
+        task_count = %payload.tasks.len(),
+        "Creating batch tasks"
+    );
+
+    let response_dto = app_state
+        .task_service
+        .create_tasks_batch_for_user(user.0.user_id, payload)
+        .await?;
+
+    info!(
+        user_id = %user.0.user_id,
+        created_count = %response_dto.created_tasks.len(),
+        "Batch tasks created successfully"
+    );
+
     Ok((StatusCode::CREATED, Json(response_dto)))
 }
 
 pub async fn update_tasks_batch_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
     Json(payload): Json<BatchUpdateTaskDto>,
 ) -> AppResult<Json<BatchUpdateResponseDto>> {
     // バリデーション強化
@@ -335,12 +450,16 @@ pub async fn update_tasks_batch_handler(
         return Err(AppError::ValidationErrors(validation_errors));
     }
 
-    let response_dto = app_state.task_service.update_tasks_batch(payload).await?;
+    let response_dto = app_state
+        .task_service
+        .update_tasks_batch_for_user(user.0.user_id, payload)
+        .await?;
     Ok(Json(response_dto))
 }
 
 pub async fn delete_tasks_batch_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
     Json(payload): Json<BatchDeleteTaskDto>,
 ) -> AppResult<Json<BatchDeleteResponseDto>> {
     // バリデーション強化
@@ -356,22 +475,30 @@ pub async fn delete_tasks_batch_handler(
         ));
     }
 
-    let response_dto = app_state.task_service.delete_tasks_batch(payload).await?;
+    let response_dto = app_state
+        .task_service
+        .delete_tasks_batch_for_user(user.0.user_id, payload)
+        .await?;
     Ok(Json(response_dto))
 }
 
 // フィルタリング用ハンドラー
 pub async fn filter_tasks_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
     Query(filter): Query<TaskFilterDto>,
 ) -> AppResult<Json<PaginatedTasksDto>> {
-    let paginated_tasks = app_state.task_service.filter_tasks(filter).await?;
+    let paginated_tasks = app_state
+        .task_service
+        .filter_tasks_for_user(user.0.user_id, filter)
+        .await?;
     Ok(Json(paginated_tasks))
 }
 
 // ページネーション付きタスク一覧ハンドラー
 pub async fn list_tasks_paginated_handler(
     State(app_state): State<AppState>,
+    user: AuthenticatedUser,
     Query(params): Query<PaginationParams>,
 ) -> AppResult<Json<PaginatedTasksDto>> {
     let page = params.page.unwrap_or(1);
@@ -379,7 +506,7 @@ pub async fn list_tasks_paginated_handler(
 
     let paginated_tasks = app_state
         .task_service
-        .list_tasks_paginated(page, page_size)
+        .list_tasks_paginated_for_user(user.0.user_id, page, page_size)
         .await?;
     Ok(Json(paginated_tasks))
 }
@@ -411,7 +538,14 @@ pub fn task_router(app_state: AppState) -> Router {
 }
 
 // スキーマを指定したルーター構築用ヘルパー関数を追加
-pub fn task_router_with_schema(task_service: Arc<TaskService>) -> Router {
-    let app_state = AppState { task_service };
+pub fn task_router_with_schema(
+    task_service: Arc<TaskService>,
+    jwt_manager: Arc<JwtManager>,
+) -> Router {
+    let app_state = AppState {
+        task_service,
+        jwt_manager,
+        cookie_config: CookieConfig::default(),
+    };
     task_router(app_state)
 }

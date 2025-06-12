@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize}; // Utc をインポート
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
+    #[sea_orm(nullable)]
+    pub user_id: Option<Uuid>,
     pub title: String,
     #[sea_orm(column_type = "Text", nullable)]
     pub description: Option<String>,
@@ -20,7 +22,20 @@ pub struct Model {
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {}
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "crate::domain::user_model::Entity",
+        from = "Column::UserId",
+        to = "crate::domain::user_model::Column::Id"
+    )]
+    User,
+}
+
+impl Related<crate::domain::user_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::User.def()
+    }
+}
 
 #[async_trait::async_trait] // async fn をトレイト内で使うために追加
 impl ActiveModelBehavior for ActiveModel {

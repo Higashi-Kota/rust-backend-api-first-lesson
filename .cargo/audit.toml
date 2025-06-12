@@ -1,0 +1,7 @@
+[advisories]
+# Ignore specific advisories
+ignore = [
+    "RUSTSEC-2023-0071", # https://rustsec.org/advisories/RUSTSEC-2023-0071.html
+    "RUSTSEC-2024-0421", # idna vulnerability - validator dependency
+    "RUSTSEC-2024-0370", # proc-macro-error unmaintained warning
+]

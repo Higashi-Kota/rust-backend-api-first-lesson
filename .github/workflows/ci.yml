@@ -114,7 +114,7 @@ jobs:
       - name: Run security audit
         run: |
           # Check for vulnerabilities (ignore known unfixable issues)
-          cargo audit --ignore RUSTSEC-2023-0071
+          cargo audit
 
   build-docker:
     name: Build Docker Image
@@ -234,11 +234,11 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cargo metadata --format-version 1 | jq -r '.workspace_members[]' >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          
+
           echo "## Package Versions" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cargo metadata --format-version 1 | jq -r '.packages[] | select(.source == null) | "\(.name): \(.version)"' >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          
+
           echo "## Dependencies Overview" >> $GITHUB_STEP_SUMMARY
           echo "Total unique dependencies: $(cargo metadata --format-version 1 | jq '[.packages[].dependencies[].name] | unique | length')" >> $GITHUB_STEP_SUMMARY

@@ -10,9 +10,9 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .table(Alias::new("tasks"))
+                    .table(Tasks::Table)
                     .name("idx_tasks_status")
-                    .col(Alias::new("status"))
+                    .col(Tasks::Status)
                     .to_owned(),
             )
             .await?;
@@ -21,9 +21,9 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .table(Alias::new("tasks"))
+                    .table(Tasks::Table)
                     .name("idx_tasks_due_date")
-                    .col(Alias::new("due_date"))
+                    .col(Tasks::DueDate)
                     .to_owned(),
             )
             .await?;
@@ -32,9 +32,9 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .table(Alias::new("tasks"))
+                    .table(Tasks::Table)
                     .name("idx_tasks_created_at")
-                    .col(Alias::new("created_at"))
+                    .col(Tasks::CreatedAt)
                     .to_owned(),
             )
             .await?;
@@ -43,9 +43,9 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .table(Alias::new("tasks"))
+                    .table(Tasks::Table)
                     .name("idx_tasks_title")
-                    .col(Alias::new("title"))
+                    .col(Tasks::Title)
                     .to_owned(),
             )
             .await?;
@@ -58,7 +58,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
-                    .table(Alias::new("tasks"))
+                    .table(Tasks::Table)
                     .name("idx_tasks_status")
                     .to_owned(),
             )
@@ -67,7 +67,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
-                    .table(Alias::new("tasks"))
+                    .table(Tasks::Table)
                     .name("idx_tasks_due_date")
                     .to_owned(),
             )
@@ -76,7 +76,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
-                    .table(Alias::new("tasks"))
+                    .table(Tasks::Table)
                     .name("idx_tasks_created_at")
                     .to_owned(),
             )
@@ -85,7 +85,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
-                    .table(Alias::new("tasks"))
+                    .table(Tasks::Table)
                     .name("idx_tasks_title")
                     .to_owned(),
             )
@@ -93,4 +93,14 @@ impl MigrationTrait for Migration {
 
         Ok(())
     }
+}
+
+/// Reference to the tasks table
+#[derive(DeriveIden)]
+enum Tasks {
+    Table,
+    Status,
+    DueDate,
+    CreatedAt,
+    Title,
 }

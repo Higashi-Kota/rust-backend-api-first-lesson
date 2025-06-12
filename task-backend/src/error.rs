@@ -1,4 +1,6 @@
 // src/error.rs
+#![allow(dead_code)]
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -24,6 +26,15 @@ pub enum AppError {
 
     #[error("Failed to parse UUID: {0}")]
     UuidError(#[from] uuid::Error),
+
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
+    #[error("Conflict: {0}")]
+    Conflict(String),
 
     #[allow(dead_code)] // この行を追加して警告を抑制
     #[error("Internal server error: {0}")]
@@ -76,7 +87,7 @@ impl IntoResponse for AppError {
             AppError::ValidationErrors(errors) => (
                 StatusCode::BAD_REQUEST,
                 json!({
-                    "errors": errors,
+                    "errors": errors.iter().map(|e| json!({"message": e})).collect::<Vec<_>>(),
                     "error_type": "validation_errors"
                 }),
             ),
@@ -85,6 +96,27 @@ impl IntoResponse for AppError {
                 json!({
                     "error": format!("Invalid UUID: {}", err),
                     "error_type": "invalid_uuid"
+                }),
+            ),
+            AppError::Unauthorized(message) => (
+                StatusCode::UNAUTHORIZED,
+                json!({
+                    "error": message,
+                    "error_type": "unauthorized"
+                }),
+            ),
+            AppError::Forbidden(message) => (
+                StatusCode::FORBIDDEN,
+                json!({
+                    "error": message,
+                    "error_type": "forbidden"
+                }),
+            ),
+            AppError::Conflict(message) => (
+                StatusCode::CONFLICT,
+                json!({
+                    "error": message,
+                    "error_type": "conflict"
                 }),
             ),
             AppError::InternalServerError(message) => {

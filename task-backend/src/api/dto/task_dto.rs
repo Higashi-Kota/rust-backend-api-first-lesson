@@ -58,6 +58,7 @@ pub struct TaskDto {
     pub description: Option<String>,
     pub status: String,
     pub due_date: Option<DateTime<Utc>>,
+    pub user_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -71,6 +72,7 @@ impl From<task_model::Model> for TaskDto {
             description: model.description,
             status: model.status,
             due_date: model.due_date,
+            user_id: model.user_id,
             created_at: model.created_at,
             updated_at: model.updated_at,
         }
@@ -81,6 +83,7 @@ impl From<task_model::Model> for TaskDto {
 #[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
 pub struct BatchCreateResponseDto {
     pub created_tasks: Vec<TaskDto>,
+    pub created_count: usize,
     // pub errors: Vec<String>, // エラーがあった場合の詳細など
 }
 
