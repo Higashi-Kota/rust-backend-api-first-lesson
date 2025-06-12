@@ -1,5 +1,8 @@
 // tests/common/mod.rs
+pub mod app_helper;
+pub mod auth_helper;
 pub mod db;
+pub mod test_data;
 
 use chrono::Utc;
 use task_backend::api::dto::task_dto::{CreateTaskDto, TaskDto, UpdateTaskDto};
