@@ -224,3 +224,34 @@ pub async fn request_password_reset(app: &Router, email: &str) -> Result<(), Str
 
     Ok(())
 }
+
+/// 初期管理者でログインしてJWTトークンを返す
+pub async fn create_admin_with_jwt(app: &Router) -> String {
+    // 初期管理者でログイン
+    let signin_req = SigninRequest {
+        identifier: "admin@example.com".to_string(),
+        password: "Adm1n$ecurE2024!".to_string(),
+    };
+
+    match signin_test_user(app, signin_req).await {
+        Ok(admin_user) => {
+            println!(
+                "Admin login successful, token: {}",
+                &admin_user.access_token[..20]
+            );
+            admin_user.access_token
+        }
+        Err(e) => {
+            println!("Admin login failed: {}", e);
+            panic!("Failed to login admin user: {}", e);
+        }
+    }
+}
+
+/// メンバーロールでユーザーを作成してJWTトークンを返す
+pub async fn create_member_with_jwt(app: &Router) -> String {
+    // メンバーロールはデフォルトで割り当てられるので、通常のサインアップでOK
+    let member_signup = create_test_user_data();
+    let member_user = signup_test_user(app, member_signup).await.unwrap();
+    member_user.access_token
+}

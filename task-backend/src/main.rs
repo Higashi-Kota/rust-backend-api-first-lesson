@@ -17,9 +17,10 @@ mod service;
 mod utils;
 
 use crate::api::handlers::{
-    auth_handler::auth_router_with_service, task_handler::task_router_with_schema,
-    user_handler::user_router_with_service,
+    auth_handler::auth_router_with_state, role_handler::role_router_with_state,
+    task_handler::task_router_with_state, user_handler::user_router_with_state,
 };
+use crate::api::AppState;
 use crate::config::Config;
 use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schema_exists};
 use crate::middleware::auth::{
@@ -27,10 +28,12 @@ use crate::middleware::auth::{
 };
 use crate::repository::{
     password_reset_token_repository::PasswordResetTokenRepository,
-    refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
+    refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
+    user_repository::UserRepository,
 };
 use crate::service::{
-    auth_service::AuthService, task_service::TaskService, user_service::UserService,
+    auth_service::AuthService, role_service::RoleService, task_service::TaskService,
+    user_service::UserService,
 };
 use crate::utils::{email::EmailService, jwt::JwtManager, password::PasswordManager};
 use axum::{middleware as axum_middleware, Router};
@@ -101,6 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // リポジトリの作成
     let user_repo = Arc::new(UserRepository::new(db_pool.clone()));
+    let role_repo = Arc::new(RoleRepository::new(Arc::new(db_pool.clone())));
     let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db_pool.clone()));
     let password_reset_token_repo = Arc::new(PasswordResetTokenRepository::new(db_pool.clone()));
 
@@ -109,6 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // サービスの作成
     let auth_service = Arc::new(AuthService::new(
         user_repo.clone(),
+        role_repo.clone(),
         refresh_token_repo.clone(),
         password_reset_token_repo.clone(),
         password_manager.clone(),
@@ -116,6 +121,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
     let user_service = Arc::new(UserService::new(user_repo.clone()));
+
+    let role_service = Arc::new(RoleService::new(role_repo.clone(), user_repo.clone()));
 
     let task_service = if let Some(schema) = &schema_name {
         Arc::new(TaskService::with_schema(db_pool.clone(), schema.clone()))
@@ -128,6 +135,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 認証ミドルウェア設定
     let auth_middleware_config = AuthMiddlewareConfig {
         jwt_manager: jwt_manager.clone(),
+        user_repository: user_repo.clone(),
+        role_repository: role_repo.clone(),
         access_token_cookie_name: "access_token".to_string(),
         skip_auth_paths: vec![
             "/auth/signup".to_string(),
@@ -138,19 +147,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/health".to_string(),
             "/".to_string(),
         ],
+        admin_only_paths: vec!["/admin".to_string(), "/api/admin".to_string()],
         require_verified_email: false, // 開発環境では false
         require_active_account: true,
     };
 
+    // 統一されたAppStateを作成
+    let app_state = AppState::new(
+        auth_service,
+        user_service,
+        role_service,
+        task_service,
+        jwt_manager.clone(),
+    );
+
     // ルーターの設定
-    let auth_router = auth_router_with_service(auth_service, jwt_manager.clone());
-    let user_router = user_router_with_service(user_service, jwt_manager.clone());
-    let task_router = task_router_with_schema(task_service, jwt_manager.clone());
+    let auth_router = auth_router_with_state(app_state.clone());
+    let user_router = user_router_with_state(app_state.clone());
+    let role_router = role_router_with_state(app_state.clone());
+    let task_router = task_router_with_state(app_state.clone());
 
     // メインアプリケーションルーターの構築
     let app_router = Router::new()
         .merge(auth_router)
         .merge(user_router)
+        .merge(role_router)
         .merge(task_router)
         .route(
             "/",
@@ -170,6 +191,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("🛣️  Routers configured:");
     tracing::info!("   • Authentication: /auth/*");
     tracing::info!("   • User Management: /users/*");
+    tracing::info!("   • Role Management: /roles/*");
     tracing::info!("   • Task Management: /tasks/*");
     tracing::info!("   • Health Check: /health");
 

@@ -1,5 +1,4 @@
 // src/error.rs
-#![allow(dead_code)]
 
 use axum::{
     http::StatusCode,
@@ -36,7 +35,6 @@ pub enum AppError {
     #[error("Conflict: {0}")]
     Conflict(String),
 
-    #[allow(dead_code)] // この行を追加して警告を抑制
     #[error("Internal server error: {0}")]
     InternalServerError(String),
 }

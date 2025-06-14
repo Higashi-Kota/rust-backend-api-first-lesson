@@ -2,12 +2,16 @@
 #![allow(dead_code)]
 
 use crate::db;
-use crate::domain::user_model::{self, ActiveModel as UserActiveModel, Entity as UserEntity};
+use crate::domain::role_model::{self, Entity as RoleEntity, RoleWithPermissions};
+use crate::domain::user_model::{
+    self, ActiveModel as UserActiveModel, Entity as UserEntity, SafeUserWithRole,
+};
 use sea_orm::entity::*;
-use sea_orm::{query::*, DbConn, DbErr, DeleteResult, Set};
-use sea_orm::{Condition, Order, PaginatorTrait, QueryFilter, QueryOrder};
+use sea_orm::{Condition, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{DbConn, DbErr, DeleteResult, JoinType, Set};
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct UserRepository {
     db: DbConn,
     schema: Option<String>,
@@ -128,6 +132,7 @@ impl UserRepository {
             email: Set(create_user.email),
             username: Set(create_user.username),
             password_hash: Set(create_user.password_hash),
+            role_id: Set(create_user.role_id),
             is_active: Set(create_user.is_active.unwrap_or(true)),
             email_verified: Set(create_user.email_verified.unwrap_or(false)),
             ..Default::default()
@@ -174,6 +179,11 @@ impl UserRepository {
 
         if let Some(email_verified) = update_user.email_verified {
             active_model.email_verified = Set(email_verified);
+            changed = true;
+        }
+
+        if let Some(role_id) = update_user.role_id {
+            active_model.role_id = Set(role_id);
             changed = true;
         }
 
@@ -383,6 +393,268 @@ impl UserRepository {
             unverified_users: total_users - verified_users,
         })
     }
+
+    // --- ロール関連操作 ---
+
+    /// ユーザーをロール情報と一緒に取得
+    pub async fn find_by_id_with_role(&self, id: Uuid) -> Result<Option<SafeUserWithRole>, DbErr> {
+        self.prepare_connection().await?;
+
+        let result = UserEntity::find_by_id(id)
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .select_also(RoleEntity)
+            .one(&self.db)
+            .await?;
+
+        match result {
+            Some((user, Some(role))) => match RoleWithPermissions::from_model(role) {
+                Ok(role_with_perms) => Ok(Some(user.to_safe_user_with_role(role_with_perms))),
+                Err(_) => Err(DbErr::Custom("Invalid role data".to_string())),
+            },
+            _ => Ok(None),
+        }
+    }
+
+    /// メールアドレスでユーザーをロール情報と一緒に取得
+    pub async fn find_by_email_with_role(
+        &self,
+        email: &str,
+    ) -> Result<Option<SafeUserWithRole>, DbErr> {
+        self.prepare_connection().await?;
+
+        let result = UserEntity::find()
+            .filter(user_model::Column::Email.eq(email))
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .select_also(RoleEntity)
+            .one(&self.db)
+            .await?;
+
+        match result {
+            Some((user, Some(role))) => match RoleWithPermissions::from_model(role) {
+                Ok(role_with_perms) => Ok(Some(user.to_safe_user_with_role(role_with_perms))),
+                Err(_) => Err(DbErr::Custom("Invalid role data".to_string())),
+            },
+            _ => Ok(None),
+        }
+    }
+
+    /// ユーザー名でユーザーをロール情報と一緒に取得
+    pub async fn find_by_username_with_role(
+        &self,
+        username: &str,
+    ) -> Result<Option<SafeUserWithRole>, DbErr> {
+        self.prepare_connection().await?;
+
+        let result = UserEntity::find()
+            .filter(user_model::Column::Username.eq(username))
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .select_also(RoleEntity)
+            .one(&self.db)
+            .await?;
+
+        match result {
+            Some((user, Some(role))) => match RoleWithPermissions::from_model(role) {
+                Ok(role_with_perms) => Ok(Some(user.to_safe_user_with_role(role_with_perms))),
+                Err(_) => Err(DbErr::Custom("Invalid role data".to_string())),
+            },
+            _ => Ok(None),
+        }
+    }
+
+    /// メールアドレスまたはユーザー名でユーザーをロール情報と一緒に取得
+    pub async fn find_by_email_or_username_with_role(
+        &self,
+        identifier: &str,
+    ) -> Result<Option<SafeUserWithRole>, DbErr> {
+        self.prepare_connection().await?;
+
+        let result = UserEntity::find()
+            .filter(
+                Condition::any()
+                    .add(user_model::Column::Email.eq(identifier))
+                    .add(user_model::Column::Username.eq(identifier)),
+            )
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .select_also(RoleEntity)
+            .one(&self.db)
+            .await?;
+
+        match result {
+            Some((user, Some(role))) => match RoleWithPermissions::from_model(role) {
+                Ok(role_with_perms) => Ok(Some(user.to_safe_user_with_role(role_with_perms))),
+                Err(_) => Err(DbErr::Custom("Invalid role data".to_string())),
+            },
+            _ => Ok(None),
+        }
+    }
+
+    /// 全ユーザーをロール情報と一緒に取得
+    pub async fn find_all_with_roles(&self) -> Result<Vec<SafeUserWithRole>, DbErr> {
+        self.prepare_connection().await?;
+
+        let results = UserEntity::find()
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .select_also(RoleEntity)
+            .order_by(user_model::Column::CreatedAt, Order::Desc)
+            .all(&self.db)
+            .await?;
+
+        let mut users_with_roles = Vec::new();
+        for (user, role_opt) in results {
+            if let Some(role) = role_opt {
+                match RoleWithPermissions::from_model(role) {
+                    Ok(role_with_perms) => {
+                        users_with_roles.push(user.to_safe_user_with_role(role_with_perms));
+                    }
+                    Err(_) => continue, // スキップして続行
+                }
+            }
+        }
+
+        Ok(users_with_roles)
+    }
+
+    /// ページネーション付きでユーザーをロール情報と一緒に取得
+    pub async fn find_all_with_roles_paginated(
+        &self,
+        page: u64,
+        page_size: u64,
+    ) -> Result<(Vec<SafeUserWithRole>, u64), DbErr> {
+        self.prepare_connection().await?;
+
+        let page_size = std::cmp::min(page_size, 100); // 最大100件
+        let offset = (page - 1) * page_size;
+
+        let results = UserEntity::find()
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .select_also(RoleEntity)
+            .order_by(user_model::Column::CreatedAt, Order::Desc)
+            .limit(page_size)
+            .offset(offset)
+            .all(&self.db)
+            .await?;
+
+        let total_count = UserEntity::find().count(&self.db).await?;
+
+        let mut users_with_roles = Vec::new();
+        for (user, role_opt) in results {
+            if let Some(role) = role_opt {
+                match RoleWithPermissions::from_model(role) {
+                    Ok(role_with_perms) => {
+                        users_with_roles.push(user.to_safe_user_with_role(role_with_perms));
+                    }
+                    Err(_) => continue, // スキップして続行
+                }
+            }
+        }
+
+        Ok((users_with_roles, total_count))
+    }
+
+    /// 特定のロールを持つユーザーを取得
+    pub async fn find_by_role_id(&self, role_id: Uuid) -> Result<Vec<user_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+
+        UserEntity::find()
+            .filter(user_model::Column::RoleId.eq(role_id))
+            .order_by(user_model::Column::CreatedAt, Order::Desc)
+            .all(&self.db)
+            .await
+    }
+
+    /// 特定のロール名を持つユーザーを取得
+    pub async fn find_by_role_name(&self, role_name: &str) -> Result<Vec<SafeUserWithRole>, DbErr> {
+        self.prepare_connection().await?;
+
+        let results = UserEntity::find()
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .filter(role_model::Column::Name.eq(role_name))
+            .select_also(RoleEntity)
+            .order_by(user_model::Column::CreatedAt, Order::Desc)
+            .all(&self.db)
+            .await?;
+
+        let mut users_with_roles = Vec::new();
+        for (user, role_opt) in results {
+            if let Some(role) = role_opt {
+                match RoleWithPermissions::from_model(role) {
+                    Ok(role_with_perms) => {
+                        users_with_roles.push(user.to_safe_user_with_role(role_with_perms));
+                    }
+                    Err(_) => continue,
+                }
+            }
+        }
+
+        Ok(users_with_roles)
+    }
+
+    /// ユーザーのロールを更新
+    pub async fn update_user_role(
+        &self,
+        user_id: Uuid,
+        role_id: Uuid,
+    ) -> Result<Option<user_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+
+        let user = match UserEntity::find_by_id(user_id).one(&self.db).await? {
+            Some(u) => u,
+            None => return Ok(None),
+        };
+
+        let mut active_model: UserActiveModel = user.into();
+        active_model.role_id = Set(role_id);
+
+        Ok(Some(active_model.update(&self.db).await?))
+    }
+
+    /// 管理者ユーザーを取得
+    pub async fn find_admin_users(&self) -> Result<Vec<SafeUserWithRole>, DbErr> {
+        self.find_by_role_name("admin").await
+    }
+
+    /// 一般ユーザーを取得
+    pub async fn find_member_users(&self) -> Result<Vec<SafeUserWithRole>, DbErr> {
+        self.find_by_role_name("member").await
+    }
+
+    /// ロール別ユーザー統計を取得
+    pub async fn get_user_stats_by_role(&self) -> Result<Vec<RoleUserStats>, DbErr> {
+        self.prepare_connection().await?;
+
+        let results = UserEntity::find()
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .select_also(RoleEntity)
+            .all(&self.db)
+            .await?;
+
+        let mut role_stats: std::collections::HashMap<String, RoleUserStats> =
+            std::collections::HashMap::new();
+
+        for (user, role_opt) in results {
+            if let Some(role) = role_opt {
+                let stats = role_stats
+                    .entry(role.name.clone())
+                    .or_insert(RoleUserStats {
+                        role_name: role.name.clone(),
+                        role_display_name: role.display_name.clone(),
+                        total_users: 0,
+                        active_users: 0,
+                        verified_users: 0,
+                    });
+
+                stats.total_users += 1;
+                if user.is_active {
+                    stats.active_users += 1;
+                }
+                if user.email_verified {
+                    stats.verified_users += 1;
+                }
+            }
+        }
+
+        Ok(role_stats.into_values().collect())
+    }
 }
 
 // --- DTOと関連構造体 ---
@@ -393,6 +665,7 @@ pub struct CreateUser {
     pub email: String,
     pub username: String,
     pub password_hash: String,
+    pub role_id: Uuid,
     pub is_active: Option<bool>,
     pub email_verified: Option<bool>,
 }
@@ -403,6 +676,7 @@ pub struct UpdateUser {
     pub email: Option<String>,
     pub username: Option<String>,
     pub password_hash: Option<String>,
+    pub role_id: Option<Uuid>,
     pub is_active: Option<bool>,
     pub email_verified: Option<bool>,
 }
@@ -415,4 +689,14 @@ pub struct UserStats {
     pub verified_users: u64,
     pub inactive_users: u64,
     pub unverified_users: u64,
+}
+
+/// ロール別ユーザー統計情報
+#[derive(Debug, Clone)]
+pub struct RoleUserStats {
+    pub role_name: String,
+    pub role_display_name: String,
+    pub total_users: u64,
+    pub active_users: u64,
+    pub verified_users: u64,
 }

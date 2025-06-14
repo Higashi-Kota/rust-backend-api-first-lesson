@@ -1,5 +1,4 @@
 // task-backend/src/api/dto/auth_dto.rs
-#![allow(dead_code)]
 
 use crate::domain::user_model::SafeUser;
 use crate::utils::jwt::TokenPair;
@@ -214,57 +213,7 @@ pub struct AuthFlowResponse {
     pub data: Option<serde_json::Value>,
 }
 
-// --- Cookie設定 ---
-
-/// Cookie設定
-#[derive(Debug, Clone)]
-pub struct CookieConfig {
-    pub access_token_name: String,
-    pub refresh_token_name: String,
-    pub secure: bool,
-    pub http_only: bool,
-    pub same_site: String,
-    pub domain: Option<String>,
-    pub path: String,
-}
-
-impl Default for CookieConfig {
-    fn default() -> Self {
-        Self {
-            access_token_name: "access_token".to_string(),
-            refresh_token_name: "refresh_token".to_string(),
-            secure: true,                    // HTTPS必須
-            http_only: true,                 // XSS防止
-            same_site: "Strict".to_string(), // CSRF防止
-            domain: None,
-            path: "/".to_string(),
-        }
-    }
-}
-
-// --- セキュリティヘッダー ---
-
-/// セキュリティヘッダー設定
-#[derive(Debug, Clone)]
-pub struct SecurityHeaders {
-    pub content_security_policy: String,
-    pub x_frame_options: String,
-    pub x_content_type_options: String,
-    pub referrer_policy: String,
-    pub permissions_policy: String,
-}
-
-impl Default for SecurityHeaders {
-    fn default() -> Self {
-        Self {
-            content_security_policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';".to_string(),
-            x_frame_options: "DENY".to_string(),
-            x_content_type_options: "nosniff".to_string(),
-            referrer_policy: "strict-origin-when-cross-origin".to_string(),
-            permissions_policy: "camera=(), microphone=(), geolocation=()".to_string(),
-        }
-    }
-}
+// Cookie設定とセキュリティヘッダーは crate::api::CookieConfig と crate::api::SecurityHeaders を使用
 
 // --- バリデーション用の正規表現と定数 ---
 
@@ -384,6 +333,7 @@ mod tests {
             username: "testuser".to_string(),
             is_active: true,
             email_verified: false,
+            role_id: Uuid::new_v4(),
             last_login_at: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),

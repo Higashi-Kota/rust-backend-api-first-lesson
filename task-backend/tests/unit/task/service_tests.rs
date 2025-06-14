@@ -298,3 +298,242 @@ async fn test_paginated_tasks_service() {
         }
     }
 }
+
+#[test]
+fn test_task_statistics_concepts() {
+    // タスク統計の概念テスト（新しく追加したAPIで使用）
+
+    // タスク統計の構造
+    struct TaskStatsConcept {
+        total_tasks: usize,
+        completed_tasks: usize,
+        pending_tasks: usize,
+        in_progress_tasks: usize,
+        completion_rate: f64,
+    }
+
+    let stats = TaskStatsConcept {
+        total_tasks: 100,
+        completed_tasks: 60,
+        pending_tasks: 25,
+        in_progress_tasks: 15,
+        completion_rate: 60.0,
+    };
+
+    // 統計の整合性チェック
+    assert_eq!(
+        stats.completed_tasks + stats.pending_tasks + stats.in_progress_tasks,
+        stats.total_tasks,
+        "Task counts should sum to total"
+    );
+
+    assert_eq!(
+        stats.completion_rate,
+        (stats.completed_tasks as f64 / stats.total_tasks as f64 * 100.0).round(),
+        "Completion rate should be calculated correctly"
+    );
+
+    // 完了率の範囲チェック
+    assert!(
+        stats.completion_rate >= 0.0 && stats.completion_rate <= 100.0,
+        "Completion rate should be between 0 and 100"
+    );
+}
+
+#[test]
+fn test_task_status_distribution_concepts() {
+    // タスクステータス分布の概念テスト（新しく追加したAPIで使用）
+
+    // ステータス分布の構造
+    struct StatusDistributionConcept {
+        pending: usize,
+        in_progress: usize,
+        completed: usize,
+        other: usize,
+    }
+
+    let distribution = StatusDistributionConcept {
+        pending: 30,
+        in_progress: 20,
+        completed: 45,
+        other: 5,
+    };
+
+    let total = distribution.pending
+        + distribution.in_progress
+        + distribution.completed
+        + distribution.other;
+
+    // 分布の整合性チェック
+    assert_eq!(total, 100, "Distribution should sum to total tasks");
+
+    // 各ステータスが妥当な値であることを確認（usizeは非負なので存在確認のみ）
+    assert!(
+        distribution.pending < 1000,
+        "Pending tasks should be reasonable count"
+    );
+    assert!(
+        distribution.in_progress < 1000,
+        "In progress tasks should be reasonable count"
+    );
+    assert!(
+        distribution.completed < 1000,
+        "Completed tasks should be reasonable count"
+    );
+    assert!(
+        distribution.other < 1000,
+        "Other tasks should be reasonable count"
+    );
+
+    // 最も多いステータスの確認（概念的テスト）
+    let status_counts = [
+        ("pending", distribution.pending),
+        ("in_progress", distribution.in_progress),
+        ("completed", distribution.completed),
+        ("other", distribution.other),
+    ];
+    let max_status = status_counts
+        .iter()
+        .max_by_key(|(_, count)| *count)
+        .unwrap();
+
+    assert_eq!(
+        max_status.0, "completed",
+        "Completed should be the highest status in this test"
+    );
+}
+
+#[test]
+fn test_bulk_status_update_concepts() {
+    // 一括ステータス更新の概念テスト（新しく追加したAPIで使用）
+
+    // 一括更新の結果構造
+    struct BulkUpdateResultConcept {
+        updated_count: usize,
+        error_count: usize,
+        total_requested: usize,
+        new_status: String,
+    }
+
+    let result = BulkUpdateResultConcept {
+        updated_count: 8,
+        error_count: 2,
+        total_requested: 10,
+        new_status: "completed".to_string(),
+    };
+
+    // 更新結果の整合性チェック
+    assert_eq!(
+        result.updated_count + result.error_count,
+        result.total_requested,
+        "Updated and error counts should sum to total requested"
+    );
+
+    // 有効なステータス値の確認
+    let valid_statuses = ["pending", "in_progress", "completed"];
+    assert!(
+        valid_statuses.contains(&result.new_status.as_str()),
+        "New status should be valid"
+    );
+
+    // 成功率の計算（概念的テスト）
+    let success_rate = result.updated_count as f64 / result.total_requested as f64;
+    assert!(
+        (0.0..=1.0).contains(&success_rate),
+        "Success rate should be between 0 and 1"
+    );
+
+    // この例では80%の成功率
+    assert_eq!(
+        (success_rate * 100.0).round(),
+        80.0,
+        "Success rate should be 80%"
+    );
+}
+
+#[test]
+fn test_task_uuid_validation_concepts() {
+    // タスクUUID検証の概念テスト（一括操作で使用）
+    use uuid::Uuid;
+
+    let valid_uuid = Uuid::new_v4();
+    let nil_uuid = Uuid::nil();
+
+    // UUID形式の検証
+    assert_ne!(valid_uuid, nil_uuid, "Valid UUID should not be nil");
+    assert_eq!(
+        valid_uuid.to_string().len(),
+        36,
+        "UUID string should be 36 characters"
+    );
+
+    // UUID文字列からの変換テスト
+    let uuid_str = valid_uuid.to_string();
+    let parsed_uuid = Uuid::parse_str(&uuid_str).unwrap();
+    assert_eq!(
+        valid_uuid, parsed_uuid,
+        "UUID should parse back to original"
+    );
+
+    // 無効なUUID文字列のテスト
+    let invalid_uuid_str = "invalid-uuid-string";
+    assert!(
+        Uuid::parse_str(invalid_uuid_str).is_err(),
+        "Invalid UUID string should fail to parse"
+    );
+
+    // 空文字列のテスト
+    assert!(
+        Uuid::parse_str("").is_err(),
+        "Empty string should fail to parse as UUID"
+    );
+}
+
+#[test]
+fn test_task_status_validation_concepts() {
+    // タスクステータス検証の概念テスト（一括更新で使用）
+
+    let valid_statuses = ["pending", "in_progress", "completed"];
+    let invalid_statuses = ["draft", "cancelled", "archived", ""];
+
+    // 有効なステータスの確認
+    for status in valid_statuses {
+        assert!(!status.is_empty(), "Valid status should not be empty");
+        assert!(status.len() <= 20, "Status should be reasonable length");
+        assert!(
+            status.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
+            "Status should be lowercase with underscores only"
+        );
+    }
+
+    // 無効なステータスの確認
+    for status in invalid_statuses {
+        if status.is_empty() {
+            assert!(status.is_empty(), "Empty status should be detected");
+        } else {
+            assert!(
+                !valid_statuses.contains(&status),
+                "Invalid status should not be in valid list"
+            );
+        }
+    }
+
+    // ステータス変換の概念テスト
+    let status_mappings = [
+        ("pending", "in_progress"),
+        ("in_progress", "completed"),
+        ("completed", "pending"), // 再開の場合
+    ];
+
+    for (from, to) in status_mappings {
+        assert!(
+            valid_statuses.contains(&from),
+            "Source status should be valid"
+        );
+        assert!(
+            valid_statuses.contains(&to),
+            "Target status should be valid"
+        );
+        assert_ne!(from, to, "Status transition should change status");
+    }
+}

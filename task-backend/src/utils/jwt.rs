@@ -476,6 +476,7 @@ mod tests {
             email: "test@example.com".to_string(),
             is_active: true,
             email_verified: true,
+            role_name: "member".to_string(),
         }
     }
 

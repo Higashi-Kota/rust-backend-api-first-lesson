@@ -2,10 +2,12 @@
 use crate::api::dto::auth_dto::*;
 use crate::domain::password_reset_token_model::TokenValidationError;
 use crate::domain::refresh_token_model::CreateRefreshToken;
+use crate::domain::role_model::RoleName;
 use crate::domain::user_model::UserClaims;
 use crate::error::{AppError, AppResult};
 use crate::repository::password_reset_token_repository::PasswordResetTokenRepository;
 use crate::repository::refresh_token_repository::RefreshTokenRepository;
+use crate::repository::role_repository::RoleRepository;
 use crate::repository::user_repository::{CreateUser, UserRepository};
 use crate::utils::jwt::{JwtManager, TokenPair};
 use crate::utils::password::{PasswordChangeInput, PasswordManager};
@@ -18,6 +20,7 @@ use validator::Validate;
 /// 認証サービス
 pub struct AuthService {
     user_repo: Arc<UserRepository>,
+    role_repo: Arc<RoleRepository>,
     refresh_token_repo: Arc<RefreshTokenRepository>,
     password_reset_token_repo: Arc<PasswordResetTokenRepository>,
     password_manager: Arc<PasswordManager>,
@@ -27,6 +30,7 @@ pub struct AuthService {
 impl AuthService {
     pub fn new(
         user_repo: Arc<UserRepository>,
+        role_repo: Arc<RoleRepository>,
         refresh_token_repo: Arc<RefreshTokenRepository>,
         password_reset_token_repo: Arc<PasswordResetTokenRepository>,
         password_manager: Arc<PasswordManager>,
@@ -34,6 +38,7 @@ impl AuthService {
     ) -> Self {
         Self {
             user_repo,
+            role_repo,
             refresh_token_repo,
             password_reset_token_repo,
             password_manager,
@@ -78,11 +83,19 @@ impl AuthService {
                 AppError::InternalServerError(format!("Password hashing failed: {}", e))
             })?;
 
+        // デフォルトのメンバーロールを取得
+        let member_role = self
+            .role_repo
+            .find_by_name(RoleName::Member.as_str())
+            .await?
+            .ok_or_else(|| AppError::InternalServerError("Member role not found".to_string()))?;
+
         // ユーザー作成
         let create_user = CreateUser {
             email: signup_data.email.clone(),
             username: signup_data.username.clone(),
             password_hash,
+            role_id: member_role.id,
             is_active: Some(true),
             email_verified: Some(false), // メール認証は別途実装
         };
@@ -96,12 +109,21 @@ impl AuthService {
             "User registered successfully"
         );
 
+        // ロール情報付きユーザーを取得
+        let user_with_role = self
+            .user_repo
+            .find_by_id_with_role(user.id)
+            .await?
+            .ok_or_else(|| {
+                AppError::InternalServerError("User with role not found after creation".to_string())
+            })?;
+
         // JWT トークン生成
-        let user_claims = UserClaims::from(user.clone());
+        let user_claims = user_with_role.to_simple_claims();
         let token_pair = self.create_token_pair(&user_claims).await?;
 
         Ok(AuthResponse {
-            user: user.into(),
+            user: user_with_role.into(),
             tokens: token_pair,
             message: "Registration successful".to_string(),
         })
@@ -171,18 +193,29 @@ impl AuthService {
             }
         }
 
+        // ロール情報付きユーザーを取得
+        let user_with_role = self
+            .user_repo
+            .find_by_id_with_role(user.id)
+            .await?
+            .ok_or_else(|| {
+                AppError::InternalServerError(
+                    "User with role not found after authentication".to_string(),
+                )
+            })?;
+
         info!(
-            user_id = %user.id,
-            email = %user.email,
+            user_id = %user_with_role.id,
+            email = %user_with_role.email,
             "User signed in successfully"
         );
 
         // JWT トークン生成
-        let user_claims = UserClaims::from(user.clone());
+        let user_claims = user_with_role.to_simple_claims();
         let token_pair = self.create_token_pair(&user_claims).await?;
 
         Ok(AuthResponse {
-            user: user.into(),
+            user: user_with_role.into(),
             tokens: token_pair,
             message: "Login successful".to_string(),
         })
@@ -258,26 +291,26 @@ impl AuthService {
                 AppError::Unauthorized("Invalid refresh token".to_string())
             })?;
 
-        // ユーザー情報取得
-        let user = self
+        // ユーザー情報取得（ロール情報付き）
+        let user_with_role = self
             .user_repo
-            .find_by_id(user_id)
+            .find_by_id_with_role(user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
         // ユーザーがアクティブかチェック
-        if !user.can_authenticate() {
+        if !user_with_role.can_authenticate() {
             warn!(user_id = %user_id, "Token refresh for inactive user");
             return Err(AppError::Unauthorized("Account is inactive".to_string()));
         }
 
         // 新しいトークンペアを生成（リフレッシュトークンローテーション）
-        let user_claims = UserClaims::from(user.clone());
+        let user_claims = user_with_role.to_simple_claims();
 
         // 新しいリフレッシュトークンを生成
         let new_refresh_token = self
             .jwt_manager
-            .generate_refresh_token(user.id, token_claims.ver + 1)
+            .generate_refresh_token(user_with_role.id, token_claims.ver + 1)
             .map_err(|e| {
                 AppError::InternalServerError(format!("Token generation failed: {}", e))
             })?;
@@ -286,7 +319,7 @@ impl AuthService {
         let refresh_expires_at = Utc::now() + Duration::days(7);
 
         let create_refresh_token = CreateRefreshToken {
-            user_id: user.id,
+            user_id: user_with_role.id,
             token_hash: new_refresh_token_hash.clone(),
             expires_at: refresh_expires_at,
         };
@@ -322,7 +355,7 @@ impl AuthService {
         );
 
         Ok(TokenRefreshResponse {
-            user: user.into(),
+            user: user_with_role.into(),
             tokens: token_pair,
         })
     }
