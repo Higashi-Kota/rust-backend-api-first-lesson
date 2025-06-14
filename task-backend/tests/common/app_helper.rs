@@ -186,7 +186,8 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         .merge(auth_handler::auth_router(app_state.clone()))
         .merge(user_handler::user_router(app_state.clone()))
         .merge(task_backend::api::handlers::role_handler::role_router_with_state(app_state.clone()))
-        .merge(task_backend::api::handlers::task_handler::task_router_with_state(app_state))
+        .merge(task_backend::api::handlers::task_handler::task_router_with_state(app_state.clone()))
+        .merge(task_backend::api::handlers::task_handler::admin_task_router(app_state))
         .layer(axum_middleware::from_fn_with_state(
             auth_middleware_config,
             jwt_auth_middleware,

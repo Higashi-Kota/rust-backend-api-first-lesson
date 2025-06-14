@@ -52,7 +52,19 @@ impl TaskRepository {
 
     pub async fn find_all(&self) -> Result<Vec<task_model::Model>, DbErr> {
         self.prepare_connection().await?;
-        TaskEntity::find().all(&self.db).await
+        TaskEntity::find()
+            .order_by_desc(task_model::Column::CreatedAt)
+            .all(&self.db)
+            .await
+    }
+
+    pub async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<task_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+        TaskEntity::find()
+            .filter(task_model::Column::UserId.eq(user_id))
+            .order_by_desc(task_model::Column::CreatedAt)
+            .all(&self.db)
+            .await
     }
 
     pub async fn find_all_for_user(&self, user_id: Uuid) -> Result<Vec<task_model::Model>, DbErr> {

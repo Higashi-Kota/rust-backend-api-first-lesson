@@ -477,6 +477,7 @@ mod tests {
             is_active: true,
             email_verified: true,
             role_name: "member".to_string(),
+            role: None,
         }
     }
 

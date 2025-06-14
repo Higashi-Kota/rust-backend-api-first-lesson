@@ -131,6 +131,7 @@ pub fn create_authenticated_request(
         .uri(uri)
         .method(method)
         .header("Authorization", format!("Bearer {}", access_token))
+        .header("Cookie", format!("access_token={}", access_token))
         .header("Content-Type", "application/json");
 
     match body {

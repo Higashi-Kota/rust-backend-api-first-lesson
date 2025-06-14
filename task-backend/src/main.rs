@@ -17,8 +17,10 @@ mod service;
 mod utils;
 
 use crate::api::handlers::{
-    auth_handler::auth_router_with_state, role_handler::role_router_with_state,
-    task_handler::task_router_with_state, user_handler::user_router_with_state,
+    auth_handler::auth_router_with_state,
+    role_handler::role_router_with_state,
+    task_handler::{admin_task_router, task_router_with_state},
+    user_handler::user_router_with_state,
 };
 use crate::api::AppState;
 use crate::config::Config;
@@ -166,6 +168,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_router = user_router_with_state(app_state.clone());
     let role_router = role_router_with_state(app_state.clone());
     let task_router = task_router_with_state(app_state.clone());
+    let admin_router = admin_task_router(app_state.clone());
 
     // メインアプリケーションルーターの構築
     let app_router = Router::new()
@@ -173,6 +176,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(user_router)
         .merge(role_router)
         .merge(task_router)
+        .merge(admin_router)
         .route(
             "/",
             axum::routing::get(|| async { "Task Backend API v1.0" }),
@@ -193,6 +197,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • User Management: /users/*");
     tracing::info!("   • Role Management: /roles/*");
     tracing::info!("   • Task Management: /tasks/*");
+    tracing::info!("   • Admin Management: /admin/*");
     tracing::info!("   • Health Check: /health");
 
     // サーバーの起動

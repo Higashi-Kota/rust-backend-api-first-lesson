@@ -537,3 +537,71 @@ fn test_task_status_validation_concepts() {
         assert_ne!(from, to, "Status transition should change status");
     }
 }
+
+// Admin専用メソッドのテスト
+#[tokio::test]
+async fn test_admin_list_all_tasks_service() {
+    let (_db, service) = setup_test_service().await;
+
+    // user_id なしでタスクを作成（既存のテストと同様）
+    let task_dto1 = common::create_test_task();
+    let _created_task1 = service.create_task(task_dto1).await.unwrap();
+
+    let task_dto2 = common::create_test_task();
+    let _created_task2 = service.create_task(task_dto2).await.unwrap();
+
+    // Admin: 全タスクを取得
+    let all_tasks = service.list_all_tasks().await.unwrap();
+
+    // 検証: 複数のタスクが含まれているべき
+    assert!(all_tasks.len() >= 2);
+}
+
+#[tokio::test]
+async fn test_admin_list_tasks_by_user_id_service() {
+    let (_db, service) = setup_test_service().await;
+
+    // 存在しないuser_idで空のリストが返されることをテスト
+    let nonexistent_user_id = Uuid::new_v4();
+
+    // Admin: 存在しないユーザーのタスクを取得
+    let user_tasks = service
+        .list_tasks_by_user_id(nonexistent_user_id)
+        .await
+        .unwrap();
+
+    // 検証: 空のリストが返される
+    assert!(user_tasks.is_empty());
+}
+
+#[tokio::test]
+async fn test_admin_delete_task_by_id_service() {
+    let (_db, service) = setup_test_service().await;
+
+    // user_id なしでタスクを作成
+    let task_dto = common::create_test_task();
+    let created_task = service.create_task(task_dto).await.unwrap();
+
+    // Admin: 任意のタスクを削除
+    let result = service.delete_task_by_id(created_task.id).await;
+    assert!(result.is_ok());
+
+    // 検証: タスクが削除されていることを確認
+    let get_result = service.get_task(created_task.id).await;
+    assert!(get_result.is_err());
+}
+
+#[tokio::test]
+async fn test_admin_delete_nonexistent_task_service() {
+    let (_db, service) = setup_test_service().await;
+
+    let nonexistent_id = Uuid::new_v4();
+
+    // Admin: 存在しないタスクの削除を試行
+    let result = service.delete_task_by_id(nonexistent_id).await;
+
+    // 検証: NotFoundエラーが返される
+    assert!(result.is_err());
+    let error_msg = result.unwrap_err().to_string();
+    assert!(error_msg.contains("not found"));
+}

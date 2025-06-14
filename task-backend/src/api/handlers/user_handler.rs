@@ -2,7 +2,6 @@
 use crate::api::dto::user_dto::*;
 use crate::api::handlers::auth_handler::AuthenticatedUser;
 use crate::api::AppState;
-use crate::domain::user_model::UserClaims;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUserWithRole;
 use axum::{
@@ -353,10 +352,10 @@ pub async fn update_account_status_handler(
     Json(payload): Json<UpdateAccountStatusRequest>,
 ) -> AppResult<Json<AccountStatusUpdateResponse>> {
     // 管理者権限チェック
-    if !admin_user.role().is_admin() {
+    if !admin_user.is_admin() {
         warn!(
             user_id = %admin_user.user_id(),
-            role = %admin_user.role().name,
+            role = ?admin_user.role().map(|r| &r.name),
             target_user_id = %user_id,
             "Access denied: Admin permission required for account status update"
         );
@@ -446,10 +445,10 @@ pub async fn list_users_handler(
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<Json<UserListResponse>> {
     // 管理者権限チェック
-    if !admin_user.role().is_admin() {
+    if !admin_user.is_admin() {
         warn!(
             user_id = %admin_user.user_id(),
-            role = %admin_user.role().name,
+            role = ?admin_user.role().map(|r| &r.name),
             "Access denied: Admin permission required for user list"
         );
         return Err(AppError::Forbidden("Admin access required".to_string()));
@@ -533,10 +532,10 @@ pub async fn get_user_by_id_handler(
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<UserProfileResponse>> {
     // 管理者権限チェック
-    if !admin_user.role().is_admin() {
+    if !admin_user.is_admin() {
         warn!(
             user_id = %admin_user.user_id(),
-            role = %admin_user.role().name,
+            role = ?admin_user.role().map(|r| &r.name),
             target_user_id = %user_id,
             "Access denied: Admin permission required for user profile access"
         );
@@ -618,40 +617,4 @@ pub fn user_router(app_state: AppState) -> Router {
 /// ユーザールーターをAppStateから作成
 pub fn user_router_with_state(app_state: AppState) -> Router {
     user_router(app_state)
-}
-
-// --- ヘルパー関数 ---
-
-/// ユーザー権限チェック（将来の拡張用）
-#[allow(dead_code)]
-fn check_admin_permission(_user: &UserClaims) -> AppResult<()> {
-    // TODO: 管理者権限チェックロジックを実装
-    // if !user.is_admin {
-    //     return Err(AppError::Forbidden("Admin access required".to_string()));
-    // }
-    Ok(())
-}
-
-/// ユーザーアクセス権限チェック（自分自身または管理者）
-#[allow(dead_code)]
-fn check_user_access_permission(
-    requesting_user: &UserClaims,
-    target_user_id: Uuid,
-) -> AppResult<()> {
-    if requesting_user.user_id != target_user_id {
-        // TODO: 管理者権限チェック
-        // if !requesting_user.is_admin {
-        //     return Err(AppError::Forbidden("Access denied".to_string()));
-        // }
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_user_router_creation() {
-        // ユーザールーターの作成テスト
-        // 実際のテストでは mock を使用
-    }
 }

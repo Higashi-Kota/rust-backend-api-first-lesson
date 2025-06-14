@@ -22,7 +22,8 @@
       "Bash(find:*)",
       "Bash(RUST_BACKTRACE=1 cargo test test_delete_account_wrong_confirmation -- --nocapture)",
       "Bash(RUST_BACKTRACE=1 cargo test integration::auth::account_management_tests::test_user_can_login_with_new_password -- --nocapture)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(RUST_LOG=info cargo test integration::roles::permission_tests::test_admin_can_list_all_tasks -- --nocapture 2 >& 1)"
     ],
     "deny": [
       "Bash(docker:*)"

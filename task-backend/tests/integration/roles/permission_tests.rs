@@ -470,3 +470,202 @@ async fn test_unauthenticated_access_denied() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+#[tokio::test]
+async fn test_admin_can_list_all_tasks() {
+    // Setup
+    let (app, _schema, _db) = app_helper::setup_full_app().await;
+
+    // Create admin and regular users
+    let admin_token = auth_helper::create_admin_with_jwt(&app).await;
+    let user1_signup = auth_helper::create_test_user_with_info("user1@example.com", "user1");
+    let user2_signup = auth_helper::create_test_user_with_info("user2@example.com", "user2");
+
+    let user1 = auth_helper::signup_test_user(&app, user1_signup)
+        .await
+        .unwrap();
+    let user2 = auth_helper::signup_test_user(&app, user2_signup)
+        .await
+        .unwrap();
+
+    // Users create tasks
+    let task_data1 = test_data::create_test_task();
+    let create_task_request1 = auth_helper::create_authenticated_request(
+        "POST",
+        "/tasks",
+        &user1.access_token,
+        Some(serde_json::to_string(&task_data1).unwrap()),
+    );
+    let response = app.clone().oneshot(create_task_request1).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let task_data2 = test_data::create_test_task();
+    let create_task_request2 = auth_helper::create_authenticated_request(
+        "POST",
+        "/tasks",
+        &user2.access_token,
+        Some(serde_json::to_string(&task_data2).unwrap()),
+    );
+    let response = app.clone().oneshot(create_task_request2).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Admin can list all tasks
+    let admin_list_request =
+        auth_helper::create_authenticated_request("GET", "/admin/tasks", &admin_token, None);
+
+    let response = app.clone().oneshot(admin_list_request).await.unwrap();
+    let status = response.status();
+    let body = body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+
+    if status != StatusCode::OK {
+        let error_text = String::from_utf8_lossy(&body);
+        println!("Error response: {}", error_text);
+        println!("Status: {}", status);
+    }
+    assert_eq!(status, StatusCode::OK);
+
+    let tasks: Vec<Value> = serde_json::from_slice(&body).unwrap();
+
+    // Admin should see tasks from multiple users
+    assert!(tasks.len() >= 2);
+}
+
+#[tokio::test]
+async fn test_admin_can_list_specific_user_tasks() {
+    // Setup
+    let (app, _schema, _db) = app_helper::setup_full_app().await;
+
+    // Create admin and regular user
+    let admin_token = auth_helper::create_admin_with_jwt(&app).await;
+    let user_signup = auth_helper::create_test_user_with_info("user@example.com", "testuser");
+    let user = auth_helper::signup_test_user(&app, user_signup)
+        .await
+        .unwrap();
+
+    // User creates a task
+    let task_data = test_data::create_test_task();
+    let create_task_request = auth_helper::create_authenticated_request(
+        "POST",
+        "/tasks",
+        &user.access_token,
+        Some(serde_json::to_string(&task_data).unwrap()),
+    );
+    let response = app.clone().oneshot(create_task_request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Admin can list specific user's tasks
+    let admin_user_tasks_request = auth_helper::create_authenticated_request(
+        "GET",
+        &format!("/admin/users/{}/tasks", user.id),
+        &admin_token,
+        None,
+    );
+
+    let response = app.clone().oneshot(admin_user_tasks_request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let tasks: Vec<Value> = serde_json::from_slice(&body).unwrap();
+
+    // Admin should see the user's tasks
+    assert!(!tasks.is_empty());
+    assert_eq!(tasks[0]["user_id"].as_str().unwrap(), user.id.to_string());
+}
+
+#[tokio::test]
+async fn test_admin_can_delete_any_task() {
+    // Setup
+    let (app, _schema, _db) = app_helper::setup_full_app().await;
+
+    // Create admin and regular user
+    let admin_token = auth_helper::create_admin_with_jwt(&app).await;
+    let user_signup = auth_helper::create_test_user_with_info("user@example.com", "testuser");
+    let user = auth_helper::signup_test_user(&app, user_signup)
+        .await
+        .unwrap();
+
+    // User creates a task
+    let task_data = test_data::create_test_task();
+    let create_task_request = auth_helper::create_authenticated_request(
+        "POST",
+        "/tasks",
+        &user.access_token,
+        Some(serde_json::to_string(&task_data).unwrap()),
+    );
+    let response = app.clone().oneshot(create_task_request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let body = body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let task_response: Value = serde_json::from_slice(&body).unwrap();
+    let task_id = task_response["id"].as_str().unwrap();
+
+    // Admin can delete any task
+    let admin_delete_request = auth_helper::create_authenticated_request(
+        "DELETE",
+        &format!("/admin/tasks/{}", task_id),
+        &admin_token,
+        None,
+    );
+
+    let response = app.clone().oneshot(admin_delete_request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // Verify task is deleted - user cannot access it anymore
+    let get_task_request = auth_helper::create_authenticated_request(
+        "GET",
+        &format!("/tasks/{}", task_id),
+        &user.access_token,
+        None,
+    );
+
+    let response = app.clone().oneshot(get_task_request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_member_cannot_access_admin_endpoints() {
+    // Setup
+    let (app, _schema, _db) = app_helper::setup_full_app().await;
+
+    // Create regular user
+    let user_signup = auth_helper::create_test_user_with_info("user@example.com", "testuser");
+    let user = auth_helper::signup_test_user(&app, user_signup)
+        .await
+        .unwrap();
+
+    // Member tries to access admin list all tasks
+    let admin_list_request =
+        auth_helper::create_authenticated_request("GET", "/admin/tasks", &user.access_token, None);
+
+    let response = app.clone().oneshot(admin_list_request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // Member tries to access admin list user tasks
+    let admin_user_tasks_request = auth_helper::create_authenticated_request(
+        "GET",
+        &format!("/admin/users/{}/tasks", user.id),
+        &user.access_token,
+        None,
+    );
+
+    let response = app.clone().oneshot(admin_user_tasks_request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    // Member tries to delete task via admin endpoint
+    let fake_task_id = "550e8400-e29b-41d4-a716-446655440000";
+    let admin_delete_request = auth_helper::create_authenticated_request(
+        "DELETE",
+        &format!("/admin/tasks/{}", fake_task_id),
+        &user.access_token,
+        None,
+    );
+
+    let response = app.clone().oneshot(admin_delete_request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}

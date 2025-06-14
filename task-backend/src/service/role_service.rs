@@ -1,6 +1,6 @@
 // task-backend/src/service/role_service.rs
 use crate::domain::role_model::{RoleName, RoleWithPermissions};
-use crate::domain::user_model::{SafeUserWithRole, UserClaimsWithRole};
+use crate::domain::user_model::{SafeUserWithRole, UserClaims};
 use crate::error::{AppError, AppResult};
 use crate::repository::role_repository::{CreateRoleData, RoleRepository, UpdateRoleData};
 use crate::repository::user_repository::UserRepository;
@@ -66,7 +66,7 @@ impl RoleService {
     /// 新しいロールを作成（管理者のみ）
     pub async fn create_role(
         &self,
-        requesting_user: &UserClaimsWithRole,
+        requesting_user: &UserClaims,
         create_data: CreateRoleInput,
     ) -> AppResult<RoleWithPermissions> {
         // 管理者権限チェック
@@ -118,7 +118,7 @@ impl RoleService {
     /// ロールを更新（管理者のみ）
     pub async fn update_role(
         &self,
-        requesting_user: &UserClaimsWithRole,
+        requesting_user: &UserClaims,
         role_id: Uuid,
         update_data: UpdateRoleInput,
     ) -> AppResult<RoleWithPermissions> {
@@ -175,11 +175,7 @@ impl RoleService {
     }
 
     /// ロールを削除（管理者のみ）
-    pub async fn delete_role(
-        &self,
-        requesting_user: &UserClaimsWithRole,
-        role_id: Uuid,
-    ) -> AppResult<()> {
+    pub async fn delete_role(&self, requesting_user: &UserClaims, role_id: Uuid) -> AppResult<()> {
         // 管理者権限チェック
         self.check_admin_permission(requesting_user)?;
 
@@ -235,11 +231,11 @@ impl RoleService {
     // --- 権限チェック機能 ---
 
     /// 管理者権限をチェック
-    pub fn check_admin_permission(&self, user: &UserClaimsWithRole) -> AppResult<()> {
+    pub fn check_admin_permission(&self, user: &UserClaims) -> AppResult<()> {
         if !user.is_admin() {
             warn!(
                 user_id = %user.user_id,
-                role = %user.role.name,
+                role = ?user.role.as_ref().map(|r| &r.name),
                 "Insufficient permissions for admin operation"
             );
             return Err(AppError::Forbidden("Admin access required".to_string()));
@@ -252,7 +248,7 @@ impl RoleService {
     /// ユーザーにロールを割り当て（管理者のみ）
     pub async fn assign_role_to_user(
         &self,
-        requesting_user: &UserClaimsWithRole,
+        requesting_user: &UserClaims,
         user_id: Uuid,
         role_id: Uuid,
     ) -> AppResult<SafeUserWithRole> {

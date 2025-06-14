@@ -631,6 +631,103 @@ pub async fn bulk_update_status_handler(
     })))
 }
 
+// --- Admin Handlers ---
+
+/// Admin専用: 全ユーザーのタスクを取得
+pub async fn admin_list_all_tasks_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<Vec<TaskDto>>> {
+    // Admin権限チェック（JWTクレームから）
+    if !user.0.is_admin() {
+        return Err(AppError::Forbidden(
+            "Admin access required to view all tasks".to_string(),
+        ));
+    }
+
+    info!(
+        user_id = %user.0.user_id,
+        username = %user.0.username,
+        "Admin listing all tasks"
+    );
+
+    let tasks = app_state.task_service.list_all_tasks().await?;
+
+    info!(
+        user_id = %user.0.user_id,
+        task_count = %tasks.len(),
+        "All tasks retrieved by admin"
+    );
+
+    Ok(Json(tasks))
+}
+
+/// Admin専用: 特定ユーザーのタスクを取得
+pub async fn admin_list_user_tasks_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    UuidPath(target_user_id): UuidPath,
+) -> AppResult<Json<Vec<TaskDto>>> {
+    // Admin権限チェック（JWTクレームから）
+    if !user.0.is_admin() {
+        return Err(AppError::Forbidden(
+            "Admin access required to view user tasks".to_string(),
+        ));
+    }
+
+    info!(
+        admin_user_id = %user.0.user_id,
+        admin_username = %user.0.username,
+        target_user_id = %target_user_id,
+        "Admin listing tasks for specific user"
+    );
+
+    let tasks = app_state
+        .task_service
+        .list_tasks_by_user_id(target_user_id)
+        .await?;
+
+    info!(
+        admin_user_id = %user.0.user_id,
+        target_user_id = %target_user_id,
+        task_count = %tasks.len(),
+        "User tasks retrieved by admin"
+    );
+
+    Ok(Json(tasks))
+}
+
+/// Admin専用: 任意のタスクを削除
+pub async fn admin_delete_task_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    UuidPath(task_id): UuidPath,
+) -> AppResult<StatusCode> {
+    // Admin権限チェック（JWTクレームから）
+    if !user.0.is_admin() {
+        return Err(AppError::Forbidden(
+            "Admin access required to delete any task".to_string(),
+        ));
+    }
+
+    info!(
+        admin_user_id = %user.0.user_id,
+        admin_username = %user.0.username,
+        task_id = %task_id,
+        "Admin deleting task"
+    );
+
+    app_state.task_service.delete_task_by_id(task_id).await?;
+
+    info!(
+        admin_user_id = %user.0.user_id,
+        task_id = %task_id,
+        "Task deleted by admin"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // --- Router Setup ---
 // スキーマを指定できるようにルーター構築関数を修正
 pub fn task_router(app_state: AppState) -> Router {
@@ -658,4 +755,19 @@ pub fn task_router(app_state: AppState) -> Router {
 // AppStateを使用したルーター構築用ヘルパー関数
 pub fn task_router_with_state(app_state: AppState) -> Router {
     task_router(app_state)
+}
+
+// Admin専用ルーター
+pub fn admin_task_router(app_state: AppState) -> Router {
+    Router::new()
+        .route("/admin/tasks", get(admin_list_all_tasks_handler))
+        .route(
+            "/admin/users/{user_id}/tasks",
+            get(admin_list_user_tasks_handler),
+        )
+        .route(
+            "/admin/tasks/{id}",
+            axum::routing::delete(admin_delete_task_handler),
+        )
+        .with_state(app_state)
 }

@@ -367,4 +367,27 @@ impl TaskService {
             pagination,
         })
     }
+
+    // Admin専用メソッド群
+    pub async fn list_all_tasks(&self) -> AppResult<Vec<TaskDto>> {
+        let tasks = self.repo.find_all().await?;
+        Ok(tasks.into_iter().map(Into::into).collect())
+    }
+
+    pub async fn list_tasks_by_user_id(&self, user_id: Uuid) -> AppResult<Vec<TaskDto>> {
+        let tasks = self.repo.find_by_user_id(user_id).await?;
+        Ok(tasks.into_iter().map(Into::into).collect())
+    }
+
+    pub async fn delete_task_by_id(&self, id: Uuid) -> AppResult<()> {
+        let delete_result = self.repo.delete(id).await?;
+        if delete_result.rows_affected == 0 {
+            Err(AppError::NotFound(format!(
+                "Task with id {} not found for deletion",
+                id
+            )))
+        } else {
+            Ok(())
+        }
+    }
 }
