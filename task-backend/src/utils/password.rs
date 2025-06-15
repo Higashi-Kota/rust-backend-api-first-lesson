@@ -704,4 +704,13 @@ mod tests {
         let password2 = generate_secure_password(16);
         assert_ne!(password, password2);
     }
+
+    #[test]
+    fn test_admin_password_hash() {
+        let manager = PasswordManager::new_default().unwrap();
+        let password = "Adm1n$ecurE2024!";
+        let hash = manager.hash_password(password).unwrap();
+        println!("Admin password hash: {}", hash);
+        assert!(manager.verify_password(password, &hash).unwrap());
+    }
 }

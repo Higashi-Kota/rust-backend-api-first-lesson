@@ -1,6 +1,7 @@
 // src/domain/user_model.rs
-#![allow(dead_code)]
 
+use super::role_model::RoleWithPermissions;
+use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use sea_orm::{ConnectionTrait, DbErr, Set};
@@ -25,6 +26,8 @@ pub struct Model {
 
     pub email_verified: bool,
 
+    pub role_id: Uuid,
+
     pub last_login_at: Option<DateTime<Utc>>,
 
     pub created_at: DateTime<Utc>,
@@ -46,6 +49,13 @@ pub enum Relation {
 
     #[sea_orm(has_many = "crate::domain::password_reset_token_model::Entity")]
     PasswordResetTokens,
+
+    #[sea_orm(
+        belongs_to = "crate::domain::role_model::Entity",
+        from = "Column::RoleId",
+        to = "crate::domain::role_model::Column::Id"
+    )]
+    Role,
 }
 
 // リレーション実装
@@ -64,6 +74,12 @@ impl Related<crate::domain::refresh_token_model::Entity> for Entity {
 impl Related<crate::domain::password_reset_token_model::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::PasswordResetTokens.def()
+    }
+}
+
+impl Related<crate::domain::role_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Role.def()
     }
 }
 
@@ -94,11 +110,6 @@ impl ActiveModelBehavior for ActiveModel {
 
 // ユーザー用の便利メソッド実装
 impl Model {
-    /// ユーザーがアクティブかつメール認証済みかチェック
-    pub fn is_fully_active(&self) -> bool {
-        self.is_active && self.email_verified
-    }
-
     /// ユーザーが認証可能な状態かチェック
     pub fn can_authenticate(&self) -> bool {
         self.is_active
@@ -112,6 +123,22 @@ impl Model {
             username: self.username.clone(),
             is_active: self.is_active,
             email_verified: self.email_verified,
+            role_id: self.role_id,
+            last_login_at: self.last_login_at,
+            created_at: self.created_at,
+            updated_at: self.updated_at,
+        }
+    }
+
+    /// ロール情報付きのセーフなユーザー情報を取得
+    pub fn to_safe_user_with_role(&self, role: RoleWithPermissions) -> SafeUserWithRole {
+        SafeUserWithRole {
+            id: self.id,
+            email: self.email.clone(),
+            username: self.username.clone(),
+            is_active: self.is_active,
+            email_verified: self.email_verified,
+            role,
             last_login_at: self.last_login_at,
             created_at: self.created_at,
             updated_at: self.updated_at,
@@ -127,6 +154,21 @@ pub struct SafeUser {
     pub username: String,
     pub is_active: bool,
     pub email_verified: bool,
+    pub role_id: Uuid,
+    pub last_login_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// ロール情報付きのセーフなユーザー表現
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SafeUserWithRole {
+    pub id: Uuid,
+    pub email: String,
+    pub username: String,
+    pub is_active: bool,
+    pub email_verified: bool,
+    pub role: RoleWithPermissions,
     pub last_login_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -138,7 +180,7 @@ impl From<Model> for SafeUser {
     }
 }
 
-/// JWT のクレーム用のユーザー情報
+/// JWT のクレーム用のユーザー情報（統合版）
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserClaims {
     pub user_id: Uuid,
@@ -146,28 +188,215 @@ pub struct UserClaims {
     pub email: String,
     pub is_active: bool,
     pub email_verified: bool,
+    pub role_name: String,                 // ロール名（基本認証用）
+    pub role: Option<RoleWithPermissions>, // 詳細ロール情報（権限チェック用）
 }
 
-impl From<Model> for UserClaims {
-    fn from(user: Model) -> Self {
-        Self {
-            user_id: user.id,
-            username: user.username,
-            email: user.email,
-            is_active: user.is_active,
-            email_verified: user.email_verified,
+impl UserClaims {
+    /// 管理者権限があるかチェック（統合版）
+    pub fn is_admin(&self) -> bool {
+        if let Some(ref role) = self.role {
+            PermissionChecker::is_admin(role)
+        } else {
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::IsAdmin,
+                None,
+            )
+        }
+    }
+
+    /// 一般ユーザー権限があるかチェック（統合版）
+    pub fn is_member(&self) -> bool {
+        if let Some(ref role) = self.role {
+            PermissionChecker::is_member(role)
+        } else {
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::IsMember,
+                None,
+            )
+        }
+    }
+
+    /// 他のユーザーのデータにアクセス権限があるかチェック（統合版）
+    pub fn can_access_user(&self, target_user_id: Uuid) -> bool {
+        if let Some(ref role) = self.role {
+            PermissionChecker::can_access_user(role, self.user_id, target_user_id)
+        } else {
+            let context = ResourceContext::for_user(self.user_id, target_user_id);
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::CanAccessUser,
+                Some(context),
+            )
+        }
+    }
+
+    /// リソース作成権限があるかチェック（統合版）
+    pub fn can_create_resource(&self, resource_type: &str) -> bool {
+        if let Some(ref role) = self.role {
+            PermissionChecker::can_create_resource(role, resource_type)
+        } else {
+            let context = ResourceContext::new(resource_type, self.user_id, None, None);
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::CanCreateResource,
+                Some(context),
+            )
+        }
+    }
+
+    /// リソース削除権限があるかチェック（統合版）
+    pub fn can_delete_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
+        if let Some(ref role) = self.role {
+            PermissionChecker::can_delete_resource(role, resource_type, owner_id, self.user_id)
+        } else {
+            let context = ResourceContext::new(resource_type, self.user_id, None, owner_id);
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::CanDeleteResource,
+                Some(context),
+            )
+        }
+    }
+
+    /// リソースの編集権限があるかチェック（新機能）
+    pub fn can_update_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
+        if let Some(ref role) = self.role {
+            PermissionChecker::can_update_resource(role, resource_type, owner_id, self.user_id)
+        } else {
+            // ロール名ベースの場合は基本的な権限チェック
+            match resource_type {
+                "user" => {
+                    if let Some(owner) = owner_id {
+                        self.user_id == owner || self.role_name == "admin"
+                    } else {
+                        self.role_name == "admin"
+                    }
+                }
+                "role" => self.role_name == "admin",
+                "task" => {
+                    if let Some(owner) = owner_id {
+                        self.user_id == owner || self.role_name == "admin"
+                    } else {
+                        self.role_name == "admin"
+                    }
+                }
+                _ => false,
+            }
+        }
+    }
+
+    /// リソースの表示権限があるかチェック（新機能）
+    pub fn can_view_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
+        if let Some(ref role) = self.role {
+            PermissionChecker::can_view_resource(role, resource_type, owner_id, self.user_id)
+        } else {
+            // ロール名ベースの基本的な権限チェック
+            match resource_type {
+                "user" => {
+                    if let Some(target_id) = owner_id {
+                        self.can_access_user(target_id)
+                    } else {
+                        self.role_name == "admin"
+                    }
+                }
+                "role" => self.role_name == "admin",
+                "task" => {
+                    if let Some(owner) = owner_id {
+                        self.user_id == owner || self.role_name == "admin"
+                    } else {
+                        self.role_name == "admin"
+                    }
+                }
+                _ => false,
+            }
         }
     }
 }
 
-impl From<SafeUser> for UserClaims {
-    fn from(user: SafeUser) -> Self {
+impl SafeUserWithRole {
+    /// JWTクレームに変換（統合版）
+    pub fn to_simple_claims(&self) -> UserClaims {
+        UserClaims {
+            user_id: self.id,
+            username: self.username.clone(),
+            email: self.email.clone(),
+            is_active: self.is_active,
+            email_verified: self.email_verified,
+            role_name: self.role.name.as_str().to_string(),
+            role: Some(self.role.clone()),
+        }
+    }
+
+    /// 認証可能かチェック
+    pub fn can_authenticate(&self) -> bool {
+        self.is_active
+    }
+}
+
+impl From<SafeUserWithRole> for UserClaims {
+    fn from(user: SafeUserWithRole) -> Self {
         Self {
             user_id: user.id,
             username: user.username,
             email: user.email,
             is_active: user.is_active,
             email_verified: user.email_verified,
+            role_name: user.role.name.as_str().to_string(),
+            role: Some(user.role),
+        }
+    }
+}
+
+impl From<UserClaims> for SafeUserWithRole {
+    fn from(claims: UserClaims) -> Self {
+        let role = claims.role.unwrap_or_else(|| {
+            // デフォルトのロールを作成（role_nameから推測）
+            let role_name = match claims.role_name.as_str() {
+                "admin" => crate::domain::role_model::RoleName::Admin,
+                _ => crate::domain::role_model::RoleName::Member,
+            };
+
+            crate::domain::role_model::RoleWithPermissions {
+                id: uuid::Uuid::new_v4(),
+                name: role_name,
+                display_name: claims.role_name.clone(),
+                description: None,
+                is_active: true,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            }
+        });
+
+        Self {
+            id: claims.user_id,
+            email: claims.email,
+            username: claims.username,
+            is_active: claims.is_active,
+            email_verified: claims.email_verified,
+            role,
+            last_login_at: None, // Claims don't contain login time
+            // For claims conversion, we'll use current time as placeholders
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+}
+
+impl From<SafeUserWithRole> for SafeUser {
+    fn from(user_with_role: SafeUserWithRole) -> Self {
+        Self {
+            id: user_with_role.id,
+            email: user_with_role.email,
+            username: user_with_role.username,
+            is_active: user_with_role.is_active,
+            email_verified: user_with_role.email_verified,
+            role_id: user_with_role.role.id,
+            last_login_at: user_with_role.last_login_at,
+            created_at: user_with_role.created_at,
+            updated_at: user_with_role.updated_at,
         }
     }
 }
@@ -180,7 +409,8 @@ impl From<UserClaims> for SafeUser {
             username: claims.username,
             is_active: claims.is_active,
             email_verified: claims.email_verified,
-            last_login_at: None, // Claims don't contain login time
+            role_id: Uuid::new_v4(), // Placeholder - should be fetched from DB
+            last_login_at: None,     // Claims don't contain login time
             // For claims conversion, we'll use current time as placeholders
             // In a real scenario, you'd want to fetch from database
             created_at: Utc::now(),

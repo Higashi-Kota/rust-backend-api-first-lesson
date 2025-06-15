@@ -1,46 +1,93 @@
 // src/api/dto/task_dto.rs
+use crate::api::dto::PaginatedResponse;
 use crate::domain::task_model;
+use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid; // task_model を参照
+use uuid::Uuid;
+use validator::Validate;
 
 // --- Request DTOs ---
 
-#[derive(Deserialize, Serialize, Debug)] // Serialize を追加
+#[derive(Deserialize, Serialize, Debug, Validate)]
 pub struct CreateTaskDto {
+    #[validate(
+        length(
+            min = common::task::TITLE_MIN_LENGTH,
+            max = common::task::TITLE_MAX_LENGTH,
+            message = "Task title must be between 1 and 200 characters"
+        ),
+        custom(function = common::validate_task_title)
+    )]
     pub title: String,
+
+    #[validate(length(
+        max = common::task::DESCRIPTION_MAX_LENGTH,
+        message = "Task description must not exceed 2000 characters"
+    ))]
     pub description: Option<String>,
+
     pub status: Option<String>, // 省略時はデフォルト値を使いたい場合
     pub due_date: Option<DateTime<Utc>>,
 }
 
-#[derive(Deserialize, Serialize, Debug)] // Serialize を追加
+#[derive(Deserialize, Serialize, Debug, Validate)]
 pub struct UpdateTaskDto {
+    #[validate(
+        length(
+            min = common::task::TITLE_MIN_LENGTH,
+            max = common::task::TITLE_MAX_LENGTH,
+            message = "Task title must be between 1 and 200 characters"
+        ),
+        custom(function = common::validate_task_title)
+    )]
     pub title: Option<String>,
-    pub description: Option<String>, // Option<Option<String>> で明示的な null 設定も可能
+
+    #[validate(length(
+        max = common::task::DESCRIPTION_MAX_LENGTH,
+        message = "Task description must not exceed 2000 characters"
+    ))]
+    pub description: Option<String>,
+
     pub status: Option<String>,
     pub due_date: Option<DateTime<Utc>>,
 }
 
 // --- Batch Request DTOs ---
 
-#[derive(Deserialize, Serialize, Debug)] // Serialize を追加
+#[derive(Deserialize, Serialize, Debug, Validate)]
 pub struct BatchCreateTaskDto {
+    #[validate(nested)]
     pub tasks: Vec<CreateTaskDto>,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)] // Serialize を追加
+#[derive(Deserialize, Serialize, Debug, Clone, Validate)]
 pub struct BatchUpdateTaskItemDto {
     pub id: Uuid,
-    // UpdateTaskDto と同じフィールドを持つか、必要なフィールドだけにするか選択
+
+    #[validate(
+        length(
+            min = common::task::TITLE_MIN_LENGTH,
+            max = common::task::TITLE_MAX_LENGTH,
+            message = "Task title must be between 1 and 200 characters"
+        ),
+        custom(function = common::validate_task_title)
+    )]
     pub title: Option<String>,
+
+    #[validate(length(
+        max = common::task::DESCRIPTION_MAX_LENGTH,
+        message = "Task description must not exceed 2000 characters"
+    ))]
     pub description: Option<String>,
+
     pub status: Option<String>,
     pub due_date: Option<DateTime<Utc>>,
 }
 
-#[derive(Deserialize, Serialize, Debug)] // Serialize を追加
+#[derive(Deserialize, Serialize, Debug, Validate)]
 pub struct BatchUpdateTaskDto {
+    #[validate(nested)]
     pub tasks: Vec<BatchUpdateTaskItemDto>,
 }
 
@@ -117,18 +164,5 @@ pub struct TaskFilterDto {
 }
 
 // --- ページネーション用DTO ---
-#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
-pub struct PaginatedTasksDto {
-    pub tasks: Vec<TaskDto>,
-    pub pagination: PaginationDto,
-}
-
-#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
-pub struct PaginationDto {
-    pub current_page: u64,
-    pub page_size: u64,
-    pub total_items: u64,
-    pub total_pages: u64,
-    pub has_next_page: bool,
-    pub has_previous_page: bool,
-}
+/// ページネーション付きタスクレスポンス (統一構造体使用)
+pub type PaginatedTasksDto = PaginatedResponse<TaskDto>;

@@ -51,8 +51,8 @@ async fn test_filter_tasks_by_status_with_authentication() {
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(result["tasks"].is_array());
-    let filtered_tasks = result["tasks"].as_array().unwrap();
+    assert!(result["items"].is_array());
+    let filtered_tasks = result["items"].as_array().unwrap();
     assert_eq!(filtered_tasks.len(), 1);
     assert_eq!(filtered_tasks[0]["status"], "todo");
     assert_eq!(filtered_tasks[0]["user_id"], user.id.to_string());
@@ -96,8 +96,8 @@ async fn test_filter_tasks_by_title_with_authentication() {
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(result["tasks"].is_array());
-    let filtered_tasks = result["tasks"].as_array().unwrap();
+    assert!(result["items"].is_array());
+    let filtered_tasks = result["items"].as_array().unwrap();
     assert_eq!(filtered_tasks.len(), 2);
 
     for task in filtered_tasks {
@@ -151,8 +151,8 @@ async fn test_filter_tasks_multiple_criteria() {
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(result["tasks"].is_array());
-    let filtered_tasks = result["tasks"].as_array().unwrap();
+    assert!(result["items"].is_array());
+    let filtered_tasks = result["items"].as_array().unwrap();
     assert_eq!(filtered_tasks.len(), 1);
 
     let task = &filtered_tasks[0];
@@ -200,7 +200,7 @@ async fn test_filter_tasks_user_isolation() {
         .unwrap();
     let result1: Value = serde_json::from_slice(&body1).unwrap();
 
-    let filtered_tasks1 = result1["tasks"].as_array().unwrap();
+    let filtered_tasks1 = result1["items"].as_array().unwrap();
     assert_eq!(filtered_tasks1.len(), 1);
     assert_eq!(filtered_tasks1[0]["user_id"], user1.id.to_string());
 
@@ -220,7 +220,7 @@ async fn test_filter_tasks_user_isolation() {
         .unwrap();
     let result2: Value = serde_json::from_slice(&body2).unwrap();
 
-    let filtered_tasks2 = result2["tasks"].as_array().unwrap();
+    let filtered_tasks2 = result2["items"].as_array().unwrap();
     assert_eq!(filtered_tasks2.len(), 1);
     assert_eq!(filtered_tasks2[0]["user_id"], user2.id.to_string());
 }
@@ -269,8 +269,8 @@ async fn test_filter_tasks_invalid_status() {
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     // 無効なステータスでは何も返されない
-    assert!(result["tasks"].is_array());
-    let filtered_tasks = result["tasks"].as_array().unwrap();
+    assert!(result["items"].is_array());
+    let filtered_tasks = result["items"].as_array().unwrap();
     assert!(filtered_tasks.is_empty());
 }
 
@@ -309,8 +309,8 @@ async fn test_filter_tasks_no_matches() {
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(result["tasks"].is_array());
-    let filtered_tasks = result["tasks"].as_array().unwrap();
+    assert!(result["items"].is_array());
+    let filtered_tasks = result["items"].as_array().unwrap();
     assert!(filtered_tasks.is_empty());
 }
 
@@ -346,8 +346,8 @@ async fn test_filter_tasks_empty_parameters() {
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     // フィルター条件なしでは全てのタスクが返される
-    assert!(result["tasks"].is_array());
-    let filtered_tasks = result["tasks"].as_array().unwrap();
+    assert!(result["items"].is_array());
+    let filtered_tasks = result["items"].as_array().unwrap();
     assert_eq!(filtered_tasks.len(), 1);
     assert_eq!(filtered_tasks[0]["user_id"], user.id.to_string());
 }
@@ -387,7 +387,7 @@ async fn test_filter_tasks_case_sensitivity() {
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
-    let filtered_tasks = result["tasks"].as_array().unwrap();
+    let filtered_tasks = result["items"].as_array().unwrap();
 
     // 実装により大文字小文字を区別する場合は0件、しない場合は1件
     assert!(filtered_tasks.len() <= 1);

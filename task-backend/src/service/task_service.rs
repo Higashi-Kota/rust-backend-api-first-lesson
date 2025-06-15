@@ -4,8 +4,9 @@
 use crate::api::dto::task_dto::{
     BatchCreateResponseDto, BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto,
     BatchUpdateResponseDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto, CreateTaskDto,
-    PaginatedTasksDto, PaginationDto, TaskDto, TaskFilterDto, UpdateTaskDto,
+    PaginatedTasksDto, TaskDto, TaskFilterDto, UpdateTaskDto,
 };
+use crate::api::dto::PaginationMeta;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::repository::task_repository::TaskRepository;
@@ -244,23 +245,11 @@ impl TaskService {
         let limit = filter.limit.unwrap_or(10);
         let offset = filter.offset.unwrap_or(0);
         let current_page = if limit > 0 { offset / limit + 1 } else { 1 };
-        let total_pages = if limit > 0 {
-            total_count.div_ceil(limit)
-        } else {
-            1
-        };
 
-        let pagination = PaginationDto {
-            current_page,
-            page_size: limit,
-            total_items: total_count,
-            total_pages,
-            has_next_page: current_page < total_pages,
-            has_previous_page: current_page > 1,
-        };
+        let pagination = PaginationMeta::new(current_page as i32, limit as i32, total_count as i64);
 
         Ok(PaginatedTasksDto {
-            tasks: task_dtos,
+            items: task_dtos,
             pagination,
         })
     }
@@ -280,19 +269,11 @@ impl TaskService {
         let task_dtos: Vec<TaskDto> = tasks.into_iter().map(Into::into).collect();
 
         // ページネーション情報を計算
-        let total_pages = total_count.div_ceil(page_size);
 
-        let pagination = PaginationDto {
-            current_page: page,
-            page_size,
-            total_items: total_count,
-            total_pages,
-            has_next_page: page < total_pages,
-            has_previous_page: page > 1,
-        };
+        let pagination = PaginationMeta::new(page as i32, page_size as i32, total_count as i64);
 
         Ok(PaginatedTasksDto {
-            tasks: task_dtos,
+            items: task_dtos,
             pagination,
         })
     }
@@ -315,19 +296,11 @@ impl TaskService {
         let page_size = filter.limit.unwrap_or(10);
         let offset = filter.offset.unwrap_or(0);
         let page = (offset / page_size) + 1;
-        let total_pages = total_count.div_ceil(page_size);
 
-        let pagination = PaginationDto {
-            current_page: page,
-            page_size,
-            total_items: total_count,
-            total_pages,
-            has_next_page: page < total_pages,
-            has_previous_page: page > 1,
-        };
+        let pagination = PaginationMeta::new(page as i32, page_size as i32, total_count as i64);
 
         Ok(PaginatedTasksDto {
-            tasks: task_dtos,
+            items: task_dtos,
             pagination,
         })
     }
@@ -351,20 +324,35 @@ impl TaskService {
         let task_dtos: Vec<TaskDto> = tasks.into_iter().map(Into::into).collect();
 
         // ページネーション情報を計算
-        let total_pages = total_count.div_ceil(page_size);
 
-        let pagination = PaginationDto {
-            current_page: page,
-            page_size,
-            total_items: total_count,
-            total_pages,
-            has_next_page: page < total_pages,
-            has_previous_page: page > 1,
-        };
+        let pagination = PaginationMeta::new(page as i32, page_size as i32, total_count as i64);
 
         Ok(PaginatedTasksDto {
-            tasks: task_dtos,
+            items: task_dtos,
             pagination,
         })
+    }
+
+    // Admin専用メソッド群
+    pub async fn list_all_tasks(&self) -> AppResult<Vec<TaskDto>> {
+        let tasks = self.repo.find_all().await?;
+        Ok(tasks.into_iter().map(Into::into).collect())
+    }
+
+    pub async fn list_tasks_by_user_id(&self, user_id: Uuid) -> AppResult<Vec<TaskDto>> {
+        let tasks = self.repo.find_by_user_id(user_id).await?;
+        Ok(tasks.into_iter().map(Into::into).collect())
+    }
+
+    pub async fn delete_task_by_id(&self, id: Uuid) -> AppResult<()> {
+        let delete_result = self.repo.delete(id).await?;
+        if delete_result.rows_affected == 0 {
+            Err(AppError::NotFound(format!(
+                "Task with id {} not found for deletion",
+                id
+            )))
+        } else {
+            Ok(())
+        }
     }
 }

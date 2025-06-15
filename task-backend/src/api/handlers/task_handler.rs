@@ -1,10 +1,8 @@
 // src/api/handlers/task_handler.rs
-use crate::api::dto::auth_dto::CookieConfig;
 use crate::api::dto::task_dto::*;
-use crate::api::handlers::auth_handler::{AuthenticatedUser, HasJwtManager};
+use crate::api::AppState;
 use crate::error::{AppError, AppResult};
-use crate::service::task_service::TaskService;
-use crate::utils::jwt::JwtManager;
+use crate::middleware::auth::AuthenticatedUser;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
@@ -14,28 +12,8 @@ use axum::{
 };
 use chrono::Utc;
 use serde::Deserialize;
-use std::sync::Arc;
 use tracing::info;
 use uuid::Uuid;
-
-// アプリケーションの状態を保持する構造体 (axum の State で渡される)
-// スキーマを追加
-#[derive(Clone)]
-pub struct AppState {
-    pub task_service: Arc<TaskService>,
-    pub jwt_manager: Arc<JwtManager>,
-    pub cookie_config: CookieConfig,
-}
-
-impl HasJwtManager for AppState {
-    fn jwt_manager(&self) -> &Arc<JwtManager> {
-        &self.jwt_manager
-    }
-
-    fn cookie_config(&self) -> &CookieConfig {
-        &self.cookie_config
-    }
-}
 
 // カスタムUUID抽出器
 pub struct UuidPath(pub Uuid);
@@ -116,19 +94,19 @@ pub async fn create_task_handler(
     }
 
     info!(
-        user_id = %user.0.user_id,
-        username = %user.0.username,
+        user_id = %user.claims.user_id,
+        username = %user.claims.username,
         task_title = %payload.title,
         "Creating new task"
     );
 
     let task_dto = app_state
         .task_service
-        .create_task_for_user(user.0.user_id, payload)
+        .create_task_for_user(user.claims.user_id, payload)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %task_dto.id,
         "Task created successfully"
     );
@@ -142,14 +120,14 @@ pub async fn get_task_handler(
     UuidPath(id): UuidPath,
 ) -> AppResult<Json<TaskDto>> {
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Getting task"
     );
 
     let task_dto = app_state
         .task_service
-        .get_task_for_user(user.0.user_id, id)
+        .get_task_for_user(user.claims.user_id, id)
         .await?;
 
     Ok(Json(task_dto))
@@ -160,17 +138,17 @@ pub async fn list_tasks_handler(
     user: AuthenticatedUser,
 ) -> AppResult<Json<Vec<TaskDto>>> {
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         "Listing user tasks"
     );
 
     let tasks = app_state
         .task_service
-        .list_tasks_for_user(user.0.user_id)
+        .list_tasks_for_user(user.claims.user_id)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_count = %tasks.len(),
         "Tasks retrieved successfully"
     );
@@ -235,18 +213,18 @@ pub async fn update_task_handler(
     }
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Updating task"
     );
 
     let task_dto = app_state
         .task_service
-        .update_task_for_user(user.0.user_id, id, payload)
+        .update_task_for_user(user.claims.user_id, id, payload)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Task updated successfully"
     );
@@ -260,18 +238,18 @@ pub async fn delete_task_handler(
     UuidPath(id): UuidPath,
 ) -> AppResult<StatusCode> {
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Deleting task"
     );
 
     app_state
         .task_service
-        .delete_task_for_user(user.0.user_id, id)
+        .delete_task_for_user(user.claims.user_id, id)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Task deleted successfully"
     );
@@ -351,18 +329,18 @@ pub async fn create_tasks_batch_handler(
     }
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_count = %payload.tasks.len(),
         "Creating batch tasks"
     );
 
     let response_dto = app_state
         .task_service
-        .create_tasks_batch_for_user(user.0.user_id, payload)
+        .create_tasks_batch_for_user(user.claims.user_id, payload)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         created_count = %response_dto.created_tasks.len(),
         "Batch tasks created successfully"
     );
@@ -452,7 +430,7 @@ pub async fn update_tasks_batch_handler(
 
     let response_dto = app_state
         .task_service
-        .update_tasks_batch_for_user(user.0.user_id, payload)
+        .update_tasks_batch_for_user(user.claims.user_id, payload)
         .await?;
     Ok(Json(response_dto))
 }
@@ -477,7 +455,7 @@ pub async fn delete_tasks_batch_handler(
 
     let response_dto = app_state
         .task_service
-        .delete_tasks_batch_for_user(user.0.user_id, payload)
+        .delete_tasks_batch_for_user(user.claims.user_id, payload)
         .await?;
     Ok(Json(response_dto))
 }
@@ -490,7 +468,7 @@ pub async fn filter_tasks_handler(
 ) -> AppResult<Json<PaginatedTasksDto>> {
     let paginated_tasks = app_state
         .task_service
-        .filter_tasks_for_user(user.0.user_id, filter)
+        .filter_tasks_for_user(user.claims.user_id, filter)
         .await?;
     Ok(Json(paginated_tasks))
 }
@@ -506,7 +484,7 @@ pub async fn list_tasks_paginated_handler(
 
     let paginated_tasks = app_state
         .task_service
-        .list_tasks_paginated_for_user(user.0.user_id, page, page_size)
+        .list_tasks_paginated_for_user(user.claims.user_id, page, page_size)
         .await?;
     Ok(Json(paginated_tasks))
 }
@@ -514,6 +492,240 @@ pub async fn list_tasks_paginated_handler(
 // ヘルスチェックハンドラーを追加
 async fn health_check_handler() -> &'static str {
     "OK"
+}
+
+// --- 追加エンドポイント ---
+
+/// ユーザーのタスク統計情報を取得
+pub async fn get_user_task_stats_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<serde_json::Value>> {
+    info!(user_id = %user.claims.user_id, "Fetching user task statistics");
+
+    // 全タスクを取得して統計を計算
+    let tasks = app_state
+        .task_service
+        .list_tasks_for_user(user.claims.user_id)
+        .await?;
+
+    let total_tasks = tasks.len();
+    let completed_tasks = tasks.iter().filter(|t| t.status == "completed").count();
+    let pending_tasks = tasks
+        .iter()
+        .filter(|t| t.status == "pending" || t.status == "todo")
+        .count();
+    let in_progress_tasks = tasks.iter().filter(|t| t.status == "in_progress").count();
+
+    let status_stats = {
+        let mut pending = 0;
+        let mut in_progress = 0;
+        let mut completed = 0;
+        let mut other = 0;
+
+        for task in &tasks {
+            match task.status.as_str() {
+                "pending" | "todo" => pending += 1,
+                "in_progress" => in_progress += 1,
+                "completed" => completed += 1,
+                _ => other += 1,
+            }
+        }
+
+        serde_json::json!({
+            "pending": pending,
+            "in_progress": in_progress,
+            "completed": completed,
+            "other": other
+        })
+    };
+
+    let stats = serde_json::json!({
+        "total_tasks": total_tasks,
+        "completed_tasks": completed_tasks,
+        "pending_tasks": pending_tasks,
+        "in_progress_tasks": in_progress_tasks,
+        "completion_rate": if total_tasks > 0 {
+            (completed_tasks as f64 / total_tasks as f64 * 100.0).round()
+        } else {
+            0.0
+        },
+        "status_distribution": status_stats
+    });
+
+    info!(
+        user_id = %user.claims.user_id,
+        total_tasks = %total_tasks,
+        completed_tasks = %completed_tasks,
+        "User task statistics retrieved"
+    );
+
+    Ok(Json(stats))
+}
+
+/// タスクのステータスを一括更新
+pub async fn bulk_update_status_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<serde_json::Value>,
+) -> AppResult<Json<serde_json::Value>> {
+    // ペイロードの検証
+    let task_ids = payload
+        .get("task_ids")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| AppError::ValidationError("task_ids array is required".to_string()))?;
+
+    let new_status = payload
+        .get("status")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::ValidationError("status string is required".to_string()))?;
+
+    if !["pending", "in_progress", "completed"].contains(&new_status) {
+        return Err(AppError::ValidationError(
+            "status must be 'pending', 'in_progress', or 'completed'".to_string(),
+        ));
+    }
+
+    let mut updated_count = 0;
+    let mut errors = Vec::new();
+
+    for task_id_value in task_ids {
+        if let Some(task_id_str) = task_id_value.as_str() {
+            if let Ok(task_id) = Uuid::parse_str(task_id_str) {
+                // 各タスクのステータスを更新
+                let update_dto = UpdateTaskDto {
+                    title: None,
+                    description: None,
+                    status: Some(new_status.to_string()),
+                    due_date: None,
+                };
+
+                match app_state
+                    .task_service
+                    .update_task_for_user(user.claims.user_id, task_id, update_dto)
+                    .await
+                {
+                    Ok(_) => updated_count += 1,
+                    Err(e) => errors.push(format!("Task {}: {}", task_id, e)),
+                }
+            } else {
+                errors.push(format!("Invalid UUID: {}", task_id_str));
+            }
+        } else {
+            errors.push("Invalid task_id format".to_string());
+        }
+    }
+
+    info!(
+        user_id = %user.claims.user_id,
+        updated_count = %updated_count,
+        error_count = %errors.len(),
+        new_status = %new_status,
+        "Bulk status update completed"
+    );
+
+    Ok(Json(serde_json::json!({
+        "updated_count": updated_count,
+        "errors": errors,
+        "new_status": new_status
+    })))
+}
+
+// --- Admin Handlers ---
+
+/// Admin専用: 全ユーザーのタスクを取得
+pub async fn admin_list_all_tasks_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<Vec<TaskDto>>> {
+    // Admin権限チェック（JWTクレームから）
+    if !user.claims.is_admin() {
+        return Err(AppError::Forbidden(
+            "Admin access required to view all tasks".to_string(),
+        ));
+    }
+
+    info!(
+        user_id = %user.claims.user_id,
+        username = %user.claims.username,
+        "Admin listing all tasks"
+    );
+
+    let tasks = app_state.task_service.list_all_tasks().await?;
+
+    info!(
+        user_id = %user.claims.user_id,
+        task_count = %tasks.len(),
+        "All tasks retrieved by admin"
+    );
+
+    Ok(Json(tasks))
+}
+
+/// Admin専用: 特定ユーザーのタスクを取得
+pub async fn admin_list_user_tasks_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    UuidPath(target_user_id): UuidPath,
+) -> AppResult<Json<Vec<TaskDto>>> {
+    // Admin権限チェック（JWTクレームから）
+    if !user.claims.is_admin() {
+        return Err(AppError::Forbidden(
+            "Admin access required to view user tasks".to_string(),
+        ));
+    }
+
+    info!(
+        admin_user_id = %user.claims.user_id,
+        admin_username = %user.claims.username,
+        target_user_id = %target_user_id,
+        "Admin listing tasks for specific user"
+    );
+
+    let tasks = app_state
+        .task_service
+        .list_tasks_by_user_id(target_user_id)
+        .await?;
+
+    info!(
+        admin_user_id = %user.claims.user_id,
+        target_user_id = %target_user_id,
+        task_count = %tasks.len(),
+        "User tasks retrieved by admin"
+    );
+
+    Ok(Json(tasks))
+}
+
+/// Admin専用: 任意のタスクを削除
+pub async fn admin_delete_task_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    UuidPath(task_id): UuidPath,
+) -> AppResult<StatusCode> {
+    // Admin権限チェック（JWTクレームから）
+    if !user.claims.is_admin() {
+        return Err(AppError::Forbidden(
+            "Admin access required to delete any task".to_string(),
+        ));
+    }
+
+    info!(
+        admin_user_id = %user.claims.user_id,
+        admin_username = %user.claims.username,
+        task_id = %task_id,
+        "Admin deleting task"
+    );
+
+    app_state.task_service.delete_task_by_id(task_id).await?;
+
+    info!(
+        admin_user_id = %user.claims.user_id,
+        task_id = %task_id,
+        "Task deleted by admin"
+    );
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // --- Router Setup ---
@@ -532,20 +744,30 @@ pub fn task_router(app_state: AppState) -> Router {
         .route("/tasks/batch/create", post(create_tasks_batch_handler))
         .route("/tasks/batch/update", patch(update_tasks_batch_handler))
         .route("/tasks/batch/delete", post(delete_tasks_batch_handler))
+        .route("/tasks/batch/status", patch(bulk_update_status_handler))
+        // 統計情報とユーティリティ
+        .route("/tasks/stats", get(get_user_task_stats_handler))
         // ヘルスチェックエンドポイントを追加
         .route("/health", get(health_check_handler))
         .with_state(app_state)
 }
 
-// スキーマを指定したルーター構築用ヘルパー関数を追加
-pub fn task_router_with_schema(
-    task_service: Arc<TaskService>,
-    jwt_manager: Arc<JwtManager>,
-) -> Router {
-    let app_state = AppState {
-        task_service,
-        jwt_manager,
-        cookie_config: CookieConfig::default(),
-    };
+// AppStateを使用したルーター構築用ヘルパー関数
+pub fn task_router_with_state(app_state: AppState) -> Router {
     task_router(app_state)
+}
+
+// Admin専用ルーター
+pub fn admin_task_router(app_state: AppState) -> Router {
+    Router::new()
+        .route("/admin/tasks", get(admin_list_all_tasks_handler))
+        .route(
+            "/admin/users/{user_id}/tasks",
+            get(admin_list_user_tasks_handler),
+        )
+        .route(
+            "/admin/tasks/{id}",
+            axum::routing::delete(admin_delete_task_handler),
+        )
+        .with_state(app_state)
 }

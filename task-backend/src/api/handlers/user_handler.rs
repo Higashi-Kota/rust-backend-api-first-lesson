@@ -1,11 +1,10 @@
 // task-backend/src/api/handlers/user_handler.rs
-use crate::api::dto::auth_dto::CookieConfig;
 use crate::api::dto::user_dto::*;
-use crate::api::handlers::auth_handler::{AuthenticatedUser, HasJwtManager};
-use crate::domain::user_model::UserClaims;
+use crate::api::dto::{ApiResponse, OperationResult};
+use crate::api::AppState;
 use crate::error::{AppError, AppResult};
-use crate::service::user_service::UserService;
-use crate::utils::jwt::JwtManager;
+use crate::middleware::auth::AuthenticatedUser;
+use crate::middleware::auth::AuthenticatedUserWithRole;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
@@ -13,28 +12,9 @@ use axum::{
     routing::{get, patch, post},
     Router,
 };
-use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
 use validator::Validate;
-
-/// ユーザーハンドラーで使用するアプリケーション状態
-#[derive(Clone)]
-pub struct UserAppState {
-    pub user_service: Arc<UserService>,
-    pub jwt_manager: Arc<JwtManager>,
-    pub cookie_config: CookieConfig,
-}
-
-impl HasJwtManager for UserAppState {
-    fn jwt_manager(&self) -> &Arc<JwtManager> {
-        &self.jwt_manager
-    }
-
-    fn cookie_config(&self) -> &CookieConfig {
-        &self.cookie_config
-    }
-}
 
 // カスタムUUID抽出器
 pub struct UuidPath(pub Uuid);
@@ -64,22 +44,22 @@ where
 
 /// ユーザープロフィール取得
 pub async fn get_profile_handler(
-    State(app_state): State<UserAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
 ) -> AppResult<Json<UserProfileResponse>> {
     let user_profile = app_state
         .user_service
-        .get_user_profile(user.0.user_id)
+        .get_user_profile(user.claims.user_id)
         .await?;
 
-    info!(user_id = %user.0.user_id, "User profile retrieved");
+    info!(user_id = %user.claims.user_id, "User profile retrieved");
 
     Ok(Json(UserProfileResponse { user: user_profile }))
 }
 
 /// ユーザー名更新
 pub async fn update_username_handler(
-    State(app_state): State<UserAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<UpdateUsernameRequest>,
 ) -> AppResult<Json<ProfileUpdateResponse>> {
@@ -103,32 +83,31 @@ pub async fn update_username_handler(
     })?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         new_username = %payload.username,
         "Username update attempt"
     );
 
     let updated_user = app_state
         .user_service
-        .update_username(user.0.user_id, &payload.username)
+        .update_username(user.claims.user_id, &payload.username)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         new_username = %payload.username,
         "Username updated successfully"
     );
 
-    Ok(Json(ProfileUpdateResponse {
-        user: updated_user,
-        message: "Username updated successfully".to_string(),
-        changes: vec!["username".to_string()],
-    }))
+    Ok(Json(ApiResponse::success(
+        "Username updated successfully",
+        OperationResult::updated(updated_user, vec!["username".to_string()]),
+    )))
 }
 
 /// メールアドレス更新
 pub async fn update_email_handler(
-    State(app_state): State<UserAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<UpdateEmailRequest>,
 ) -> AppResult<Json<ProfileUpdateResponse>> {
@@ -152,32 +131,31 @@ pub async fn update_email_handler(
     })?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         new_email = %payload.email,
         "Email update attempt"
     );
 
     let updated_user = app_state
         .user_service
-        .update_email(user.0.user_id, &payload.email)
+        .update_email(user.claims.user_id, &payload.email)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         new_email = %payload.email,
         "Email updated successfully"
     );
 
-    Ok(Json(ProfileUpdateResponse {
-        user: updated_user,
-        message: "Email updated successfully. Please verify your new email address".to_string(),
-        changes: vec!["email".to_string()],
-    }))
+    Ok(Json(ApiResponse::success(
+        "Email updated successfully. Please verify your new email address",
+        OperationResult::updated(updated_user, vec!["email".to_string()]),
+    )))
 }
 
 /// プロフィール一括更新
 pub async fn update_profile_handler(
-    State(app_state): State<UserAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<UpdateProfileRequest>,
 ) -> AppResult<Json<ProfileUpdateResponse>> {
@@ -206,19 +184,19 @@ pub async fn update_profile_handler(
         AppError::ValidationErrors(vec![e])
     })?;
 
-    info!(user_id = %user.0.user_id, "Profile update attempt");
+    info!(user_id = %user.claims.user_id, "Profile update attempt");
 
     let changes = payload.get_updated_fields();
     let mut updated_user = app_state
         .user_service
-        .get_user_profile(user.0.user_id)
+        .get_user_profile(user.claims.user_id)
         .await?;
 
     // ユーザー名の更新
     if let Some(new_username) = &payload.username {
         updated_user = app_state
             .user_service
-            .update_username(user.0.user_id, new_username)
+            .update_username(user.claims.user_id, new_username)
             .await?;
     }
 
@@ -226,36 +204,35 @@ pub async fn update_profile_handler(
     if let Some(new_email) = &payload.email {
         updated_user = app_state
             .user_service
-            .update_email(user.0.user_id, new_email)
+            .update_email(user.claims.user_id, new_email)
             .await?;
     }
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         changes = ?changes,
         "Profile updated successfully"
     );
 
-    Ok(Json(ProfileUpdateResponse {
-        user: updated_user,
-        message: "Profile updated successfully".to_string(),
-        changes,
-    }))
+    Ok(Json(ApiResponse::success(
+        "Profile updated successfully",
+        OperationResult::updated(updated_user, changes),
+    )))
 }
 
 /// ユーザー統計情報取得
 pub async fn get_user_stats_handler(
-    State(app_state): State<UserAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
 ) -> AppResult<Json<UserStatsResponse>> {
     let stats = app_state
         .user_service
-        .get_user_stats(user.0.user_id)
+        .get_user_stats(user.claims.user_id)
         .await?;
 
     let additional_info = UserAdditionalInfo::from_user_stats(&stats);
 
-    info!(user_id = %user.0.user_id, "User stats retrieved");
+    info!(user_id = %user.claims.user_id, "User stats retrieved");
 
     Ok(Json(UserStatsResponse {
         stats,
@@ -265,7 +242,7 @@ pub async fn get_user_stats_handler(
 
 /// メール認証実行
 pub async fn verify_email_handler(
-    State(app_state): State<UserAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<VerifyEmailRequest>,
 ) -> AppResult<Json<EmailVerificationResponse>> {
@@ -291,14 +268,17 @@ pub async fn verify_email_handler(
         AppError::ValidationErrors(errors)
     })?;
 
-    info!(user_id = %user.0.user_id, "Email verification attempt");
+    info!(user_id = %user.claims.user_id, "Email verification attempt");
 
     // TODO: トークン検証ロジックを実装
     // 現在はプレースホルダー
 
-    let verified_user = app_state.user_service.verify_email(user.0.user_id).await?;
+    let verified_user = app_state
+        .user_service
+        .verify_email(user.claims.user_id)
+        .await?;
 
-    info!(user_id = %user.0.user_id, "Email verified successfully");
+    info!(user_id = %user.claims.user_id, "Email verified successfully");
 
     Ok(Json(EmailVerificationResponse {
         message: "Email verified successfully".to_string(),
@@ -309,7 +289,7 @@ pub async fn verify_email_handler(
 
 /// メール認証再送信
 pub async fn resend_verification_email_handler(
-    State(_app_state): State<UserAppState>,
+    State(_app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<ResendVerificationEmailRequest>,
 ) -> AppResult<Json<EmailVerificationResponse>> {
@@ -336,7 +316,7 @@ pub async fn resend_verification_email_handler(
     })?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         email = %payload.email,
         "Verification email resend attempt"
     );
@@ -355,10 +335,10 @@ pub async fn get_user_settings_handler(user: AuthenticatedUser) -> Json<UserSett
     // TODO: 実際の設定をデータベースから取得
     // 現在はデフォルト値を返す
 
-    info!(user_id = %user.0.user_id, "User settings retrieved");
+    info!(user_id = %user.claims.user_id, "User settings retrieved");
 
     Json(UserSettingsResponse {
-        user_id: user.0.user_id,
+        user_id: user.claims.user_id,
         preferences: UserPreferences::default(),
         security: SecuritySettings::default(),
         notifications: NotificationSettings::default(),
@@ -367,11 +347,22 @@ pub async fn get_user_settings_handler(user: AuthenticatedUser) -> Json<UserSett
 
 /// アカウント状態更新（管理者用）
 pub async fn update_account_status_handler(
-    State(app_state): State<UserAppState>,
+    State(app_state): State<AppState>,
     UuidPath(user_id): UuidPath,
-    admin_user: AuthenticatedUser, // TODO: 管理者権限チェックを追加
+    admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<UpdateAccountStatusRequest>,
 ) -> AppResult<Json<AccountStatusUpdateResponse>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        warn!(
+            user_id = %admin_user.user_id(),
+            role = ?admin_user.role().map(|r| &r.name),
+            target_user_id = %user_id,
+            "Access denied: Admin permission required for account status update"
+        );
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -394,13 +385,19 @@ pub async fn update_account_status_handler(
         AppError::ValidationErrors(errors)
     })?;
 
-    // TODO: 管理者権限チェック
-    // if !admin_user.0.is_admin {
-    //     return Err(AppError::Forbidden("Admin access required".to_string()));
-    // }
+    // 自分自身のアカウント状態変更を防ぐ
+    if admin_user.user_id() == user_id {
+        warn!(
+            admin_id = %admin_user.user_id(),
+            "Admin attempting to change own account status"
+        );
+        return Err(AppError::ValidationError(
+            "Cannot change your own account status".to_string(),
+        ));
+    }
 
     info!(
-        admin_id = %admin_user.0.user_id,
+        admin_id = %admin_user.user_id(),
         target_user_id = %user_id,
         new_status = %payload.is_active,
         "Account status update attempt"
@@ -417,8 +414,9 @@ pub async fn update_account_status_handler(
         .await?;
 
     info!(
-        admin_id = %admin_user.0.user_id,
+        admin_id = %admin_user.user_id(),
         target_user_id = %user_id,
+        target_user = %current_user.username,
         previous_status = %previous_status,
         new_status = %payload.is_active,
         "Account status updated successfully"
@@ -443,10 +441,20 @@ pub async fn update_account_status_handler(
 
 /// ユーザー一覧取得（管理者用）
 pub async fn list_users_handler(
-    State(_app_state): State<UserAppState>,
-    admin_user: AuthenticatedUser, // TODO: 管理者権限チェックを追加
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<Json<UserListResponse>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        warn!(
+            user_id = %admin_user.user_id(),
+            role = ?admin_user.role().map(|r| &r.name),
+            "Access denied: Admin permission required for user list"
+        );
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
     // バリデーション
     query.validate().map_err(|validation_errors| {
         warn!("User search validation failed: {}", validation_errors);
@@ -466,69 +474,103 @@ pub async fn list_users_handler(
         AppError::ValidationErrors(errors)
     })?;
 
-    // TODO: 管理者権限チェック
-    // if !admin_user.0.is_admin {
-    //     return Err(AppError::Forbidden("Admin access required".to_string()));
-    // }
-
     let query_with_defaults = query.with_defaults();
 
     info!(
-        admin_id = %admin_user.0.user_id,
+        admin_id = %admin_user.user_id(),
         page = ?query_with_defaults.page,
         per_page = ?query_with_defaults.per_page,
-        "User list request"
+        "Admin user list request"
     );
 
-    // TODO: 実際のユーザー検索ロジックを実装
-    // 現在はプレースホルダー
-    let users = vec![];
-    let total_count = 0i64;
+    // ロール情報付きでユーザー一覧を取得
+    let (users_with_roles, total_count) = app_state
+        .user_service
+        .list_users_with_roles_paginated(
+            query_with_defaults.page.unwrap_or(1),
+            query_with_defaults.per_page.unwrap_or(20),
+        )
+        .await?;
+
     let page = query_with_defaults.page.unwrap_or(1);
     let per_page = query_with_defaults.per_page.unwrap_or(20);
 
-    let pagination = PaginationInfo::new(page, per_page, total_count);
+    // SafeUserWithRoleをUserSummaryに変換
+    let user_summaries: Vec<UserSummary> = users_with_roles
+        .into_iter()
+        .map(|user_with_role| UserSummary {
+            id: user_with_role.id,
+            username: user_with_role.username,
+            email: user_with_role.email,
+            is_active: user_with_role.is_active,
+            email_verified: user_with_role.email_verified,
+            created_at: user_with_role.created_at,
+            last_login_at: user_with_role.last_login_at,
+            task_count: 0, // TODO: タスク数を取得
+        })
+        .collect();
 
-    Ok(Json(UserListResponse {
-        users,
-        pagination,
-        total_count,
-    }))
+    info!(
+        admin_id = %admin_user.user_id(),
+        users_count = %user_summaries.len(),
+        total_count = %total_count,
+        "Admin user list retrieved successfully"
+    );
+
+    Ok(Json(UserListResponse::new(
+        user_summaries,
+        page,
+        per_page,
+        total_count as i64,
+    )))
 }
 
 /// 特定ユーザー情報取得（管理者用）
 pub async fn get_user_by_id_handler(
-    State(app_state): State<UserAppState>,
+    State(app_state): State<AppState>,
     UuidPath(user_id): UuidPath,
-    admin_user: AuthenticatedUser, // TODO: 管理者権限チェックを追加
+    admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<UserProfileResponse>> {
-    // TODO: 管理者権限チェック
-    // if !admin_user.0.is_admin {
-    //     return Err(AppError::Forbidden("Admin access required".to_string()));
-    // }
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        warn!(
+            user_id = %admin_user.user_id(),
+            role = ?admin_user.role().map(|r| &r.name),
+            target_user_id = %user_id,
+            "Access denied: Admin permission required for user profile access"
+        );
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
 
     info!(
-        admin_id = %admin_user.0.user_id,
+        admin_id = %admin_user.user_id(),
         target_user_id = %user_id,
         "Admin user profile request"
     );
 
+    // ユーザー情報を取得
     let user_profile = app_state.user_service.get_user_profile(user_id).await?;
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        "Admin user profile retrieved successfully"
+    );
 
     Ok(Json(UserProfileResponse { user: user_profile }))
 }
 
 /// 最終ログイン時刻更新
 pub async fn update_last_login_handler(
-    State(app_state): State<UserAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
 ) -> AppResult<impl IntoResponse> {
     app_state
         .user_service
-        .update_last_login(user.0.user_id)
+        .update_last_login(user.claims.user_id)
         .await?;
 
-    info!(user_id = %user.0.user_id, "Last login time updated");
+    info!(user_id = %user.claims.user_id, "Last login time updated");
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -543,7 +585,7 @@ async fn user_health_check_handler() -> &'static str {
 // --- ルーター ---
 
 /// ユーザールーターを作成
-pub fn user_router(app_state: UserAppState) -> Router {
+pub fn user_router(app_state: AppState) -> Router {
     Router::new()
         // プロフィール管理
         .route("/users/profile", get(get_profile_handler))
@@ -572,51 +614,7 @@ pub fn user_router(app_state: UserAppState) -> Router {
         .with_state(app_state)
 }
 
-/// ユーザールーターをサービスから作成
-pub fn user_router_with_service(
-    user_service: Arc<UserService>,
-    jwt_manager: Arc<JwtManager>,
-) -> Router {
-    let app_state = UserAppState {
-        user_service,
-        jwt_manager,
-        cookie_config: CookieConfig::default(),
-    };
+/// ユーザールーターをAppStateから作成
+pub fn user_router_with_state(app_state: AppState) -> Router {
     user_router(app_state)
-}
-
-// --- ヘルパー関数 ---
-
-/// ユーザー権限チェック（将来の拡張用）
-#[allow(dead_code)]
-fn check_admin_permission(_user: &UserClaims) -> AppResult<()> {
-    // TODO: 管理者権限チェックロジックを実装
-    // if !user.is_admin {
-    //     return Err(AppError::Forbidden("Admin access required".to_string()));
-    // }
-    Ok(())
-}
-
-/// ユーザーアクセス権限チェック（自分自身または管理者）
-#[allow(dead_code)]
-fn check_user_access_permission(
-    requesting_user: &UserClaims,
-    target_user_id: Uuid,
-) -> AppResult<()> {
-    if requesting_user.user_id != target_user_id {
-        // TODO: 管理者権限チェック
-        // if !requesting_user.is_admin {
-        //     return Err(AppError::Forbidden("Access denied".to_string()));
-        // }
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_user_router_creation() {
-        // ユーザールーターの作成テスト
-        // 実際のテストでは mock を使用
-    }
 }
