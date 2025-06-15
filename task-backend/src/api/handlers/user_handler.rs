@@ -1,5 +1,6 @@
 // task-backend/src/api/handlers/user_handler.rs
 use crate::api::dto::user_dto::*;
+use crate::api::dto::{ApiResponse, OperationResult};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
@@ -98,11 +99,10 @@ pub async fn update_username_handler(
         "Username updated successfully"
     );
 
-    Ok(Json(ProfileUpdateResponse {
-        user: updated_user,
-        message: "Username updated successfully".to_string(),
-        changes: vec!["username".to_string()],
-    }))
+    Ok(Json(ApiResponse::success(
+        "Username updated successfully",
+        OperationResult::updated(updated_user, vec!["username".to_string()]),
+    )))
 }
 
 /// メールアドレス更新
@@ -147,11 +147,10 @@ pub async fn update_email_handler(
         "Email updated successfully"
     );
 
-    Ok(Json(ProfileUpdateResponse {
-        user: updated_user,
-        message: "Email updated successfully. Please verify your new email address".to_string(),
-        changes: vec!["email".to_string()],
-    }))
+    Ok(Json(ApiResponse::success(
+        "Email updated successfully. Please verify your new email address",
+        OperationResult::updated(updated_user, vec!["email".to_string()]),
+    )))
 }
 
 /// プロフィール一括更新
@@ -215,11 +214,10 @@ pub async fn update_profile_handler(
         "Profile updated successfully"
     );
 
-    Ok(Json(ProfileUpdateResponse {
-        user: updated_user,
-        message: "Profile updated successfully".to_string(),
-        changes,
-    }))
+    Ok(Json(ApiResponse::success(
+        "Profile updated successfully",
+        OperationResult::updated(updated_user, changes),
+    )))
 }
 
 /// ユーザー統計情報取得
@@ -497,8 +495,6 @@ pub async fn list_users_handler(
     let page = query_with_defaults.page.unwrap_or(1);
     let per_page = query_with_defaults.per_page.unwrap_or(20);
 
-    let pagination = PaginationInfo::new(page, per_page, total_count as i64);
-
     // SafeUserWithRoleをUserSummaryに変換
     let user_summaries: Vec<UserSummary> = users_with_roles
         .into_iter()
@@ -521,11 +517,12 @@ pub async fn list_users_handler(
         "Admin user list retrieved successfully"
     );
 
-    Ok(Json(UserListResponse {
-        users: user_summaries,
-        pagination,
-        total_count: total_count as i64,
-    }))
+    Ok(Json(UserListResponse::new(
+        user_summaries,
+        page,
+        per_page,
+        total_count as i64,
+    )))
 }
 
 /// 特定ユーザー情報取得（管理者用）

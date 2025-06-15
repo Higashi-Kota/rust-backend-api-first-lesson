@@ -1,4 +1,5 @@
 // task-backend/src/api/dto/role_dto.rs
+use crate::api::dto::{ApiResponse, OperationResult};
 use crate::domain::role_model::RoleWithPermissions;
 use crate::service::role_service::{CreateRoleInput, UpdateRoleInput};
 use chrono::{DateTime, Utc};
@@ -176,11 +177,8 @@ pub struct CreateRoleResponse {
 }
 
 impl CreateRoleResponse {
-    pub fn new(role: RoleWithPermissions) -> Self {
-        Self {
-            role: RoleResponse::from(role),
-            message: "Role created successfully".to_string(),
-        }
+    pub fn build(role: RoleWithPermissions) -> ApiResponse<RoleResponse> {
+        ApiResponse::success("Role created successfully", RoleResponse::from(role))
     }
 }
 
@@ -193,12 +191,14 @@ pub struct UpdateRoleResponse {
 }
 
 impl UpdateRoleResponse {
-    pub fn new(role: RoleWithPermissions, changes: Vec<String>) -> Self {
-        Self {
-            role: RoleResponse::from(role),
-            message: "Role updated successfully".to_string(),
-            changes,
-        }
+    pub fn build(
+        role: RoleWithPermissions,
+        changes: Vec<String>,
+    ) -> ApiResponse<OperationResult<RoleResponse>> {
+        ApiResponse::success(
+            "Role updated successfully",
+            OperationResult::updated(RoleResponse::from(role), changes),
+        )
     }
 }
 
@@ -210,11 +210,11 @@ pub struct DeleteRoleResponse {
 }
 
 impl DeleteRoleResponse {
-    pub fn new(role_id: Uuid) -> Self {
-        Self {
-            message: "Role deleted successfully".to_string(),
-            deleted_role_id: role_id,
-        }
+    pub fn build(role_id: Uuid) -> ApiResponse<serde_json::Value> {
+        ApiResponse::success(
+            "Role deleted successfully",
+            serde_json::json!({ "deleted_role_id": role_id }),
+        )
     }
 }
 
@@ -228,18 +228,7 @@ pub struct AssignRoleResponse {
 
 // --- 共通レスポンス ---
 
-/// 基本成功レスポンス
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SuccessResponse {
-    pub message: String,
-}
-
-/// エラーレスポンス
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub details: Option<Vec<String>>,
-}
+// 統一レスポンス構造体を使用 (common.rs から import)
 
 /// レスポンス構築ヘルパー
 impl CreateRoleRequest {

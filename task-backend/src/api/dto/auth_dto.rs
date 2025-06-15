@@ -1,5 +1,6 @@
 // task-backend/src/api/dto/auth_dto.rs
 
+// 統一レスポンス構造体は必要に応じてインポート
 use crate::domain::user_model::SafeUser;
 use crate::utils::jwt::TokenPair;
 use crate::utils::validation::common;
@@ -158,20 +159,7 @@ pub struct AuthStatusResponse {
     pub access_token_expires_in: Option<i64>, // 秒
 }
 
-/// エラーレスポンス
-#[derive(Debug, Clone, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
-    pub details: Option<serde_json::Value>,
-}
-
-/// 成功レスポンス
-#[derive(Debug, Clone, Serialize)]
-pub struct SuccessResponse {
-    pub message: String,
-    pub data: Option<serde_json::Value>,
-}
+// 統一レスポンス構造体を使用 (common.rs から import)
 
 // --- バリデーション ---
 

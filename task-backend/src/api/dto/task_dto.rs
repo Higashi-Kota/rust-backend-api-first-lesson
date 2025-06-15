@@ -1,4 +1,5 @@
 // src/api/dto/task_dto.rs
+use crate::api::dto::PaginatedResponse;
 use crate::domain::task_model;
 use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
@@ -163,18 +164,5 @@ pub struct TaskFilterDto {
 }
 
 // --- ページネーション用DTO ---
-#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
-pub struct PaginatedTasksDto {
-    pub tasks: Vec<TaskDto>,
-    pub pagination: PaginationDto,
-}
-
-#[derive(Serialize, Deserialize, Debug)] // Deserialize を追加
-pub struct PaginationDto {
-    pub current_page: u64,
-    pub page_size: u64,
-    pub total_items: u64,
-    pub total_pages: u64,
-    pub has_next_page: bool,
-    pub has_previous_page: bool,
-}
+/// ページネーション付きタスクレスポンス (統一構造体使用)
+pub type PaginatedTasksDto = PaginatedResponse<TaskDto>;

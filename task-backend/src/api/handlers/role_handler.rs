@@ -1,5 +1,6 @@
 // task-backend/src/api/handlers/role_handler.rs
 use crate::api::dto::role_dto::*;
+use crate::api::dto::{ApiResponse, OperationResult};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUserWithRole;
@@ -169,7 +170,7 @@ pub async fn create_role_handler(
 
     Ok((
         StatusCode::CREATED,
-        Json(CreateRoleResponse::new(created_role)),
+        Json(CreateRoleResponse::build(created_role)),
     ))
 }
 
@@ -179,7 +180,7 @@ pub async fn update_role_handler(
     UuidPath(role_id): UuidPath,
     user: AuthenticatedUserWithRole,
     Json(mut payload): Json<UpdateRoleRequest>,
-) -> AppResult<Json<UpdateRoleResponse>> {
+) -> AppResult<Json<ApiResponse<OperationResult<RoleResponse>>>> {
     // 管理者権限チェック
     app_state
         .role_service
@@ -248,7 +249,7 @@ pub async fn update_role_handler(
         "Role updated successfully"
     );
 
-    Ok(Json(UpdateRoleResponse::new(updated_role, changes)))
+    Ok(Json(UpdateRoleResponse::build(updated_role, changes)))
 }
 
 /// ロール削除
@@ -256,7 +257,7 @@ pub async fn delete_role_handler(
     State(app_state): State<AppState>,
     UuidPath(role_id): UuidPath,
     user: AuthenticatedUserWithRole,
-) -> AppResult<Json<DeleteRoleResponse>> {
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
     // 管理者権限チェック
     app_state
         .role_service
@@ -280,7 +281,7 @@ pub async fn delete_role_handler(
         "Role deleted successfully"
     );
 
-    Ok(Json(DeleteRoleResponse::new(role_id)))
+    Ok(Json(DeleteRoleResponse::build(role_id)))
 }
 
 // --- ユーザーロール管理ハンドラー ---

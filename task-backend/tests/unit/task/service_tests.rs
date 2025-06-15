@@ -224,8 +224,8 @@ async fn test_filter_tasks_service() {
     let result = service.filter_tasks(filter).await.unwrap();
 
     // 検証 - todoステータスのタスクが2つあるはず
-    assert_eq!(result.tasks.len(), 2);
-    assert_eq!(result.pagination.page_size, 10);
+    assert_eq!(result.items.len(), 2);
+    assert_eq!(result.pagination.per_page, 10);
 
     // タイトルでフィルタリング
     let filter = TaskFilterDto {
@@ -237,8 +237,8 @@ async fn test_filter_tasks_service() {
     let result = service.filter_tasks(filter).await.unwrap();
 
     // 検証 - "Another"を含むタスクが1つあるはず
-    assert_eq!(result.tasks.len(), 1);
-    assert!(result.tasks.iter().any(|t| t.title.contains("Another")));
+    assert_eq!(result.items.len(), 1);
+    assert!(result.items.iter().any(|t| t.title.contains("Another")));
 
     // 該当タスクなしのケース
     let filter = TaskFilterDto {
@@ -251,7 +251,7 @@ async fn test_filter_tasks_service() {
     let result = service.filter_tasks(filter).await.unwrap();
 
     // 検証 - 該当するタスクがないはず
-    assert!(result.tasks.is_empty());
+    assert!(result.items.is_empty());
 }
 
 #[tokio::test]
@@ -275,25 +275,25 @@ async fn test_paginated_tasks_service() {
     let page1_result = service.list_tasks_paginated(1, 5).await.unwrap();
 
     // 検証
-    assert_eq!(page1_result.tasks.len(), 5);
-    assert_eq!(page1_result.pagination.current_page, 1);
-    assert_eq!(page1_result.pagination.page_size, 5);
-    assert_eq!(page1_result.pagination.total_items, 15);
-    assert!(page1_result.pagination.has_next_page);
-    assert!(!page1_result.pagination.has_previous_page);
+    assert_eq!(page1_result.items.len(), 5);
+    assert_eq!(page1_result.pagination.page, 1);
+    assert_eq!(page1_result.pagination.per_page, 5);
+    assert_eq!(page1_result.pagination.total_count, 15);
+    assert!(page1_result.pagination.has_next);
+    assert!(!page1_result.pagination.has_prev);
 
     // 2ページ目を取得
     let page2_result = service.list_tasks_paginated(2, 5).await.unwrap();
 
     // 検証
-    assert_eq!(page2_result.tasks.len(), 5);
-    assert_eq!(page2_result.pagination.current_page, 2);
-    assert!(page2_result.pagination.has_next_page);
-    assert!(page2_result.pagination.has_previous_page);
+    assert_eq!(page2_result.items.len(), 5);
+    assert_eq!(page2_result.pagination.page, 2);
+    assert!(page2_result.pagination.has_next);
+    assert!(page2_result.pagination.has_prev);
 
     // ページ間でタスクが重複していないことを確認
-    for p1_task in &page1_result.tasks {
-        for p2_task in &page2_result.tasks {
+    for p1_task in &page1_result.items {
+        for p2_task in &page2_result.items {
             assert_ne!(p1_task.id, p2_task.id);
         }
     }

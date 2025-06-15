@@ -374,7 +374,7 @@ async fn test_task_filtering_user_isolation() {
         .await
         .unwrap();
     let filtered_response: Value = serde_json::from_slice(&body).unwrap();
-    let tasks = filtered_response["tasks"].as_array().unwrap();
+    let tasks = filtered_response["items"].as_array().unwrap();
 
     // User1 should see only their own "todo" tasks
     assert_eq!(tasks.len(), 1);
@@ -397,7 +397,7 @@ async fn test_task_filtering_user_isolation() {
         .await
         .unwrap();
     let filtered_response: Value = serde_json::from_slice(&body).unwrap();
-    let tasks = filtered_response["tasks"].as_array().unwrap();
+    let tasks = filtered_response["items"].as_array().unwrap();
 
     // User2 should see only their own "completed" tasks
     assert_eq!(tasks.len(), 1);
