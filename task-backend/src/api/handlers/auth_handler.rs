@@ -1,8 +1,8 @@
 // task-backend/src/api/handlers/auth_handler.rs
 use crate::api::dto::auth_dto::*;
 use crate::api::{AppState, CookieConfig, HasJwtManager, SecurityHeaders};
-use crate::domain::user_model::UserClaims;
 use crate::error::{AppError, AppResult};
+use crate::middleware::auth::AuthenticatedUser;
 use axum::{
     extract::{FromRequestParts, Json, State},
     http::{header, request::Parts, HeaderMap, StatusCode},
@@ -14,9 +14,7 @@ use axum_extra::extract::cookie::{Cookie, CookieJar};
 use tracing::{info, warn};
 use validator::Validate;
 
-/// 認証済みユーザー情報抽出器
-pub struct AuthenticatedUser(pub UserClaims);
-
+/// 認証済みユーザー情報抽出器（FromRequestParts実装）
 impl<S> FromRequestParts<S> for AuthenticatedUser
 where
     S: HasJwtManager + Send + Sync,
@@ -71,7 +69,10 @@ where
             "User authenticated successfully"
         );
 
-        Ok(AuthenticatedUser(access_claims.user))
+        Ok(AuthenticatedUser::new(
+            access_claims.user,
+            token.to_string(),
+        ))
     }
 }
 
@@ -203,7 +204,7 @@ pub async fn signout_handler(
     // セキュリティヘッダーを追加
     add_security_headers(response.headers_mut(), &app_state.security_headers);
 
-    info!(user_id = %user.0.user_id, "User signed out successfully");
+    info!(user_id = %user.claims.user_id, "User signed out successfully");
 
     Ok(response)
 }
@@ -215,10 +216,10 @@ pub async fn signout_all_devices_handler(
 ) -> AppResult<Json<LogoutResponse>> {
     let logout_response = app_state
         .auth_service
-        .signout_all_devices(user.0.user_id)
+        .signout_all_devices(user.claims.user_id)
         .await?;
 
-    info!(user_id = %user.0.user_id, "User signed out from all devices");
+    info!(user_id = %user.claims.user_id, "User signed out from all devices");
 
     Ok(Json(logout_response))
 }
@@ -374,7 +375,7 @@ pub async fn change_password_handler(
         AppError::ValidationErrors(vec![e])
     })?;
 
-    info!(user_id = %user.0.user_id, "Password change attempt");
+    info!(user_id = %user.claims.user_id, "Password change attempt");
 
     // パスワード変更用の構造体に変換
     let change_input = crate::utils::password::PasswordChangeInput {
@@ -385,10 +386,10 @@ pub async fn change_password_handler(
 
     let response = app_state
         .auth_service
-        .change_password(user.0.user_id, change_input)
+        .change_password(user.claims.user_id, change_input)
         .await?;
 
-    info!(user_id = %user.0.user_id, "Password changed successfully");
+    info!(user_id = %user.claims.user_id, "Password changed successfully");
 
     Ok(Json(response))
 }
@@ -400,7 +401,7 @@ pub async fn me_handler(
 ) -> AppResult<Json<CurrentUserResponse>> {
     let current_user_response = app_state
         .auth_service
-        .get_current_user(user.0.user_id)
+        .get_current_user(user.claims.user_id)
         .await?;
 
     Ok(Json(current_user_response))
@@ -437,11 +438,11 @@ pub async fn delete_account_handler(
         AppError::ValidationErrors(vec![e])
     })?;
 
-    warn!(user_id = %user.0.user_id, "Account deletion attempt");
+    warn!(user_id = %user.claims.user_id, "Account deletion attempt");
 
     let response = app_state
         .auth_service
-        .delete_account(user.0.user_id, &payload.password)
+        .delete_account(user.claims.user_id, &payload.password)
         .await?;
 
     // レスポンスを作成
@@ -454,7 +455,7 @@ pub async fn delete_account_handler(
     // セキュリティヘッダーを追加
     add_security_headers(response.headers_mut(), &app_state.security_headers);
 
-    info!(user_id = %user.0.user_id, "Account deleted successfully");
+    info!(user_id = %user.claims.user_id, "Account deleted successfully");
 
     Ok(response)
 }

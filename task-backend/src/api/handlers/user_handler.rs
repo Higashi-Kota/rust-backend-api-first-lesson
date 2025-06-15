@@ -1,8 +1,8 @@
 // task-backend/src/api/handlers/user_handler.rs
 use crate::api::dto::user_dto::*;
-use crate::api::handlers::auth_handler::AuthenticatedUser;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
+use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
@@ -48,10 +48,10 @@ pub async fn get_profile_handler(
 ) -> AppResult<Json<UserProfileResponse>> {
     let user_profile = app_state
         .user_service
-        .get_user_profile(user.0.user_id)
+        .get_user_profile(user.claims.user_id)
         .await?;
 
-    info!(user_id = %user.0.user_id, "User profile retrieved");
+    info!(user_id = %user.claims.user_id, "User profile retrieved");
 
     Ok(Json(UserProfileResponse { user: user_profile }))
 }
@@ -82,18 +82,18 @@ pub async fn update_username_handler(
     })?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         new_username = %payload.username,
         "Username update attempt"
     );
 
     let updated_user = app_state
         .user_service
-        .update_username(user.0.user_id, &payload.username)
+        .update_username(user.claims.user_id, &payload.username)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         new_username = %payload.username,
         "Username updated successfully"
     );
@@ -131,18 +131,18 @@ pub async fn update_email_handler(
     })?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         new_email = %payload.email,
         "Email update attempt"
     );
 
     let updated_user = app_state
         .user_service
-        .update_email(user.0.user_id, &payload.email)
+        .update_email(user.claims.user_id, &payload.email)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         new_email = %payload.email,
         "Email updated successfully"
     );
@@ -185,19 +185,19 @@ pub async fn update_profile_handler(
         AppError::ValidationErrors(vec![e])
     })?;
 
-    info!(user_id = %user.0.user_id, "Profile update attempt");
+    info!(user_id = %user.claims.user_id, "Profile update attempt");
 
     let changes = payload.get_updated_fields();
     let mut updated_user = app_state
         .user_service
-        .get_user_profile(user.0.user_id)
+        .get_user_profile(user.claims.user_id)
         .await?;
 
     // ユーザー名の更新
     if let Some(new_username) = &payload.username {
         updated_user = app_state
             .user_service
-            .update_username(user.0.user_id, new_username)
+            .update_username(user.claims.user_id, new_username)
             .await?;
     }
 
@@ -205,12 +205,12 @@ pub async fn update_profile_handler(
     if let Some(new_email) = &payload.email {
         updated_user = app_state
             .user_service
-            .update_email(user.0.user_id, new_email)
+            .update_email(user.claims.user_id, new_email)
             .await?;
     }
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         changes = ?changes,
         "Profile updated successfully"
     );
@@ -229,12 +229,12 @@ pub async fn get_user_stats_handler(
 ) -> AppResult<Json<UserStatsResponse>> {
     let stats = app_state
         .user_service
-        .get_user_stats(user.0.user_id)
+        .get_user_stats(user.claims.user_id)
         .await?;
 
     let additional_info = UserAdditionalInfo::from_user_stats(&stats);
 
-    info!(user_id = %user.0.user_id, "User stats retrieved");
+    info!(user_id = %user.claims.user_id, "User stats retrieved");
 
     Ok(Json(UserStatsResponse {
         stats,
@@ -270,14 +270,17 @@ pub async fn verify_email_handler(
         AppError::ValidationErrors(errors)
     })?;
 
-    info!(user_id = %user.0.user_id, "Email verification attempt");
+    info!(user_id = %user.claims.user_id, "Email verification attempt");
 
     // TODO: トークン検証ロジックを実装
     // 現在はプレースホルダー
 
-    let verified_user = app_state.user_service.verify_email(user.0.user_id).await?;
+    let verified_user = app_state
+        .user_service
+        .verify_email(user.claims.user_id)
+        .await?;
 
-    info!(user_id = %user.0.user_id, "Email verified successfully");
+    info!(user_id = %user.claims.user_id, "Email verified successfully");
 
     Ok(Json(EmailVerificationResponse {
         message: "Email verified successfully".to_string(),
@@ -315,7 +318,7 @@ pub async fn resend_verification_email_handler(
     })?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         email = %payload.email,
         "Verification email resend attempt"
     );
@@ -334,10 +337,10 @@ pub async fn get_user_settings_handler(user: AuthenticatedUser) -> Json<UserSett
     // TODO: 実際の設定をデータベースから取得
     // 現在はデフォルト値を返す
 
-    info!(user_id = %user.0.user_id, "User settings retrieved");
+    info!(user_id = %user.claims.user_id, "User settings retrieved");
 
     Json(UserSettingsResponse {
-        user_id: user.0.user_id,
+        user_id: user.claims.user_id,
         preferences: UserPreferences::default(),
         security: SecuritySettings::default(),
         notifications: NotificationSettings::default(),
@@ -567,10 +570,10 @@ pub async fn update_last_login_handler(
 ) -> AppResult<impl IntoResponse> {
     app_state
         .user_service
-        .update_last_login(user.0.user_id)
+        .update_last_login(user.claims.user_id)
         .await?;
 
-    info!(user_id = %user.0.user_id, "Last login time updated");
+    info!(user_id = %user.claims.user_id, "Last login time updated");
 
     Ok(StatusCode::NO_CONTENT)
 }

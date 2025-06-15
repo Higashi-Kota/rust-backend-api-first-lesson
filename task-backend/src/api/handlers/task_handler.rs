@@ -1,8 +1,8 @@
 // src/api/handlers/task_handler.rs
 use crate::api::dto::task_dto::*;
-use crate::api::handlers::auth_handler::AuthenticatedUser;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
+use crate::middleware::auth::AuthenticatedUser;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
@@ -94,19 +94,19 @@ pub async fn create_task_handler(
     }
 
     info!(
-        user_id = %user.0.user_id,
-        username = %user.0.username,
+        user_id = %user.claims.user_id,
+        username = %user.claims.username,
         task_title = %payload.title,
         "Creating new task"
     );
 
     let task_dto = app_state
         .task_service
-        .create_task_for_user(user.0.user_id, payload)
+        .create_task_for_user(user.claims.user_id, payload)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %task_dto.id,
         "Task created successfully"
     );
@@ -120,14 +120,14 @@ pub async fn get_task_handler(
     UuidPath(id): UuidPath,
 ) -> AppResult<Json<TaskDto>> {
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Getting task"
     );
 
     let task_dto = app_state
         .task_service
-        .get_task_for_user(user.0.user_id, id)
+        .get_task_for_user(user.claims.user_id, id)
         .await?;
 
     Ok(Json(task_dto))
@@ -138,17 +138,17 @@ pub async fn list_tasks_handler(
     user: AuthenticatedUser,
 ) -> AppResult<Json<Vec<TaskDto>>> {
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         "Listing user tasks"
     );
 
     let tasks = app_state
         .task_service
-        .list_tasks_for_user(user.0.user_id)
+        .list_tasks_for_user(user.claims.user_id)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_count = %tasks.len(),
         "Tasks retrieved successfully"
     );
@@ -213,18 +213,18 @@ pub async fn update_task_handler(
     }
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Updating task"
     );
 
     let task_dto = app_state
         .task_service
-        .update_task_for_user(user.0.user_id, id, payload)
+        .update_task_for_user(user.claims.user_id, id, payload)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Task updated successfully"
     );
@@ -238,18 +238,18 @@ pub async fn delete_task_handler(
     UuidPath(id): UuidPath,
 ) -> AppResult<StatusCode> {
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Deleting task"
     );
 
     app_state
         .task_service
-        .delete_task_for_user(user.0.user_id, id)
+        .delete_task_for_user(user.claims.user_id, id)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_id = %id,
         "Task deleted successfully"
     );
@@ -329,18 +329,18 @@ pub async fn create_tasks_batch_handler(
     }
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_count = %payload.tasks.len(),
         "Creating batch tasks"
     );
 
     let response_dto = app_state
         .task_service
-        .create_tasks_batch_for_user(user.0.user_id, payload)
+        .create_tasks_batch_for_user(user.claims.user_id, payload)
         .await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         created_count = %response_dto.created_tasks.len(),
         "Batch tasks created successfully"
     );
@@ -430,7 +430,7 @@ pub async fn update_tasks_batch_handler(
 
     let response_dto = app_state
         .task_service
-        .update_tasks_batch_for_user(user.0.user_id, payload)
+        .update_tasks_batch_for_user(user.claims.user_id, payload)
         .await?;
     Ok(Json(response_dto))
 }
@@ -455,7 +455,7 @@ pub async fn delete_tasks_batch_handler(
 
     let response_dto = app_state
         .task_service
-        .delete_tasks_batch_for_user(user.0.user_id, payload)
+        .delete_tasks_batch_for_user(user.claims.user_id, payload)
         .await?;
     Ok(Json(response_dto))
 }
@@ -468,7 +468,7 @@ pub async fn filter_tasks_handler(
 ) -> AppResult<Json<PaginatedTasksDto>> {
     let paginated_tasks = app_state
         .task_service
-        .filter_tasks_for_user(user.0.user_id, filter)
+        .filter_tasks_for_user(user.claims.user_id, filter)
         .await?;
     Ok(Json(paginated_tasks))
 }
@@ -484,7 +484,7 @@ pub async fn list_tasks_paginated_handler(
 
     let paginated_tasks = app_state
         .task_service
-        .list_tasks_paginated_for_user(user.0.user_id, page, page_size)
+        .list_tasks_paginated_for_user(user.claims.user_id, page, page_size)
         .await?;
     Ok(Json(paginated_tasks))
 }
@@ -501,12 +501,12 @@ pub async fn get_user_task_stats_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
 ) -> AppResult<Json<serde_json::Value>> {
-    info!(user_id = %user.0.user_id, "Fetching user task statistics");
+    info!(user_id = %user.claims.user_id, "Fetching user task statistics");
 
     // 全タスクを取得して統計を計算
     let tasks = app_state
         .task_service
-        .list_tasks_for_user(user.0.user_id)
+        .list_tasks_for_user(user.claims.user_id)
         .await?;
 
     let total_tasks = tasks.len();
@@ -554,7 +554,7 @@ pub async fn get_user_task_stats_handler(
     });
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         total_tasks = %total_tasks,
         completed_tasks = %completed_tasks,
         "User task statistics retrieved"
@@ -602,7 +602,7 @@ pub async fn bulk_update_status_handler(
 
                 match app_state
                     .task_service
-                    .update_task_for_user(user.0.user_id, task_id, update_dto)
+                    .update_task_for_user(user.claims.user_id, task_id, update_dto)
                     .await
                 {
                     Ok(_) => updated_count += 1,
@@ -617,7 +617,7 @@ pub async fn bulk_update_status_handler(
     }
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         updated_count = %updated_count,
         error_count = %errors.len(),
         new_status = %new_status,
@@ -639,22 +639,22 @@ pub async fn admin_list_all_tasks_handler(
     user: AuthenticatedUser,
 ) -> AppResult<Json<Vec<TaskDto>>> {
     // Admin権限チェック（JWTクレームから）
-    if !user.0.is_admin() {
+    if !user.claims.is_admin() {
         return Err(AppError::Forbidden(
             "Admin access required to view all tasks".to_string(),
         ));
     }
 
     info!(
-        user_id = %user.0.user_id,
-        username = %user.0.username,
+        user_id = %user.claims.user_id,
+        username = %user.claims.username,
         "Admin listing all tasks"
     );
 
     let tasks = app_state.task_service.list_all_tasks().await?;
 
     info!(
-        user_id = %user.0.user_id,
+        user_id = %user.claims.user_id,
         task_count = %tasks.len(),
         "All tasks retrieved by admin"
     );
@@ -669,15 +669,15 @@ pub async fn admin_list_user_tasks_handler(
     UuidPath(target_user_id): UuidPath,
 ) -> AppResult<Json<Vec<TaskDto>>> {
     // Admin権限チェック（JWTクレームから）
-    if !user.0.is_admin() {
+    if !user.claims.is_admin() {
         return Err(AppError::Forbidden(
             "Admin access required to view user tasks".to_string(),
         ));
     }
 
     info!(
-        admin_user_id = %user.0.user_id,
-        admin_username = %user.0.username,
+        admin_user_id = %user.claims.user_id,
+        admin_username = %user.claims.username,
         target_user_id = %target_user_id,
         "Admin listing tasks for specific user"
     );
@@ -688,7 +688,7 @@ pub async fn admin_list_user_tasks_handler(
         .await?;
 
     info!(
-        admin_user_id = %user.0.user_id,
+        admin_user_id = %user.claims.user_id,
         target_user_id = %target_user_id,
         task_count = %tasks.len(),
         "User tasks retrieved by admin"
@@ -704,15 +704,15 @@ pub async fn admin_delete_task_handler(
     UuidPath(task_id): UuidPath,
 ) -> AppResult<StatusCode> {
     // Admin権限チェック（JWTクレームから）
-    if !user.0.is_admin() {
+    if !user.claims.is_admin() {
         return Err(AppError::Forbidden(
             "Admin access required to delete any task".to_string(),
         ));
     }
 
     info!(
-        admin_user_id = %user.0.user_id,
-        admin_username = %user.0.username,
+        admin_user_id = %user.claims.user_id,
+        admin_username = %user.claims.username,
         task_id = %task_id,
         "Admin deleting task"
     );
@@ -720,7 +720,7 @@ pub async fn admin_delete_task_handler(
     app_state.task_service.delete_task_by_id(task_id).await?;
 
     info!(
-        admin_user_id = %user.0.user_id,
+        admin_user_id = %user.claims.user_id,
         task_id = %task_id,
         "Task deleted by admin"
     );
