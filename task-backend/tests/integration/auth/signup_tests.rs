@@ -96,7 +96,11 @@ async fn test_user_signup_duplicate_email() {
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(error["error_type"], "conflict");
-    assert!(error["error"].as_str().unwrap().contains("email"));
+    assert!(error["error"]
+        .as_str()
+        .unwrap()
+        .to_lowercase()
+        .contains("email"));
 }
 
 #[tokio::test]
@@ -143,7 +147,11 @@ async fn test_user_signup_duplicate_username() {
     let error: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(error["error_type"], "conflict");
-    assert!(error["error"].as_str().unwrap().contains("username"));
+    assert!(error["error"]
+        .as_str()
+        .unwrap()
+        .to_lowercase()
+        .contains("username"));
 }
 
 #[tokio::test]

@@ -139,6 +139,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         password_reset_token_repo.clone(),
         password_manager.clone(),
         jwt_manager.clone(),
+        Arc::new(db_pool.clone()),
     ));
 
     let user_service = Arc::new(UserService::new(user_repo.clone()));

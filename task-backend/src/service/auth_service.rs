@@ -9,11 +9,16 @@ use crate::repository::password_reset_token_repository::PasswordResetTokenReposi
 use crate::repository::refresh_token_repository::RefreshTokenRepository;
 use crate::repository::role_repository::RoleRepository;
 use crate::repository::user_repository::{CreateUser, UserRepository};
+use crate::utils::error_helper::{
+    conflict_error, convert_validation_errors, internal_server_error, not_found_error,
+};
 use crate::utils::jwt::{JwtManager, TokenPair};
 use crate::utils::password::{PasswordChangeInput, PasswordManager};
+use crate::utils::transaction::ServiceTransactionManager;
 use chrono::{Duration, Utc};
+use sea_orm::DatabaseConnection;
 use std::sync::Arc;
-use tracing::{error, info, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -25,6 +30,7 @@ pub struct AuthService {
     password_reset_token_repo: Arc<PasswordResetTokenRepository>,
     password_manager: Arc<PasswordManager>,
     jwt_manager: Arc<JwtManager>,
+    db: Arc<DatabaseConnection>,
 }
 
 impl AuthService {
@@ -35,6 +41,7 @@ impl AuthService {
         password_reset_token_repo: Arc<PasswordResetTokenRepository>,
         password_manager: Arc<PasswordManager>,
         jwt_manager: Arc<JwtManager>,
+        db: Arc<DatabaseConnection>,
     ) -> Self {
         Self {
             user_repo,
@@ -43,87 +50,119 @@ impl AuthService {
             password_reset_token_repo,
             password_manager,
             jwt_manager,
+            db,
         }
     }
 
     // --- ユーザー登録・ログイン ---
 
-    /// ユーザー登録
+    /// ユーザー登録（統一化されたエラーハンドリングとトランザクション管理）
+    #[instrument(skip(self, signup_data), fields(email = %signup_data.email, username = %signup_data.username))]
     pub async fn signup(&self, signup_data: SignupRequest) -> AppResult<AuthResponse> {
-        // バリデーション
+        // バリデーション（統一化されたエラー処理）
         signup_data
             .validate()
-            .map_err(|e| AppError::ValidationError(format!("Validation failed: {}", e)))?;
-
-        // メールアドレスとユーザー名の重複チェック
-        if self.user_repo.is_email_taken(&signup_data.email).await? {
-            return Err(AppError::Conflict(
-                "email address is already registered".to_string(),
-            ));
-        }
-
-        if self
-            .user_repo
-            .is_username_taken(&signup_data.username)
-            .await?
-        {
-            return Err(AppError::Conflict("username is already taken".to_string()));
-        }
+            .map_err(|e| convert_validation_errors(e, "user signup"))?;
 
         // パスワード強度チェック
         self.password_manager
             .validate_password_strength(&signup_data.password)
-            .map_err(|e| AppError::ValidationError(e.to_string()))?;
+            .map_err(|_| {
+                AppError::ValidationError(
+                    "password: Password does not meet strength requirements".to_string(),
+                )
+            })?;
 
         // パスワードハッシュ化
         let password_hash = self
             .password_manager
             .hash_password(&signup_data.password)
             .map_err(|e| {
-                AppError::InternalServerError(format!("Password hashing failed: {}", e))
+                internal_server_error(e, "auth_service::signup", "Failed to process password")
             })?;
 
-        // デフォルトのメンバーロールを取得
-        let member_role = self
-            .role_repo
-            .find_by_name(RoleName::Member.as_str())
-            .await?
-            .ok_or_else(|| AppError::InternalServerError("Member role not found".to_string()))?;
+        // トランザクション内でユーザー登録処理を実行
+        let user_repo = Arc::clone(&self.user_repo);
+        let role_repo = Arc::clone(&self.role_repo);
+        let signup_data_cloned = signup_data.clone();
+        let password_hash_cloned = password_hash.clone();
 
-        // ユーザー作成
-        let create_user = CreateUser {
-            email: signup_data.email.clone(),
-            username: signup_data.username.clone(),
-            password_hash,
-            role_id: member_role.id,
-            is_active: Some(true),
-            email_verified: Some(false), // メール認証は別途実装
-        };
+        let auth_response = self
+            .db
+            .execute_service_transaction(move |_txn| {
+                Box::pin(async move {
+                    // メールアドレスとユーザー名の重複チェック
+                    if user_repo.is_email_taken(&signup_data_cloned.email).await? {
+                        return Err(conflict_error(
+                            "Email address is already registered",
+                            "auth_service::signup::email_check",
+                        ));
+                    }
 
-        let user = self.user_repo.create(create_user).await?;
+                    if user_repo
+                        .is_username_taken(&signup_data_cloned.username)
+                        .await?
+                    {
+                        return Err(conflict_error(
+                            "Username is already taken",
+                            "auth_service::signup::username_check",
+                        ));
+                    }
 
-        info!(
-            user_id = %user.id,
-            email = %user.email,
-            username = %user.username,
-            "User registered successfully"
-        );
+                    // デフォルトのメンバーロールを取得
+                    let member_role = role_repo
+                        .find_by_name(RoleName::Member.as_str())
+                        .await?
+                        .ok_or_else(|| {
+                            not_found_error(
+                                "Role",
+                                RoleName::Member.as_str(),
+                                "auth_service::signup::role_lookup",
+                            )
+                        })?;
 
-        // ロール情報付きユーザーを取得
-        let user_with_role = self
-            .user_repo
-            .find_by_id_with_role(user.id)
-            .await?
-            .ok_or_else(|| {
-                AppError::InternalServerError("User with role not found after creation".to_string())
-            })?;
+                    // ユーザー作成
+                    let create_user = CreateUser {
+                        email: signup_data_cloned.email.clone(),
+                        username: signup_data_cloned.username.clone(),
+                        password_hash: password_hash_cloned,
+                        role_id: member_role.id,
+                        is_active: Some(true),
+                        email_verified: Some(false), // メール認証は別途実装
+                    };
 
-        // JWT トークン生成
-        let user_claims = user_with_role.to_simple_claims();
+                    let user = user_repo.create(create_user).await?;
+
+                    info!(
+                        user_id = %user.id,
+                        email = %user.email,
+                        username = %user.username,
+                        "User registered successfully"
+                    );
+
+                    // ロール情報付きユーザーを取得
+                    let user_with_role = user_repo
+                        .find_by_id_with_role(user.id)
+                        .await?
+                        .ok_or_else(|| {
+                            internal_server_error(
+                                "User with role lookup failed after creation",
+                                "auth_service::signup::user_with_role_lookup",
+                                "Registration failed",
+                            )
+                        })?;
+
+                    Ok(user_with_role)
+                })
+            })
+            .await?;
+
+        // JWT トークン生成（トランザクション外で実行）
+        let user_claims = auth_response.to_simple_claims();
         let token_pair = self.create_token_pair(&user_claims).await?;
 
         Ok(AuthResponse {
-            user: user_with_role.into(),
+            user: auth_response.into(),
             tokens: token_pair,
             message: "Registration successful".to_string(),
         })

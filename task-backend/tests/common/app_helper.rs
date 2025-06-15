@@ -64,6 +64,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         password_reset_token_repo,
         password_manager,
         jwt_manager.clone(),
+        Arc::new(db.connection.clone()),
     ));
     let user_service = Arc::new(UserService::new(user_repo.clone()));
 
@@ -134,6 +135,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         password_reset_token_repo,
         password_manager,
         jwt_manager.clone(),
+        Arc::new(db.connection.clone()),
     ));
     let user_service = Arc::new(UserService::new(user_repo.clone()));
     let role_service = Arc::new(RoleService::new(role_repo.clone(), user_repo.clone()));
