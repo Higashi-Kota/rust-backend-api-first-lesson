@@ -1,5 +1,4 @@
 // src/main.rs
-use std::env;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
@@ -23,7 +22,7 @@ use crate::api::handlers::{
     user_handler::user_router_with_state,
 };
 use crate::api::AppState;
-use crate::config::Config;
+use crate::config::{AppConfig, Config};
 use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schema_exists};
 use crate::middleware::auth::{
     cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
@@ -54,19 +53,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("🚀 Starting Task Backend server...");
 
-    // 設定を読み込む
-    let app_config = Config::from_env().expect("Failed to load configuration");
-    tracing::info!("📋 Configuration loaded: {:?}", app_config);
+    // 統合設定を読み込む
+    let app_config = AppConfig::from_env().expect("Failed to load unified configuration");
+    tracing::info!("📋 Unified configuration loaded");
+    tracing::info!("   • Environment: {}", app_config.server.environment);
+    tracing::info!("   • Server: {}", app_config.server.addr);
+    tracing::info!("   • Database: configured");
+    tracing::info!("   • JWT: configured");
+    tracing::info!(
+        "   • Email: configured (dev mode: {})",
+        app_config.email.development_mode
+    );
+    tracing::info!(
+        "   • Security: cookie_secure={}",
+        app_config.security.cookie_secure
+    );
 
-    // スキーマ名を環境変数から取得（オプション）
-    let schema_name = env::var("DB_SCHEMA").ok();
+    // 後方互換性のために既存のConfig構造体も作成
+    let legacy_config = Config::from_app_config(&app_config);
 
     // データベース接続を作成
-    let db_pool = if let Some(schema) = &schema_name {
+    let db_pool = if let Some(schema) = &app_config.database.schema {
         tracing::info!("🗃️  Using schema: {}", schema);
 
         // まず基本接続を作成
-        let base_pool = create_db_pool(&app_config)
+        let base_pool = create_db_pool(&legacy_config)
             .await
             .expect("Failed to create base database connection");
 
@@ -83,24 +94,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // スキーマを指定して接続プールを作成
-        create_db_pool_with_schema(&app_config, schema)
+        create_db_pool_with_schema(&legacy_config, schema)
             .await
             .expect("Failed to create database pool with schema")
     } else {
         // 通常の接続プールを作成（スキーマ指定なし）
-        create_db_pool(&app_config)
+        create_db_pool(&legacy_config)
             .await
             .expect("Failed to create database pool")
     };
 
     tracing::info!("✅ Database pool created successfully.");
 
-    // ユーティリティサービスの初期化
-    let jwt_manager = Arc::new(JwtManager::from_env().expect("Failed to initialize JWT manager"));
-    let password_manager =
-        Arc::new(PasswordManager::from_env().expect("Failed to initialize password manager"));
-    let _email_service =
-        Arc::new(EmailService::from_env().expect("Failed to initialize email service"));
+    // 統合設定からユーティリティサービスを初期化
+    let jwt_manager = Arc::new(
+        JwtManager::new(app_config.jwt.clone()).expect("Failed to initialize JWT manager"),
+    );
+    let password_manager = Arc::new(
+        PasswordManager::new(
+            app_config.password.argon2.clone(),
+            app_config.password.policy.clone(),
+        )
+        .expect("Failed to initialize password manager"),
+    );
+    let _email_service = Arc::new(
+        EmailService::new(app_config.email.clone()).expect("Failed to initialize email service"),
+    );
 
     tracing::info!("🔧 Utility services initialized.");
 
@@ -126,7 +145,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let role_service = Arc::new(RoleService::new(role_repo.clone(), user_repo.clone()));
 
-    let task_service = if let Some(schema) = &schema_name {
+    let task_service = if let Some(schema) = &app_config.database.schema {
         Arc::new(TaskService::with_schema(db_pool.clone(), schema.clone()))
     } else {
         Arc::new(TaskService::new(db_pool.clone()))
@@ -150,17 +169,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/".to_string(),
         ],
         admin_only_paths: vec!["/admin".to_string(), "/api/admin".to_string()],
-        require_verified_email: false, // 開発環境では false
+        require_verified_email: !app_config.is_development(), // 開発環境では false
         require_active_account: true,
     };
 
-    // 統一されたAppStateを作成
-    let app_state = AppState::new(
+    // 統一されたAppStateを作成（統合設定対応）
+    let app_state = AppState::with_config(
         auth_service,
         user_service,
         role_service,
         task_service,
         jwt_manager.clone(),
+        &app_config,
     );
 
     // ルーターの設定
@@ -201,13 +221,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • Health Check: /health");
 
     // サーバーの起動
-    tracing::info!("🌐 Server listening on {}", app_config.server_addr);
+    tracing::info!("🌐 Server listening on {}", app_config.server.addr);
     tracing::info!(
         "📚 API Documentation: http://{}/docs",
-        app_config.server_addr
+        app_config.server.addr
     );
 
-    let listener = TcpListener::bind(&app_config.server_addr).await?;
+    let listener = TcpListener::bind(&app_config.server.addr).await?;
 
     tracing::info!("🎉 Task Backend server started successfully!");
 

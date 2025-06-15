@@ -7,6 +7,7 @@ use task_backend::{
         handlers::{auth_handler, user_handler},
         AppState,
     },
+    config::AppConfig,
     repository::{
         password_reset_token_repository::PasswordResetTokenRepository,
         refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
@@ -42,22 +43,18 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         schema_name.clone(),
     ));
 
-    // ユーティリティの作成
-    use task_backend::utils::jwt::JwtConfig;
-    use task_backend::utils::password::{Argon2Config, PasswordPolicy};
+    // 統合設定を作成
+    let app_config = AppConfig::for_testing();
 
-    let argon2_config = Argon2Config::default();
-    let password_policy = PasswordPolicy::default();
-    let password_manager = Arc::new(PasswordManager::new(argon2_config, password_policy).unwrap());
-
-    let jwt_config = JwtConfig {
-        secret_key: "test_secret_key_must_be_at_least_32_characters_long_for_testing".to_string(),
-        access_token_expiry_minutes: 15,
-        refresh_token_expiry_days: 7,
-        issuer: "test-task-backend".to_string(),
-        audience: "test-users".to_string(),
-    };
-    let jwt_manager = Arc::new(JwtManager::new(jwt_config).unwrap());
+    // 統合設定からユーティリティを作成
+    let password_manager = Arc::new(
+        PasswordManager::new(
+            app_config.password.argon2.clone(),
+            app_config.password.policy.clone(),
+        )
+        .unwrap(),
+    );
+    let jwt_manager = Arc::new(JwtManager::new(app_config.jwt.clone()).unwrap());
 
     // サービスの作成
     let auth_service = Arc::new(AuthService::new(
@@ -78,12 +75,13 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         schema_name.clone(),
     ));
 
-    let app_state = AppState::new(
+    let app_state = AppState::with_config(
         auth_service,
         user_service,
         role_service,
         task_service,
         jwt_manager,
+        &app_config,
     );
 
     // ルーターを作成して統合
@@ -115,22 +113,18 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         schema_name.clone(),
     ));
 
-    // ユーティリティの作成
-    use task_backend::utils::jwt::JwtConfig;
-    use task_backend::utils::password::{Argon2Config, PasswordPolicy};
+    // 統合設定を作成
+    let app_config = AppConfig::for_testing();
 
-    let argon2_config = Argon2Config::default();
-    let password_policy = PasswordPolicy::default();
-    let password_manager = Arc::new(PasswordManager::new(argon2_config, password_policy).unwrap());
-
-    let jwt_config = JwtConfig {
-        secret_key: "test_secret_key_must_be_at_least_32_characters_long_for_testing".to_string(),
-        access_token_expiry_minutes: 15,
-        refresh_token_expiry_days: 7,
-        issuer: "test-task-backend".to_string(),
-        audience: "test-users".to_string(),
-    };
-    let jwt_manager = Arc::new(JwtManager::new(jwt_config).unwrap());
+    // 統合設定からユーティリティを作成
+    let password_manager = Arc::new(
+        PasswordManager::new(
+            app_config.password.argon2.clone(),
+            app_config.password.policy.clone(),
+        )
+        .unwrap(),
+    );
+    let jwt_manager = Arc::new(JwtManager::new(app_config.jwt.clone()).unwrap());
 
     // サービスの作成
     let auth_service = Arc::new(AuthService::new(
@@ -149,12 +143,13 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
     ));
 
     // 統一されたAppStateの作成
-    let app_state = AppState::new(
+    let app_state = AppState::with_config(
         auth_service,
         user_service,
         role_service,
         task_service,
         jwt_manager.clone(),
+        &app_config,
     );
 
     // 認証ミドルウェア設定を作成

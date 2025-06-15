@@ -1,4 +1,5 @@
 // task-backend/src/api/mod.rs
+use crate::config::AppConfig;
 use crate::service::{
     auth_service::AuthService, role_service::RoleService, task_service::TaskService,
     user_service::UserService,
@@ -43,6 +44,18 @@ impl Default for CookieConfig {
     }
 }
 
+impl CookieConfig {
+    pub fn from_app_config(app_config: &AppConfig) -> Self {
+        Self {
+            access_token_name: "access_token".to_string(),
+            refresh_token_name: "refresh_token".to_string(),
+            secure: app_config.security.cookie_secure,
+            http_only: true,
+            path: "/".to_string(),
+        }
+    }
+}
+
 /// セキュリティヘッダー設定
 #[derive(Clone, Debug)]
 pub struct SecurityHeaders {
@@ -66,6 +79,7 @@ impl Default for SecurityHeaders {
 }
 
 impl AppState {
+    #[allow(dead_code)]
     pub fn new(
         auth_service: Arc<AuthService>,
         user_service: Arc<UserService>,
@@ -80,6 +94,25 @@ impl AppState {
             task_service,
             jwt_manager,
             cookie_config: CookieConfig::default(),
+            security_headers: SecurityHeaders::default(),
+        }
+    }
+
+    pub fn with_config(
+        auth_service: Arc<AuthService>,
+        user_service: Arc<UserService>,
+        role_service: Arc<RoleService>,
+        task_service: Arc<TaskService>,
+        jwt_manager: Arc<JwtManager>,
+        app_config: &AppConfig,
+    ) -> Self {
+        Self {
+            auth_service,
+            user_service,
+            role_service,
+            task_service,
+            jwt_manager,
+            cookie_config: CookieConfig::from_app_config(app_config),
             security_headers: SecurityHeaders::default(),
         }
     }
