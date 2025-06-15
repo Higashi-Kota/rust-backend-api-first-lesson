@@ -128,46 +128,43 @@ impl RoleWithPermissions {
         })
     }
 
-    /// 管理者権限があるかチェック
+    /// 管理者権限があるかチェック（内部実装）
     pub fn is_admin(&self) -> bool {
         self.name.is_admin() && self.is_active
     }
 
-    /// 一般ユーザー権限があるかチェック
+    /// 一般ユーザー権限があるかチェック（内部実装）
     pub fn is_member(&self) -> bool {
         self.name.is_member() && self.is_active
     }
 
-    /// 指定されたユーザーIDにアクセス権限があるかチェック
+    /// 指定されたユーザーIDにアクセス権限があるかチェック（内部実装）
+    #[allow(dead_code)]
     pub fn can_access_user(&self, requesting_user_id: Uuid, target_user_id: Uuid) -> bool {
         if !self.is_active {
             return false;
         }
-
-        // 自分自身のデータには常にアクセス可能
         if requesting_user_id == target_user_id {
             return true;
         }
-
-        // 管理者は他のユーザーのデータにもアクセス可能
         self.is_admin()
     }
 
-    /// リソースの作成権限があるかチェック
+    /// リソースの作成権限があるかチェック（内部実装）
     pub fn can_create_resource(&self, resource_type: &str) -> bool {
         if !self.is_active {
             return false;
         }
-
         match resource_type {
             "user" => self.is_admin(),
             "role" => self.is_admin(),
-            "task" => true, // 全ロールでタスク作成可能
+            "task" => true,
             _ => false,
         }
     }
 
-    /// リソースの削除権限があるかチェック
+    /// リソースの削除権限があるかチェック（内部実装）
+    #[allow(dead_code)]
     pub fn can_delete_resource(
         &self,
         resource_type: &str,
@@ -177,12 +174,68 @@ impl RoleWithPermissions {
         if !self.is_active {
             return false;
         }
-
         match resource_type {
             "user" => self.is_admin(),
             "role" => self.is_admin(),
             "task" => {
-                // 自分のタスクは削除可能、管理者は全タスク削除可能
+                if let Some(owner) = owner_id {
+                    owner == requesting_user_id || self.is_admin()
+                } else {
+                    self.is_admin()
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// リソースの編集権限があるかチェック（新機能）
+    #[allow(dead_code)]
+    pub fn can_update_resource(
+        &self,
+        resource_type: &str,
+        owner_id: Option<Uuid>,
+        requesting_user_id: Uuid,
+    ) -> bool {
+        if !self.is_active {
+            return false;
+        }
+        match resource_type {
+            "user" => {
+                if let Some(owner) = owner_id {
+                    owner == requesting_user_id || self.is_admin()
+                } else {
+                    self.is_admin()
+                }
+            }
+            "role" => self.is_admin(),
+            "task" => {
+                if let Some(owner) = owner_id {
+                    owner == requesting_user_id || self.is_admin()
+                } else {
+                    self.is_admin()
+                }
+            }
+            _ => false,
+        }
+    }
+
+    /// リソースの表示権限があるかチェック（新機能）
+    #[allow(dead_code)]
+    pub fn can_view_resource(
+        &self,
+        resource_type: &str,
+        owner_id: Option<Uuid>,
+        requesting_user_id: Uuid,
+    ) -> bool {
+        if !self.is_active {
+            return false;
+        }
+        match resource_type {
+            "user" => {
+                self.can_access_user(requesting_user_id, owner_id.unwrap_or(requesting_user_id))
+            }
+            "role" => self.is_admin(),
+            "task" => {
                 if let Some(owner) = owner_id {
                     owner == requesting_user_id || self.is_admin()
                 } else {

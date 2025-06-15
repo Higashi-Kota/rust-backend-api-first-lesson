@@ -1,6 +1,7 @@
 // src/domain/user_model.rs
 
 use super::role_model::RoleWithPermissions;
+use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use sea_orm::{ConnectionTrait, DbErr, Set};
@@ -192,56 +193,116 @@ pub struct UserClaims {
 }
 
 impl UserClaims {
-    /// 管理者権限があるかチェック（role_name または詳細ロール情報から判定）
+    /// 管理者権限があるかチェック（統合版）
     pub fn is_admin(&self) -> bool {
         if let Some(ref role) = self.role {
-            role.is_admin()
+            PermissionChecker::is_admin(role)
         } else {
-            self.role_name == "admin"
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::IsAdmin,
+                None,
+            )
         }
     }
 
-    /// 一般ユーザー権限があるかチェック
+    /// 一般ユーザー権限があるかチェック（統合版）
     pub fn is_member(&self) -> bool {
         if let Some(ref role) = self.role {
-            role.is_member()
+            PermissionChecker::is_member(role)
         } else {
-            self.role_name == "member"
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::IsMember,
+                None,
+            )
         }
     }
 
-    /// 他のユーザーのデータにアクセス権限があるかチェック
+    /// 他のユーザーのデータにアクセス権限があるかチェック（統合版）
     pub fn can_access_user(&self, target_user_id: Uuid) -> bool {
         if let Some(ref role) = self.role {
-            role.can_access_user(self.user_id, target_user_id)
+            PermissionChecker::can_access_user(role, self.user_id, target_user_id)
         } else {
-            // 詳細ロール情報がない場合は、基本的なロール名ベースの判定
-            self.user_id == target_user_id || self.role_name == "admin"
+            let context = ResourceContext::for_user(self.user_id, target_user_id);
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::CanAccessUser,
+                Some(context),
+            )
         }
     }
 
-    /// リソース作成権限があるかチェック
+    /// リソース作成権限があるかチェック（統合版）
     pub fn can_create_resource(&self, resource_type: &str) -> bool {
         if let Some(ref role) = self.role {
-            role.can_create_resource(resource_type)
+            PermissionChecker::can_create_resource(role, resource_type)
         } else {
-            // 詳細ロール情報がない場合は、基本的なロール名ベースの判定
+            let context = ResourceContext::new(resource_type, self.user_id, None, None);
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::CanCreateResource,
+                Some(context),
+            )
+        }
+    }
+
+    /// リソース削除権限があるかチェック（統合版）
+    pub fn can_delete_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
+        if let Some(ref role) = self.role {
+            PermissionChecker::can_delete_resource(role, resource_type, owner_id, self.user_id)
+        } else {
+            let context = ResourceContext::new(resource_type, self.user_id, None, owner_id);
+            PermissionChecker::check_permission_by_role_name(
+                &self.role_name,
+                PermissionType::CanDeleteResource,
+                Some(context),
+            )
+        }
+    }
+
+    /// リソースの編集権限があるかチェック（新機能）
+    pub fn can_update_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
+        if let Some(ref role) = self.role {
+            PermissionChecker::can_update_resource(role, resource_type, owner_id, self.user_id)
+        } else {
+            // ロール名ベースの場合は基本的な権限チェック
             match resource_type {
-                "user" | "role" => self.role_name == "admin",
-                "task" => true, // 全ロールが作成可能
+                "user" => {
+                    if let Some(owner) = owner_id {
+                        self.user_id == owner || self.role_name == "admin"
+                    } else {
+                        self.role_name == "admin"
+                    }
+                }
+                "role" => self.role_name == "admin",
+                "task" => {
+                    if let Some(owner) = owner_id {
+                        self.user_id == owner || self.role_name == "admin"
+                    } else {
+                        self.role_name == "admin"
+                    }
+                }
                 _ => false,
             }
         }
     }
 
-    /// リソース削除権限があるかチェック
-    pub fn can_delete_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
+    /// リソースの表示権限があるかチェック（新機能）
+    pub fn can_view_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
         if let Some(ref role) = self.role {
-            role.can_delete_resource(resource_type, owner_id, self.user_id)
+            PermissionChecker::can_view_resource(role, resource_type, owner_id, self.user_id)
         } else {
-            // 詳細ロール情報がない場合は、基本的なロール名ベースの判定
+            // ロール名ベースの基本的な権限チェック
             match resource_type {
-                "user" | "role" => self.role_name == "admin",
+                "user" => {
+                    if let Some(target_id) = owner_id {
+                        self.can_access_user(target_id)
+                    } else {
+                        self.role_name == "admin"
+                    }
+                }
+                "role" => self.role_name == "admin",
                 "task" => {
                     if let Some(owner) = owner_id {
                         self.user_id == owner || self.role_name == "admin"

@@ -7,6 +7,7 @@ use crate::error::AppError;
 use crate::repository::role_repository::RoleRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::utils::jwt::JwtManager;
+use crate::utils::permission::PermissionChecker;
 use axum::{
     extract::{Request, State},
     http::{header, HeaderMap},
@@ -149,8 +150,16 @@ impl AuthenticatedUserWithRole {
         self.claims.can_create_resource(resource_type)
     }
 
+    pub fn can_update_resource(&self, resource_type: &str, owner_id: Option<uuid::Uuid>) -> bool {
+        self.claims.can_update_resource(resource_type, owner_id)
+    }
+
     pub fn can_delete_resource(&self, resource_type: &str, owner_id: Option<uuid::Uuid>) -> bool {
         self.claims.can_delete_resource(resource_type, owner_id)
+    }
+
+    pub fn can_view_resource(&self, resource_type: &str, owner_id: Option<uuid::Uuid>) -> bool {
+        self.claims.can_view_resource(resource_type, owner_id)
     }
 
     pub fn role(&self) -> Option<&RoleWithPermissions> {
@@ -711,25 +720,40 @@ pub fn get_authenticated_user_with_role(request: &Request) -> Option<&Authentica
     request.extensions().get::<AuthenticatedUserWithRole>()
 }
 
-/// 権限チェックヘルパー
+/// 権限チェックヘルパー（統合版を使用）
 pub fn check_admin_permission(user: &AuthenticatedUserWithRole) -> Result<(), AppError> {
-    if !user.is_admin() {
+    if let Some(role) = user.role() {
+        if !PermissionChecker::is_admin(role) {
+            warn!(
+                user_id = %user.user_id(),
+                role = ?user.role().map(|r| &r.name),
+                "Insufficient permissions for admin operation"
+            );
+            return Err(AppError::Forbidden("Admin access required".to_string()));
+        }
+    } else if !user.is_admin() {
+        // フォールバック：ロール情報がない場合はUserClaimsの権限チェックを使用
         warn!(
             user_id = %user.user_id(),
-            role = ?user.role().map(|r| &r.name),
-            "Insufficient permissions for admin operation"
+            "Insufficient permissions for admin operation (no role info)"
         );
         return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     Ok(())
 }
 
-/// リソースアクセス権限チェック
+/// リソースアクセス権限チェック（統合版を使用）
 pub fn check_resource_access_permission(
     user: &AuthenticatedUserWithRole,
     target_user_id: uuid::Uuid,
 ) -> Result<(), AppError> {
-    if !user.can_access_user(target_user_id) {
+    let has_access = if let Some(role) = user.role() {
+        PermissionChecker::can_access_user(role, user.user_id(), target_user_id)
+    } else {
+        user.can_access_user(target_user_id)
+    };
+
+    if !has_access {
         warn!(
             user_id = %user.user_id(),
             target_user_id = %target_user_id,
@@ -741,12 +765,18 @@ pub fn check_resource_access_permission(
     Ok(())
 }
 
-/// リソース作成権限チェック
+/// リソース作成権限チェック（統合版を使用）
 pub fn check_create_permission(
     user: &AuthenticatedUserWithRole,
     resource_type: &str,
 ) -> Result<(), AppError> {
-    if !user.can_create_resource(resource_type) {
+    let can_create = if let Some(role) = user.role() {
+        PermissionChecker::can_create_resource(role, resource_type)
+    } else {
+        user.can_create_resource(resource_type)
+    };
+
+    if !can_create {
         warn!(
             user_id = %user.user_id(),
             resource_type = %resource_type,
@@ -761,13 +791,19 @@ pub fn check_create_permission(
     Ok(())
 }
 
-/// リソース削除権限チェック
+/// リソース削除権限チェック（統合版を使用）
 pub fn check_delete_permission(
     user: &AuthenticatedUserWithRole,
     resource_type: &str,
     owner_id: Option<uuid::Uuid>,
 ) -> Result<(), AppError> {
-    if !user.can_delete_resource(resource_type, owner_id) {
+    let can_delete = if let Some(role) = user.role() {
+        PermissionChecker::can_delete_resource(role, resource_type, owner_id, user.user_id())
+    } else {
+        user.can_delete_resource(resource_type, owner_id)
+    };
+
+    if !can_delete {
         warn!(
             user_id = %user.user_id(),
             resource_type = %resource_type,
@@ -777,6 +813,62 @@ pub fn check_delete_permission(
         );
         return Err(AppError::Forbidden(format!(
             "Cannot delete {}",
+            resource_type
+        )));
+    }
+    Ok(())
+}
+
+/// リソース更新権限チェック（新機能）
+pub fn check_update_permission(
+    user: &AuthenticatedUserWithRole,
+    resource_type: &str,
+    owner_id: Option<uuid::Uuid>,
+) -> Result<(), AppError> {
+    let can_update = if let Some(role) = user.role() {
+        PermissionChecker::can_update_resource(role, resource_type, owner_id, user.user_id())
+    } else {
+        user.can_update_resource(resource_type, owner_id)
+    };
+
+    if !can_update {
+        warn!(
+            user_id = %user.user_id(),
+            resource_type = %resource_type,
+            owner_id = ?owner_id,
+            role = ?user.role().map(|r| &r.name),
+            "Insufficient permissions to update resource"
+        );
+        return Err(AppError::Forbidden(format!(
+            "Cannot update {}",
+            resource_type
+        )));
+    }
+    Ok(())
+}
+
+/// リソース表示権限チェック（新機能）
+pub fn check_view_permission(
+    user: &AuthenticatedUserWithRole,
+    resource_type: &str,
+    owner_id: Option<uuid::Uuid>,
+) -> Result<(), AppError> {
+    let can_view = if let Some(role) = user.role() {
+        PermissionChecker::can_view_resource(role, resource_type, owner_id, user.user_id())
+    } else {
+        user.claims.can_view_resource(resource_type, owner_id)
+    };
+
+    if !can_view {
+        warn!(
+            user_id = %user.user_id(),
+            resource_type = %resource_type,
+            owner_id = ?owner_id,
+            role = ?user.role().map(|r| &r.name),
+            "Insufficient permissions to view resource"
+        );
+        return Err(AppError::Forbidden(format!(
+            "Cannot view {}",
             resource_type
         )));
     }
