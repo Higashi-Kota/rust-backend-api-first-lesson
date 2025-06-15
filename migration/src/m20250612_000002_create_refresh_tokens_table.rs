@@ -63,6 +63,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_user_id")
                     .col(RefreshTokens::UserId)
@@ -74,6 +75,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_token_hash")
                     .col(RefreshTokens::TokenHash)
@@ -85,6 +87,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_expires_at")
                     .col(RefreshTokens::ExpiresAt)
@@ -96,6 +99,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_active")
                     .col(RefreshTokens::IsRevoked)
@@ -108,6 +112,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_user_active")
                     .col(RefreshTokens::UserId)
@@ -124,6 +129,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_user_active")
                     .to_owned(),
@@ -133,6 +139,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_active")
                     .to_owned(),
@@ -142,6 +149,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_expires_at")
                     .to_owned(),
@@ -151,6 +159,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_token_hash")
                     .to_owned(),
@@ -160,6 +169,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(RefreshTokens::Table)
                     .name("idx_refresh_tokens_user_id")
                     .to_owned(),

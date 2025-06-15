@@ -10,6 +10,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_status")
                     .col(Tasks::Status)
@@ -21,6 +22,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_due_date")
                     .col(Tasks::DueDate)
@@ -32,6 +34,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_created_at")
                     .col(Tasks::CreatedAt)
@@ -43,6 +46,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_title")
                     .col(Tasks::Title)
@@ -58,6 +62,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_status")
                     .to_owned(),
@@ -67,6 +72,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_due_date")
                     .to_owned(),
@@ -76,6 +82,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_created_at")
                     .to_owned(),
@@ -85,6 +92,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_title")
                     .to_owned(),
