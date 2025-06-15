@@ -1,8 +1,9 @@
 // task-backend/src/api/dto/auth_dto.rs
-#![allow(dead_code)]
 
+// 統一レスポンス構造体は必要に応じてインポート
 use crate::domain::user_model::SafeUser;
 use crate::utils::jwt::TokenPair;
+use crate::utils::validation::common;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -14,24 +15,30 @@ pub struct SignupRequest {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
 
-    #[validate(length(
-        min = 3,
-        max = 30,
-        message = "Username must be between 3 and 30 characters"
-    ))]
+    #[validate(
+        length(
+            min = common::username::MIN_LENGTH,
+            max = common::username::MAX_LENGTH,
+            message = "Username must be between 3 and 30 characters"
+        ),
+        custom(function = common::validate_username)
+    )]
     pub username: String,
 
-    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
+    #[validate(
+        length(min = common::password::MIN_LENGTH, message = "Password must be at least 8 characters"),
+        custom(function = common::validate_password_strength)
+    )]
     pub password: String,
 }
 
 /// ログインリクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct SigninRequest {
-    #[validate(length(min = 1, message = "Email or username is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Email or username is required"))]
     pub identifier: String, // email or username
 
-    #[validate(length(min = 1, message = "Password is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Password is required"))]
     pub password: String,
 }
 
@@ -45,20 +52,26 @@ pub struct PasswordResetRequestRequest {
 /// パスワードリセット実行リクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct PasswordResetRequest {
-    #[validate(length(min = 1, message = "Reset token is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Reset token is required"))]
     pub token: String,
 
-    #[validate(length(min = 8, message = "New password must be at least 8 characters"))]
+    #[validate(
+        length(min = common::password::MIN_LENGTH, message = "New password must be at least 8 characters"),
+        custom(function = common::validate_password_strength)
+    )]
     pub new_password: String,
 }
 
 /// パスワード変更リクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct PasswordChangeRequest {
-    #[validate(length(min = 1, message = "Current password is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Current password is required"))]
     pub current_password: String,
 
-    #[validate(length(min = 8, message = "New password must be at least 8 characters"))]
+    #[validate(
+        length(min = common::password::MIN_LENGTH, message = "New password must be at least 8 characters"),
+        custom(function = common::validate_password_strength)
+    )]
     pub new_password: String,
 
     #[validate(must_match(
@@ -71,17 +84,17 @@ pub struct PasswordChangeRequest {
 /// トークンリフレッシュリクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct RefreshTokenRequest {
-    #[validate(length(min = 1, message = "Refresh token is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Refresh token is required"))]
     pub refresh_token: String,
 }
 
 /// アカウント削除リクエスト
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct DeleteAccountRequest {
-    #[validate(length(min = 1, message = "Password is required for account deletion"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Password is required for account deletion"))]
     pub password: String,
 
-    #[validate(length(min = 1, message = "Confirmation text is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Confirmation text is required"))]
     pub confirmation: String,
 }
 
@@ -146,20 +159,7 @@ pub struct AuthStatusResponse {
     pub access_token_expires_in: Option<i64>, // 秒
 }
 
-/// エラーレスポンス
-#[derive(Debug, Clone, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
-    pub details: Option<serde_json::Value>,
-}
-
-/// 成功レスポンス
-#[derive(Debug, Clone, Serialize)]
-pub struct SuccessResponse {
-    pub message: String,
-    pub data: Option<serde_json::Value>,
-}
+// 統一レスポンス構造体を使用 (common.rs から import)
 
 // --- バリデーション ---
 
@@ -214,57 +214,7 @@ pub struct AuthFlowResponse {
     pub data: Option<serde_json::Value>,
 }
 
-// --- Cookie設定 ---
-
-/// Cookie設定
-#[derive(Debug, Clone)]
-pub struct CookieConfig {
-    pub access_token_name: String,
-    pub refresh_token_name: String,
-    pub secure: bool,
-    pub http_only: bool,
-    pub same_site: String,
-    pub domain: Option<String>,
-    pub path: String,
-}
-
-impl Default for CookieConfig {
-    fn default() -> Self {
-        Self {
-            access_token_name: "access_token".to_string(),
-            refresh_token_name: "refresh_token".to_string(),
-            secure: true,                    // HTTPS必須
-            http_only: true,                 // XSS防止
-            same_site: "Strict".to_string(), // CSRF防止
-            domain: None,
-            path: "/".to_string(),
-        }
-    }
-}
-
-// --- セキュリティヘッダー ---
-
-/// セキュリティヘッダー設定
-#[derive(Debug, Clone)]
-pub struct SecurityHeaders {
-    pub content_security_policy: String,
-    pub x_frame_options: String,
-    pub x_content_type_options: String,
-    pub referrer_policy: String,
-    pub permissions_policy: String,
-}
-
-impl Default for SecurityHeaders {
-    fn default() -> Self {
-        Self {
-            content_security_policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';".to_string(),
-            x_frame_options: "DENY".to_string(),
-            x_content_type_options: "nosniff".to_string(),
-            referrer_policy: "strict-origin-when-cross-origin".to_string(),
-            permissions_policy: "camera=(), microphone=(), geolocation=()".to_string(),
-        }
-    }
-}
+// Cookie設定とセキュリティヘッダーは crate::api::CookieConfig と crate::api::SecurityHeaders を使用
 
 // --- バリデーション用の正規表現と定数 ---
 
@@ -278,7 +228,7 @@ pub mod test_helpers {
         SignupRequest {
             email: "test@example.com".to_string(),
             username: "testuser".to_string(),
-            password: "securepassword123".to_string(),
+            password: "SecurePassword123".to_string(),
         }
     }
 
@@ -291,9 +241,9 @@ pub mod test_helpers {
 
     pub fn create_valid_password_change_request() -> PasswordChangeRequest {
         PasswordChangeRequest {
-            current_password: "currentpassword123".to_string(),
-            new_password: "newpassword123".to_string(),
-            new_password_confirmation: "newpassword123".to_string(),
+            current_password: "CurrentPassword123".to_string(),
+            new_password: "NewPassword123".to_string(),
+            new_password_confirmation: "NewPassword123".to_string(),
         }
     }
 
@@ -356,8 +306,8 @@ mod tests {
         assert!(request.validate_password_change().is_err());
 
         // 現在のパスワードと新しいパスワードが同じ
-        request.new_password_confirmation = "newpassword123".to_string();
-        request.current_password = "newpassword123".to_string();
+        request.new_password_confirmation = "NewPassword123".to_string();
+        request.current_password = "NewPassword123".to_string();
         assert!(request.validate_password_change().is_err());
     }
 
@@ -384,6 +334,7 @@ mod tests {
             username: "testuser".to_string(),
             is_active: true,
             email_verified: false,
+            role_id: Uuid::new_v4(),
             last_login_at: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),

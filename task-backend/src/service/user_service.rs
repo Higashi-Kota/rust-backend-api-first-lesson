@@ -142,6 +142,24 @@ impl UserService {
         info!(user_id = %user_id, "Last login time updated");
         Ok(())
     }
+
+    /// ロール情報付きユーザー一覧をページネーション付きで取得（管理者用）
+    pub async fn list_users_with_roles_paginated(
+        &self,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
+        // 簡単な実装として、全ユーザーを取得して手動でページネーション
+        let all_users = self.user_repo.find_all_with_roles().await?;
+        let total_count = all_users.len();
+
+        let offset = ((page - 1) * per_page) as usize;
+        let limit = per_page as usize;
+
+        let paginated_users = all_users.into_iter().skip(offset).take(limit).collect();
+
+        Ok((paginated_users, total_count))
+    }
 }
 
 // --- レスポンス構造体 ---

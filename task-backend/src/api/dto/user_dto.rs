@@ -1,8 +1,10 @@
 // task-backend/src/api/dto/user_dto.rs
 #![allow(dead_code)]
 
+use crate::api::dto::{ApiResponse, OperationResult, PaginatedResponse};
 use crate::domain::user_model::SafeUser;
 use crate::service::user_service::UserStats;
+use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -15,14 +17,11 @@ use validator::Validate;
 pub struct UpdateUsernameRequest {
     #[validate(
         length(
-            min = 3,
-            max = 30,
+            min = common::username::MIN_LENGTH,
+            max = common::username::MAX_LENGTH,
             message = "Username must be between 3 and 30 characters"
         ),
-        custom(
-            function = "crate::utils::validation::validate_username",
-            message = "Username can only contain letters, numbers, and underscores"
-        )
+        custom(function = common::validate_username)
     )]
     pub username: String,
 }
@@ -37,11 +36,14 @@ pub struct UpdateEmailRequest {
 /// プロフィール更新リクエスト
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct UpdateProfileRequest {
-    #[validate(length(
-        min = 3,
-        max = 30,
-        message = "Username must be between 3 and 30 characters"
-    ))]
+    #[validate(
+        length(
+            min = common::username::MIN_LENGTH,
+            max = common::username::MAX_LENGTH,
+            message = "Username must be between 3 and 30 characters"
+        ),
+        custom(function = common::validate_username)
+    )]
     pub username: Option<String>,
 
     #[validate(email(message = "Invalid email format"))]
@@ -58,7 +60,7 @@ pub struct UpdateAccountStatusRequest {
 /// メール認証確認リクエスト
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct VerifyEmailRequest {
-    #[validate(length(min = 1, message = "Verification token is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Verification token is required"))]
     pub token: String,
 }
 
@@ -190,12 +192,7 @@ impl Default for NotificationSettings {
 }
 
 /// ユーザー一覧レスポンス（管理者用）
-#[derive(Debug, Clone, Serialize)]
-pub struct UserListResponse {
-    pub users: Vec<UserSummary>,
-    pub pagination: PaginationInfo,
-    pub total_count: i64,
-}
+pub type UserListResponse = PaginatedResponse<UserSummary>;
 
 /// ユーザー概要
 #[derive(Debug, Clone, Serialize)]
@@ -210,23 +207,10 @@ pub struct UserSummary {
     pub task_count: i64,
 }
 
-/// ページネーション情報
-#[derive(Debug, Clone, Serialize)]
-pub struct PaginationInfo {
-    pub page: i32,
-    pub per_page: i32,
-    pub total_pages: i32,
-    pub has_next: bool,
-    pub has_prev: bool,
-}
+// PaginationInfo は common.rs の PaginationMeta に統一
 
 /// プロフィール更新レスポンス
-#[derive(Debug, Clone, Serialize)]
-pub struct ProfileUpdateResponse {
-    pub user: SafeUser,
-    pub message: String,
-    pub changes: Vec<String>,
-}
+pub type ProfileUpdateResponse = ApiResponse<OperationResult<SafeUser>>;
 
 /// メール認証レスポンス
 #[derive(Debug, Clone, Serialize)]
@@ -376,19 +360,7 @@ impl UserAdditionalInfo {
     }
 }
 
-impl PaginationInfo {
-    pub fn new(page: i32, per_page: i32, total_count: i64) -> Self {
-        let total_pages = ((total_count as f64) / (per_page as f64)).ceil() as i32;
-
-        Self {
-            page,
-            per_page,
-            total_pages,
-            has_next: page < total_pages,
-            has_prev: page > 1,
-        }
-    }
-}
+// PaginationInfo の実装は common.rs の PaginationMeta に移行
 
 // --- バリデーション用の正規表現 ---
 
@@ -507,8 +479,9 @@ mod tests {
     }
 
     #[test]
-    fn test_pagination_info() {
-        let pagination = PaginationInfo::new(2, 10, 25);
+    fn test_pagination_meta() {
+        use crate::api::dto::PaginationMeta;
+        let pagination = PaginationMeta::new(2, 10, 25);
         assert_eq!(pagination.page, 2);
         assert_eq!(pagination.per_page, 10);
         assert_eq!(pagination.total_pages, 3);

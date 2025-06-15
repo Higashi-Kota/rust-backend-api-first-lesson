@@ -1,9 +1,8 @@
 // task-backend/src/api/handlers/auth_handler.rs
 use crate::api::dto::auth_dto::*;
-use crate::domain::user_model::UserClaims;
+use crate::api::{AppState, CookieConfig, HasJwtManager, SecurityHeaders};
 use crate::error::{AppError, AppResult};
-use crate::service::auth_service::AuthService;
-use crate::utils::jwt::JwtManager;
+use crate::middleware::auth::AuthenticatedUser;
 use axum::{
     extract::{FromRequestParts, Json, State},
     http::{header, request::Parts, HeaderMap, StatusCode},
@@ -12,38 +11,10 @@ use axum::{
     Router,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
-use std::sync::Arc;
 use tracing::{info, warn};
 use validator::Validate;
 
-/// 認証ハンドラーで使用するアプリケーション状態
-#[derive(Clone)]
-pub struct AuthAppState {
-    pub auth_service: Arc<AuthService>,
-    pub jwt_manager: Arc<JwtManager>,
-    pub cookie_config: CookieConfig,
-    pub security_headers: SecurityHeaders,
-}
-
-/// 認証済みユーザー情報抽出器
-pub struct AuthenticatedUser(pub UserClaims);
-
-/// JWT マネージャーを提供するトレイト
-pub trait HasJwtManager {
-    fn jwt_manager(&self) -> &Arc<JwtManager>;
-    fn cookie_config(&self) -> &CookieConfig;
-}
-
-impl HasJwtManager for AuthAppState {
-    fn jwt_manager(&self) -> &Arc<JwtManager> {
-        &self.jwt_manager
-    }
-
-    fn cookie_config(&self) -> &CookieConfig {
-        &self.cookie_config
-    }
-}
-
+/// 認証済みユーザー情報抽出器（FromRequestParts実装）
 impl<S> FromRequestParts<S> for AuthenticatedUser
 where
     S: HasJwtManager + Send + Sync,
@@ -98,7 +69,10 @@ where
             "User authenticated successfully"
         );
 
-        Ok(AuthenticatedUser(access_claims.user))
+        Ok(AuthenticatedUser::new(
+            access_claims.user,
+            token.to_string(),
+        ))
     }
 }
 
@@ -106,7 +80,7 @@ where
 
 /// ユーザー登録
 pub async fn signup_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     Json(payload): Json<SignupRequest>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション
@@ -157,7 +131,7 @@ pub async fn signup_handler(
 
 /// ログイン
 pub async fn signin_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     Json(payload): Json<SigninRequest>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション
@@ -204,7 +178,7 @@ pub async fn signin_handler(
 
 /// ログアウト
 pub async fn signout_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
     cookie_jar: CookieJar,
 ) -> AppResult<impl IntoResponse> {
@@ -230,29 +204,29 @@ pub async fn signout_handler(
     // セキュリティヘッダーを追加
     add_security_headers(response.headers_mut(), &app_state.security_headers);
 
-    info!(user_id = %user.0.user_id, "User signed out successfully");
+    info!(user_id = %user.claims.user_id, "User signed out successfully");
 
     Ok(response)
 }
 
 /// 全デバイスからログアウト
 pub async fn signout_all_devices_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
 ) -> AppResult<Json<LogoutResponse>> {
     let logout_response = app_state
         .auth_service
-        .signout_all_devices(user.0.user_id)
+        .signout_all_devices(user.claims.user_id)
         .await?;
 
-    info!(user_id = %user.0.user_id, "User signed out from all devices");
+    info!(user_id = %user.claims.user_id, "User signed out from all devices");
 
     Ok(Json(logout_response))
 }
 
 /// トークンリフレッシュ
 pub async fn refresh_token_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     _cookie_jar: CookieJar,
     Json(payload): Json<RefreshTokenRequest>,
 ) -> AppResult<impl IntoResponse> {
@@ -302,7 +276,7 @@ pub async fn refresh_token_handler(
 
 /// パスワードリセット要求
 pub async fn forgot_password_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     Json(payload): Json<PasswordResetRequestRequest>,
 ) -> AppResult<Json<PasswordResetRequestResponse>> {
     // バリデーション
@@ -339,7 +313,7 @@ pub async fn forgot_password_handler(
 
 /// パスワードリセット実行
 pub async fn reset_password_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     Json(payload): Json<PasswordResetRequest>,
 ) -> AppResult<Json<PasswordResetResponse>> {
     // バリデーション
@@ -372,7 +346,7 @@ pub async fn reset_password_handler(
 
 /// パスワード変更
 pub async fn change_password_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<PasswordChangeRequest>,
 ) -> AppResult<Json<PasswordChangeResponse>> {
@@ -401,7 +375,7 @@ pub async fn change_password_handler(
         AppError::ValidationErrors(vec![e])
     })?;
 
-    info!(user_id = %user.0.user_id, "Password change attempt");
+    info!(user_id = %user.claims.user_id, "Password change attempt");
 
     // パスワード変更用の構造体に変換
     let change_input = crate::utils::password::PasswordChangeInput {
@@ -412,22 +386,22 @@ pub async fn change_password_handler(
 
     let response = app_state
         .auth_service
-        .change_password(user.0.user_id, change_input)
+        .change_password(user.claims.user_id, change_input)
         .await?;
 
-    info!(user_id = %user.0.user_id, "Password changed successfully");
+    info!(user_id = %user.claims.user_id, "Password changed successfully");
 
     Ok(Json(response))
 }
 
 /// 現在のユーザー情報取得
 pub async fn me_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
 ) -> AppResult<Json<CurrentUserResponse>> {
     let current_user_response = app_state
         .auth_service
-        .get_current_user(user.0.user_id)
+        .get_current_user(user.claims.user_id)
         .await?;
 
     Ok(Json(current_user_response))
@@ -435,7 +409,7 @@ pub async fn me_handler(
 
 /// アカウント削除
 pub async fn delete_account_handler(
-    State(app_state): State<AuthAppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<DeleteAccountRequest>,
 ) -> AppResult<impl IntoResponse> {
@@ -464,11 +438,11 @@ pub async fn delete_account_handler(
         AppError::ValidationErrors(vec![e])
     })?;
 
-    warn!(user_id = %user.0.user_id, "Account deletion attempt");
+    warn!(user_id = %user.claims.user_id, "Account deletion attempt");
 
     let response = app_state
         .auth_service
-        .delete_account(user.0.user_id, &payload.password)
+        .delete_account(user.claims.user_id, &payload.password)
         .await?;
 
     // レスポンスを作成
@@ -481,7 +455,7 @@ pub async fn delete_account_handler(
     // セキュリティヘッダーを追加
     add_security_headers(response.headers_mut(), &app_state.security_headers);
 
-    info!(user_id = %user.0.user_id, "Account deleted successfully");
+    info!(user_id = %user.claims.user_id, "Account deleted successfully");
 
     Ok(response)
 }
@@ -592,7 +566,7 @@ fn add_security_headers(headers: &mut HeaderMap, security: &SecurityHeaders) {
 // --- ルーター ---
 
 /// 認証ルーターを作成
-pub fn auth_router(app_state: AuthAppState) -> Router {
+pub fn auth_router(app_state: AppState) -> Router {
     Router::new()
         .route("/auth/signup", post(signup_handler))
         .route("/auth/signin", post(signin_handler))
@@ -608,16 +582,7 @@ pub fn auth_router(app_state: AuthAppState) -> Router {
         .with_state(app_state)
 }
 
-/// 認証ルーターをサービスから作成
-pub fn auth_router_with_service(
-    auth_service: Arc<AuthService>,
-    jwt_manager: Arc<JwtManager>,
-) -> Router {
-    let app_state = AuthAppState {
-        auth_service,
-        jwt_manager,
-        cookie_config: CookieConfig::default(),
-        security_headers: SecurityHeaders::default(),
-    };
+/// 認証ルーターをAppStateから作成
+pub fn auth_router_with_state(app_state: AppState) -> Router {
     auth_router(app_state)
 }
