@@ -67,6 +67,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_user_id")
                     .col(PasswordResetTokens::UserId)
@@ -78,6 +79,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_token_hash")
                     .col(PasswordResetTokens::TokenHash)
@@ -89,6 +91,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_expires_at")
                     .col(PasswordResetTokens::ExpiresAt)
@@ -100,6 +103,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_valid")
                     .col(PasswordResetTokens::IsUsed)
@@ -112,6 +116,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_user_valid")
                     .col(PasswordResetTokens::UserId)
@@ -129,6 +134,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_user_valid")
                     .to_owned(),
@@ -138,6 +144,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_valid")
                     .to_owned(),
@@ -147,6 +154,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_expires_at")
                     .to_owned(),
@@ -156,6 +164,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_token_hash")
                     .to_owned(),
@@ -165,6 +174,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(PasswordResetTokens::Table)
                     .name("idx_password_reset_tokens_user_id")
                     .to_owned(),

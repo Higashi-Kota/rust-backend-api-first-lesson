@@ -66,6 +66,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Users::Table)
                     .name("idx_users_email")
                     .col(Users::Email)
@@ -76,6 +77,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Users::Table)
                     .name("idx_users_username")
                     .col(Users::Username)
@@ -87,6 +89,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Users::Table)
                     .name("idx_users_is_active")
                     .col(Users::IsActive)
@@ -98,6 +101,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Users::Table)
                     .name("idx_users_created_at")
                     .col(Users::CreatedAt)
@@ -113,6 +117,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Users::Table)
                     .name("idx_users_created_at")
                     .to_owned(),
@@ -122,6 +127,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Users::Table)
                     .name("idx_users_is_active")
                     .to_owned(),
@@ -131,6 +137,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Users::Table)
                     .name("idx_users_username")
                     .to_owned(),
@@ -140,6 +147,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Users::Table)
                     .name("idx_users_email")
                     .to_owned(),

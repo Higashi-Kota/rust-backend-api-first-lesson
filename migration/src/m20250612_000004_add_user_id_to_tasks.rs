@@ -35,6 +35,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_user_id")
                     .col(Tasks::UserId)
@@ -46,6 +47,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_user_status")
                     .col(Tasks::UserId)
@@ -58,6 +60,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_user_created_at")
                     .col(Tasks::UserId)
@@ -70,6 +73,7 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
+                    .if_not_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_user_due_date")
                     .col(Tasks::UserId)
@@ -86,6 +90,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_user_due_date")
                     .to_owned(),
@@ -95,6 +100,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_user_created_at")
                     .to_owned(),
@@ -104,6 +110,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_user_status")
                     .to_owned(),
@@ -113,6 +120,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_index(
                 Index::drop()
+                    .if_exists()
                     .table(Tasks::Table)
                     .name("idx_tasks_user_id")
                     .to_owned(),
