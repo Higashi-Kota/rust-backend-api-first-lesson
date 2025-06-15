@@ -2,6 +2,7 @@
 
 use crate::domain::user_model::SafeUser;
 use crate::utils::jwt::TokenPair;
+use crate::utils::validation::common;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
@@ -13,24 +14,30 @@ pub struct SignupRequest {
     #[validate(email(message = "Invalid email format"))]
     pub email: String,
 
-    #[validate(length(
-        min = 3,
-        max = 30,
-        message = "Username must be between 3 and 30 characters"
-    ))]
+    #[validate(
+        length(
+            min = common::username::MIN_LENGTH,
+            max = common::username::MAX_LENGTH,
+            message = "Username must be between 3 and 30 characters"
+        ),
+        custom(function = common::validate_username)
+    )]
     pub username: String,
 
-    #[validate(length(min = 8, message = "Password must be at least 8 characters"))]
+    #[validate(
+        length(min = common::password::MIN_LENGTH, message = "Password must be at least 8 characters"),
+        custom(function = common::validate_password_strength)
+    )]
     pub password: String,
 }
 
 /// ログインリクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct SigninRequest {
-    #[validate(length(min = 1, message = "Email or username is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Email or username is required"))]
     pub identifier: String, // email or username
 
-    #[validate(length(min = 1, message = "Password is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Password is required"))]
     pub password: String,
 }
 
@@ -44,20 +51,26 @@ pub struct PasswordResetRequestRequest {
 /// パスワードリセット実行リクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct PasswordResetRequest {
-    #[validate(length(min = 1, message = "Reset token is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Reset token is required"))]
     pub token: String,
 
-    #[validate(length(min = 8, message = "New password must be at least 8 characters"))]
+    #[validate(
+        length(min = common::password::MIN_LENGTH, message = "New password must be at least 8 characters"),
+        custom(function = common::validate_password_strength)
+    )]
     pub new_password: String,
 }
 
 /// パスワード変更リクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct PasswordChangeRequest {
-    #[validate(length(min = 1, message = "Current password is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Current password is required"))]
     pub current_password: String,
 
-    #[validate(length(min = 8, message = "New password must be at least 8 characters"))]
+    #[validate(
+        length(min = common::password::MIN_LENGTH, message = "New password must be at least 8 characters"),
+        custom(function = common::validate_password_strength)
+    )]
     pub new_password: String,
 
     #[validate(must_match(
@@ -70,17 +83,17 @@ pub struct PasswordChangeRequest {
 /// トークンリフレッシュリクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct RefreshTokenRequest {
-    #[validate(length(min = 1, message = "Refresh token is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Refresh token is required"))]
     pub refresh_token: String,
 }
 
 /// アカウント削除リクエスト
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct DeleteAccountRequest {
-    #[validate(length(min = 1, message = "Password is required for account deletion"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Password is required for account deletion"))]
     pub password: String,
 
-    #[validate(length(min = 1, message = "Confirmation text is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Confirmation text is required"))]
     pub confirmation: String,
 }
 
@@ -227,7 +240,7 @@ pub mod test_helpers {
         SignupRequest {
             email: "test@example.com".to_string(),
             username: "testuser".to_string(),
-            password: "securepassword123".to_string(),
+            password: "SecurePassword123".to_string(),
         }
     }
 
@@ -240,9 +253,9 @@ pub mod test_helpers {
 
     pub fn create_valid_password_change_request() -> PasswordChangeRequest {
         PasswordChangeRequest {
-            current_password: "currentpassword123".to_string(),
-            new_password: "newpassword123".to_string(),
-            new_password_confirmation: "newpassword123".to_string(),
+            current_password: "CurrentPassword123".to_string(),
+            new_password: "NewPassword123".to_string(),
+            new_password_confirmation: "NewPassword123".to_string(),
         }
     }
 
@@ -305,8 +318,8 @@ mod tests {
         assert!(request.validate_password_change().is_err());
 
         // 現在のパスワードと新しいパスワードが同じ
-        request.new_password_confirmation = "newpassword123".to_string();
-        request.current_password = "newpassword123".to_string();
+        request.new_password_confirmation = "NewPassword123".to_string();
+        request.current_password = "NewPassword123".to_string();
         assert!(request.validate_password_change().is_err());
     }
 

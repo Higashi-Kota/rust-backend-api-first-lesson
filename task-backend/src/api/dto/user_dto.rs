@@ -3,6 +3,7 @@
 
 use crate::domain::user_model::SafeUser;
 use crate::service::user_service::UserStats;
+use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -15,14 +16,11 @@ use validator::Validate;
 pub struct UpdateUsernameRequest {
     #[validate(
         length(
-            min = 3,
-            max = 30,
+            min = common::username::MIN_LENGTH,
+            max = common::username::MAX_LENGTH,
             message = "Username must be between 3 and 30 characters"
         ),
-        custom(
-            function = "crate::utils::validation::validate_username",
-            message = "Username can only contain letters, numbers, and underscores"
-        )
+        custom(function = common::validate_username)
     )]
     pub username: String,
 }
@@ -37,11 +35,14 @@ pub struct UpdateEmailRequest {
 /// プロフィール更新リクエスト
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct UpdateProfileRequest {
-    #[validate(length(
-        min = 3,
-        max = 30,
-        message = "Username must be between 3 and 30 characters"
-    ))]
+    #[validate(
+        length(
+            min = common::username::MIN_LENGTH,
+            max = common::username::MAX_LENGTH,
+            message = "Username must be between 3 and 30 characters"
+        ),
+        custom(function = common::validate_username)
+    )]
     pub username: Option<String>,
 
     #[validate(email(message = "Invalid email format"))]
@@ -58,7 +59,7 @@ pub struct UpdateAccountStatusRequest {
 /// メール認証確認リクエスト
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct VerifyEmailRequest {
-    #[validate(length(min = 1, message = "Verification token is required"))]
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Verification token is required"))]
     pub token: String,
 }
 
