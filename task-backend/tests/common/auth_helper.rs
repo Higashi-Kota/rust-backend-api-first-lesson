@@ -14,6 +14,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct TestUser {
     pub id: Uuid,
+    pub user_id: Uuid, // Alias for id to match test expectations
     pub email: String,
     pub username: String,
     pub access_token: String,
@@ -72,6 +73,7 @@ pub async fn signup_test_user(
 
     Ok(TestUser {
         id: user_id,
+        user_id,
         email: signup_data.email,
         username: signup_data.username,
         access_token,
@@ -113,6 +115,7 @@ pub async fn signin_test_user(
 
     Ok(TestUser {
         id: user_id,
+        user_id,
         email: signin_data.identifier.clone(),
         username: response["user"]["username"].as_str().unwrap().to_string(),
         access_token,
@@ -195,6 +198,7 @@ pub async fn refresh_token(app: &Router, refresh_token: &str) -> Result<TestUser
 
     Ok(TestUser {
         id: user_id,
+        user_id,
         email: response["user"]["email"].as_str().unwrap().to_string(),
         username: response["user"]["username"].as_str().unwrap().to_string(),
         access_token,
@@ -255,4 +259,15 @@ pub async fn create_member_with_jwt(app: &Router) -> String {
     let member_signup = create_test_user_data();
     let member_user = signup_test_user(app, member_signup).await.unwrap();
     member_user.access_token
+}
+
+/// テスト用のメンバーユーザーを作成して認証済みユーザー情報を返す
+pub async fn create_and_authenticate_member(app: &Router) -> TestUser {
+    let member_signup = create_test_user_data();
+    signup_test_user(app, member_signup).await.unwrap()
+}
+
+/// テスト用の管理者でログインして認証トークンを返す
+pub async fn create_and_authenticate_admin(app: &Router) -> String {
+    create_admin_with_jwt(app).await
 }

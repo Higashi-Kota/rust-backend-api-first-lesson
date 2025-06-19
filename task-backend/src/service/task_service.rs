@@ -1,14 +1,16 @@
-// src/service/task_service.rs
 #![allow(dead_code)]
+// src/service/task_service.rs
 
 use crate::api::dto::task_dto::{
     BatchCreateResponseDto, BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto,
     BatchUpdateResponseDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto, CreateTaskDto,
-    PaginatedTasksDto, TaskDto, TaskFilterDto, UpdateTaskDto,
+    PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse, UpdateTaskDto,
 };
 use crate::api::dto::PaginationMeta;
 use crate::db::DbPool;
+use crate::domain::permission::{PermissionResult, PermissionScope, Privilege};
 use crate::error::{AppError, AppResult};
+use crate::middleware::auth::AuthenticatedUser;
 use crate::repository::task_repository::TaskRepository;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -255,6 +257,7 @@ impl TaskService {
     }
 
     // ページネーション付きのタスク一覧取得
+    #[allow(dead_code)]
     pub async fn list_tasks_paginated(
         &self,
         page: u64,
@@ -331,6 +334,137 @@ impl TaskService {
             items: task_dtos,
             pagination,
         })
+    }
+
+    // --- 動的権限システムメソッド (CLAUDE.md design implementation) ---
+
+    /// 動的権限システムによるタスク一覧取得
+    pub async fn list_tasks_dynamic(
+        &self,
+        user: &AuthenticatedUser,
+        filter: Option<TaskFilterDto>,
+    ) -> AppResult<TaskResponse> {
+        let permission_result = if let Some(ref role) = user.claims.role {
+            role.can_perform_action("tasks", "read", None)
+        } else {
+            // Fallback for basic permission check
+            PermissionResult::Allowed {
+                privilege: None,
+                scope: PermissionScope::Own,
+            }
+        };
+
+        match permission_result {
+            PermissionResult::Allowed { privilege, scope } => {
+                self.execute_task_query(user, filter, privilege, scope)
+                    .await
+            }
+            PermissionResult::Denied { reason } => Err(AppError::Forbidden(reason)),
+        }
+    }
+
+    /// 動的権限に基づいてクエリを実行
+    async fn execute_task_query(
+        &self,
+        user: &AuthenticatedUser,
+        filter: Option<TaskFilterDto>,
+        privilege: Option<Privilege>,
+        scope: PermissionScope,
+    ) -> AppResult<TaskResponse> {
+        match (scope, privilege.as_ref()) {
+            // Free tier: Own scope only, basic features
+            (PermissionScope::Own, Some(privilege_info))
+                if privilege_info.subscription_tier
+                    == crate::domain::subscription_tier::SubscriptionTier::Free =>
+            {
+                self.list_tasks_for_user_limited(user.claims.user_id, privilege_info.quota.as_ref())
+                    .await
+            }
+
+            // Pro tier: Team scope, advanced features
+            (PermissionScope::Team, Some(privilege_info))
+                if privilege_info.subscription_tier
+                    == crate::domain::subscription_tier::SubscriptionTier::Pro =>
+            {
+                self.list_tasks_for_team_with_features(
+                    user.claims.user_id,
+                    &privilege_info
+                        .quota
+                        .as_ref()
+                        .map(|q| q.features.clone())
+                        .unwrap_or_default(),
+                    filter,
+                )
+                .await
+            }
+
+            // Enterprise tier: Global scope, unlimited features
+            (PermissionScope::Global, Some(privilege_info))
+                if privilege_info.subscription_tier
+                    == crate::domain::subscription_tier::SubscriptionTier::Enterprise =>
+            {
+                self.list_all_tasks_unlimited(filter).await
+            }
+
+            // Admin access: Always unlimited
+            _ if user.claims.is_admin() => self.list_all_tasks_unlimited(filter).await,
+
+            // Default: Limited access to own tasks only
+            _ => {
+                let basic_filter = filter.unwrap_or_default();
+                let result = self
+                    .filter_tasks_for_user(user.claims.user_id, basic_filter)
+                    .await?;
+                Ok(TaskResponse::Limited(result))
+            }
+        }
+    }
+
+    /// Free tier: Own tasks with limits
+    async fn list_tasks_for_user_limited(
+        &self,
+        user_id: Uuid,
+        quota: Option<&crate::domain::permission::PermissionQuota>,
+    ) -> AppResult<TaskResponse> {
+        let max_items = quota.and_then(|q| q.max_items).unwrap_or(100);
+
+        let filter = TaskFilterDto {
+            limit: Some(max_items as u64),
+            ..Default::default()
+        };
+
+        let result = self.filter_tasks_for_user(user_id, filter).await?;
+        Ok(TaskResponse::Limited(result))
+    }
+
+    /// Pro tier: Team tasks with features
+    async fn list_tasks_for_team_with_features(
+        &self,
+        user_id: Uuid,
+        features: &[String],
+        filter: Option<TaskFilterDto>,
+    ) -> AppResult<TaskResponse> {
+        let mut enhanced_filter = filter.unwrap_or_default();
+        enhanced_filter.limit = Some(10_000); // Pro tier limit
+
+        if features.contains(&"advanced_filter".to_string()) {
+            // Enhanced filtering capabilities for Pro users
+            let result = self.filter_tasks_for_user(user_id, enhanced_filter).await?;
+            Ok(TaskResponse::Enhanced(result))
+        } else {
+            let result = self.filter_tasks_for_user(user_id, enhanced_filter).await?;
+            Ok(TaskResponse::Limited(result))
+        }
+    }
+
+    /// Enterprise tier: All tasks unlimited
+    async fn list_all_tasks_unlimited(
+        &self,
+        filter: Option<TaskFilterDto>,
+    ) -> AppResult<TaskResponse> {
+        let enhanced_filter = filter.unwrap_or_default();
+        let result = self.filter_tasks(enhanced_filter).await?;
+        Ok(TaskResponse::Unlimited(result))
     }
 
     // Admin専用メソッド群

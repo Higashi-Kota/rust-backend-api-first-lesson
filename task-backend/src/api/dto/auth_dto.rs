@@ -335,6 +335,7 @@ mod tests {
             is_active: true,
             email_verified: false,
             role_id: Uuid::new_v4(),
+            subscription_tier: "free".to_string(),
             last_login_at: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),

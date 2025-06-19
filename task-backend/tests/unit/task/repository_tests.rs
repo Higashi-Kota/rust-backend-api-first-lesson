@@ -1,3 +1,4 @@
+use task_backend::domain::task_status::TaskStatus;
 // tests/unit/repository_tests.rs
 use chrono::Utc;
 use task_backend::{
@@ -25,7 +26,7 @@ async fn test_create_task() {
 
     // 作成されたタスクを検証
     assert_eq!(created_task.title, "Test Task");
-    assert_eq!(created_task.status, "todo");
+    assert_eq!(created_task.status, TaskStatus::Todo.to_string());
     assert!(created_task.description.is_some());
     assert_eq!(created_task.description.unwrap(), "Test Description");
 }
@@ -82,7 +83,7 @@ async fn test_update_task() {
     // 更新データを準備
     let update_dto = UpdateTaskDto {
         title: Some("Updated Title".to_string()),
-        status: Some("in_progress".to_string()),
+        status: Some(TaskStatus::InProgress),
         description: None,
         due_date: None,
     };
@@ -93,7 +94,7 @@ async fn test_update_task() {
     // 更新されたタスクを検証
     assert_eq!(updated_task.id, task_id);
     assert_eq!(updated_task.title, "Updated Title");
-    assert_eq!(updated_task.status, "in_progress");
+    assert_eq!(updated_task.status, TaskStatus::InProgress.to_string());
     // 指定しなかったフィールドは変更されていないことを確認
     assert_eq!(updated_task.description, created_task.description);
 }
@@ -124,21 +125,21 @@ async fn test_find_with_filter() {
     let task1 = CreateTaskDto {
         title: "Important Task".to_string(),
         description: Some("High priority".to_string()),
-        status: Some("todo".to_string()),
+        status: Some(TaskStatus::Todo),
         due_date: Some(Utc::now() + chrono::Duration::days(1)),
     };
 
     let task2 = CreateTaskDto {
         title: "Normal Task".to_string(),
         description: Some("Medium priority".to_string()),
-        status: Some("in_progress".to_string()),
+        status: Some(TaskStatus::InProgress),
         due_date: Some(Utc::now() + chrono::Duration::days(2)),
     };
 
     let task3 = CreateTaskDto {
         title: "Another Important Task".to_string(),
         description: Some("Also high priority".to_string()),
-        status: Some("todo".to_string()),
+        status: Some(TaskStatus::Todo),
         due_date: Some(Utc::now() + chrono::Duration::days(3)),
     };
 
@@ -148,7 +149,7 @@ async fn test_find_with_filter() {
 
     // ステータスでフィルタリング
     let filter = TaskFilterDto {
-        status: Some("todo".to_string()),
+        status: Some(TaskStatus::Todo),
         ..Default::default()
     };
 
@@ -172,7 +173,7 @@ async fn test_find_with_filter() {
 
     // 複合フィルタリング
     let filter = TaskFilterDto {
-        status: Some("todo".to_string()),
+        status: Some(TaskStatus::Todo),
         title_contains: Some("Important".to_string()),
         ..Default::default()
     };
@@ -185,7 +186,7 @@ async fn test_find_with_filter() {
 
     // すべてのフィルタ条件が一致しないケース
     let filter = TaskFilterDto {
-        status: Some("completed".to_string()),
+        status: Some(TaskStatus::Completed),
         title_contains: Some("NonExistent".to_string()),
         ..Default::default()
     };
@@ -220,7 +221,7 @@ async fn test_batch_operations() {
         .map(|id| BatchUpdateTaskItemDto {
             id: *id,
             title: Some("Updated Batch Task".to_string()),
-            status: Some("in_progress".to_string()),
+            status: Some(TaskStatus::InProgress),
             description: None,
             due_date: None,
         })
@@ -239,7 +240,7 @@ async fn test_batch_operations() {
 
     for task in updated_tasks {
         assert_eq!(task.title, "Updated Batch Task");
-        assert_eq!(task.status, "in_progress");
+        assert_eq!(task.status, TaskStatus::InProgress.to_string());
     }
 
     // バッチ削除を実行
@@ -262,7 +263,7 @@ async fn test_pagination() {
         let task = CreateTaskDto {
             title: format!("Pagination Task {}", i),
             description: Some("For pagination test".to_string()),
-            status: Some("todo".to_string()),
+            status: Some(TaskStatus::Todo),
             due_date: None,
         };
         repo.create(task).await.unwrap();

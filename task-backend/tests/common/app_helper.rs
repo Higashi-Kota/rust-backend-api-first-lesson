@@ -11,11 +11,12 @@ use task_backend::{
     repository::{
         password_reset_token_repository::PasswordResetTokenRepository,
         refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
-        user_repository::UserRepository,
+        team_repository::TeamRepository, user_repository::UserRepository,
     },
     service::{
-        auth_service::AuthService, role_service::RoleService, task_service::TaskService,
-        user_service::UserService,
+        auth_service::AuthService, role_service::RoleService,
+        subscription_service::SubscriptionService, task_service::TaskService,
+        team_service::TeamService, user_service::UserService,
     },
     utils::{jwt::JwtManager, password::PasswordManager},
 };
@@ -75,12 +76,30 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         db.connection.clone(),
         schema_name.clone(),
     ));
+    let subscription_service = Arc::new(SubscriptionService::new(db.connection.clone()));
+    let team_service = Arc::new(TeamService::new(
+        TeamRepository::new(db.connection.clone()),
+        UserRepository::new(db.connection.clone()),
+    ));
+
+    let organization_service = Arc::new(
+        task_backend::service::organization_service::OrganizationService::new(
+            task_backend::repository::organization_repository::OrganizationRepository::new(
+                db.connection.clone(),
+            ),
+            task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
+            task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
+        ),
+    );
 
     let app_state = AppState::with_config(
         auth_service,
         user_service,
         role_service,
         task_service,
+        team_service,
+        organization_service,
+        subscription_service,
         jwt_manager,
         &app_config,
     );
@@ -143,6 +162,21 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         db.connection.clone(),
         schema_name.clone(),
     ));
+    let subscription_service = Arc::new(SubscriptionService::new(db.connection.clone()));
+    let team_service = Arc::new(TeamService::new(
+        TeamRepository::new(db.connection.clone()),
+        UserRepository::new(db.connection.clone()),
+    ));
+
+    let organization_service = Arc::new(
+        task_backend::service::organization_service::OrganizationService::new(
+            task_backend::repository::organization_repository::OrganizationRepository::new(
+                db.connection.clone(),
+            ),
+            task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
+            task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
+        ),
+    );
 
     // 統一されたAppStateの作成
     let app_state = AppState::with_config(
@@ -150,6 +184,9 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         user_service,
         role_service,
         task_service,
+        team_service,
+        organization_service,
+        subscription_service,
         jwt_manager.clone(),
         &app_config,
     );
@@ -170,7 +207,6 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
             "/auth/forgot-password".to_string(),
             "/auth/reset-password".to_string(),
             "/health".to_string(),
-            "/".to_string(),
             "/test".to_string(),
         ],
         admin_only_paths: vec!["/admin".to_string(), "/api/admin".to_string()],
@@ -184,7 +220,21 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         .merge(user_handler::user_router(app_state.clone()))
         .merge(task_backend::api::handlers::role_handler::role_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::task_handler::task_router_with_state(app_state.clone()))
-        .merge(task_backend::api::handlers::task_handler::admin_task_router(app_state))
+        .merge(task_backend::api::handlers::team_handler::team_router_with_state(app_state.clone()))
+        .merge(task_backend::api::handlers::task_handler::admin_task_router(app_state.clone()))
+        .merge(
+            task_backend::api::handlers::subscription_handler::subscription_router_with_state(
+                app_state.clone(),
+            ),
+        )
+        .merge(
+            task_backend::api::handlers::permission_handler::permission_router_with_state(
+                app_state.clone(),
+            ),
+        )
+        .merge(
+            task_backend::api::handlers::analytics_handler::analytics_router_with_state(app_state),
+        )
         .layer(axum_middleware::from_fn_with_state(
             auth_middleware_config,
             jwt_auth_middleware,

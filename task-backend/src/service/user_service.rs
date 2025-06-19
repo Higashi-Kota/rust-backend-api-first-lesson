@@ -160,6 +160,28 @@ impl UserService {
 
         Ok((paginated_users, total_count))
     }
+
+    /// ユーザー検索（管理者用）
+    pub async fn search_users(
+        &self,
+        query: Option<String>,
+        is_active: Option<bool>,
+        email_verified: Option<bool>,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
+        let users = self
+            .user_repo
+            .search_users(query.clone(), is_active, email_verified, page, per_page)
+            .await?;
+
+        let total_count = self
+            .user_repo
+            .count_users_by_filter(query.as_deref(), is_active, email_verified)
+            .await?;
+
+        Ok((users, total_count))
+    }
 }
 
 // --- レスポンス構造体 ---

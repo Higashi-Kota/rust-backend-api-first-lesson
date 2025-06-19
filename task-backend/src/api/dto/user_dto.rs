@@ -1,5 +1,4 @@
 // task-backend/src/api/dto/user_dto.rs
-#![allow(dead_code)]
 
 use crate::api::dto::{ApiResponse, OperationResult, PaginatedResponse};
 use crate::domain::user_model::SafeUser;
@@ -54,7 +53,6 @@ pub struct UpdateProfileRequest {
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct UpdateAccountStatusRequest {
     pub is_active: bool,
-    pub reason: Option<String>,
 }
 
 /// メール認証確認リクエスト
@@ -195,7 +193,7 @@ impl Default for NotificationSettings {
 pub type UserListResponse = PaginatedResponse<UserSummary>;
 
 /// ユーザー概要
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSummary {
     pub id: Uuid,
     pub username: String,
@@ -386,18 +384,6 @@ pub mod test_helpers {
         UpdateProfileRequest {
             username: Some("newusername".to_string()),
             email: Some("newemail@example.com".to_string()),
-        }
-    }
-
-    pub fn create_valid_user_search_query() -> UserSearchQuery {
-        UserSearchQuery {
-            q: Some("test".to_string()),
-            is_active: Some(true),
-            email_verified: Some(true),
-            page: Some(1),
-            per_page: Some(20),
-            sort_by: Some(UserSortField::Username),
-            sort_order: Some(SortOrder::Ascending),
         }
     }
 }

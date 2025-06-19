@@ -133,6 +133,9 @@ impl UserRepository {
             username: Set(create_user.username),
             password_hash: Set(create_user.password_hash),
             role_id: Set(create_user.role_id),
+            subscription_tier: Set(create_user
+                .subscription_tier
+                .unwrap_or_else(|| "free".to_string())),
             is_active: Set(create_user.is_active.unwrap_or(true)),
             email_verified: Set(create_user.email_verified.unwrap_or(false)),
             ..Default::default()
@@ -184,6 +187,11 @@ impl UserRepository {
 
         if let Some(role_id) = update_user.role_id {
             active_model.role_id = Set(role_id);
+            changed = true;
+        }
+
+        if let Some(subscription_tier) = update_user.subscription_tier {
+            active_model.subscription_tier = Set(subscription_tier);
             changed = true;
         }
 
@@ -326,6 +334,25 @@ impl UserRepository {
 
         let mut active_model: UserActiveModel = user.into();
         active_model.username = Set(username);
+
+        Ok(Some(active_model.update(&self.db).await?))
+    }
+
+    /// サブスクリプション階層のみを更新
+    pub async fn update_subscription_tier(
+        &self,
+        id: Uuid,
+        subscription_tier: String,
+    ) -> Result<Option<user_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+
+        let user = match UserEntity::find_by_id(id).one(&self.db).await? {
+            Some(u) => u,
+            None => return Ok(None),
+        };
+
+        let mut active_model: UserActiveModel = user.into();
+        active_model.subscription_tier = Set(subscription_tier);
 
         Ok(Some(active_model.update(&self.db).await?))
     }
@@ -618,6 +645,54 @@ impl UserRepository {
         self.find_by_role_name("member").await
     }
 
+    /// 特定のサブスクリプション階層のユーザーを取得
+    pub async fn find_by_subscription_tier(
+        &self,
+        tier: &str,
+    ) -> Result<Vec<user_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+
+        UserEntity::find()
+            .filter(user_model::Column::SubscriptionTier.eq(tier))
+            .order_by(user_model::Column::CreatedAt, Order::Desc)
+            .all(&self.db)
+            .await
+    }
+
+    /// サブスクリプション階層別のユーザー統計を取得
+    pub async fn get_subscription_tier_stats(&self) -> Result<Vec<SubscriptionTierStats>, DbErr> {
+        self.prepare_connection().await?;
+
+        let results = UserEntity::find().all(&self.db).await?;
+
+        let mut tier_stats: std::collections::HashMap<String, SubscriptionTierStats> =
+            std::collections::HashMap::new();
+
+        for user in results {
+            let stats =
+                tier_stats
+                    .entry(user.subscription_tier.clone())
+                    .or_insert(SubscriptionTierStats {
+                        tier: user.subscription_tier.clone(),
+                        user_count: 0,
+                        total_users: 0,
+                        active_users: 0,
+                        verified_users: 0,
+                    });
+
+            stats.user_count += 1;
+            stats.total_users += 1;
+            if user.is_active {
+                stats.active_users += 1;
+            }
+            if user.email_verified {
+                stats.verified_users += 1;
+            }
+        }
+
+        Ok(tier_stats.into_values().collect())
+    }
+
     /// ロール別ユーザー統計を取得
     pub async fn get_user_stats_by_role(&self) -> Result<Vec<RoleUserStats>, DbErr> {
         self.prepare_connection().await?;
@@ -655,6 +730,97 @@ impl UserRepository {
 
         Ok(role_stats.into_values().collect())
     }
+
+    /// ユーザー検索（管理者用）
+    pub async fn search_users(
+        &self,
+        query: Option<String>,
+        is_active: Option<bool>,
+        email_verified: Option<bool>,
+        page: i32,
+        per_page: i32,
+    ) -> Result<Vec<SafeUserWithRole>, DbErr> {
+        self.prepare_connection().await?;
+
+        let mut condition = Condition::all();
+
+        if let Some(q) = query {
+            let search_term = format!("%{}%", q);
+            condition = condition.add(
+                Condition::any()
+                    .add(user_model::Column::Username.like(&search_term))
+                    .add(user_model::Column::Email.like(&search_term)),
+            );
+        }
+
+        if let Some(active) = is_active {
+            condition = condition.add(user_model::Column::IsActive.eq(active));
+        }
+
+        if let Some(verified) = email_verified {
+            condition = condition.add(user_model::Column::EmailVerified.eq(verified));
+        }
+
+        let page_size = std::cmp::min(per_page as u64, 100);
+        let offset = ((page - 1) * per_page) as u64;
+
+        let results = UserEntity::find()
+            .filter(condition)
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .select_also(RoleEntity)
+            .order_by(user_model::Column::CreatedAt, Order::Desc)
+            .limit(page_size)
+            .offset(offset)
+            .all(&self.db)
+            .await?;
+
+        let mut users_with_roles = Vec::new();
+        for (user, role_opt) in results {
+            if let Some(role) = role_opt {
+                match RoleWithPermissions::from_model(role) {
+                    Ok(role_with_perms) => {
+                        users_with_roles.push(user.to_safe_user_with_role(role_with_perms));
+                    }
+                    Err(_) => continue,
+                }
+            }
+        }
+
+        Ok(users_with_roles)
+    }
+
+    /// ユーザー検索の総件数を取得（管理者用）
+    pub async fn count_users_by_filter(
+        &self,
+        query: Option<&str>,
+        is_active: Option<bool>,
+        email_verified: Option<bool>,
+    ) -> Result<usize, DbErr> {
+        self.prepare_connection().await?;
+
+        let mut condition = Condition::all();
+
+        if let Some(q) = query {
+            let search_term = format!("%{}%", q);
+            condition = condition.add(
+                Condition::any()
+                    .add(user_model::Column::Username.like(&search_term))
+                    .add(user_model::Column::Email.like(&search_term)),
+            );
+        }
+
+        if let Some(active) = is_active {
+            condition = condition.add(user_model::Column::IsActive.eq(active));
+        }
+
+        if let Some(verified) = email_verified {
+            condition = condition.add(user_model::Column::EmailVerified.eq(verified));
+        }
+
+        let count = UserEntity::find().filter(condition).count(&self.db).await?;
+
+        Ok(count as usize)
+    }
 }
 
 // --- DTOと関連構造体 ---
@@ -666,6 +832,7 @@ pub struct CreateUser {
     pub username: String,
     pub password_hash: String,
     pub role_id: Uuid,
+    pub subscription_tier: Option<String>,
     pub is_active: Option<bool>,
     pub email_verified: Option<bool>,
 }
@@ -677,6 +844,7 @@ pub struct UpdateUser {
     pub username: Option<String>,
     pub password_hash: Option<String>,
     pub role_id: Option<Uuid>,
+    pub subscription_tier: Option<String>,
     pub is_active: Option<bool>,
     pub email_verified: Option<bool>,
 }
@@ -696,6 +864,16 @@ pub struct UserStats {
 pub struct RoleUserStats {
     pub role_name: String,
     pub role_display_name: String,
+    pub total_users: u64,
+    pub active_users: u64,
+    pub verified_users: u64,
+}
+
+/// サブスクリプション階層別ユーザー統計情報
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SubscriptionTierStats {
+    pub tier: String,
+    pub user_count: u64,
     pub total_users: u64,
     pub active_users: u64,
     pub verified_users: u64,

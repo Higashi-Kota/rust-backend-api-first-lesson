@@ -4,6 +4,7 @@ use crate::api::dto::task_dto::{
 };
 use crate::db;
 use crate::domain::task_model::{self, ActiveModel as TaskActiveModel, Entity as TaskEntity};
+use crate::domain::task_status::TaskStatus;
 use sea_orm::{entity::*, query::*, DbConn, DbErr, DeleteResult, Set};
 use sea_orm::{Condition, Order, PaginatorTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
@@ -87,7 +88,7 @@ impl TaskRepository {
 
         // ステータスフィルタ
         if let Some(status) = &filter.status {
-            conditions = conditions.add(task_model::Column::Status.eq(status.clone()));
+            conditions = conditions.add(task_model::Column::Status.eq(status.as_str()));
         }
 
         // タイトル検索
@@ -191,7 +192,7 @@ impl TaskRepository {
 
         // ステータスフィルタ
         if let Some(status) = &filter.status {
-            conditions = conditions.add(task_model::Column::Status.eq(status.clone()));
+            conditions = conditions.add(task_model::Column::Status.eq(status.as_str()));
         }
 
         // タイトル検索
@@ -293,7 +294,7 @@ impl TaskRepository {
         let new_task = TaskActiveModel {
             title: Set(payload.title),
             description: Set(payload.description),
-            status: Set(payload.status.unwrap_or_else(|| "todo".to_string())),
+            status: Set(payload.status.unwrap_or(TaskStatus::Todo).to_string()),
             due_date: Set(payload.due_date),
             ..Default::default()
         };
@@ -311,7 +312,7 @@ impl TaskRepository {
             user_id: Set(Some(user_id)),
             title: Set(payload.title),
             description: Set(payload.description),
-            status: Set(payload.status.unwrap_or_else(|| "todo".to_string())),
+            status: Set(payload.status.unwrap_or(TaskStatus::Todo).to_string()),
             due_date: Set(payload.due_date),
             ..Default::default()
         };
@@ -345,8 +346,7 @@ impl TaskRepository {
         }
 
         if let Some(status_val) = payload.status {
-            // ここでムーブが発生
-            active_model.status = Set(status_val);
+            active_model.status = Set(status_val.to_string());
             changed = true;
         }
 
@@ -394,7 +394,7 @@ impl TaskRepository {
         }
 
         if let Some(status_val) = payload.status {
-            active_model.status = Set(status_val);
+            active_model.status = Set(status_val.to_string());
             changed = true;
         }
 
@@ -443,7 +443,7 @@ impl TaskRepository {
             let new_task = TaskActiveModel {
                 title: Set(payload.title),
                 description: Set(payload.description),
-                status: Set(payload.status.unwrap_or_else(|| "todo".to_string())),
+                status: Set(payload.status.unwrap_or(TaskStatus::Todo).to_string()),
                 due_date: Set(payload.due_date),
                 ..Default::default()
             };
@@ -480,7 +480,7 @@ impl TaskRepository {
                 user_id: Set(Some(user_id)),
                 title: Set(payload.title),
                 description: Set(payload.description),
-                status: Set(payload.status.unwrap_or_else(|| "todo".to_string())),
+                status: Set(payload.status.unwrap_or(TaskStatus::Todo).to_string()),
                 due_date: Set(payload.due_date),
                 ..Default::default()
             };
@@ -521,7 +521,7 @@ impl TaskRepository {
                 changed_in_item = true;
             }
             if let Some(status_val) = item_payload.status {
-                active_model.status = Set(status_val);
+                active_model.status = Set(status_val.to_string());
                 changed_in_item = true;
             }
             if item_payload.due_date.is_some() {
@@ -571,7 +571,7 @@ impl TaskRepository {
                 changed_in_item = true;
             }
             if let Some(status_val) = item_payload.status {
-                active_model.status = Set(status_val);
+                active_model.status = Set(status_val.to_string());
                 changed_in_item = true;
             }
             if item_payload.due_date.is_some() {

@@ -262,16 +262,8 @@ async fn test_filter_tasks_invalid_status() {
 
     let filter_res = app.clone().oneshot(filter_req).await.unwrap();
 
-    assert_eq!(filter_res.status(), StatusCode::OK);
-    let body = body::to_bytes(filter_res.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let result: Value = serde_json::from_slice(&body).unwrap();
-
-    // 無効なステータスでは何も返されない
-    assert!(result["items"].is_array());
-    let filtered_tasks = result["items"].as_array().unwrap();
-    assert!(filtered_tasks.is_empty());
+    // 無効なステータスでは400 Bad Requestが返される（enum validation）
+    assert_eq!(filter_res.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

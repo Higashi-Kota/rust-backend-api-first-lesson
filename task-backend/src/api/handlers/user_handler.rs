@@ -480,17 +480,36 @@ pub async fn list_users_handler(
         admin_id = %admin_user.user_id(),
         page = ?query_with_defaults.page,
         per_page = ?query_with_defaults.per_page,
-        "Admin user list request"
+        query = ?query_with_defaults.q,
+        "Admin user search request"
     );
 
-    // ロール情報付きでユーザー一覧を取得
-    let (users_with_roles, total_count) = app_state
-        .user_service
-        .list_users_with_roles_paginated(
-            query_with_defaults.page.unwrap_or(1),
-            query_with_defaults.per_page.unwrap_or(20),
-        )
-        .await?;
+    // 検索機能付きでユーザー一覧を取得
+    let (users_with_roles, total_count) = if query_with_defaults.q.is_some()
+        || query_with_defaults.is_active.is_some()
+        || query_with_defaults.email_verified.is_some()
+    {
+        // 検索・フィルター機能を使用
+        app_state
+            .user_service
+            .search_users(
+                query_with_defaults.q,
+                query_with_defaults.is_active,
+                query_with_defaults.email_verified,
+                query_with_defaults.page.unwrap_or(1),
+                query_with_defaults.per_page.unwrap_or(20),
+            )
+            .await?
+    } else {
+        // 通常の一覧取得
+        app_state
+            .user_service
+            .list_users_with_roles_paginated(
+                query_with_defaults.page.unwrap_or(1),
+                query_with_defaults.per_page.unwrap_or(20),
+            )
+            .await?
+    };
 
     let page = query_with_defaults.page.unwrap_or(1);
     let per_page = query_with_defaults.per_page.unwrap_or(20);
@@ -514,7 +533,7 @@ pub async fn list_users_handler(
         admin_id = %admin_user.user_id(),
         users_count = %user_summaries.len(),
         total_count = %total_count,
-        "Admin user list retrieved successfully"
+        "Admin user search retrieved successfully"
     );
 
     Ok(Json(UserListResponse::new(
