@@ -241,19 +241,3 @@ pub struct UserSubscriptionStats {
     pub current_tier: Option<String>,
     pub first_subscription_date: Option<chrono::DateTime<chrono::Utc>>,
 }
-
-#[cfg(test)]
-mod tests {
-    // TODO: Integrate with proper test infrastructure once Phase 4 is complete
-    #[tokio::test]
-    #[ignore = "requires test database setup"]
-    async fn test_create_subscription_history() {
-        // Temporarily disabled until test infrastructure is properly integrated
-    }
-
-    #[tokio::test]
-    #[ignore = "requires test database setup"]
-    async fn test_subscription_tier_changes() {
-        // Temporarily disabled until test infrastructure is properly integrated
-    }
-}
