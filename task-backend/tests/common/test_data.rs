@@ -5,6 +5,7 @@ use task_backend::api::dto::{
     auth_dto::*,
     task_dto::{CreateTaskDto, UpdateTaskDto},
 };
+use task_backend::domain::task_status::TaskStatus;
 
 // === 認証関連のテストデータ ===
 
@@ -99,7 +100,7 @@ pub fn create_test_task() -> CreateTaskDto {
     CreateTaskDto {
         title: "Test Task".to_string(),
         description: Some("Test Description".to_string()),
-        status: Some("todo".to_string()),
+        status: Some(TaskStatus::Todo),
         due_date: Some(Utc::now()),
     }
 }
@@ -109,7 +110,7 @@ pub fn create_test_task_with_title(title: &str) -> CreateTaskDto {
     CreateTaskDto {
         title: title.to_string(),
         description: Some("Test Description".to_string()),
-        status: Some("todo".to_string()),
+        status: Some(TaskStatus::Todo),
         due_date: Some(Utc::now()),
     }
 }
@@ -123,7 +124,7 @@ pub fn create_custom_task(
     CreateTaskDto {
         title: title.to_string(),
         description: description.map(|d| d.to_string()),
-        status: status.map(|s| s.to_string()),
+        status: status.and_then(TaskStatus::from_str),
         due_date: Some(Utc::now()),
     }
 }
@@ -143,7 +144,7 @@ pub fn create_invalid_task_empty_title() -> CreateTaskDto {
     CreateTaskDto {
         title: "".to_string(),
         description: Some("Valid description".to_string()),
-        status: Some("todo".to_string()),
+        status: Some(TaskStatus::Todo),
         due_date: Some(Utc::now()),
     }
 }

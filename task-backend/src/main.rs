@@ -16,9 +16,14 @@ mod service;
 mod utils;
 
 use crate::api::handlers::{
+    analytics_handler::analytics_router_with_state,
     auth_handler::auth_router_with_state,
+    organization_handler::organization_router_with_state,
+    permission_handler::permission_router_with_state,
     role_handler::role_router_with_state,
+    subscription_handler::subscription_router_with_state,
     task_handler::{admin_task_router, task_router_with_state},
+    team_handler::team_router_with_state,
     user_handler::user_router_with_state,
 };
 use crate::api::AppState;
@@ -28,13 +33,15 @@ use crate::middleware::auth::{
     cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
 };
 use crate::repository::{
+    organization_repository::OrganizationRepository,
     password_reset_token_repository::PasswordResetTokenRepository,
     refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
-    user_repository::UserRepository,
+    team_repository::TeamRepository, user_repository::UserRepository,
 };
 use crate::service::{
-    auth_service::AuthService, role_service::RoleService, task_service::TaskService,
-    user_service::UserService,
+    auth_service::AuthService, organization_service::OrganizationService,
+    role_service::RoleService, subscription_service::SubscriptionService,
+    task_service::TaskService, team_service::TeamService, user_service::UserService,
 };
 use crate::utils::{email::EmailService, jwt::JwtManager, password::PasswordManager};
 use axum::{middleware as axum_middleware, Router};
@@ -128,6 +135,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let role_repo = Arc::new(RoleRepository::new(Arc::new(db_pool.clone())));
     let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db_pool.clone()));
     let password_reset_token_repo = Arc::new(PasswordResetTokenRepository::new(db_pool.clone()));
+    let _organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
+    let _team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
 
     tracing::info!("📚 Repositories created.");
 
@@ -151,6 +160,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         Arc::new(TaskService::new(db_pool.clone()))
     };
+
+    let subscription_service = Arc::new(SubscriptionService::new(db_pool.clone()));
+
+    let team_service = Arc::new(TeamService::new(
+        TeamRepository::new(db_pool.clone()),
+        UserRepository::new(db_pool.clone()),
+    ));
+
+    let organization_service = Arc::new(OrganizationService::new(
+        OrganizationRepository::new(db_pool.clone()),
+        TeamRepository::new(db_pool.clone()),
+        UserRepository::new(db_pool.clone()),
+    ));
 
     tracing::info!("🎯 Business services created.");
 
@@ -180,6 +202,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user_service,
         role_service,
         task_service,
+        team_service,
+        organization_service,
+        subscription_service,
         jwt_manager.clone(),
         &app_config,
     );
@@ -189,6 +214,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user_router = user_router_with_state(app_state.clone());
     let role_router = role_router_with_state(app_state.clone());
     let task_router = task_router_with_state(app_state.clone());
+    let team_router = team_router_with_state(app_state.clone());
+    let organization_router = organization_router_with_state(app_state.clone());
+    let subscription_router = subscription_router_with_state(app_state.clone());
+    let permission_router = permission_router_with_state(app_state.clone());
+    let analytics_router = analytics_router_with_state(app_state.clone());
     let admin_router = admin_task_router(app_state.clone());
 
     // メインアプリケーションルーターの構築
@@ -197,6 +227,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(user_router)
         .merge(role_router)
         .merge(task_router)
+        .merge(team_router)
+        .merge(organization_router)
+        .merge(subscription_router)
+        .merge(permission_router)
+        .merge(analytics_router)
         .merge(admin_router)
         .route(
             "/",
@@ -218,6 +253,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • User Management: /users/*");
     tracing::info!("   • Role Management: /roles/*");
     tracing::info!("   • Task Management: /tasks/*");
+    tracing::info!("   • Team Management: /teams/*");
+    tracing::info!("   • Organization Management: /organizations/*");
+    tracing::info!("   • Subscription Management: /subscriptions/*");
+    tracing::info!("   • Permission Management: /permissions/*");
+    tracing::info!("   • Analytics: /analytics/*");
     tracing::info!("   • Admin Management: /admin/*");
     tracing::info!("   • Health Check: /health");
 

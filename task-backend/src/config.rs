@@ -124,16 +124,6 @@ impl AppConfig {
     pub fn is_development(&self) -> bool {
         self.server.environment == Environment::Development
     }
-
-    #[allow(dead_code)]
-    pub fn is_production(&self) -> bool {
-        self.server.environment == Environment::Production
-    }
-
-    #[allow(dead_code)]
-    pub fn is_test(&self) -> bool {
-        self.server.environment == Environment::Test
-    }
 }
 
 impl Environment {
@@ -198,38 +188,22 @@ impl SecurityConfig {
     }
 }
 
-// 後方互換性のために既存のConfig構造体を維持
+// Minimal Config struct for backward compatibility with database operations
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
-    #[allow(dead_code)]
-    pub server_addr: String,
 }
 
 impl Config {
-    #[allow(dead_code)]
-    pub fn from_env() -> Result<Self, env::VarError> {
-        dotenv().ok();
-
-        let database_url = env::var("DATABASE_URL")?;
-        let server_addr = env::var("SERVER_ADDR").unwrap_or_else(|_| "0.0.0.0:3000".to_string());
-
-        Ok(Config {
-            database_url,
-            server_addr,
-        })
-    }
-
     pub fn from_app_config(app_config: &AppConfig) -> Self {
         Config {
             database_url: app_config.database.url.clone(),
-            server_addr: app_config.server.addr.clone(),
         }
     }
 }
 
 impl AppConfig {
-    /// テスト用の設定を作成
+    /// Test configuration
     #[allow(dead_code)]
     pub fn for_testing() -> Self {
         use crate::utils::email::EmailConfig;

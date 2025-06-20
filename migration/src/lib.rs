@@ -16,6 +16,16 @@ mod m20250613_000001_create_roles_table;
 mod m20250613_000002_add_role_id_to_users;
 mod m20250613_000003_create_initial_admin;
 
+// サブスクリプション関連マイグレーション
+mod m20250616_000001_add_subscription_tier_to_users;
+mod m20250616_000002_create_subscription_history_table;
+
+// チーム・組織関連マイグレーション - Phase 4
+mod m20250616_000003_create_teams_table;
+mod m20250616_000004_create_organizations_table;
+mod m20250616_000005_create_team_members_table;
+mod m20250616_000006_create_organization_members_table;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -37,6 +47,14 @@ impl MigratorTrait for Migrator {
             Box::new(m20250613_000002_add_role_id_to_users::Migration),
             // 6. 初期管理者ユーザー作成
             Box::new(m20250613_000003_create_initial_admin::Migration),
+            // 7. サブスクリプション階層システム
+            Box::new(m20250616_000001_add_subscription_tier_to_users::Migration),
+            Box::new(m20250616_000002_create_subscription_history_table::Migration),
+            // 8. チーム・組織管理システム - Phase 4
+            Box::new(m20250616_000004_create_organizations_table::Migration),
+            Box::new(m20250616_000006_create_organization_members_table::Migration),
+            Box::new(m20250616_000003_create_teams_table::Migration),
+            Box::new(m20250616_000005_create_team_members_table::Migration),
         ]
     }
 }

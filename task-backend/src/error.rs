@@ -8,6 +8,7 @@ use axum::{
 use sea_orm::DbErr;
 use serde_json::json;
 use thiserror::Error;
+use validator::ValidationErrors;
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -25,6 +26,13 @@ pub enum AppError {
 
     #[error("Failed to parse UUID: {0}")]
     UuidError(#[from] uuid::Error),
+
+    #[error("Validation failed")]
+    ValidationFailure(#[from] ValidationErrors),
+
+    #[error("Bad request: {0}")]
+    #[allow(dead_code)]
+    BadRequest(String),
 
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
@@ -94,6 +102,21 @@ impl IntoResponse for AppError {
                 json!({
                     "error": format!("Invalid UUID: {}", err),
                     "error_type": "invalid_uuid"
+                }),
+            ),
+            AppError::ValidationFailure(errors) => (
+                StatusCode::BAD_REQUEST,
+                json!({
+                    "error": "Validation failed",
+                    "details": errors.field_errors(),
+                    "error_type": "validation_failure"
+                }),
+            ),
+            AppError::BadRequest(message) => (
+                StatusCode::BAD_REQUEST,
+                json!({
+                    "error": message,
+                    "error_type": "bad_request"
                 }),
             ),
             AppError::Unauthorized(message) => (

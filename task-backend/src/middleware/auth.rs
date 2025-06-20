@@ -1,5 +1,5 @@
-// task-backend/src/middleware/auth.rs
 #![allow(dead_code)]
+// task-backend/src/middleware/auth.rs
 
 use crate::domain::role_model::RoleWithPermissions;
 use crate::domain::user_model::UserClaims;
@@ -104,6 +104,32 @@ impl AuthenticatedUser {
     pub fn role_name(&self) -> &str {
         &self.claims.role_name
     }
+
+    /// 動的権限チェック
+    pub fn can_perform_action(
+        &self,
+        resource: &str,
+        action: &str,
+        target_user_id: Option<uuid::Uuid>,
+    ) -> crate::domain::permission::PermissionResult {
+        self.claims
+            .can_perform_action(resource, action, target_user_id)
+    }
+
+    /// サブスクリプション階層を取得
+    pub fn get_subscription_tier(&self) -> crate::domain::subscription_tier::SubscriptionTier {
+        self.claims.get_subscription_tier()
+    }
+
+    /// 管理者かチェック
+    pub fn is_admin(&self) -> bool {
+        self.claims.is_admin()
+    }
+
+    /// 一般ユーザーかチェック
+    pub fn is_member(&self) -> bool {
+        self.claims.is_member()
+    }
 }
 
 impl AuthenticatedUserWithRole {
@@ -164,6 +190,22 @@ impl AuthenticatedUserWithRole {
 
     pub fn role(&self) -> Option<&RoleWithPermissions> {
         self.claims.role.as_ref()
+    }
+
+    /// 動的権限チェック
+    pub fn can_perform_action(
+        &self,
+        resource: &str,
+        action: &str,
+        target_user_id: Option<uuid::Uuid>,
+    ) -> crate::domain::permission::PermissionResult {
+        self.claims
+            .can_perform_action(resource, action, target_user_id)
+    }
+
+    /// サブスクリプション階層を取得
+    pub fn get_subscription_tier(&self) -> crate::domain::subscription_tier::SubscriptionTier {
+        self.claims.get_subscription_tier()
     }
 }
 
@@ -260,6 +302,7 @@ pub async fn jwt_auth_middleware(
                 is_active: true,
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
+                subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Enterprise,
             };
 
             let user_with_role_claims = UserClaims {
@@ -270,10 +313,16 @@ pub async fn jwt_auth_middleware(
                 email_verified: user_claims.email_verified,
                 role_name: "admin".to_string(),
                 role: Some(admin_role),
+                subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Enterprise,
             };
 
+            // Set both AuthenticatedUser and AuthenticatedUserWithRole for test compatibility
+            let authenticated_user =
+                AuthenticatedUser::new(user_with_role_claims.clone(), token.clone());
             let authenticated_user_with_role =
                 AuthenticatedUserWithRole::new(user_with_role_claims, token.clone());
+
+            request.extensions_mut().insert(authenticated_user);
             request
                 .extensions_mut()
                 .insert(authenticated_user_with_role);
@@ -498,6 +547,7 @@ pub async fn role_aware_auth_middleware(
             is_active: true,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
+            subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Enterprise,
         };
 
         crate::domain::user_model::SafeUserWithRole {
@@ -506,6 +556,7 @@ pub async fn role_aware_auth_middleware(
             email: user_claims.email.clone(),
             is_active: user_claims.is_active,
             email_verified: user_claims.email_verified,
+            subscription_tier: user_claims.subscription_tier.to_string(),
             last_login_at: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
@@ -906,6 +957,8 @@ where
                         is_active: true,
                         created_at: chrono::Utc::now(),
                         updated_at: chrono::Utc::now(),
+                        subscription_tier:
+                            crate::domain::subscription_tier::SubscriptionTier::Enterprise,
                     };
 
                     let user_with_role_claims = UserClaims {
@@ -916,6 +969,8 @@ where
                         email_verified: auth_user.claims.email_verified,
                         role_name: "admin".to_string(),
                         role: Some(admin_role),
+                        subscription_tier:
+                            crate::domain::subscription_tier::SubscriptionTier::Enterprise,
                     };
 
                     return Ok(AuthenticatedUserWithRole::new(

@@ -1,6 +1,8 @@
 // src/domain/user_model.rs
 
+use super::permission::{PermissionResult, PermissionScope};
 use super::role_model::RoleWithPermissions;
+use super::subscription_tier::SubscriptionTier;
 use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
@@ -27,6 +29,8 @@ pub struct Model {
     pub email_verified: bool,
 
     pub role_id: Uuid,
+
+    pub subscription_tier: String,
 
     pub last_login_at: Option<DateTime<Utc>>,
 
@@ -56,6 +60,13 @@ pub enum Relation {
         to = "crate::domain::role_model::Column::Id"
     )]
     Role,
+
+    #[sea_orm(
+        has_many = "crate::domain::subscription_history_model::Entity",
+        from = "Column::Id",
+        to = "crate::domain::subscription_history_model::Column::UserId"
+    )]
+    SubscriptionHistory,
 }
 
 // リレーション実装
@@ -90,8 +101,9 @@ impl ActiveModelBehavior for ActiveModel {
             id: Set(Uuid::new_v4()),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            is_active: Set(true),       // デフォルトでアクティブ
-            email_verified: Set(false), // デフォルトで未認証
+            is_active: Set(true),                       // デフォルトでアクティブ
+            email_verified: Set(false),                 // デフォルトで未認証
+            subscription_tier: Set("free".to_string()), // デフォルトはFree階層
             ..ActiveModelTrait::default()
         }
     }
@@ -124,6 +136,7 @@ impl Model {
             is_active: self.is_active,
             email_verified: self.email_verified,
             role_id: self.role_id,
+            subscription_tier: self.subscription_tier.clone(),
             last_login_at: self.last_login_at,
             created_at: self.created_at,
             updated_at: self.updated_at,
@@ -139,6 +152,7 @@ impl Model {
             is_active: self.is_active,
             email_verified: self.email_verified,
             role,
+            subscription_tier: self.subscription_tier.clone(),
             last_login_at: self.last_login_at,
             created_at: self.created_at,
             updated_at: self.updated_at,
@@ -155,6 +169,7 @@ pub struct SafeUser {
     pub is_active: bool,
     pub email_verified: bool,
     pub role_id: Uuid,
+    pub subscription_tier: String,
     pub last_login_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -169,6 +184,7 @@ pub struct SafeUserWithRole {
     pub is_active: bool,
     pub email_verified: bool,
     pub role: RoleWithPermissions,
+    pub subscription_tier: String,
     pub last_login_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -188,8 +204,9 @@ pub struct UserClaims {
     pub email: String,
     pub is_active: bool,
     pub email_verified: bool,
-    pub role_name: String,                 // ロール名（基本認証用）
-    pub role: Option<RoleWithPermissions>, // 詳細ロール情報（権限チェック用）
+    pub role_name: String,                   // ロール名（基本認証用）
+    pub role: Option<RoleWithPermissions>,   // 詳細ロール情報（権限チェック用）
+    pub subscription_tier: SubscriptionTier, // サブスクリプション階層
 }
 
 impl UserClaims {
@@ -207,6 +224,7 @@ impl UserClaims {
     }
 
     /// 一般ユーザー権限があるかチェック（統合版）
+    #[allow(dead_code)]
     pub fn is_member(&self) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::is_member(role)
@@ -220,6 +238,7 @@ impl UserClaims {
     }
 
     /// 他のユーザーのデータにアクセス権限があるかチェック（統合版）
+    #[allow(dead_code)]
     pub fn can_access_user(&self, target_user_id: Uuid) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_access_user(role, self.user_id, target_user_id)
@@ -234,6 +253,7 @@ impl UserClaims {
     }
 
     /// リソース作成権限があるかチェック（統合版）
+    #[allow(dead_code)]
     pub fn can_create_resource(&self, resource_type: &str) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_create_resource(role, resource_type)
@@ -248,6 +268,7 @@ impl UserClaims {
     }
 
     /// リソース削除権限があるかチェック（統合版）
+    #[allow(dead_code)]
     pub fn can_delete_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_delete_resource(role, resource_type, owner_id, self.user_id)
@@ -262,6 +283,7 @@ impl UserClaims {
     }
 
     /// リソースの編集権限があるかチェック（新機能）
+    #[allow(dead_code)]
     pub fn can_update_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_update_resource(role, resource_type, owner_id, self.user_id)
@@ -289,6 +311,7 @@ impl UserClaims {
     }
 
     /// リソースの表示権限があるかチェック（新機能）
+    #[allow(dead_code)]
     pub fn can_view_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_view_resource(role, resource_type, owner_id, self.user_id)
@@ -314,6 +337,92 @@ impl UserClaims {
             }
         }
     }
+
+    /// 動的権限チェック（CLAUDE.md設計の実装）
+    #[allow(dead_code)]
+    pub fn can_perform_action(
+        &self,
+        resource: &str,
+        action: &str,
+        target_user_id: Option<Uuid>,
+    ) -> PermissionResult {
+        if let Some(ref role) = self.role {
+            role.can_perform_action(resource, action, target_user_id)
+        } else {
+            // ロール情報がない場合は基本的なチェック
+            match (resource, action) {
+                ("tasks", "read") => {
+                    if self.role_name == "admin" {
+                        PermissionResult::Allowed {
+                            privilege: None,
+                            scope: PermissionScope::Global,
+                        }
+                    } else {
+                        PermissionResult::Allowed {
+                            privilege: None,
+                            scope: PermissionScope::Own,
+                        }
+                    }
+                }
+                ("tasks", "write" | "create" | "delete") => {
+                    if self.role_name == "admin" {
+                        PermissionResult::Allowed {
+                            privilege: None,
+                            scope: PermissionScope::Global,
+                        }
+                    } else {
+                        PermissionResult::Allowed {
+                            privilege: None,
+                            scope: PermissionScope::Own,
+                        }
+                    }
+                }
+                ("users", "read") => {
+                    if self.role_name == "admin" {
+                        PermissionResult::Allowed {
+                            privilege: None,
+                            scope: PermissionScope::Global,
+                        }
+                    } else if target_user_id == Some(self.user_id) {
+                        PermissionResult::Allowed {
+                            privilege: None,
+                            scope: PermissionScope::Own,
+                        }
+                    } else {
+                        PermissionResult::Denied {
+                            reason: "Cannot access other users".to_string(),
+                        }
+                    }
+                }
+                ("roles", _) => {
+                    if self.role_name == "admin" {
+                        PermissionResult::Allowed {
+                            privilege: None,
+                            scope: PermissionScope::Global,
+                        }
+                    } else {
+                        PermissionResult::Denied {
+                            reason: "Only admin can manage roles".to_string(),
+                        }
+                    }
+                }
+                _ => PermissionResult::Denied {
+                    reason: "Unknown resource or action".to_string(),
+                },
+            }
+        }
+    }
+
+    /// サブスクリプション階層を取得
+    pub fn get_subscription_tier(&self) -> SubscriptionTier {
+        self.subscription_tier
+    }
+
+    /// 指定されたサブスクリプション階層以上かチェック
+    #[allow(dead_code)]
+    pub fn has_subscription_tier(&self, required_tier: SubscriptionTier) -> bool {
+        self.subscription_tier.is_at_least(&required_tier)
+    }
 }
 
 impl SafeUserWithRole {
@@ -327,6 +436,7 @@ impl SafeUserWithRole {
             email_verified: self.email_verified,
             role_name: self.role.name.as_str().to_string(),
             role: Some(self.role.clone()),
+            subscription_tier: self.role.subscription_tier,
         }
     }
 
@@ -345,6 +455,7 @@ impl From<SafeUserWithRole> for UserClaims {
             is_active: user.is_active,
             email_verified: user.email_verified,
             role_name: user.role.name.as_str().to_string(),
+            subscription_tier: user.role.subscription_tier,
             role: Some(user.role),
         }
     }
@@ -367,6 +478,7 @@ impl From<UserClaims> for SafeUserWithRole {
                 is_active: true,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
+                subscription_tier: claims.subscription_tier,
             }
         });
 
@@ -377,6 +489,7 @@ impl From<UserClaims> for SafeUserWithRole {
             is_active: claims.is_active,
             email_verified: claims.email_verified,
             role,
+            subscription_tier: claims.subscription_tier.to_string(),
             last_login_at: None, // Claims don't contain login time
             // For claims conversion, we'll use current time as placeholders
             created_at: Utc::now(),
@@ -394,6 +507,7 @@ impl From<SafeUserWithRole> for SafeUser {
             is_active: user_with_role.is_active,
             email_verified: user_with_role.email_verified,
             role_id: user_with_role.role.id,
+            subscription_tier: user_with_role.subscription_tier,
             last_login_at: user_with_role.last_login_at,
             created_at: user_with_role.created_at,
             updated_at: user_with_role.updated_at,
@@ -410,7 +524,8 @@ impl From<UserClaims> for SafeUser {
             is_active: claims.is_active,
             email_verified: claims.email_verified,
             role_id: Uuid::new_v4(), // Placeholder - should be fetched from DB
-            last_login_at: None,     // Claims don't contain login time
+            subscription_tier: claims.subscription_tier.to_string(),
+            last_login_at: None, // Claims don't contain login time
             // For claims conversion, we'll use current time as placeholders
             // In a real scenario, you'd want to fetch from database
             created_at: Utc::now(),

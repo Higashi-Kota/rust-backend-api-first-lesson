@@ -1,3 +1,4 @@
+use task_backend::domain::task_status::TaskStatus;
 // tests/unit/service_tests.rs
 use task_backend::{
     api::dto::task_dto::{
@@ -28,7 +29,7 @@ async fn test_create_task_service() {
 
     // 検証
     assert_eq!(created_task.title, "Test Task");
-    assert_eq!(created_task.status, "todo");
+    assert_eq!(created_task.status, TaskStatus::Todo);
     assert!(common::is_valid_uuid(&created_task));
 }
 
@@ -92,7 +93,7 @@ async fn test_update_task_service() {
     // 検証
     assert_eq!(updated_task.id, created_task.id);
     assert_eq!(updated_task.title, "Updated Task");
-    assert_eq!(updated_task.status, "in_progress");
+    assert_eq!(updated_task.status, TaskStatus::InProgress);
     assert_eq!(updated_task.description.unwrap(), "Updated Description");
 }
 
@@ -143,7 +144,7 @@ async fn test_batch_operations_service() {
             .map(|id| BatchUpdateTaskItemDto {
                 id: *id,
                 title: Some("Updated Batch Service Task".to_string()),
-                status: Some("in_progress".to_string()),
+                status: Some(TaskStatus::InProgress),
                 description: None,
                 due_date: None,
             })
@@ -159,7 +160,7 @@ async fn test_batch_operations_service() {
     for id in &task_ids {
         let task = service.get_task(*id).await.unwrap();
         assert_eq!(task.title, "Updated Batch Service Task");
-        assert_eq!(task.status, "in_progress");
+        assert_eq!(task.status, TaskStatus::InProgress);
     }
 
     // バッチ削除
@@ -188,7 +189,7 @@ async fn test_filter_tasks_service() {
         .create_task(CreateTaskDto {
             title: "Filter Test Task 1".to_string(),
             description: Some("High priority".to_string()),
-            status: Some("todo".to_string()),
+            status: Some(TaskStatus::Todo),
             due_date: None,
         })
         .await
@@ -198,7 +199,7 @@ async fn test_filter_tasks_service() {
         .create_task(CreateTaskDto {
             title: "Filter Test Task 2".to_string(),
             description: Some("Low priority".to_string()),
-            status: Some("in_progress".to_string()),
+            status: Some(TaskStatus::InProgress),
             due_date: None,
         })
         .await
@@ -208,7 +209,7 @@ async fn test_filter_tasks_service() {
         .create_task(CreateTaskDto {
             title: "Another Filter Task".to_string(),
             description: Some("Medium priority".to_string()),
-            status: Some("todo".to_string()),
+            status: Some(TaskStatus::Todo),
             due_date: None,
         })
         .await
@@ -216,7 +217,7 @@ async fn test_filter_tasks_service() {
 
     // ステータスでフィルタリング
     let filter = TaskFilterDto {
-        status: Some("todo".to_string()),
+        status: Some(TaskStatus::Todo),
         limit: Some(10),
         ..Default::default()
     };
@@ -242,7 +243,7 @@ async fn test_filter_tasks_service() {
 
     // 該当タスクなしのケース
     let filter = TaskFilterDto {
-        status: Some("completed".to_string()),
+        status: Some(TaskStatus::Completed),
         title_contains: Some("NonExistent".to_string()),
         limit: Some(10),
         ..Default::default()
@@ -264,7 +265,7 @@ async fn test_paginated_tasks_service() {
             .create_task(CreateTaskDto {
                 title: format!("Pagination Service Task {}", i),
                 description: Some("For pagination test".to_string()),
-                status: Some("todo".to_string()),
+                status: Some(TaskStatus::Todo),
                 due_date: None,
             })
             .await
@@ -412,14 +413,14 @@ fn test_bulk_status_update_concepts() {
         updated_count: usize,
         error_count: usize,
         total_requested: usize,
-        new_status: String,
+        new_status: TaskStatus,
     }
 
     let result = BulkUpdateResultConcept {
         updated_count: 8,
         error_count: 2,
         total_requested: 10,
-        new_status: "completed".to_string(),
+        new_status: TaskStatus::Completed,
     };
 
     // 更新結果の整合性チェック

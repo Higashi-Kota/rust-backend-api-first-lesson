@@ -1,6 +1,11 @@
 // src/api/handlers/task_handler.rs
-use crate::api::dto::task_dto::*;
+use crate::api::dto::task_dto::{
+    BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto, BatchUpdateResponseDto,
+    BatchUpdateTaskDto, CreateTaskDto, PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse,
+    UpdateTaskDto,
+};
 use crate::api::AppState;
+use crate::domain::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use axum::{
@@ -69,16 +74,7 @@ pub async fn create_task_handler(
         }
     }
 
-    if let Some(status) = &payload.status {
-        let valid_statuses = ["todo", "in_progress", "completed", "cancelled"];
-        if !valid_statuses.contains(&status.as_str()) {
-            validation_errors.push(format!(
-                "Invalid status: '{}'. Must be one of: {}",
-                status,
-                valid_statuses.join(", ")
-            ));
-        }
-    }
+    // Status validation is now handled by TaskStatus enum through serde
 
     if let Some(due_date) = payload.due_date {
         // 日付形式のチェックは行うが、過去日付は許容する
@@ -138,22 +134,48 @@ pub async fn list_tasks_handler(
     user: AuthenticatedUser,
 ) -> AppResult<Json<Vec<TaskDto>>> {
     info!(
-        user_id = %user.claims.user_id,
+        user_id = %user.user_id(),
         "Listing user tasks"
     );
 
     let tasks = app_state
         .task_service
-        .list_tasks_for_user(user.claims.user_id)
+        .list_tasks_for_user(user.user_id())
         .await?;
 
     info!(
-        user_id = %user.claims.user_id,
+        user_id = %user.user_id(),
         task_count = %tasks.len(),
         "Tasks retrieved successfully"
     );
 
     Ok(Json(tasks))
+}
+
+/// 動的権限を使用するタスク一覧取得（新エンドポイント）
+pub async fn list_tasks_dynamic_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<TaskResponse>> {
+    info!(
+        user_id = %user.claims.user_id,
+        subscription_tier = %user.claims.get_subscription_tier().as_str(),
+        "Listing user tasks with dynamic permissions"
+    );
+
+    let response = app_state
+        .task_service
+        .list_tasks_dynamic(&user, None)
+        .await?;
+
+    info!(
+        user_id = %user.claims.user_id,
+        task_count = %response.task_count(),
+        features = ?response.features(),
+        "Tasks retrieved successfully with dynamic permissions"
+    );
+
+    Ok(Json(response))
 }
 
 pub async fn update_task_handler(
@@ -179,16 +201,7 @@ pub async fn update_task_handler(
         }
     }
 
-    if let Some(status) = &payload.status {
-        let valid_statuses = ["todo", "in_progress", "completed", "cancelled"];
-        if !valid_statuses.contains(&status.as_str()) {
-            validation_errors.push(format!(
-                "Invalid status: '{}'. Must be one of: {}",
-                status,
-                valid_statuses.join(", ")
-            ));
-        }
-    }
+    // Status validation is now handled by TaskStatus enum through serde
 
     if let Some(due_date) = payload.due_date {
         // 日付形式のチェックは行うが、過去日付は許容する
@@ -473,6 +486,32 @@ pub async fn filter_tasks_handler(
     Ok(Json(paginated_tasks))
 }
 
+/// 動的権限を使用するフィルタリング（新エンドポイント）
+pub async fn filter_tasks_dynamic_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Query(filter): Query<TaskFilterDto>,
+) -> AppResult<Json<TaskResponse>> {
+    info!(
+        user_id = %user.claims.user_id,
+        subscription_tier = %user.claims.get_subscription_tier().as_str(),
+        "Filtering tasks with dynamic permissions"
+    );
+
+    let response = app_state
+        .task_service
+        .list_tasks_dynamic(&user, Some(filter))
+        .await?;
+
+    info!(
+        user_id = %user.claims.user_id,
+        filtered_count = %response.total_count(),
+        "Tasks filtered successfully with dynamic permissions"
+    );
+
+    Ok(Json(response))
+}
+
 // ページネーション付きタスク一覧ハンドラー
 pub async fn list_tasks_paginated_handler(
     State(app_state): State<AppState>,
@@ -487,6 +526,44 @@ pub async fn list_tasks_paginated_handler(
         .list_tasks_paginated_for_user(user.claims.user_id, page, page_size)
         .await?;
     Ok(Json(paginated_tasks))
+}
+
+/// 動的権限を使用するページネーション（新エンドポイント）
+pub async fn list_tasks_paginated_dynamic_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Query(params): Query<PaginationParams>,
+) -> AppResult<Json<TaskResponse>> {
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(10);
+
+    // ページネーションパラメータをTaskFilterDtoに変換
+    let filter = TaskFilterDto {
+        limit: Some(page_size),
+        offset: Some((page - 1) * page_size),
+        ..Default::default()
+    };
+
+    info!(
+        user_id = %user.claims.user_id,
+        subscription_tier = %user.claims.get_subscription_tier().as_str(),
+        page = %page,
+        page_size = %page_size,
+        "Paginated tasks with dynamic permissions"
+    );
+
+    let response = app_state
+        .task_service
+        .list_tasks_dynamic(&user, Some(filter))
+        .await?;
+
+    info!(
+        user_id = %user.claims.user_id,
+        task_count = %response.task_count(),
+        "Paginated tasks retrieved successfully"
+    );
+
+    Ok(Json(response))
 }
 
 // ヘルスチェックハンドラーを追加
@@ -510,12 +587,18 @@ pub async fn get_user_task_stats_handler(
         .await?;
 
     let total_tasks = tasks.len();
-    let completed_tasks = tasks.iter().filter(|t| t.status == "completed").count();
+    let completed_tasks = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Completed)
+        .count();
     let pending_tasks = tasks
         .iter()
-        .filter(|t| t.status == "pending" || t.status == "todo")
+        .filter(|t| t.status == TaskStatus::Todo)
         .count();
-    let in_progress_tasks = tasks.iter().filter(|t| t.status == "in_progress").count();
+    let in_progress_tasks = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::InProgress)
+        .count();
 
     let status_stats = {
         let mut pending = 0;
@@ -596,7 +679,7 @@ pub async fn bulk_update_status_handler(
                 let update_dto = UpdateTaskDto {
                     title: None,
                     description: None,
-                    status: Some(new_status.to_string()),
+                    status: Some(TaskStatus::from_str(new_status).unwrap_or(TaskStatus::Todo)),
                     due_date: None,
                 };
 
@@ -735,6 +818,13 @@ pub fn task_router(app_state: AppState) -> Router {
         .route("/tasks", get(list_tasks_handler).post(create_task_handler))
         .route("/tasks/paginated", get(list_tasks_paginated_handler))
         .route("/tasks/filter", get(filter_tasks_handler))
+        // 動的権限システム用の新エンドポイント
+        .route("/tasks/dynamic", get(list_tasks_dynamic_handler))
+        .route("/tasks/dynamic/filter", get(filter_tasks_dynamic_handler))
+        .route(
+            "/tasks/dynamic/paginated",
+            get(list_tasks_paginated_dynamic_handler),
+        )
         .route(
             "/tasks/{id}",
             get(get_task_handler)

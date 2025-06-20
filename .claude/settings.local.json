@@ -23,7 +23,15 @@
       "Bash(RUST_BACKTRACE=1 cargo test test_delete_account_wrong_confirmation -- --nocapture)",
       "Bash(RUST_BACKTRACE=1 cargo test integration::auth::account_management_tests::test_user_can_login_with_new_password -- --nocapture)",
       "mcp__ide__getDiagnostics",
-      "Bash(RUST_LOG=info cargo test integration::roles::permission_tests::test_admin_can_list_all_tasks -- --nocapture 2 >& 1)"
+      "Bash(RUST_LOG=info cargo test integration::roles::permission_tests::test_admin_can_list_all_tasks -- --nocapture 2 >& 1)",
+      "Bash(true)",
+      "Bash(RUST_BACKTRACE=1 cargo test integration::tasks::filter_tests::test_filter_tasks_invalid_status -- --nocapture)",
+      "Bash(RUST_BACKTRACE=1 cargo test integration::tasks::batch_tests::test_batch_operations_with_invalid_data -- --nocapture)",
+      "Bash(RUST_LOG=debug cargo test test_bulk_user_operation_admin -- --nocapture 2 >& 1)",
+      "Bash(RUST_BACKTRACE=1 cargo test team_crud_tests::test_create_team_with_authentication)",
+      "Bash(RUST_BACKTRACE=1 cargo test integration::team::team_member_tests::test_invite_team_member_by_email --package task-backend)",
+      "Bash(RUST_BACKTRACE=1 cargo test --test main integration::auth::account_management_tests::test_get_current_user_success -- --nocapture)",
+      "Bash(make:*)"
     ],
     "deny": [
       "Bash(docker:*)"

@@ -127,6 +127,7 @@ impl AuthService {
                         username: signup_data_cloned.username.clone(),
                         password_hash: password_hash_cloned,
                         role_id: member_role.id,
+                        subscription_tier: Some("free".to_string()), // デフォルトはFree階層
                         is_active: Some(true),
                         email_verified: Some(false), // メール認証は別途実装
                     };
