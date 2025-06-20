@@ -221,23 +221,23 @@ pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::
     Router::new()
         .route("/organizations", post(create_organization_handler))
         .route("/organizations", get(get_organizations_handler))
-        .route("/organizations/:id", get(get_organization_handler))
-        .route("/organizations/:id", patch(update_organization_handler))
-        .route("/organizations/:id", delete(delete_organization_handler))
+        .route("/organizations/{id}", get(get_organization_handler))
+        .route("/organizations/{id}", patch(update_organization_handler))
+        .route("/organizations/{id}", delete(delete_organization_handler))
         .route(
-            "/organizations/:id/settings",
+            "/organizations/{id}/settings",
             patch(update_organization_settings_handler),
         )
         .route(
-            "/organizations/:id/members",
+            "/organizations/{id}/members",
             post(invite_organization_member_handler),
         )
         .route(
-            "/organizations/:id/members/:member_id",
+            "/organizations/{id}/members/{member_id}",
             patch(update_organization_member_role_handler),
         )
         .route(
-            "/organizations/:id/members/:member_id",
+            "/organizations/{id}/members/{member_id}",
             delete(remove_organization_member_handler),
         )
         .route("/organizations/stats", get(get_organization_stats_handler))

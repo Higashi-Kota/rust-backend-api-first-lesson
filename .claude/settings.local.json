@@ -30,7 +30,8 @@
       "Bash(RUST_LOG=debug cargo test test_bulk_user_operation_admin -- --nocapture 2 >& 1)",
       "Bash(RUST_BACKTRACE=1 cargo test team_crud_tests::test_create_team_with_authentication)",
       "Bash(RUST_BACKTRACE=1 cargo test integration::team::team_member_tests::test_invite_team_member_by_email --package task-backend)",
-      "Bash(RUST_BACKTRACE=1 cargo test --test main integration::auth::account_management_tests::test_get_current_user_success -- --nocapture)"
+      "Bash(RUST_BACKTRACE=1 cargo test --test main integration::auth::account_management_tests::test_get_current_user_success -- --nocapture)",
+      "Bash(make:*)"
     ],
     "deny": [
       "Bash(docker:*)"
