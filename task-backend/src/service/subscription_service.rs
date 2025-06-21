@@ -10,6 +10,7 @@ use crate::repository::subscription_history_repository::{
     SubscriptionHistoryRepository, UserSubscriptionStats,
 };
 use crate::repository::user_repository::{SubscriptionTierStats, UserRepository};
+use crate::utils::email::EmailService;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -17,16 +18,18 @@ use uuid::Uuid;
 pub struct SubscriptionService {
     subscription_history_repo: Arc<SubscriptionHistoryRepository>,
     user_repo: Arc<UserRepository>,
+    email_service: Arc<EmailService>,
 }
 
 impl SubscriptionService {
-    pub fn new(db: DbPool) -> Self {
+    pub fn new(db: DbPool, email_service: Arc<EmailService>) -> Self {
         let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db.clone()));
         let user_repo = Arc::new(UserRepository::new(db.clone()));
 
         Self {
             subscription_history_repo,
             user_repo,
+            email_service,
         }
     }
 
@@ -67,8 +70,23 @@ impl SubscriptionService {
         // 履歴を記録
         let history = self
             .subscription_history_repo
-            .create(user_id, previous_tier, new_tier, changed_by, reason)
+            .create(user_id, previous_tier, new_tier.clone(), changed_by, reason)
             .await?;
+
+        // サブスクリプション変更メールを送信
+        if let Err(e) = self
+            .email_service
+            .send_subscription_change_email(
+                &updated_user.email,
+                &updated_user.username,
+                &current_user.subscription_tier,
+                &new_tier,
+            )
+            .await
+        {
+            // メール送信失敗はログに記録するが、処理は継続
+            tracing::warn!("Failed to send subscription change email: {}", e);
+        }
 
         Ok((updated_user, history))
     }

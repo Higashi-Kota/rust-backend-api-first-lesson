@@ -378,7 +378,26 @@ impl UserRepository {
 
     /// メール認証済みにマーク
     pub async fn mark_email_verified(&self, id: Uuid) -> Result<Option<user_model::Model>, DbErr> {
-        self.update_email_verified_status(id, true).await
+        self.update_email_verified(id, true).await
+    }
+
+    /// メール認証状態を更新
+    pub async fn update_email_verified(
+        &self,
+        id: Uuid,
+        email_verified: bool,
+    ) -> Result<Option<user_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+
+        let user = match UserEntity::find_by_id(id).one(&self.db).await? {
+            Some(u) => u,
+            None => return Ok(None),
+        };
+
+        let mut active_model: UserActiveModel = user.into();
+        active_model.email_verified = Set(email_verified);
+
+        Ok(Some(active_model.update(&self.db).await?))
     }
 
     /// 最後のログイン時間を更新

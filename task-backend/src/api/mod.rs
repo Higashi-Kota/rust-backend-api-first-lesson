@@ -5,6 +5,7 @@ use crate::service::{
     role_service::RoleService, subscription_service::SubscriptionService,
     task_service::TaskService, team_service::TeamService, user_service::UserService,
 };
+use crate::utils::email::EmailService;
 use crate::utils::jwt::JwtManager;
 use std::sync::Arc;
 
@@ -21,6 +22,8 @@ pub struct AppState {
     pub team_service: Arc<TeamService>,
     pub organization_service: Arc<OrganizationService>,
     pub subscription_service: Arc<SubscriptionService>,
+    #[allow(dead_code)]
+    pub email_service: Arc<EmailService>,
     pub jwt_manager: Arc<JwtManager>,
     pub cookie_config: CookieConfig,
     pub security_headers: SecurityHeaders,
@@ -93,6 +96,7 @@ impl AppState {
         team_service: Arc<TeamService>,
         organization_service: Arc<OrganizationService>,
         subscription_service: Arc<SubscriptionService>,
+        email_service: Arc<EmailService>,
         jwt_manager: Arc<JwtManager>,
     ) -> Self {
         Self {
@@ -103,6 +107,7 @@ impl AppState {
             team_service,
             organization_service,
             subscription_service,
+            email_service,
             jwt_manager,
             cookie_config: CookieConfig::default(),
             security_headers: SecurityHeaders::default(),
@@ -118,6 +123,7 @@ impl AppState {
         team_service: Arc<TeamService>,
         organization_service: Arc<OrganizationService>,
         subscription_service: Arc<SubscriptionService>,
+        email_service: Arc<EmailService>,
         jwt_manager: Arc<JwtManager>,
         app_config: &AppConfig,
     ) -> Self {
@@ -129,6 +135,7 @@ impl AppState {
             team_service,
             organization_service,
             subscription_service,
+            email_service,
             jwt_manager,
             cookie_config: CookieConfig::from_app_config(app_config),
             security_headers: SecurityHeaders::default(),

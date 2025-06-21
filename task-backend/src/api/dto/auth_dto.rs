@@ -98,6 +98,20 @@ pub struct DeleteAccountRequest {
     pub confirmation: String,
 }
 
+/// メール認証実行リクエスト
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct EmailVerificationRequest {
+    #[validate(length(min = common::required::MIN_LENGTH, message = "Verification token is required"))]
+    pub token: String,
+}
+
+/// メール認証再送リクエスト
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct ResendVerificationEmailRequest {
+    #[validate(email(message = "Invalid email format"))]
+    pub email: String,
+}
+
 // --- レスポンスDTO ---
 
 /// 認証レスポンス
@@ -149,6 +163,19 @@ pub struct AccountDeletionResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct CurrentUserResponse {
     pub user: SafeUser,
+}
+
+/// メール認証レスポンス
+#[derive(Debug, Clone, Serialize)]
+pub struct EmailVerificationResponse {
+    pub message: String,
+    pub email_verified: bool,
+}
+
+/// メール認証再送レスポンス
+#[derive(Debug, Clone, Serialize)]
+pub struct ResendVerificationEmailResponse {
+    pub message: String,
 }
 
 /// 認証ステータスレスポンス

@@ -3,6 +3,7 @@
 use crate::api::dto::team_dto::*;
 use crate::domain::team_member_model::Model as TeamMemberModel;
 use crate::domain::team_model::{Model as TeamModel, TeamRole};
+use crate::utils::email::EmailService;
 
 // Type aliases for domain models
 #[allow(dead_code)]
@@ -13,20 +14,28 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
+use std::sync::Arc;
+use tracing::warn;
 use uuid::Uuid;
 
 #[allow(dead_code)]
 pub struct TeamService {
     team_repository: TeamRepository,
     user_repository: UserRepository,
+    email_service: Arc<EmailService>,
 }
 
 #[allow(dead_code)]
 impl TeamService {
-    pub fn new(team_repository: TeamRepository, user_repository: UserRepository) -> Self {
+    pub fn new(
+        team_repository: TeamRepository,
+        user_repository: UserRepository,
+        email_service: Arc<EmailService>,
+    ) -> Self {
         Self {
             team_repository,
             user_repository,
+            email_service,
         }
     }
 
@@ -239,6 +248,36 @@ impl TeamService {
 
         let member = TeamMember::new_member(team_id, user_id, request.role, Some(inviter_id));
         let created_member = self.team_repository.add_member(&member).await?;
+
+        // メール送信のための情報を取得
+        let invited_user = self
+            .user_repository
+            .find_by_id(user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Invited user not found".to_string()))?;
+
+        let inviter = self
+            .user_repository
+            .find_by_id(inviter_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Inviter not found".to_string()))?;
+
+        // チーム招待メールを送信
+        if let Err(e) = self
+            .email_service
+            .send_team_invitation_email(
+                &invited_user.email,
+                &invited_user.username,
+                &team.name,
+                &inviter.username,
+                &format!("https://yourapp.com/teams/{}/accept", team_id),
+            )
+            .await
+        {
+            // メール送信失敗はログに記録するが、処理は継続
+            warn!("Failed to send team invitation email: {}", e);
+        }
+
         self.build_team_member_response(&created_member).await
     }
 

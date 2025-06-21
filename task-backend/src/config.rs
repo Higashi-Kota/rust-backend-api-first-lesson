@@ -232,13 +232,13 @@ impl AppConfig {
         };
 
         let email = EmailConfig {
+            provider: crate::utils::email::EmailProvider::Development,
             smtp_host: "localhost".to_string(),
-            smtp_port: 587,
-            smtp_username: "test".to_string(),
-            smtp_password: "test".to_string(),
+            smtp_port: 1025,
             from_email: "test@example.com".to_string(),
             from_name: "Test Backend".to_string(),
-            use_tls: false,
+            mailgun_api_key: None,
+            mailgun_domain: None,
             development_mode: true,
         };
 

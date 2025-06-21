@@ -1,4 +1,5 @@
 // src/domain/mod.rs
+pub mod email_verification_token_model;
 pub mod organization_model;
 pub mod password_reset_token_model;
 pub mod permission;

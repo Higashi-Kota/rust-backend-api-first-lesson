@@ -20,7 +20,7 @@ help:
 	@echo "  clippy           - Run clippy linter on workspace"
 	@echo "  clean            - Clean build artifacts"
 	@echo "  dev-setup        - Setup development environment"
-	@echo "  dev              - Run development environment"
+	@echo "  dev              - Run development environment with MailHog"
 	@echo "  ci-check         - Run CI checks locally"
 
 # Build the entire workspace
@@ -114,12 +114,13 @@ dev-setup:
 		echo ".env file already exists"; \
 	fi
 
-# Run development environment
+# Run development environment with MailHog
 dev:
-	docker-compose up postgres -d
+	docker-compose up postgres mailhog -d
 	@echo "Waiting for PostgreSQL to be ready..."
 	@sleep 5
 	$(MAKE) migrate
+	@echo "📧 MailHog Web UI: http://localhost:8025"
 	$(MAKE) run
 
 # Run CI checks locally

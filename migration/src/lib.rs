@@ -26,6 +26,9 @@ mod m20250616_000004_create_organizations_table;
 mod m20250616_000005_create_team_members_table;
 mod m20250616_000006_create_organization_members_table;
 
+// メール認証関連マイグレーション
+mod m20250621_140000_create_email_verification_tokens_table;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -55,6 +58,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20250616_000006_create_organization_members_table::Migration),
             Box::new(m20250616_000003_create_teams_table::Migration),
             Box::new(m20250616_000005_create_team_members_table::Migration),
+            // 9. メール認証システム
+            Box::new(m20250621_140000_create_email_verification_tokens_table::Migration),
         ]
     }
 }

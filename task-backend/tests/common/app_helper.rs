@@ -9,6 +9,7 @@ use task_backend::{
     },
     config::AppConfig,
     repository::{
+        email_verification_token_repository::EmailVerificationTokenRepository,
         password_reset_token_repository::PasswordResetTokenRepository,
         refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
         team_repository::TeamRepository, user_repository::UserRepository,
@@ -18,7 +19,11 @@ use task_backend::{
         subscription_service::SubscriptionService, task_service::TaskService,
         team_service::TeamService, user_service::UserService,
     },
-    utils::{jwt::JwtManager, password::PasswordManager},
+    utils::{
+        email::{EmailConfig, EmailService},
+        jwt::JwtManager,
+        password::PasswordManager,
+    },
 };
 
 use crate::common;
@@ -43,6 +48,8 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         db.connection.clone(),
         schema_name.clone(),
     ));
+    let email_verification_token_repo =
+        Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
 
     // 統合設定を作成
     let app_config = AppConfig::for_testing();
@@ -56,6 +63,13 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         .unwrap(),
     );
     let jwt_manager = Arc::new(JwtManager::new(app_config.jwt.clone()).unwrap());
+    let email_service = Arc::new(
+        EmailService::new(EmailConfig {
+            development_mode: true,
+            ..Default::default()
+        })
+        .unwrap(),
+    );
 
     // サービスの作成
     let auth_service = Arc::new(AuthService::new(
@@ -63,8 +77,10 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         role_repo.clone(),
         refresh_token_repo,
         password_reset_token_repo,
+        email_verification_token_repo,
         password_manager,
         jwt_manager.clone(),
+        email_service.clone(),
         Arc::new(db.connection.clone()),
     ));
     let user_service = Arc::new(UserService::new(user_repo.clone()));
@@ -76,10 +92,14 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         db.connection.clone(),
         schema_name.clone(),
     ));
-    let subscription_service = Arc::new(SubscriptionService::new(db.connection.clone()));
+    let subscription_service = Arc::new(SubscriptionService::new(
+        db.connection.clone(),
+        email_service.clone(),
+    ));
     let team_service = Arc::new(TeamService::new(
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
+        email_service.clone(),
     ));
 
     let organization_service = Arc::new(
@@ -100,6 +120,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         team_service,
         organization_service,
         subscription_service,
+        email_service,
         jwt_manager,
         &app_config,
     );
@@ -132,6 +153,8 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         db.connection.clone(),
         schema_name.clone(),
     ));
+    let email_verification_token_repo =
+        Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
 
     // 統合設定を作成
     let app_config = AppConfig::for_testing();
@@ -145,6 +168,13 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         .unwrap(),
     );
     let jwt_manager = Arc::new(JwtManager::new(app_config.jwt.clone()).unwrap());
+    let email_service = Arc::new(
+        EmailService::new(EmailConfig {
+            development_mode: true,
+            ..Default::default()
+        })
+        .unwrap(),
+    );
 
     // サービスの作成
     let auth_service = Arc::new(AuthService::new(
@@ -152,8 +182,10 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         role_repo.clone(),
         refresh_token_repo,
         password_reset_token_repo,
+        email_verification_token_repo,
         password_manager,
         jwt_manager.clone(),
+        email_service.clone(),
         Arc::new(db.connection.clone()),
     ));
     let user_service = Arc::new(UserService::new(user_repo.clone()));
@@ -162,10 +194,14 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         db.connection.clone(),
         schema_name.clone(),
     ));
-    let subscription_service = Arc::new(SubscriptionService::new(db.connection.clone()));
+    let subscription_service = Arc::new(SubscriptionService::new(
+        db.connection.clone(),
+        email_service.clone(),
+    ));
     let team_service = Arc::new(TeamService::new(
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
+        email_service.clone(),
     ));
 
     let organization_service = Arc::new(
@@ -187,6 +223,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         team_service,
         organization_service,
         subscription_service,
+        email_service,
         jwt_manager.clone(),
         &app_config,
     );

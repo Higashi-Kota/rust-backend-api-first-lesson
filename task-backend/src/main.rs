@@ -124,7 +124,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .expect("Failed to initialize password manager"),
     );
-    let _email_service = Arc::new(
+    let email_service = Arc::new(
         EmailService::new(app_config.email.clone()).expect("Failed to initialize email service"),
     );
 
@@ -135,6 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let role_repo = Arc::new(RoleRepository::new(Arc::new(db_pool.clone())));
     let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db_pool.clone()));
     let password_reset_token_repo = Arc::new(PasswordResetTokenRepository::new(db_pool.clone()));
+    let email_verification_token_repo = Arc::new(crate::repository::email_verification_token_repository::EmailVerificationTokenRepository::new(db_pool.clone()));
     let _organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
     let _team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
 
@@ -146,8 +147,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         role_repo.clone(),
         refresh_token_repo.clone(),
         password_reset_token_repo.clone(),
+        email_verification_token_repo.clone(),
         password_manager.clone(),
         jwt_manager.clone(),
+        email_service.clone(),
         Arc::new(db_pool.clone()),
     ));
 
@@ -161,11 +164,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(TaskService::new(db_pool.clone()))
     };
 
-    let subscription_service = Arc::new(SubscriptionService::new(db_pool.clone()));
+    let subscription_service = Arc::new(SubscriptionService::new(
+        db_pool.clone(),
+        email_service.clone(),
+    ));
 
     let team_service = Arc::new(TeamService::new(
         TeamRepository::new(db_pool.clone()),
         UserRepository::new(db_pool.clone()),
+        email_service.clone(),
     ));
 
     let organization_service = Arc::new(OrganizationService::new(
@@ -205,6 +212,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         team_service,
         organization_service,
         subscription_service,
+        email_service,
         jwt_manager.clone(),
         &app_config,
     );
