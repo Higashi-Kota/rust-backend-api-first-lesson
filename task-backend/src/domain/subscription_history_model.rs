@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 /// サブスクリプション履歴エンティティ
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
-#[sea_orm(table_name = "subscription_history")]
+#[sea_orm(table_name = "subscription_histories")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: Uuid,

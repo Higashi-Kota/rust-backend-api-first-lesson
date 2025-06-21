@@ -1,6 +1,6 @@
 # 認証（Authentication）エンドポイント
 
-認証・認可関連のAPIエンドポイント群です。JWT認証を使用したユーザー管理とセッション管理を提供します。
+認証・認可関連の API エンドポイント群です。JWT 認証を使用したユーザー管理とセッション管理を提供します。
 
 ## 認証不要エンドポイント
 
@@ -9,14 +9,15 @@
 新規ユーザーを登録します。
 
 **リクエスト例:**
+
 ```bash
 curl -X POST http://localhost:3000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "newuser",
-    "email": "newuser@example.com",
-    "password": "SecurePass123!"
-  }'
+    "username": "higashi-kota-8",
+    "email": "higashi.kota+8@gri.jp",
+    "password": "SecurePass342!"
+  }' | jq
 ```
 
 ### 2. ユーザーログイン (POST /auth/signin)
@@ -24,6 +25,7 @@ curl -X POST http://localhost:3000/auth/signup \
 ユーザーをログインしてアクセストークンを取得します。
 
 **リクエスト例:**
+
 ```bash
 curl -X POST http://localhost:3000/auth/signin \
   -H "Content-Type: application/json" \
@@ -38,6 +40,7 @@ curl -X POST http://localhost:3000/auth/signin \
 リフレッシュトークンを使用してアクセストークンを更新します。
 
 **リクエスト例:**
+
 ```bash
 curl -X POST http://localhost:3000/auth/refresh \
   -H "Content-Type: application/json" \
@@ -51,6 +54,7 @@ curl -X POST http://localhost:3000/auth/refresh \
 パスワードリセット用のメールを送信します。
 
 **リクエスト例:**
+
 ```bash
 curl -X POST http://localhost:3000/auth/forgot-password \
   -H "Content-Type: application/json" \
@@ -64,6 +68,7 @@ curl -X POST http://localhost:3000/auth/forgot-password \
 パスワードリセットトークンを使用してパスワードを変更します。
 
 **リクエスト例:**
+
 ```bash
 curl -X POST http://localhost:3000/auth/reset-password \
   -H "Content-Type: application/json" \
@@ -78,19 +83,21 @@ curl -X POST http://localhost:3000/auth/reset-password \
 認証システムの状態を確認します。
 
 **リクエスト例:**
+
 ```bash
 curl -X GET http://localhost:3000/auth/status
 ```
 
 ## 認証必要エンドポイント
 
-以下のエンドポイントには有効なJWTアクセストークンが必要です。
+以下のエンドポイントには有効な JWT アクセストークンが必要です。
 
 ### 7. 現在のユーザー情報取得 (GET /auth/me)
 
 認証済みユーザーの詳細情報を取得します。
 
 **リクエスト例:**
+
 ```bash
 curl -X GET http://localhost:3000/auth/me \
   -H "Authorization: Bearer <access_token>"
@@ -101,6 +108,7 @@ curl -X GET http://localhost:3000/auth/me \
 現在のユーザーのパスワードを変更します。
 
 **リクエスト例:**
+
 ```bash
 curl -X PUT http://localhost:3000/auth/change-password \
   -H "Authorization: Bearer <access_token>" \
@@ -117,6 +125,7 @@ curl -X PUT http://localhost:3000/auth/change-password \
 現在のセッションを終了します。
 
 **リクエスト例:**
+
 ```bash
 curl -X POST http://localhost:3000/auth/signout \
   -H "Authorization: Bearer <access_token>"
@@ -127,6 +136,7 @@ curl -X POST http://localhost:3000/auth/signout \
 ユーザーのすべてのアクティブセッションを終了します。
 
 **リクエスト例:**
+
 ```bash
 curl -X POST http://localhost:3000/auth/signout-all \
   -H "Authorization: Bearer <access_token>"
@@ -137,6 +147,7 @@ curl -X POST http://localhost:3000/auth/signout-all \
 ユーザーアカウントを完全に削除します。
 
 **リクエスト例:**
+
 ```bash
 curl -X DELETE http://localhost:3000/auth/account \
   -H "Authorization: Bearer <access_token>" \
@@ -153,7 +164,7 @@ curl -X DELETE http://localhost:3000/auth/account \
 
 1. **ユーザー登録** (`POST /auth/signup`)
 2. **ログイン** (`POST /auth/signin`) → アクセストークン・リフレッシュトークン取得
-3. **API使用** - アクセストークンをAuthorizationヘッダーで送信
+3. **API 使用** - アクセストークンを Authorization ヘッダーで送信
 4. **トークン更新** (`POST /auth/refresh`) - アクセストークン期限切れ時
 5. **ログアウト** (`POST /auth/signout`)
 
@@ -164,8 +175,8 @@ curl -X DELETE http://localhost:3000/auth/account \
 
 ## セキュリティ仕様
 
-- **アクセストークン**: 15分で自動期限切れ
-- **リフレッシュトークン**: 7日間、自動更新対応
-- **パスワードリセットトークン**: 1時間・使い切り
+- **アクセストークン**: 15 分で自動期限切れ
+- **リフレッシュトークン**: 7 日間、自動更新対応
+- **パスワードリセットトークン**: 1 時間・使い切り
 - **パスワードハッシュ**: Argon2 + 自動リハッシュ対応
 - **認証方式**: Authorization ヘッダー または httpOnly クッキー

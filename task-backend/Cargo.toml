@@ -57,6 +57,7 @@ validator = { workspace = true }
 
 # Email sending - using workspace dependencies
 lettre = { workspace = true }
+reqwest = { workspace = true }
 
 # Additional security and utilities - using workspace dependencies
 base64 = { workspace = true }
@@ -73,7 +74,6 @@ once_cell = { workspace = true }
 
 [dev-dependencies]
 # Development and testing dependencies - using workspace dependencies
-reqwest = { workspace = true }
 testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true }
 

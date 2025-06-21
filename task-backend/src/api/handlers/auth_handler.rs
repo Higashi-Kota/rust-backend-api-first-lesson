@@ -471,6 +471,79 @@ pub async fn auth_status_handler() -> Json<AuthStatusResponse> {
     })
 }
 
+/// メール認証実行
+pub async fn verify_email_handler(
+    State(app_state): State<AppState>,
+    Json(payload): Json<EmailVerificationRequest>,
+) -> AppResult<Json<EmailVerificationResponse>> {
+    // バリデーション
+    payload.validate().map_err(|validation_errors| {
+        warn!(
+            "Email verification validation failed: {}",
+            validation_errors
+        );
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!("Email verification attempt");
+
+    let response = app_state.auth_service.verify_email(&payload.token).await?;
+
+    info!("Email verification completed successfully");
+
+    Ok(Json(response))
+}
+
+/// メール認証再送
+pub async fn resend_verification_email_handler(
+    State(app_state): State<AppState>,
+    Json(payload): Json<ResendVerificationEmailRequest>,
+) -> AppResult<Json<ResendVerificationEmailResponse>> {
+    // バリデーション
+    payload.validate().map_err(|validation_errors| {
+        warn!(
+            "Resend verification email validation failed: {}",
+            validation_errors
+        );
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!(email = %payload.email, "Resend verification email requested");
+
+    let response = app_state
+        .auth_service
+        .resend_verification_email(&payload.email)
+        .await?;
+
+    Ok(Json(response))
+}
+
 // --- ヘルパー関数 ---
 
 /// 認証用Cookieを作成
@@ -576,6 +649,11 @@ pub fn auth_router(app_state: AppState) -> Router {
         .route("/auth/forgot-password", post(forgot_password_handler))
         .route("/auth/reset-password", post(reset_password_handler))
         .route("/auth/change-password", put(change_password_handler))
+        .route("/auth/verify-email", post(verify_email_handler))
+        .route(
+            "/auth/resend-verification",
+            post(resend_verification_email_handler),
+        )
         .route("/auth/me", get(me_handler))
         .route("/auth/account", delete(delete_account_handler))
         .route("/auth/status", get(auth_status_handler))

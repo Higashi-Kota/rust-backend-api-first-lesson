@@ -1,14 +1,17 @@
 // task-backend/src/service/auth_service.rs
 use crate::api::dto::auth_dto::*;
+use crate::domain::email_verification_token_model::TokenValidationError as EmailTokenValidationError;
 use crate::domain::password_reset_token_model::TokenValidationError;
 use crate::domain::refresh_token_model::CreateRefreshToken;
 use crate::domain::role_model::RoleName;
 use crate::domain::user_model::UserClaims;
 use crate::error::{AppError, AppResult};
+use crate::repository::email_verification_token_repository::EmailVerificationTokenRepository;
 use crate::repository::password_reset_token_repository::PasswordResetTokenRepository;
 use crate::repository::refresh_token_repository::RefreshTokenRepository;
 use crate::repository::role_repository::RoleRepository;
 use crate::repository::user_repository::{CreateUser, UserRepository};
+use crate::utils::email::EmailService;
 use crate::utils::error_helper::{
     conflict_error, convert_validation_errors, internal_server_error, not_found_error,
 };
@@ -28,19 +31,24 @@ pub struct AuthService {
     role_repo: Arc<RoleRepository>,
     refresh_token_repo: Arc<RefreshTokenRepository>,
     password_reset_token_repo: Arc<PasswordResetTokenRepository>,
+    email_verification_token_repo: Arc<EmailVerificationTokenRepository>,
     password_manager: Arc<PasswordManager>,
     jwt_manager: Arc<JwtManager>,
+    email_service: Arc<EmailService>,
     db: Arc<DatabaseConnection>,
 }
 
 impl AuthService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         user_repo: Arc<UserRepository>,
         role_repo: Arc<RoleRepository>,
         refresh_token_repo: Arc<RefreshTokenRepository>,
         password_reset_token_repo: Arc<PasswordResetTokenRepository>,
+        email_verification_token_repo: Arc<EmailVerificationTokenRepository>,
         password_manager: Arc<PasswordManager>,
         jwt_manager: Arc<JwtManager>,
+        email_service: Arc<EmailService>,
         db: Arc<DatabaseConnection>,
     ) -> Self {
         Self {
@@ -48,8 +56,10 @@ impl AuthService {
             role_repo,
             refresh_token_repo,
             password_reset_token_repo,
+            email_verification_token_repo,
             password_manager,
             jwt_manager,
+            email_service,
             db,
         }
     }
@@ -162,6 +172,23 @@ impl AuthService {
         let user_claims = auth_response.to_simple_claims();
         let token_pair = self.create_token_pair(&user_claims).await?;
 
+        // メール認証トークンを生成・送信
+        if let Err(e) = self.send_verification_email(auth_response.id).await {
+            error!(
+                user_id = %auth_response.id,
+                email = %auth_response.email,
+                error = %e,
+                "Failed to send verification email"
+            );
+            // メール送信失敗はエラーとせず、ログに記録のみ
+        } else {
+            info!(
+                user_id = %auth_response.id,
+                email = %auth_response.email,
+                "Verification email sent successfully"
+            );
+        }
+
         Ok(AuthResponse {
             user: auth_response.into(),
             tokens: token_pair,
@@ -253,6 +280,35 @@ impl AuthService {
         // JWT トークン生成
         let user_claims = user_with_role.to_simple_claims();
         let token_pair = self.create_token_pair(&user_claims).await?;
+
+        // セキュリティ通知メールを送信
+        let current_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+        let login_details = format!("Login at {}", current_time);
+
+        if let Err(e) = self
+            .email_service
+            .send_security_notification_email(
+                &user_with_role.email,
+                &user_with_role.username,
+                "Successful Login",
+                &login_details,
+            )
+            .await
+        {
+            error!(
+                user_id = %user_with_role.id,
+                email = %user_with_role.email,
+                error = %e,
+                "Failed to send login security notification"
+            );
+            // メール送信失敗はエラーとせず、ログに記録のみ
+        } else {
+            info!(
+                user_id = %user_with_role.id,
+                email = %user_with_role.email,
+                "Login security notification sent successfully"
+            );
+        }
 
         Ok(AuthResponse {
             user: user_with_role.into(),
@@ -446,8 +502,30 @@ impl AuthService {
             "Password reset token created"
         );
 
-        // TODO: メール送信の実装
-        // email_service.send_password_reset_email(&user.email, &token_hash).await?;
+        // パスワードリセットメールを送信
+        let reset_url = std::env::var("FRONTEND_URL")
+            .unwrap_or_else(|_| "http://localhost:3000".to_string())
+            + "/reset-password";
+
+        if let Err(e) = self
+            .email_service
+            .send_password_reset_email(&user.email, &user.username, &token_hash, &reset_url)
+            .await
+        {
+            error!(
+                user_id = %user.id,
+                email = %user.email,
+                error = %e,
+                "Failed to send password reset email"
+            );
+            // メール送信失敗はエラーとせず、ログに記録のみ
+        } else {
+            info!(
+                user_id = %user.id,
+                email = %user.email,
+                "Password reset email sent successfully"
+            );
+        }
 
         Ok(PasswordResetRequestResponse {
             message: "If the email address exists, a password reset link has been sent".to_string(),
@@ -528,6 +606,39 @@ impl AuthService {
             "Password reset completed successfully"
         );
 
+        // パスワードリセット完了のセキュリティ通知メールを送信
+        if let Ok(Some(user)) = self.user_repo.find_by_id(reset_result.user_id).await {
+            let current_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+            let reset_details = format!(
+                "Password was reset using security token at {}",
+                current_time
+            );
+
+            if let Err(e) = self
+                .email_service
+                .send_security_notification_email(
+                    &user.email,
+                    &user.username,
+                    "Password Reset Completed",
+                    &reset_details,
+                )
+                .await
+            {
+                error!(
+                    user_id = %reset_result.user_id,
+                    email = %user.email,
+                    error = %e,
+                    "Failed to send password reset completion notification"
+                );
+            } else {
+                info!(
+                    user_id = %reset_result.user_id,
+                    email = %user.email,
+                    "Password reset completion notification sent successfully"
+                );
+            }
+        }
+
         Ok(PasswordResetResponse {
             message: "Password has been reset successfully. Please log in with your new password"
                 .to_string(),
@@ -596,6 +707,35 @@ impl AuthService {
 
         info!(user_id = %user_id, "Password changed successfully");
 
+        // パスワード変更のセキュリティ通知メールを送信
+        let current_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
+        let change_details = format!("Password changed at {}", current_time);
+
+        if let Err(e) = self
+            .email_service
+            .send_security_notification_email(
+                &user.email,
+                &user.username,
+                "Password Changed",
+                &change_details,
+            )
+            .await
+        {
+            error!(
+                user_id = %user_id,
+                email = %user.email,
+                error = %e,
+                "Failed to send password change notification"
+            );
+            // メール送信失敗はエラーとせず、ログに記録のみ
+        } else {
+            info!(
+                user_id = %user_id,
+                email = %user.email,
+                "Password change notification sent successfully"
+            );
+        }
+
         Ok(PasswordChangeResponse {
             message: "Password has been changed successfully".to_string(),
         })
@@ -638,6 +778,27 @@ impl AuthService {
         if !is_valid {
             warn!(user_id = %user_id, "Account deletion with incorrect password");
             return Err(AppError::Unauthorized("Password is incorrect".to_string()));
+        }
+
+        // アカウント削除確認メールを送信（削除前に送信）
+        if let Err(e) = self
+            .email_service
+            .send_account_deletion_confirmation_email(&user.email, &user.username)
+            .await
+        {
+            error!(
+                user_id = %user_id,
+                email = %user.email,
+                error = %e,
+                "Failed to send account deletion confirmation email"
+            );
+            // メール送信失敗はエラーとせず、ログに記録のみ
+        } else {
+            info!(
+                user_id = %user_id,
+                email = %user.email,
+                "Account deletion confirmation email sent successfully"
+            );
         }
 
         // 全リフレッシュトークンを削除
@@ -724,5 +885,164 @@ impl AuthService {
         let mut hasher = Sha256::new();
         hasher.update(token.as_bytes());
         hex::encode(hasher.finalize())
+    }
+
+    // --- メール認証 ---
+
+    /// メール認証用トークンを生成・送信
+    pub async fn send_verification_email(&self, user_id: Uuid) -> AppResult<()> {
+        // ユーザー情報を取得
+        let user = self
+            .user_repo
+            .find_by_id(user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+        // 既にメール認証済みの場合は何もしない
+        if user.email_verified {
+            return Ok(());
+        }
+
+        // 認証トークンを生成
+        let token_hash = self.generate_token_hash();
+        let expires_at = Utc::now() + Duration::hours(24); // 24時間有効
+
+        // トークンをデータベースに保存（古いトークンは無効化）
+        let result = self
+            .email_verification_token_repo
+            .create_verification_request(user_id, token_hash.clone(), expires_at)
+            .await?;
+
+        info!(
+            user_id = %user_id,
+            token_id = %result.token_id,
+            old_tokens_invalidated = %result.old_tokens_invalidated,
+            "Email verification token created"
+        );
+
+        // 認証メールを送信
+        let verification_url = std::env::var("FRONTEND_URL")
+            .unwrap_or_else(|_| "http://localhost:3000".to_string())
+            + "/verify-email";
+
+        self.email_service
+            .send_email_verification_email(
+                &user.email,
+                &user.username,
+                &token_hash,
+                &verification_url,
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// メール認証を実行
+    pub async fn verify_email(&self, token: &str) -> AppResult<EmailVerificationResponse> {
+        // トークンの検証と実行
+        let verification_result = self
+            .email_verification_token_repo
+            .execute_email_verification(token)
+            .await?;
+
+        let verification_result = match verification_result {
+            Ok(result) => result,
+            Err(EmailTokenValidationError::NotFound) => {
+                warn!("Email verification with invalid token");
+                return Err(AppError::ValidationError(
+                    "Invalid or expired verification token".to_string(),
+                ));
+            }
+            Err(EmailTokenValidationError::Expired) => {
+                warn!("Email verification with expired token");
+                return Err(AppError::ValidationError(
+                    "Verification token has expired".to_string(),
+                ));
+            }
+            Err(EmailTokenValidationError::AlreadyUsed) => {
+                warn!("Email verification with already used token");
+                return Err(AppError::ValidationError(
+                    "Verification token has already been used".to_string(),
+                ));
+            }
+            Err(e) => {
+                error!(error = %e, "Email verification token validation failed");
+                return Err(AppError::ValidationError(
+                    "Invalid verification token".to_string(),
+                ));
+            }
+        };
+
+        // ユーザーのemail_verifiedをtrueに更新
+        let updated_user = self
+            .user_repo
+            .update_email_verified(verification_result.user_id, true)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+        info!(
+            user_id = %verification_result.user_id,
+            token_id = %verification_result.token_id,
+            "Email verification completed successfully"
+        );
+
+        // ウェルカムメールを送信
+        if let Err(e) = self
+            .email_service
+            .send_welcome_email(&updated_user.email, &updated_user.username)
+            .await
+        {
+            error!(
+                user_id = %verification_result.user_id,
+                email = %updated_user.email,
+                error = %e,
+                "Failed to send welcome email after verification"
+            );
+            // メール送信失敗はエラーとせず、ログに記録のみ
+        } else {
+            info!(
+                user_id = %verification_result.user_id,
+                email = %updated_user.email,
+                "Welcome email sent successfully after verification"
+            );
+        }
+
+        Ok(EmailVerificationResponse {
+            message: "Email verification successful".to_string(),
+            email_verified: true,
+        })
+    }
+
+    /// メール認証再送
+    pub async fn resend_verification_email(
+        &self,
+        email: &str,
+    ) -> AppResult<ResendVerificationEmailResponse> {
+        // ユーザー検索
+        let user = self.user_repo.find_by_email(email).await?.ok_or_else(|| {
+            // セキュリティ上、存在しないメールアドレスでも成功レスポンスを返す
+            info!(email = %email, "Verification email resend requested for non-existent email");
+            AppError::NotFound("User not found".to_string())
+        })?;
+
+        // 既にメール認証済みの場合
+        if user.email_verified {
+            return Ok(ResendVerificationEmailResponse {
+                message: "Email is already verified".to_string(),
+            });
+        }
+
+        // アカウントがアクティブかチェック
+        if !user.is_active {
+            warn!(user_id = %user.id, "Verification email resend for inactive account");
+            return Err(AppError::ValidationError("Account is inactive".to_string()));
+        }
+
+        // 認証メールを再送
+        self.send_verification_email(user.id).await?;
+
+        Ok(ResendVerificationEmailResponse {
+            message: "Verification email has been sent".to_string(),
+        })
     }
 }
