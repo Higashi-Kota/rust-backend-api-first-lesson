@@ -1,5 +1,4 @@
 // src/domain/refresh_token_model.rs
-#![allow(dead_code)]
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
@@ -70,6 +69,7 @@ impl ActiveModelBehavior for ActiveModel {
 }
 
 // リフレッシュトークン用の便利メソッド実装
+#[allow(dead_code)]
 impl Model {
     /// トークンが有効かどうかをチェック
     pub fn is_valid(&self) -> bool {
@@ -146,6 +146,7 @@ impl From<Model> for SafeRefreshToken {
 
 /// リフレッシュトークンの統計情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct RefreshTokenStats {
     pub total_tokens: u64,
     pub active_tokens: u64,
@@ -155,12 +156,14 @@ pub struct RefreshTokenStats {
 
 /// リフレッシュトークンのクリーンアップ結果
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CleanupResult {
     pub deleted_count: u64,
 }
 
 /// トークンローテーション用の結果
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct TokenRotationResult {
     pub old_token_revoked: bool,
     pub new_token_created: bool,
@@ -168,6 +171,7 @@ pub struct TokenRotationResult {
 
 /// リフレッシュトークンの設定
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RefreshTokenConfig {
     /// トークンの有効期間（デフォルト7日）
     pub validity_duration: chrono::Duration,

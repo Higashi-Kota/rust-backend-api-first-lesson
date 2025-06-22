@@ -1,5 +1,4 @@
 // src/domain/password_reset_token_model.rs
-#![allow(dead_code)]
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
@@ -70,6 +69,7 @@ impl ActiveModelBehavior for ActiveModel {
 }
 
 // パスワードリセットトークン用の便利メソッド実装
+#[allow(dead_code)]
 impl Model {
     /// トークンが有効かどうかをチェック（未使用かつ未期限切れ）
     pub fn is_valid(&self) -> bool {
@@ -164,6 +164,7 @@ impl From<Model> for SafePasswordResetToken {
 
 /// トークン検証エラーの種類
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum TokenValidationError {
     /// トークンが既に使用済み
     AlreadyUsed,
@@ -199,6 +200,7 @@ pub struct PasswordResetTokenStats {
 
 /// パスワードリセットトークンのクリーンアップ結果
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CleanupResult {
     pub deleted_expired_count: u64,
     pub deleted_used_count: u64,
@@ -207,6 +209,7 @@ pub struct CleanupResult {
 
 /// パスワードリセットトークンの設定
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PasswordResetTokenConfig {
     /// トークンの有効期間（デフォルト1時間）
     pub validity_duration: chrono::Duration,
@@ -231,6 +234,7 @@ impl Default for PasswordResetTokenConfig {
 
 /// パスワードリセットの結果
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PasswordResetResult {
     pub token_id: Uuid,
     pub user_id: Uuid,
@@ -240,6 +244,7 @@ pub struct PasswordResetResult {
 
 /// パスワードリセット要求の結果
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PasswordResetRequestResult {
     pub token_id: Uuid,
     pub user_id: Uuid,

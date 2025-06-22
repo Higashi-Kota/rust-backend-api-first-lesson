@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 // src/service/task_service.rs
 
 use crate::api::dto::task_dto::{
@@ -34,6 +33,7 @@ impl TaskService {
     }
 
     // --- CRUD ---
+    #[allow(dead_code)]
     pub async fn create_task(&self, payload: CreateTaskDto) -> AppResult<TaskDto> {
         let created_task = self.repo.create(payload).await?;
         Ok(created_task.into())
@@ -48,6 +48,7 @@ impl TaskService {
         Ok(created_task.into())
     }
 
+    #[allow(dead_code)]
     pub async fn get_task(&self, id: Uuid) -> AppResult<TaskDto> {
         let task = self
             .repo
@@ -68,6 +69,7 @@ impl TaskService {
         Ok(task.into())
     }
 
+    #[allow(dead_code)]
     pub async fn list_tasks(&self) -> AppResult<Vec<TaskDto>> {
         let tasks = self.repo.find_all().await?;
         Ok(tasks.into_iter().map(Into::into).collect())
@@ -78,6 +80,7 @@ impl TaskService {
         Ok(tasks.into_iter().map(Into::into).collect())
     }
 
+    #[allow(dead_code)]
     pub async fn update_task(&self, id: Uuid, payload: UpdateTaskDto) -> AppResult<TaskDto> {
         let updated_task = self.repo.update(id, payload).await?.ok_or_else(|| {
             AppError::NotFound(format!("Task with id {} not found for update", id))
@@ -104,6 +107,7 @@ impl TaskService {
         Ok(updated_task.into())
     }
 
+    #[allow(dead_code)]
     pub async fn delete_task(&self, id: Uuid) -> AppResult<()> {
         let delete_result = self.repo.delete(id).await?;
         if delete_result.rows_affected == 0 {
@@ -129,6 +133,7 @@ impl TaskService {
     }
 
     // --- Batch Operations ---
+    #[allow(dead_code)]
     pub async fn create_tasks_batch(
         &self,
         payload: BatchCreateTaskDto,
@@ -181,6 +186,7 @@ impl TaskService {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn update_tasks_batch(
         &self,
         payload: BatchUpdateTaskDto,
@@ -209,6 +215,7 @@ impl TaskService {
         Ok(BatchUpdateResponseDto { updated_count })
     }
 
+    #[allow(dead_code)]
     pub async fn delete_tasks_batch(
         &self,
         payload: BatchDeleteTaskDto,

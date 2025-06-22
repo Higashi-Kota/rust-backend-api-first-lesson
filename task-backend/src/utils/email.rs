@@ -1,17 +1,16 @@
 // task-backend/src/utils/email.rs
-#![allow(dead_code)]
 
 use crate::error::{AppError, AppResult};
 use lettre::message::{header, MultiPart, SinglePart};
 use lettre::{Message, SmtpTransport, Transport};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::env;
 use thiserror::Error;
 use tracing::{error, info};
 
 /// メール送信エラー
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum EmailError {
     #[error("SMTP configuration error: {0}")]
     ConfigurationError(String),
@@ -31,6 +30,7 @@ pub enum EmailError {
 
 /// メールプロバイダーの種類
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum EmailProvider {
     /// 開発モード（コンソール出力）
     Development,
@@ -76,105 +76,7 @@ impl Default for EmailConfig {
     }
 }
 
-/// プロバイダーを環境に基づいて決定
-fn determine_email_provider() -> EmailProvider {
-    // EMAIL_PROVIDERが明示的に設定されている場合はそれを使用
-    if let Ok(provider) = env::var("EMAIL_PROVIDER") {
-        match provider.to_lowercase().as_str() {
-            "mailhog" => return EmailProvider::MailHog,
-            "mailgun" => return EmailProvider::Mailgun,
-            "development" | "dev" => return EmailProvider::Development,
-            _ => {}
-        }
-    }
-
-    // 環境変数に基づいて自動決定
-    let app_env = env::var("APP_ENV")
-        .or_else(|_| env::var("RUST_ENV"))
-        .unwrap_or_else(|_| "development".to_string());
-
-    match app_env.to_lowercase().as_str() {
-        "production" | "prod" => EmailProvider::Mailgun,
-        "staging" => EmailProvider::Mailgun,
-        _ => EmailProvider::MailHog, // 開発環境ではMailHog
-    }
-}
-
 impl EmailConfig {
-    /// 環境変数から設定を読み込み
-    pub fn from_env() -> Result<Self, EmailError> {
-        let development_mode = env::var("EMAIL_DEVELOPMENT_MODE")
-            .unwrap_or_else(|_| "true".to_string())
-            .parse()
-            .unwrap_or(true);
-
-        // 開発モードの場合はデフォルト設定を返す
-        if development_mode {
-            return Ok(Self {
-                development_mode: true,
-                provider: EmailProvider::Development,
-                ..Default::default()
-            });
-        }
-
-        // プロバイダーを決定（環境変数または環境に基づく）
-        let provider = determine_email_provider();
-
-        let from_email = env::var("FROM_EMAIL")
-            .or_else(|_| env::var("EMAIL_FROM"))
-            .unwrap_or_else(|_| "noreply@example.com".to_string());
-
-        let from_name = env::var("FROM_NAME")
-            .or_else(|_| env::var("EMAIL_FROM_NAME"))
-            .unwrap_or_else(|_| "Task Backend".to_string());
-
-        match provider {
-            EmailProvider::MailHog => {
-                let smtp_host =
-                    env::var("MAILHOG_HOST").unwrap_or_else(|_| "localhost".to_string());
-                let smtp_port = env::var("MAILHOG_PORT")
-                    .unwrap_or_else(|_| "1025".to_string())
-                    .parse()
-                    .unwrap_or(1025);
-
-                Ok(Self {
-                    provider: EmailProvider::MailHog,
-                    smtp_host,
-                    smtp_port,
-                    from_email,
-                    from_name,
-                    mailgun_api_key: None,
-                    mailgun_domain: None,
-                    development_mode: false,
-                })
-            }
-            EmailProvider::Mailgun => {
-                let mailgun_api_key = env::var("MAILGUN_API_KEY").ok();
-                let mailgun_domain = env::var("MAILGUN_DOMAIN").ok();
-
-                if mailgun_api_key.is_none() || mailgun_domain.is_none() {
-                    return Err(EmailError::MissingConfiguration);
-                }
-
-                Ok(Self {
-                    provider: EmailProvider::Mailgun,
-                    smtp_host: "".to_string(), // Mailgunでは不要
-                    smtp_port: 0,              // Mailgunでは不要
-                    from_email,
-                    from_name,
-                    mailgun_api_key,
-                    mailgun_domain,
-                    development_mode: false,
-                })
-            }
-            EmailProvider::Development => Ok(Self {
-                development_mode: true,
-                provider: EmailProvider::Development,
-                ..Default::default()
-            }),
-        }
-    }
-
     /// 設定の検証
     pub fn validate(&self) -> Result<(), EmailError> {
         if self.development_mode {
@@ -261,9 +163,10 @@ impl EmailService {
         Ok(Self { config })
     }
 
-    /// 環境変数から設定を読み込んでEmailServiceを作成
+    /// デフォルト設定でEmailServiceを作成
+    #[allow(dead_code)]
     pub fn from_env() -> Result<Self, EmailError> {
-        let config = EmailConfig::from_env()?;
+        let config = EmailConfig::default();
         Self::new(config)
     }
 
@@ -1272,21 +1175,6 @@ fn is_valid_email(email: &str) -> bool {
     true
 }
 
-/// メールアドレスをマスク
-pub fn mask_email(email: &str) -> String {
-    if let Some(at_pos) = email.find('@') {
-        let (local, domain) = email.split_at(at_pos);
-        let masked_local = if local.len() <= 2 {
-            "*".repeat(local.len())
-        } else {
-            format!("{}****", &local[..1])
-        };
-        format!("{}{}", masked_local, domain)
-    } else {
-        "****@****".to_string()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1299,14 +1187,6 @@ mod tests {
         assert!(!is_valid_email("@example.com"));
         assert!(!is_valid_email("test@"));
         assert!(!is_valid_email("test"));
-    }
-
-    #[test]
-    fn test_mask_email() {
-        assert_eq!(mask_email("test@example.com"), "t****@example.com");
-        assert_eq!(mask_email("ab@example.com"), "**@example.com");
-        assert_eq!(mask_email("a@example.com"), "*@example.com");
-        assert_eq!(mask_email("invalid"), "****@****");
     }
 
     #[tokio::test]

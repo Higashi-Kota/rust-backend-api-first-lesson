@@ -1,5 +1,4 @@
 // src/repository/refresh_token_repository.rs
-#![allow(dead_code)]
 
 use crate::db;
 use crate::domain::refresh_token_model::{
@@ -17,6 +16,7 @@ pub struct RefreshTokenRepository {
     schema: Option<String>,
 }
 
+#[allow(dead_code)]
 impl RefreshTokenRepository {
     pub fn new(db: DbConn) -> Self {
         Self { db, schema: None }

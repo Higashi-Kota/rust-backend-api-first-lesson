@@ -1,5 +1,4 @@
 // src/repository/user_repository.rs
-#![allow(dead_code)]
 
 use crate::db;
 use crate::domain::role_model::{self, Entity as RoleEntity, RoleWithPermissions};
@@ -22,6 +21,7 @@ impl UserRepository {
         Self { db, schema: None }
     }
 
+    #[allow(dead_code)]
     pub fn with_schema(db: DbConn, schema: String) -> Self {
         Self {
             db,
@@ -55,6 +55,7 @@ impl UserRepository {
     }
 
     /// ユーザーをユーザー名で検索
+    #[allow(dead_code)]
     pub async fn find_by_username(
         &self,
         username: &str,
@@ -83,6 +84,7 @@ impl UserRepository {
     }
 
     /// 全ユーザーを取得
+    #[allow(dead_code)]
     pub async fn find_all(&self) -> Result<Vec<user_model::Model>, DbErr> {
         self.prepare_connection().await?;
         UserEntity::find()
@@ -92,6 +94,7 @@ impl UserRepository {
     }
 
     /// アクティブユーザーのみを取得
+    #[allow(dead_code)]
     pub async fn find_active_users(&self) -> Result<Vec<user_model::Model>, DbErr> {
         self.prepare_connection().await?;
         UserEntity::find()
@@ -102,6 +105,7 @@ impl UserRepository {
     }
 
     /// ページネーション付きでユーザーを取得
+    #[allow(dead_code)]
     pub async fn find_all_paginated(
         &self,
         page: u64,
@@ -145,6 +149,7 @@ impl UserRepository {
     }
 
     /// ユーザーを更新
+    #[allow(dead_code)]
     pub async fn update(
         &self,
         id: Uuid,
@@ -231,6 +236,7 @@ impl UserRepository {
     }
 
     /// メールアドレスまたはユーザー名の重複チェック（指定IDを除く）
+    #[allow(dead_code)]
     pub async fn is_email_or_username_taken_excluding_user(
         &self,
         email: &str,
@@ -282,6 +288,7 @@ impl UserRepository {
     }
 
     /// メール認証状態を更新
+    #[allow(dead_code)]
     pub async fn update_email_verified_status(
         &self,
         id: Uuid,
@@ -416,6 +423,7 @@ impl UserRepository {
     }
 
     /// ユーザー統計を取得
+    #[allow(dead_code)]
     pub async fn get_user_stats(&self) -> Result<UserStats, DbErr> {
         self.prepare_connection().await?;
 
@@ -462,6 +470,7 @@ impl UserRepository {
     }
 
     /// メールアドレスでユーザーをロール情報と一緒に取得
+    #[allow(dead_code)]
     pub async fn find_by_email_with_role(
         &self,
         email: &str,
@@ -485,6 +494,7 @@ impl UserRepository {
     }
 
     /// ユーザー名でユーザーをロール情報と一緒に取得
+    #[allow(dead_code)]
     pub async fn find_by_username_with_role(
         &self,
         username: &str,
@@ -508,6 +518,7 @@ impl UserRepository {
     }
 
     /// メールアドレスまたはユーザー名でユーザーをロール情報と一緒に取得
+    #[allow(dead_code)]
     pub async fn find_by_email_or_username_with_role(
         &self,
         identifier: &str,
@@ -561,6 +572,7 @@ impl UserRepository {
     }
 
     /// ページネーション付きでユーザーをロール情報と一緒に取得
+    #[allow(dead_code)]
     pub async fn find_all_with_roles_paginated(
         &self,
         page: u64,
@@ -609,6 +621,7 @@ impl UserRepository {
     }
 
     /// 特定のロール名を持つユーザーを取得
+    #[allow(dead_code)]
     pub async fn find_by_role_name(&self, role_name: &str) -> Result<Vec<SafeUserWithRole>, DbErr> {
         self.prepare_connection().await?;
 
@@ -655,16 +668,19 @@ impl UserRepository {
     }
 
     /// 管理者ユーザーを取得
+    #[allow(dead_code)]
     pub async fn find_admin_users(&self) -> Result<Vec<SafeUserWithRole>, DbErr> {
         self.find_by_role_name("admin").await
     }
 
     /// 一般ユーザーを取得
+    #[allow(dead_code)]
     pub async fn find_member_users(&self) -> Result<Vec<SafeUserWithRole>, DbErr> {
         self.find_by_role_name("member").await
     }
 
     /// 特定のサブスクリプション階層のユーザーを取得
+    #[allow(dead_code)]
     pub async fn find_by_subscription_tier(
         &self,
         tier: &str,
@@ -713,6 +729,7 @@ impl UserRepository {
     }
 
     /// ロール別ユーザー統計を取得
+    #[allow(dead_code)]
     pub async fn get_user_stats_by_role(&self) -> Result<Vec<RoleUserStats>, DbErr> {
         self.prepare_connection().await?;
 
@@ -858,6 +875,7 @@ pub struct CreateUser {
 
 /// ユーザー更新用構造体
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct UpdateUser {
     pub email: Option<String>,
     pub username: Option<String>,
@@ -870,6 +888,7 @@ pub struct UpdateUser {
 
 /// ユーザー統計情報
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct UserStats {
     pub total_users: u64,
     pub active_users: u64,
@@ -880,6 +899,7 @@ pub struct UserStats {
 
 /// ロール別ユーザー統計情報
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct RoleUserStats {
     pub role_name: String,
     pub role_display_name: String,

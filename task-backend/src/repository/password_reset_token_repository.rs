@@ -1,5 +1,4 @@
 // src/repository/password_reset_token_repository.rs
-#![allow(dead_code)]
 
 use crate::db;
 use crate::domain::password_reset_token_model::{
@@ -18,6 +17,7 @@ pub struct PasswordResetTokenRepository {
     schema: Option<String>,
 }
 
+#[allow(dead_code)]
 impl PasswordResetTokenRepository {
     pub fn new(db: DbConn) -> Self {
         Self { db, schema: None }
@@ -466,6 +466,7 @@ impl PasswordResetTokenRepository {
 
 /// パスワードリセットトークン作成用構造体
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CreatePasswordResetToken {
     pub user_id: Uuid,
     pub token_hash: String,
