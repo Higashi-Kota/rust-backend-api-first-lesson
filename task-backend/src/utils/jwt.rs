@@ -1,5 +1,4 @@
 // src/utils/jwt.rs
-#![allow(dead_code)]
 
 use crate::domain::user_model::UserClaims;
 use chrono::{DateTime, Duration, Utc};
@@ -189,12 +188,6 @@ impl JwtManager {
         })
     }
 
-    /// 環境変数から設定を読み込んでJwtManagerを作成
-    pub fn from_env() -> Result<Self, JwtError> {
-        let config = JwtConfig::from_env()?;
-        Self::new(config)
-    }
-
     /// アクセストークンを生成
     pub fn generate_access_token(&self, user: UserClaims) -> Result<String, JwtError> {
         let now = Utc::now();
@@ -267,66 +260,11 @@ impl JwtManager {
         Ok(token_data.claims)
     }
 
-    /// トークンから有効期限を取得（検証せず）
-    pub fn get_token_expiry(&self, token: &str) -> Result<DateTime<Utc>, JwtError> {
-        // 検証を無効にしたValidationを作成
-        let mut no_validation = Validation::new(Algorithm::HS256);
-        no_validation.validate_exp = false;
-        no_validation.validate_nbf = false;
-        no_validation.validate_aud = false;
-        no_validation.insecure_disable_signature_validation();
-
-        let token_data = decode::<serde_json::Value>(token, &self.decoding_key, &no_validation)
-            .map_err(|e| JwtError::DecodingError(e.to_string()))?;
-
-        let exp = token_data
-            .claims
-            .get("exp")
-            .and_then(|v| v.as_i64())
-            .ok_or(JwtError::InvalidToken)?;
-
-        DateTime::from_timestamp(exp, 0).ok_or(JwtError::InvalidToken)
-    }
-
-    /// トークンが期限切れかチェック（検証せず）
-    pub fn is_token_expired(&self, token: &str) -> Result<bool, JwtError> {
-        let expiry = self.get_token_expiry(token)?;
-        Ok(expiry <= Utc::now())
-    }
-
     /// アクセストークンの残り有効時間を取得（分）
     pub fn get_access_token_remaining_minutes(&self, claims: &AccessTokenClaims) -> i64 {
         let exp = DateTime::from_timestamp(claims.exp, 0).unwrap_or_else(Utc::now);
         let remaining = exp - Utc::now();
         remaining.num_minutes().max(0)
-    }
-
-    /// リフレッシュトークンの残り有効時間を取得（日）
-    pub fn get_refresh_token_remaining_days(&self, claims: &RefreshTokenClaims) -> i64 {
-        let exp = DateTime::from_timestamp(claims.exp, 0).unwrap_or_else(Utc::now);
-        let remaining = exp - Utc::now();
-        remaining.num_days().max(0)
-    }
-
-    /// アクセストークンの有効期限をISO 8601形式で取得
-    pub fn get_access_token_expires_at(&self, claims: &AccessTokenClaims) -> String {
-        DateTime::from_timestamp(claims.exp, 0)
-            .unwrap_or_else(Utc::now)
-            .to_rfc3339()
-    }
-
-    /// アクセストークンのリフレッシュ推奨時刻をISO 8601形式で取得（80%時点）
-    pub fn get_should_refresh_at(&self, claims: &AccessTokenClaims) -> String {
-        let issued_at = DateTime::from_timestamp(claims.iat, 0).unwrap_or_else(Utc::now);
-        let expires_at = DateTime::from_timestamp(claims.exp, 0).unwrap_or_else(Utc::now);
-
-        // 有効期限の80%時点を計算
-        let total_duration = expires_at - issued_at;
-        let refresh_duration_secs = (total_duration.num_seconds() as f64 * 0.8) as i64;
-        let refresh_duration = Duration::seconds(refresh_duration_secs);
-        let should_refresh_at = issued_at + refresh_duration;
-
-        should_refresh_at.to_rfc3339()
     }
 
     /// 現在時刻からアクセストークンの有効期限をISO 8601形式で計算
@@ -398,59 +336,6 @@ impl TokenPair {
             access_token_expires_at,
             should_refresh_at,
         )
-    }
-}
-
-/// JWTユーティリティ関数
-pub mod utils {
-    use super::*;
-    use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-    use rand::Rng;
-
-    /// ランダムなJWT秘密鍵を生成（64文字）
-    pub fn generate_jwt_secret() -> String {
-        let mut rng = rand::thread_rng();
-        let mut bytes = [0u8; 48];
-        for byte in &mut bytes {
-            *byte = rng.gen();
-        }
-        URL_SAFE_NO_PAD.encode(bytes)
-    }
-
-    /// トークンからペイロードを安全に抽出（署名検証なし）
-    pub fn extract_payload_unsafe(token: &str) -> Result<serde_json::Value, JwtError> {
-        let parts: Vec<&str> = token.split('.').collect();
-        if parts.len() != 3 {
-            return Err(JwtError::InvalidToken);
-        }
-
-        let payload = parts[1];
-        let decoded = URL_SAFE_NO_PAD
-            .decode(payload)
-            .map_err(|_| JwtError::InvalidToken)?;
-
-        serde_json::from_slice(&decoded).map_err(|_| JwtError::InvalidToken)
-    }
-
-    /// JTI（JWT ID）をトークンから抽出
-    pub fn extract_jti(token: &str) -> Result<String, JwtError> {
-        let payload = extract_payload_unsafe(token)?;
-        payload
-            .get("jti")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string())
-            .ok_or(JwtError::InvalidToken)
-    }
-
-    /// ユーザーIDをトークンから抽出
-    pub fn extract_user_id(token: &str) -> Result<Uuid, JwtError> {
-        let payload = extract_payload_unsafe(token)?;
-        let sub = payload
-            .get("sub")
-            .and_then(|v| v.as_str())
-            .ok_or(JwtError::InvalidToken)?;
-
-        Uuid::parse_str(sub).map_err(|_| JwtError::InvalidToken)
     }
 }
 
@@ -526,60 +411,27 @@ mod tests {
         let jwt_manager = JwtManager::new(config).unwrap();
         let user_claims = create_test_user_claims();
 
-        let token = jwt_manager
+        let _token = jwt_manager
             .generate_access_token(user_claims.clone())
             .unwrap();
-
-        // JTI抽出
-        let jti = utils::extract_jti(&token).unwrap();
-        assert!(!jti.is_empty());
-
-        // ユーザーID抽出
-        let extracted_user_id = utils::extract_user_id(&token).unwrap();
-        assert_eq!(extracted_user_id, user_claims.user_id);
-
-        // 有効期限取得
-        let expiry = jwt_manager.get_token_expiry(&token).unwrap();
-        assert!(expiry > Utc::now());
-
-        // 期限切れチェック
-        let is_expired = jwt_manager.is_token_expired(&token).unwrap();
-        assert!(!is_expired);
     }
 
     #[test]
     fn test_timestamp_calculations() {
         let config = create_test_config();
         let jwt_manager = JwtManager::new(config).unwrap();
-        let user_claims = create_test_user_claims();
 
-        // アクセストークンを生成
-        let access_token = jwt_manager
-            .generate_access_token(user_claims.clone())
-            .unwrap();
-
-        // トークンから クレームを取得
-        let claims = jwt_manager.verify_access_token(&access_token).unwrap();
-
-        // タイムスタンプ計算のテスト
-        let expires_at = jwt_manager.get_access_token_expires_at(&claims);
-        let should_refresh_at = jwt_manager.get_should_refresh_at(&claims);
-
-        // フォーマットが正しいことを確認（ISO 8601）
-        assert!(DateTime::parse_from_rfc3339(&expires_at).is_ok());
-        assert!(DateTime::parse_from_rfc3339(&should_refresh_at).is_ok());
-
-        // リフレッシュ時刻が有効期限より前であることを確認
-        let expires_dt = DateTime::parse_from_rfc3339(&expires_at).unwrap();
-        let refresh_dt = DateTime::parse_from_rfc3339(&should_refresh_at).unwrap();
-        assert!(refresh_dt < expires_dt);
-
-        // 現在時刻ベースの計算もテスト
+        // 現在時刻ベースの計算のテスト
         let calc_expires_at = jwt_manager.calculate_access_token_expires_at();
         let calc_should_refresh_at = jwt_manager.calculate_should_refresh_at();
 
         assert!(DateTime::parse_from_rfc3339(&calc_expires_at).is_ok());
         assert!(DateTime::parse_from_rfc3339(&calc_should_refresh_at).is_ok());
+
+        // リフレッシュ時刻が有効期限より前であることを確認
+        let expires_dt = DateTime::parse_from_rfc3339(&calc_expires_at).unwrap();
+        let refresh_dt = DateTime::parse_from_rfc3339(&calc_should_refresh_at).unwrap();
+        assert!(refresh_dt < expires_dt);
     }
 
     #[test]

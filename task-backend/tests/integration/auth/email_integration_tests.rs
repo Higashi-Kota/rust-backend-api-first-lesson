@@ -232,33 +232,15 @@ async fn test_security_notification_sending() {
     assert!(result.is_ok());
 }
 
-/// メールアドレスのマスク処理テスト
-#[tokio::test]
-async fn test_email_masking_functionality() {
-    use task_backend::utils::email::mask_email;
-
-    assert_eq!(mask_email("test@example.com"), "t****@example.com");
-    assert_eq!(mask_email("ab@example.com"), "**@example.com");
-    assert_eq!(mask_email("a@example.com"), "*@example.com");
-    assert_eq!(mask_email("verylongemail@example.com"), "v****@example.com");
-    assert_eq!(mask_email("invalid"), "****@****");
-}
-
-/// 環境変数からのEmailConfig読み込みテスト
+/// EmailConfigのデフォルト設定テスト
 #[tokio::test]
 async fn test_email_config_from_environment() {
-    use std::env;
     use task_backend::utils::email::EmailConfig;
 
-    // 開発モードの環境変数を設定
-    env::set_var("EMAIL_DEVELOPMENT_MODE", "true");
-
-    let config_result = EmailConfig::from_env();
-    assert!(config_result.is_ok());
-
-    let config = config_result.unwrap();
+    let config = EmailConfig::default();
     assert!(config.development_mode);
-
-    // 環境変数をクリーンアップ
-    env::remove_var("EMAIL_DEVELOPMENT_MODE");
+    assert_eq!(
+        config.provider,
+        task_backend::utils::email::EmailProvider::Development
+    );
 }

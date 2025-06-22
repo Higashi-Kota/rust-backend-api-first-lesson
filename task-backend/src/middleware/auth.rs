@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 // task-backend/src/middleware/auth.rs
 
 use crate::domain::role_model::RoleWithPermissions;
@@ -20,6 +19,7 @@ use tracing::{info, warn};
 
 /// JWT認証ミドルウェアの設定
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct AuthMiddlewareConfig {
     pub jwt_manager: Arc<JwtManager>,
     pub user_repository: Arc<UserRepository>,
@@ -31,6 +31,7 @@ pub struct AuthMiddlewareConfig {
     pub require_active_account: bool,
 }
 
+#[allow(dead_code)]
 impl AuthMiddlewareConfig {
     pub fn new(
         jwt_manager: Arc<JwtManager>,
@@ -68,11 +69,13 @@ pub struct AuthenticatedUser {
 
 /// ロール情報付き認証済みユーザー情報
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AuthenticatedUserWithRole {
     pub claims: UserClaims,
     pub access_token: String,
 }
 
+#[allow(dead_code)]
 impl AuthenticatedUser {
     pub fn new(claims: UserClaims, access_token: String) -> Self {
         Self {
@@ -132,6 +135,7 @@ impl AuthenticatedUser {
     }
 }
 
+#[allow(dead_code)]
 impl AuthenticatedUserWithRole {
     pub fn new(claims: UserClaims, access_token: String) -> Self {
         Self {
@@ -398,6 +402,7 @@ pub async fn jwt_auth_middleware(
 }
 
 /// 管理者権限必須ミドルウェア
+#[allow(dead_code)]
 pub async fn admin_only_middleware(
     State(config): State<AuthMiddlewareConfig>,
     headers: HeaderMap,
@@ -480,6 +485,7 @@ pub async fn admin_only_middleware(
 }
 
 /// ロール情報付き認証ミドルウェア
+#[allow(dead_code)]
 pub async fn role_aware_auth_middleware(
     State(config): State<AuthMiddlewareConfig>,
     headers: HeaderMap,
@@ -597,6 +603,7 @@ pub async fn role_aware_auth_middleware(
 }
 
 /// オプショナル認証ミドルウェア（認証なしでもアクセス可能だが、認証情報があれば追加）
+#[allow(dead_code)]
 pub async fn optional_auth_middleware(
     State(config): State<AuthMiddlewareConfig>,
     headers: HeaderMap,
@@ -629,6 +636,7 @@ pub async fn optional_auth_middleware(
 }
 
 /// レート制限ミドルウェア（基本実装）
+#[allow(dead_code)]
 pub async fn rate_limit_middleware(headers: HeaderMap, request: Request, next: Next) -> Response {
     // TODO: 実際のレート制限ロジックを実装
     // 現在はプレースホルダー
@@ -734,11 +742,13 @@ fn should_require_admin(path: &str, admin_paths: &[String]) -> bool {
 }
 
 /// 認証エンドポイントかチェック
+#[allow(dead_code)]
 fn is_auth_endpoint(path: &str) -> bool {
     path.starts_with("/auth/")
 }
 
 /// クライアントIPを抽出
+#[allow(dead_code)]
 fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
     // X-Forwarded-For ヘッダーをチェック（プロキシ経由の場合）
     if let Some(forwarded_for) = headers.get("X-Forwarded-For") {
@@ -762,16 +772,19 @@ fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
 }
 
 /// リクエスト拡張からユーザー情報を取得するヘルパー
+#[allow(dead_code)]
 pub fn get_authenticated_user(request: &Request) -> Option<&AuthenticatedUser> {
     request.extensions().get::<AuthenticatedUser>()
 }
 
 /// リクエスト拡張からロール情報付きユーザー情報を取得するヘルパー
+#[allow(dead_code)]
 pub fn get_authenticated_user_with_role(request: &Request) -> Option<&AuthenticatedUserWithRole> {
     request.extensions().get::<AuthenticatedUserWithRole>()
 }
 
 /// 権限チェックヘルパー（統合版を使用）
+#[allow(dead_code)]
 pub fn check_admin_permission(user: &AuthenticatedUserWithRole) -> Result<(), AppError> {
     if let Some(role) = user.role() {
         if !PermissionChecker::is_admin(role) {
@@ -794,6 +807,7 @@ pub fn check_admin_permission(user: &AuthenticatedUserWithRole) -> Result<(), Ap
 }
 
 /// リソースアクセス権限チェック（統合版を使用）
+#[allow(dead_code)]
 pub fn check_resource_access_permission(
     user: &AuthenticatedUserWithRole,
     target_user_id: uuid::Uuid,
@@ -817,6 +831,7 @@ pub fn check_resource_access_permission(
 }
 
 /// リソース作成権限チェック（統合版を使用）
+#[allow(dead_code)]
 pub fn check_create_permission(
     user: &AuthenticatedUserWithRole,
     resource_type: &str,
@@ -843,6 +858,7 @@ pub fn check_create_permission(
 }
 
 /// リソース削除権限チェック（統合版を使用）
+#[allow(dead_code)]
 pub fn check_delete_permission(
     user: &AuthenticatedUserWithRole,
     resource_type: &str,
@@ -871,6 +887,7 @@ pub fn check_delete_permission(
 }
 
 /// リソース更新権限チェック（新機能）
+#[allow(dead_code)]
 pub fn check_update_permission(
     user: &AuthenticatedUserWithRole,
     resource_type: &str,
@@ -899,6 +916,7 @@ pub fn check_update_permission(
 }
 
 /// リソース表示権限チェック（新機能）
+#[allow(dead_code)]
 pub fn check_view_permission(
     user: &AuthenticatedUserWithRole,
     resource_type: &str,

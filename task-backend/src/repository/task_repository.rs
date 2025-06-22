@@ -34,6 +34,7 @@ impl TaskRepository {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<task_model::Model>, DbErr> {
         self.prepare_connection().await?;
         TaskEntity::find_by_id(id).one(&self.db).await
@@ -288,6 +289,7 @@ impl TaskRepository {
         Ok((tasks, total_count))
     }
 
+    #[allow(dead_code)]
     pub async fn create(&self, payload: CreateTaskDto) -> Result<task_model::Model, DbErr> {
         self.prepare_connection().await?;
 
@@ -319,6 +321,7 @@ impl TaskRepository {
         new_task.insert(&self.db).await
     }
 
+    #[allow(dead_code)]
     pub async fn update(
         &self,
         id: Uuid,
@@ -424,6 +427,7 @@ impl TaskRepository {
             .await
     }
 
+    #[allow(dead_code)]
     pub async fn create_many(
         &self,
         payloads: Vec<CreateTaskDto>,
@@ -496,6 +500,7 @@ impl TaskRepository {
         Ok(created_models)
     }
 
+    #[allow(dead_code)]
     pub async fn update_many(&self, items: Vec<BatchUpdateTaskItemDto>) -> Result<usize, DbErr> {
         self.prepare_connection().await?;
 
@@ -588,6 +593,7 @@ impl TaskRepository {
         Ok(updated_count)
     }
 
+    #[allow(dead_code)]
     pub async fn delete_many(&self, ids: Vec<Uuid>) -> Result<DeleteResult, DbErr> {
         self.prepare_connection().await?;
 

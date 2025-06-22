@@ -1,5 +1,4 @@
 // task-backend/src/utils/password.rs
-#![allow(dead_code)]
 
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -11,6 +10,7 @@ use validator::Validate;
 
 /// パスワード関連のエラー
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum PasswordError {
     #[error("Password hashing failed: {0}")]
     HashingError(#[from] argon2::password_hash::Error),
@@ -219,16 +219,6 @@ impl PasswordManager {
         Ok(Self { argon2, policy })
     }
 
-    /// デフォルト設定でPasswordManagerを作成
-    pub fn new_default() -> Result<Self, PasswordError> {
-        Self::new(Argon2Config::default(), PasswordPolicy::default())
-    }
-
-    /// 環境変数から設定を読み込んでPasswordManagerを作成
-    pub fn from_env() -> Result<Self, PasswordError> {
-        Self::new(Argon2Config::from_env(), PasswordPolicy::from_env())
-    }
-
     /// パスワードをハッシュ化
     pub fn hash_password(&self, password: &str) -> Result<String, PasswordError> {
         // パスワード強度チェック
@@ -351,96 +341,6 @@ impl PasswordManager {
         }
 
         Ok(false)
-    }
-
-    /// パスワード強度スコアを計算（0-100）
-    pub fn calculate_password_score(&self, password: &str) -> u8 {
-        let mut score = 0u8;
-
-        // 基本長さスコア（最大25点）
-        let length_score = std::cmp::min(password.len() * 2, 25);
-        score += length_score as u8;
-
-        // 文字種類スコア（各最大15点）
-        if password.chars().any(|c| c.is_lowercase()) {
-            score += 15;
-        }
-        if password.chars().any(|c| c.is_uppercase()) {
-            score += 15;
-        }
-        if password.chars().any(|c| c.is_ascii_digit()) {
-            score += 15;
-        }
-        if password
-            .chars()
-            .any(|c| "!@#$%^&*()_+-=[]{}|;:,.<>?".contains(c))
-        {
-            score += 15;
-        }
-
-        // 長さボーナス（12文字以上で+10点）
-        if password.len() >= 12 {
-            score += 10;
-        }
-
-        // ペナルティ
-        if is_common_password(password) {
-            score = score.saturating_sub(30);
-        }
-        if has_consecutive_characters(password, 3) {
-            score = score.saturating_sub(15);
-        }
-        if has_sequential_characters(password, 3) {
-            score = score.saturating_sub(15);
-        }
-
-        std::cmp::min(score, 100)
-    }
-
-    /// パスワード強度レベルを取得
-    pub fn get_password_strength_level(&self, password: &str) -> PasswordStrength {
-        let score = self.calculate_password_score(password);
-
-        match score {
-            0..=30 => PasswordStrength::VeryWeak,
-            31..=50 => PasswordStrength::Weak,
-            51..=70 => PasswordStrength::Fair,
-            71..=85 => PasswordStrength::Good,
-            86..=100 => PasswordStrength::Strong,
-            _ => PasswordStrength::Strong, // For scores above 100
-        }
-    }
-}
-
-/// パスワード強度レベル
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PasswordStrength {
-    VeryWeak,
-    Weak,
-    Fair,
-    Good,
-    Strong,
-}
-
-impl PasswordStrength {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            PasswordStrength::VeryWeak => "very_weak",
-            PasswordStrength::Weak => "weak",
-            PasswordStrength::Fair => "fair",
-            PasswordStrength::Good => "good",
-            PasswordStrength::Strong => "strong",
-        }
-    }
-
-    pub fn color(&self) -> &'static str {
-        match self {
-            PasswordStrength::VeryWeak => "#dc2626", // red-600
-            PasswordStrength::Weak => "#ea580c",     // orange-600
-            PasswordStrength::Fair => "#ca8a04",     // yellow-600
-            PasswordStrength::Good => "#16a34a",     // green-600
-            PasswordStrength::Strong => "#059669",   // emerald-600
-        }
     }
 }
 
@@ -584,44 +484,14 @@ fn has_sequential_characters(password: &str, count: usize) -> bool {
     false
 }
 
-/// セキュアなランダムパスワードを生成
-pub fn generate_secure_password(length: usize) -> String {
-    use rand::Rng;
-
-    const CHARSET: &[u8] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
-    let mut rng = rand::thread_rng();
-
-    (0..length)
-        .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect()
-}
-
-/// 一時的なパスワードを生成（数字と文字の組み合わせ）
-pub fn generate_temporary_password(length: usize) -> String {
-    use rand::Rng;
-
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNPQRSTUVWXYZ23456789"; // 紛らわしい文字を除外
-    let mut rng = rand::thread_rng();
-
-    (0..length)
-        .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
-            CHARSET[idx] as char
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_password_hashing_and_verification() {
-        let manager = PasswordManager::new_default().unwrap();
+        let manager =
+            PasswordManager::new(Argon2Config::default(), PasswordPolicy::default()).unwrap();
         let password = "MyUniqueP@ssw0rd91";
 
         let hash = manager.hash_password(password).unwrap();
@@ -633,7 +503,8 @@ mod tests {
 
     #[test]
     fn test_password_strength_validation() {
-        let manager = PasswordManager::new_default().unwrap();
+        let manager =
+            PasswordManager::new(Argon2Config::default(), PasswordPolicy::default()).unwrap();
 
         // 強いパスワード
         assert!(manager
@@ -645,28 +516,6 @@ mod tests {
         assert!(manager.validate_password_strength("password").is_err());
         assert!(manager.validate_password_strength("PASSWORD").is_err());
         assert!(manager.validate_password_strength("12345678").is_err());
-    }
-
-    #[test]
-    fn test_password_score_calculation() {
-        let manager = PasswordManager::new_default().unwrap();
-
-        assert_eq!(
-            manager.get_password_strength_level("123"),
-            PasswordStrength::VeryWeak
-        );
-        assert_eq!(
-            manager.get_password_strength_level("password"),
-            PasswordStrength::VeryWeak
-        );
-        assert_eq!(
-            manager.get_password_strength_level("Password1"),
-            PasswordStrength::Weak
-        );
-        assert_eq!(
-            manager.get_password_strength_level("MyUniqueP@ssw0rd91"),
-            PasswordStrength::Strong
-        );
     }
 
     #[test]
@@ -693,21 +542,9 @@ mod tests {
     }
 
     #[test]
-    fn test_password_generation() {
-        let password = generate_secure_password(16);
-        assert_eq!(password.len(), 16);
-
-        let temp_password = generate_temporary_password(8);
-        assert_eq!(temp_password.len(), 8);
-
-        // 生成されたパスワードが異なることを確認
-        let password2 = generate_secure_password(16);
-        assert_ne!(password, password2);
-    }
-
-    #[test]
     fn test_admin_password_hash() {
-        let manager = PasswordManager::new_default().unwrap();
+        let manager =
+            PasswordManager::new(Argon2Config::default(), PasswordPolicy::default()).unwrap();
         let password = "Adm1n$ecurE2024!";
         let hash = manager.hash_password(password).unwrap();
         println!("Admin password hash: {}", hash);

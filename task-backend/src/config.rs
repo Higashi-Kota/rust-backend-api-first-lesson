@@ -94,7 +94,7 @@ impl AppConfig {
         let server = ServerConfig::from_env(&environment)?;
         let database = DatabaseConfig::from_env()?;
         let jwt = JwtConfig::from_env().map_err(|e| ConfigError::Validation(e.to_string()))?;
-        let email = EmailConfig::from_env().map_err(|e| ConfigError::Validation(e.to_string()))?;
+        let email = EmailConfig::default();
         let password = PasswordConfig::from_env()?;
         let security = SecurityConfig::from_env(&environment)?;
 
