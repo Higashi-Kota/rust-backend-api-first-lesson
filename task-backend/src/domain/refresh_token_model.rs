@@ -69,37 +69,7 @@ impl ActiveModelBehavior for ActiveModel {
 }
 
 // リフレッシュトークン用の便利メソッド実装
-#[allow(dead_code)]
-impl Model {
-    /// トークンが有効かどうかをチェック
-    pub fn is_valid(&self) -> bool {
-        !self.is_revoked && self.expires_at > Utc::now()
-    }
-
-    /// トークンが期限切れかどうかをチェック
-    pub fn is_expired(&self) -> bool {
-        self.expires_at <= Utc::now()
-    }
-
-    /// トークンが無効化されているかどうかをチェック
-    pub fn is_revoked(&self) -> bool {
-        self.is_revoked
-    }
-
-    /// トークンの有効期限までの残り時間を取得（秒）
-    pub fn time_to_expiry(&self) -> Option<i64> {
-        if self.is_expired() {
-            None
-        } else {
-            Some((self.expires_at - Utc::now()).num_seconds())
-        }
-    }
-
-    /// トークンが指定された時間内に期限切れになるかチェック
-    pub fn expires_within(&self, duration: chrono::Duration) -> bool {
-        self.expires_at <= Utc::now() + duration
-    }
-}
+// TODO.md Phase 1.1/1.2で必要な機能のみ保持
 
 /// リフレッシュトークンの作成用構造体
 #[derive(Debug, Clone)]
@@ -146,7 +116,6 @@ impl From<Model> for SafeRefreshToken {
 
 /// リフレッシュトークンの統計情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(dead_code)]
 pub struct RefreshTokenStats {
     pub total_tokens: u64,
     pub active_tokens: u64,
@@ -156,37 +125,13 @@ pub struct RefreshTokenStats {
 
 /// リフレッシュトークンのクリーンアップ結果
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CleanupResult {
     pub deleted_count: u64,
 }
 
-/// トークンローテーション用の結果
+/// 全トークン無効化の結果
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct TokenRotationResult {
-    pub old_token_revoked: bool,
-    pub new_token_created: bool,
-}
-
-/// リフレッシュトークンの設定
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct RefreshTokenConfig {
-    /// トークンの有効期間（デフォルト7日）
-    pub validity_duration: chrono::Duration,
-    /// 自動クリーンアップの閾値（デフォルト30日）
-    pub cleanup_threshold: chrono::Duration,
-    /// ユーザーあたりの最大トークン数（デフォルト5）
-    pub max_tokens_per_user: u32,
-}
-
-impl Default for RefreshTokenConfig {
-    fn default() -> Self {
-        Self {
-            validity_duration: chrono::Duration::days(7),
-            cleanup_threshold: chrono::Duration::days(30),
-            max_tokens_per_user: 5,
-        }
-    }
+pub struct RevokeAllResult {
+    pub revoked_count: u64,
+    pub affected_users: u64,
 }

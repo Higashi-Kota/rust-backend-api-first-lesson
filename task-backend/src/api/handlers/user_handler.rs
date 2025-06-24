@@ -439,6 +439,279 @@ pub async fn update_account_status_handler(
 
 // --- 管理者用ユーザー管理 ---
 
+/// 高度なユーザー検索（管理者用）
+pub async fn advanced_search_users_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(query): Query<UserSearchQuery>,
+) -> AppResult<Json<UserListResponse>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        warn!(
+            user_id = %admin_user.user_id(),
+            role = ?admin_user.role().map(|r| &r.name),
+            "Access denied: Admin permission required for advanced user search"
+        );
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    let query_with_defaults = query.with_defaults();
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        page = ?query_with_defaults.page,
+        per_page = ?query_with_defaults.per_page,
+        query = ?query_with_defaults.q,
+        "Advanced user search request"
+    );
+
+    // 詳細検索機能付きでユーザー一覧を取得
+    let (users_with_roles, total_count) = app_state
+        .user_service
+        .list_users_with_roles_paginated(
+            query_with_defaults.page.unwrap_or(1),
+            query_with_defaults.per_page.unwrap_or(20),
+        )
+        .await?;
+
+    let page = query_with_defaults.page.unwrap_or(1);
+    let per_page = query_with_defaults.per_page.unwrap_or(20);
+
+    // SafeUserWithRoleをUserSummaryに変換
+    let user_summaries: Vec<UserSummary> = users_with_roles
+        .into_iter()
+        .map(|user_with_role| UserSummary {
+            id: user_with_role.id,
+            username: user_with_role.username,
+            email: user_with_role.email,
+            is_active: user_with_role.is_active,
+            email_verified: user_with_role.email_verified,
+            created_at: user_with_role.created_at,
+            last_login_at: user_with_role.last_login_at,
+            task_count: 0, // TODO: タスク数を取得
+        })
+        .collect();
+
+    Ok(Json(UserListResponse::new(
+        user_summaries,
+        page,
+        per_page,
+        total_count as i64,
+    )))
+}
+
+/// ユーザー分析ダッシュボード（管理者用）
+pub async fn get_user_analytics_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+) -> AppResult<Json<UserAnalyticsResponse>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        warn!(
+            user_id = %admin_user.user_id(),
+            role = ?admin_user.role().map(|r| &r.name),
+            "Access denied: Admin permission required for user analytics"
+        );
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        "User analytics request"
+    );
+
+    // ユーザー統計を取得
+    let stats = app_state
+        .user_service
+        .get_user_stats_for_analytics()
+        .await?;
+
+    // ロール別統計を取得
+    let role_stats = app_state.user_service.get_user_stats_by_role().await?;
+
+    Ok(Json(UserAnalyticsResponse {
+        stats,
+        role_stats,
+        message: "User analytics retrieved successfully".to_string(),
+    }))
+}
+
+/// ロール別ユーザー取得（管理者用）
+pub async fn get_users_by_role_handler(
+    State(app_state): State<AppState>,
+    Path(role): Path<String>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(query): Query<UserSearchQuery>,
+) -> AppResult<Json<UserListResponse>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        warn!(
+            user_id = %admin_user.user_id(),
+            role = ?admin_user.role().map(|r| &r.name),
+            "Access denied: Admin permission required for role-based user search"
+        );
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    let query_with_defaults = query.with_defaults();
+    let page = query_with_defaults.page.unwrap_or(1);
+    let per_page = query_with_defaults.per_page.unwrap_or(20);
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        role = %role,
+        "Role-based user search request"
+    );
+
+    // ロール別ユーザーを取得
+    let users = app_state.user_service.find_by_role_name(&role).await?;
+    let total_count = users.len() as u64;
+
+    // ページネーション適用
+    let start = ((page - 1) * per_page) as usize;
+    let end = (start + per_page as usize).min(users.len());
+    let paginated_users = users
+        .into_iter()
+        .skip(start)
+        .take(end - start)
+        .collect::<Vec<_>>();
+
+    // SafeUserWithRoleをUserSummaryに変換
+    let user_summaries: Vec<UserSummary> = paginated_users
+        .into_iter()
+        .map(|user_with_role| UserSummary {
+            id: user_with_role.id,
+            username: user_with_role.username,
+            email: user_with_role.email,
+            is_active: user_with_role.is_active,
+            email_verified: user_with_role.email_verified,
+            created_at: user_with_role.created_at,
+            last_login_at: user_with_role.last_login_at,
+            task_count: 0, // TODO: タスク数を取得
+        })
+        .collect();
+
+    Ok(Json(UserListResponse::new(
+        user_summaries,
+        page,
+        per_page,
+        total_count as i64,
+    )))
+}
+
+/// サブスクリプション別ユーザー分析（管理者用）
+pub async fn get_users_by_subscription_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(query): Query<SubscriptionQuery>,
+) -> AppResult<Json<SubscriptionAnalyticsResponse>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        warn!(
+            user_id = %admin_user.user_id(),
+            role = ?admin_user.role().map(|r| &r.name),
+            "Access denied: Admin permission required for subscription analytics"
+        );
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        "Subscription analytics request"
+    );
+
+    // サブスクリプション階層別の分析を実装
+    let tier = query.tier.unwrap_or_else(|| "all".to_string());
+
+    let analytics = if tier == "all" {
+        app_state.user_service.get_subscription_analytics().await?
+    } else {
+        app_state
+            .user_service
+            .get_subscription_analytics_by_tier(&tier)
+            .await?
+    };
+
+    Ok(Json(SubscriptionAnalyticsResponse {
+        tier,
+        analytics,
+        message: "Subscription analytics retrieved successfully".to_string(),
+    }))
+}
+
+/// 一括ユーザー操作（管理者用）
+pub async fn bulk_user_operations_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Json(payload): Json<BulkUserOperationsRequest>,
+) -> AppResult<Json<BulkOperationResponse>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        warn!(
+            user_id = %admin_user.user_id(),
+            role = ?admin_user.role().map(|r| &r.name),
+            "Access denied: Admin permission required for bulk operations"
+        );
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    // バリデーション
+    payload.validate().map_err(|validation_errors| {
+        warn!("Bulk operations validation failed: {}", validation_errors);
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        operation = %payload.operation,
+        user_ids_count = %payload.user_ids.len(),
+        notify_users = %payload.notify_users.unwrap_or(false),
+        "Bulk user operations request"
+    );
+
+    let start_time = std::time::Instant::now();
+
+    // 一括操作を実行（拡張版）
+    let result = app_state
+        .user_service
+        .bulk_user_operations_extended(
+            &payload.operation,
+            &payload.user_ids,
+            payload.parameters.as_ref(),
+            payload.notify_users.unwrap_or(false),
+        )
+        .await?;
+
+    let execution_time = start_time.elapsed().as_millis() as u64;
+    let operation_id = uuid::Uuid::new_v4().to_string();
+
+    Ok(Json(BulkOperationResponse {
+        operation_id,
+        operation: payload.operation.to_string(),
+        total_users: payload.user_ids.len(),
+        successful_operations: result.successful,
+        failed_operations: result.failed,
+        errors: result.errors,
+        message: format!("Bulk operation '{}' completed", payload.operation),
+        results: result.results,
+        execution_time_ms: execution_time,
+        executed_at: chrono::Utc::now().to_rfc3339(),
+    }))
+}
+
 /// ユーザー一覧取得（管理者用）
 pub async fn list_users_handler(
     State(app_state): State<AppState>,
@@ -621,8 +894,25 @@ pub fn user_router(app_state: AppState) -> Router {
         )
         // ユーティリティ
         .route("/users/update-last-login", post(update_last_login_handler))
-        // 管理者用エンドポイント
+        // 管理者用エンドポイント - Phase 1.1 高度なユーザー管理 API
         .route("/admin/users", get(list_users_handler))
+        .route(
+            "/admin/users/advanced-search",
+            get(advanced_search_users_handler),
+        )
+        .route("/admin/users/analytics", get(get_user_analytics_handler))
+        .route(
+            "/admin/users/by-role/{role}",
+            get(get_users_by_role_handler),
+        )
+        .route(
+            "/admin/users/by-subscription",
+            get(get_users_by_subscription_handler),
+        )
+        .route(
+            "/admin/users/bulk-operations",
+            post(bulk_user_operations_handler),
+        )
         .route("/admin/users/{id}", get(get_user_by_id_handler))
         .route(
             "/admin/users/{id}/status",

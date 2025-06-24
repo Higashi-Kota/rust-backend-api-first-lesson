@@ -254,20 +254,17 @@ async fn test_bulk_user_operation_admin() {
     let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify response structure
-    assert!(body["data"]["operation_id"].is_string());
-    assert_eq!(
-        body["data"]["operation"].as_str(),
-        Some("UpdateSubscription")
-    );
-    assert_eq!(body["data"]["total_users"].as_u64(), Some(2));
-    assert!(body["data"]["successful_operations"].is_number());
-    assert!(body["data"]["failed_operations"].is_number());
-    assert!(body["data"]["results"].is_array());
-    assert!(body["data"]["execution_time_ms"].is_number());
-    assert!(body["data"]["executed_at"].is_string());
+    assert!(body["operation_id"].is_string());
+    assert_eq!(body["operation"].as_str(), Some("update_subscription"));
+    assert_eq!(body["total_users"].as_u64(), Some(2));
+    assert!(body["successful_operations"].is_number());
+    assert!(body["failed_operations"].is_number());
+    assert!(body["results"].is_array());
+    assert!(body["execution_time_ms"].is_number());
+    assert!(body["executed_at"].is_string());
 
     // Verify results structure
-    let results = body["data"]["results"].as_array().unwrap();
+    let results = body["results"].as_array().unwrap();
     assert_eq!(results.len(), 2);
 
     for result in results {
@@ -277,8 +274,8 @@ async fn test_bulk_user_operation_admin() {
     }
 
     // Check that we have both successful and potentially failed operations
-    let total_operations = body["data"]["successful_operations"].as_u64().unwrap()
-        + body["data"]["failed_operations"].as_u64().unwrap();
+    let total_operations = body["successful_operations"].as_u64().unwrap()
+        + body["failed_operations"].as_u64().unwrap();
     assert_eq!(total_operations, 2);
 }
 

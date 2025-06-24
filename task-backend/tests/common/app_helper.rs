@@ -112,6 +112,13 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         ),
     );
 
+    // Security services
+    let security_service = std::sync::Arc::new(
+        task_backend::service::security_service::SecurityService::new(
+            std::sync::Arc::new(task_backend::repository::refresh_token_repository::RefreshTokenRepository::new(db.connection.clone())),
+            std::sync::Arc::new(task_backend::repository::password_reset_token_repository::PasswordResetTokenRepository::new(db.connection.clone())),
+        )
+    );
     let app_state = AppState::with_config(
         auth_service,
         user_service,
@@ -120,6 +127,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         team_service,
         organization_service,
         subscription_service,
+        security_service,
         email_service,
         jwt_manager,
         &app_config,
@@ -128,7 +136,8 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     // ルーターを作成して統合
     let app = Router::new()
         .merge(auth_handler::auth_router(app_state.clone()))
-        .merge(user_handler::user_router(app_state));
+        .merge(user_handler::user_router(app_state.clone()))
+        .merge(task_backend::api::handlers::security_handler::security_router(app_state));
 
     (app, schema_name, db)
 }
@@ -214,6 +223,13 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         ),
     );
 
+    // Security services
+    let security_service = Arc::new(
+        task_backend::service::security_service::SecurityService::new(
+            Arc::new(RefreshTokenRepository::new(db.connection.clone())),
+            Arc::new(PasswordResetTokenRepository::new(db.connection.clone())),
+        ),
+    );
     // 統一されたAppStateの作成
     let app_state = AppState::with_config(
         auth_service,
@@ -223,6 +239,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         team_service,
         organization_service,
         subscription_service,
+        security_service,
         email_service,
         jwt_manager.clone(),
         &app_config,
@@ -270,8 +287,11 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
             ),
         )
         .merge(
-            task_backend::api::handlers::analytics_handler::analytics_router_with_state(app_state),
+            task_backend::api::handlers::analytics_handler::analytics_router_with_state(
+                app_state.clone(),
+            ),
         )
+        .merge(task_backend::api::handlers::security_handler::security_router(app_state))
         .layer(axum_middleware::from_fn_with_state(
             auth_middleware_config,
             jwt_auth_middleware,

@@ -34,7 +34,8 @@
       "Bash(make:*)",
       "Bash(RUST_BACKTRACE=full EMAIL_DEVELOPMENT_MODE=false make run 2 >& 1)",
       "Bash(EMAIL_DEVELOPMENT_MODE=true make run 2 >& 1)",
-      "Bash(nslookup:*)"
+      "Bash(nslookup:*)",
+      "Bash(rm:*)"
     ],
     "deny": [
       "Bash(docker:*)"
