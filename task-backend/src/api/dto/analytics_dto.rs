@@ -344,16 +344,6 @@ pub struct UserBehaviorAnalyticsQuery {
     pub include_comparisons: Option<bool>,
 }
 
-/// バルクユーザー操作リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct BulkUserOperationRequest {
-    #[validate(length(min = 1, message = "At least one user ID is required"))]
-    pub user_ids: Vec<Uuid>,
-    pub operation: BulkUserOperation,
-    pub parameters: Option<serde_json::Value>,
-    pub notify_users: Option<bool>,
-}
-
 /// 高度なエクスポートリクエスト
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct AdvancedExportRequest {
@@ -384,19 +374,6 @@ pub struct UserBehaviorAnalyticsResponse {
     pub generated_at: DateTime<Utc>,
 }
 
-/// バルクユーザー操作レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BulkUserOperationResponse {
-    pub operation_id: Uuid,
-    pub operation: BulkUserOperation,
-    pub total_users: u32,
-    pub successful_operations: u32,
-    pub failed_operations: u32,
-    pub results: Vec<BulkOperationResult>,
-    pub execution_time_ms: u64,
-    pub executed_at: DateTime<Utc>,
-}
-
 /// 高度なエクスポート結果レスポンス
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AdvancedExportResponse {
@@ -413,20 +390,6 @@ pub struct AdvancedExportResponse {
 }
 
 // --- Supporting Enums and Structures ---
-
-/// バルクユーザー操作種別
-#[derive(Debug, Serialize, Deserialize)]
-pub enum BulkUserOperation {
-    UpdateSubscription,
-    DeactivateUsers,
-    ReactivateUsers,
-    UpdateRoles,
-    SendNotification,
-    ResetPasswords,
-    ExportUserData,
-    BulkDelete,
-    BulkInvite,
-}
 
 /// エクスポート種別
 #[derive(Debug, Serialize, Deserialize)]
@@ -535,16 +498,6 @@ pub struct UserRecommendation {
     pub priority: RecommendationPriority,
     pub expected_impact: String,
     pub action_url: Option<String>,
-}
-
-/// バルク操作結果
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BulkOperationResult {
-    pub user_id: Uuid,
-    pub success: bool,
-    pub message: String,
-    pub details: Option<serde_json::Value>,
-    pub error_code: Option<String>,
 }
 
 /// エクスポートフィルター

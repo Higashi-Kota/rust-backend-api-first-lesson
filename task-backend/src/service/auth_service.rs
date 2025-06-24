@@ -1,7 +1,6 @@
 // task-backend/src/service/auth_service.rs
 use crate::api::dto::auth_dto::*;
 use crate::domain::email_verification_token_model::TokenValidationError as EmailTokenValidationError;
-use crate::domain::password_reset_token_model::TokenValidationError;
 use crate::domain::refresh_token_model::CreateRefreshToken;
 use crate::domain::role_model::RoleName;
 use crate::domain::user_model::UserClaims;
@@ -497,8 +496,7 @@ impl AuthService {
 
         info!(
             user_id = %user.id,
-            token_id = %result.token_id,
-            old_tokens_invalidated = %result.old_tokens_invalidated,
+            result = %result,
             "Password reset token created"
         );
 
@@ -547,35 +545,19 @@ impl AuthService {
             .validate_password_strength(&reset_data.new_password)
             .map_err(|e| AppError::ValidationError(e.to_string()))?;
 
-        // パスワードリセットトークンの検証と実行
+        // パスワードリセットトークンの検証と実行（user_idを取得）
         let reset_result = self
             .password_reset_token_repo
             .execute_password_reset(&reset_data.token)
             .await?;
 
-        let reset_result = match reset_result {
-            Ok(result) => result,
-            Err(TokenValidationError::NotFound) => {
-                warn!("Password reset with invalid token");
+        let user_id = match reset_result {
+            Ok(user_id) => user_id,
+            Err(error_msg) => {
+                warn!(error = %error_msg, "Password reset with invalid token");
                 return Err(AppError::ValidationError(
                     "Invalid or expired reset token".to_string(),
                 ));
-            }
-            Err(TokenValidationError::Expired) => {
-                warn!("Password reset with expired token");
-                return Err(AppError::ValidationError(
-                    "Reset token has expired".to_string(),
-                ));
-            }
-            Err(TokenValidationError::AlreadyUsed) => {
-                warn!("Password reset with already used token");
-                return Err(AppError::ValidationError(
-                    "Reset token has already been used".to_string(),
-                ));
-            }
-            Err(e) => {
-                error!(error = %e, "Password reset token validation failed");
-                return Err(AppError::ValidationError("Invalid reset token".to_string()));
             }
         };
 
@@ -587,27 +569,33 @@ impl AuthService {
                 AppError::InternalServerError(format!("Password hashing failed: {}", e))
             })?;
 
+        // ユーザーをIDで取得してパスワードを更新
+        let user = self
+            .user_repo
+            .find_by_id(user_id)
+            .await?
+            .ok_or_else(|| AppError::ValidationError("User not found".to_string()))?;
+
         // パスワードを更新
         self.user_repo
-            .update_password_hash(reset_result.user_id, new_password_hash)
+            .update_password_hash(user.id, new_password_hash)
             .await?
             .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
         // 全リフレッシュトークンを無効化（セキュリティ上）
         let revoked_count = self
             .refresh_token_repo
-            .revoke_all_user_tokens(reset_result.user_id)
+            .revoke_all_user_tokens(user.id)
             .await?;
 
         info!(
-            user_id = %reset_result.user_id,
-            token_id = %reset_result.token_id,
+            user_id = %user.id,
             revoked_tokens = %revoked_count,
             "Password reset completed successfully"
         );
 
         // パスワードリセット完了のセキュリティ通知メールを送信
-        if let Ok(Some(user)) = self.user_repo.find_by_id(reset_result.user_id).await {
+        {
             let current_time = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC");
             let reset_details = format!(
                 "Password was reset using security token at {}",
@@ -625,14 +613,14 @@ impl AuthService {
                 .await
             {
                 error!(
-                    user_id = %reset_result.user_id,
+                    user_id = %user.id,
                     email = %user.email,
                     error = %e,
                     "Failed to send password reset completion notification"
                 );
             } else {
                 info!(
-                    user_id = %reset_result.user_id,
+                    user_id = %user.id,
                     email = %user.email,
                     "Password reset completion notification sent successfully"
                 );

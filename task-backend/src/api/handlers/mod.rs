@@ -4,6 +4,7 @@ pub mod auth_handler;
 pub mod organization_handler;
 pub mod permission_handler;
 pub mod role_handler;
+pub mod security_handler;
 pub mod subscription_handler;
 pub mod task_handler;
 pub mod team_handler;

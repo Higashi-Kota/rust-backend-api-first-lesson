@@ -2,8 +2,9 @@
 use crate::config::AppConfig;
 use crate::service::{
     auth_service::AuthService, organization_service::OrganizationService,
-    role_service::RoleService, subscription_service::SubscriptionService,
-    task_service::TaskService, team_service::TeamService, user_service::UserService,
+    role_service::RoleService, security_service::SecurityService,
+    subscription_service::SubscriptionService, task_service::TaskService,
+    team_service::TeamService, user_service::UserService,
 };
 use crate::utils::email::EmailService;
 use crate::utils::jwt::JwtManager;
@@ -22,6 +23,7 @@ pub struct AppState {
     pub team_service: Arc<TeamService>,
     pub organization_service: Arc<OrganizationService>,
     pub subscription_service: Arc<SubscriptionService>,
+    pub security_service: Arc<SecurityService>,
     #[allow(dead_code)]
     pub email_service: Arc<EmailService>,
     pub jwt_manager: Arc<JwtManager>,
@@ -96,6 +98,7 @@ impl AppState {
         team_service: Arc<TeamService>,
         organization_service: Arc<OrganizationService>,
         subscription_service: Arc<SubscriptionService>,
+        security_service: Arc<SecurityService>,
         email_service: Arc<EmailService>,
         jwt_manager: Arc<JwtManager>,
     ) -> Self {
@@ -107,6 +110,7 @@ impl AppState {
             team_service,
             organization_service,
             subscription_service,
+            security_service,
             email_service,
             jwt_manager,
             cookie_config: CookieConfig::default(),
@@ -123,6 +127,7 @@ impl AppState {
         team_service: Arc<TeamService>,
         organization_service: Arc<OrganizationService>,
         subscription_service: Arc<SubscriptionService>,
+        security_service: Arc<SecurityService>,
         email_service: Arc<EmailService>,
         jwt_manager: Arc<JwtManager>,
         app_config: &AppConfig,
@@ -135,6 +140,7 @@ impl AppState {
             team_service,
             organization_service,
             subscription_service,
+            security_service,
             email_service,
             jwt_manager,
             cookie_config: CookieConfig::from_app_config(app_config),

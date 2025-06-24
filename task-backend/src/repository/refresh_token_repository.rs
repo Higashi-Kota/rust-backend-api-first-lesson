@@ -3,11 +3,11 @@
 use crate::db;
 use crate::domain::refresh_token_model::{
     self, ActiveModel as RefreshTokenActiveModel, CleanupResult, CreateRefreshToken,
-    Entity as RefreshTokenEntity, RefreshTokenStats, TokenRotationResult,
+    Entity as RefreshTokenEntity, RefreshTokenStats, RevokeAllResult,
 };
 use chrono::Utc;
 use sea_orm::entity::*;
-use sea_orm::{query::*, DbConn, DbErr, DeleteResult, Set};
+use sea_orm::{query::*, DbConn, DbErr, Set};
 use sea_orm::{Condition, Order, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
@@ -16,12 +16,12 @@ pub struct RefreshTokenRepository {
     schema: Option<String>,
 }
 
-#[allow(dead_code)]
 impl RefreshTokenRepository {
     pub fn new(db: DbConn) -> Self {
         Self { db, schema: None }
     }
 
+    #[allow(dead_code)] // テスト環境でのスキーマ分離に使用
     pub fn with_schema(db: DbConn, schema: String) -> Self {
         Self {
             db,
@@ -38,12 +38,6 @@ impl RefreshTokenRepository {
     }
 
     // --- 基本CRUD操作 ---
-
-    /// リフレッシュトークンをIDで検索
-    pub async fn find_by_id(&self, id: Uuid) -> Result<Option<refresh_token_model::Model>, DbErr> {
-        self.prepare_connection().await?;
-        RefreshTokenEntity::find_by_id(id).one(&self.db).await
-    }
 
     /// リフレッシュトークンをトークンハッシュで検索
     pub async fn find_by_token_hash(
@@ -89,26 +83,6 @@ impl RefreshTokenRepository {
             .await
     }
 
-    /// ユーザーの有効なリフレッシュトークンを取得
-    pub async fn find_active_by_user_id(
-        &self,
-        user_id: Uuid,
-    ) -> Result<Vec<refresh_token_model::Model>, DbErr> {
-        self.prepare_connection().await?;
-        let now = Utc::now();
-
-        RefreshTokenEntity::find()
-            .filter(
-                Condition::all()
-                    .add(refresh_token_model::Column::UserId.eq(user_id))
-                    .add(refresh_token_model::Column::IsRevoked.eq(false))
-                    .add(refresh_token_model::Column::ExpiresAt.gt(now)),
-            )
-            .order_by(refresh_token_model::Column::CreatedAt, Order::Desc)
-            .all(&self.db)
-            .await
-    }
-
     /// リフレッシュトークンを作成
     pub async fn create(
         &self,
@@ -124,24 +98,6 @@ impl RefreshTokenRepository {
         };
 
         new_token.insert(&self.db).await
-    }
-
-    /// リフレッシュトークンを無効化
-    pub async fn revoke_token(
-        &self,
-        id: Uuid,
-    ) -> Result<Option<refresh_token_model::Model>, DbErr> {
-        self.prepare_connection().await?;
-
-        let token = match RefreshTokenEntity::find_by_id(id).one(&self.db).await? {
-            Some(t) => t,
-            None => return Ok(None),
-        };
-
-        let mut active_model: RefreshTokenActiveModel = token.into();
-        active_model.is_revoked = Set(true);
-
-        Ok(Some(active_model.update(&self.db).await?))
     }
 
     /// トークンハッシュで無効化
@@ -179,57 +135,23 @@ impl RefreshTokenRepository {
         Ok(revoked_count)
     }
 
-    /// リフレッシュトークンを削除
-    pub async fn delete(&self, id: Uuid) -> Result<DeleteResult, DbErr> {
-        self.prepare_connection().await?;
-        RefreshTokenEntity::delete_by_id(id).exec(&self.db).await
-    }
+    // --- トークンローテーション（Phase 1.1/1.2で必要な機能のみ）---
 
-    // --- トークンローテーション ---
-
-    /// トークンローテーション（古いトークンを無効化し、新しいトークンを作成）
+    /// 簡易トークンローテーション
     pub async fn rotate_token(
         &self,
         old_token_hash: &str,
         new_token: CreateRefreshToken,
-    ) -> Result<Option<TokenRotationResult>, DbErr> {
+    ) -> Result<Option<bool>, DbErr> {
         self.prepare_connection().await?;
 
-        // トランザクション開始
-        let txn = self.db.begin().await?;
-
         // 古いトークンを無効化
-        let old_token_revoked = if let Some(old_token) = RefreshTokenEntity::find()
-            .filter(refresh_token_model::Column::TokenHash.eq(old_token_hash))
-            .one(&txn)
-            .await?
-        {
-            let mut active_model: RefreshTokenActiveModel = old_token.into();
-            active_model.is_revoked = Set(true);
-            active_model.update(&txn).await?;
-            true
-        } else {
-            false
-        };
+        self.revoke_by_token_hash(old_token_hash).await?;
 
         // 新しいトークンを作成
-        let new_token_model = RefreshTokenActiveModel {
-            user_id: Set(new_token.user_id),
-            token_hash: Set(new_token.token_hash),
-            expires_at: Set(new_token.expires_at),
-            ..RefreshTokenActiveModel::new()
-        };
+        self.create(new_token).await?;
 
-        let created_token = new_token_model.insert(&txn).await?;
-        let new_token_created = created_token.id != Uuid::nil();
-
-        // トランザクションコミット
-        txn.commit().await?;
-
-        Ok(Some(TokenRotationResult {
-            old_token_revoked,
-            new_token_created,
-        }))
+        Ok(Some(true))
     }
 
     // --- クリーンアップ機能 ---
@@ -261,53 +183,6 @@ impl RefreshTokenRepository {
         Ok(CleanupResult {
             deleted_count: delete_result.rows_affected,
         })
-    }
-
-    /// 古いトークンを削除（指定日数より古い）
-    pub async fn cleanup_old_tokens(&self, days_old: i64) -> Result<CleanupResult, DbErr> {
-        self.prepare_connection().await?;
-        let cutoff_date = Utc::now() - chrono::Duration::days(days_old);
-
-        let delete_result = RefreshTokenEntity::delete_many()
-            .filter(refresh_token_model::Column::CreatedAt.lt(cutoff_date))
-            .exec(&self.db)
-            .await?;
-
-        Ok(CleanupResult {
-            deleted_count: delete_result.rows_affected,
-        })
-    }
-
-    /// ユーザーのトークン数制限を強制（古いトークンから削除）
-    pub async fn enforce_user_token_limit(
-        &self,
-        user_id: Uuid,
-        max_tokens: u32,
-    ) -> Result<CleanupResult, DbErr> {
-        self.prepare_connection().await?;
-
-        let all_tokens = RefreshTokenEntity::find()
-            .filter(refresh_token_model::Column::UserId.eq(user_id))
-            .order_by(refresh_token_model::Column::CreatedAt, Order::Desc)
-            .all(&self.db)
-            .await?;
-
-        if all_tokens.len() <= max_tokens as usize {
-            return Ok(CleanupResult { deleted_count: 0 });
-        }
-
-        // 制限を超えた古いトークンを削除
-        let tokens_to_delete = &all_tokens[max_tokens as usize..];
-        let mut deleted_count = 0;
-
-        for token in tokens_to_delete {
-            RefreshTokenEntity::delete_by_id(token.id)
-                .exec(&self.db)
-                .await?;
-            deleted_count += 1;
-        }
-
-        Ok(CleanupResult { deleted_count })
     }
 
     // --- 統計情報 ---
@@ -346,20 +221,65 @@ impl RefreshTokenRepository {
         })
     }
 
-    /// ユーザー別のアクティブトークン数を取得
-    pub async fn get_user_active_token_count(&self, user_id: Uuid) -> Result<u64, DbErr> {
+    /// 全ユーザーのトークンを無効化
+    pub async fn revoke_all_tokens(&self) -> Result<RevokeAllResult, DbErr> {
         self.prepare_connection().await?;
-        let now = Utc::now();
 
-        RefreshTokenEntity::find()
+        // 有効なトークンのみを対象
+        let active_tokens = RefreshTokenEntity::find()
+            .filter(refresh_token_model::Column::IsRevoked.eq(false))
+            .all(&self.db)
+            .await?;
+
+        let mut revoked_count = 0;
+        let mut affected_users = std::collections::HashSet::new();
+
+        for token in active_tokens {
+            let mut active_model: RefreshTokenActiveModel = token.clone().into();
+            active_model.is_revoked = Set(true);
+            active_model.update(&self.db).await?;
+            revoked_count += 1;
+            affected_users.insert(token.user_id);
+        }
+
+        Ok(RevokeAllResult {
+            revoked_count,
+            affected_users: affected_users.len() as u64,
+        })
+    }
+
+    /// 特定ユーザーを除いて全トークンを無効化
+    pub async fn revoke_all_tokens_except_user(
+        &self,
+        exclude_user_id: Uuid,
+    ) -> Result<RevokeAllResult, DbErr> {
+        self.prepare_connection().await?;
+
+        // 指定ユーザー以外の有効なトークンを取得
+        let active_tokens = RefreshTokenEntity::find()
             .filter(
                 Condition::all()
-                    .add(refresh_token_model::Column::UserId.eq(user_id))
                     .add(refresh_token_model::Column::IsRevoked.eq(false))
-                    .add(refresh_token_model::Column::ExpiresAt.gt(now)),
+                    .add(refresh_token_model::Column::UserId.ne(exclude_user_id)),
             )
-            .count(&self.db)
-            .await
+            .all(&self.db)
+            .await?;
+
+        let mut revoked_count = 0;
+        let mut affected_users = std::collections::HashSet::new();
+
+        for token in active_tokens {
+            let mut active_model: RefreshTokenActiveModel = token.clone().into();
+            active_model.is_revoked = Set(true);
+            active_model.update(&self.db).await?;
+            revoked_count += 1;
+            affected_users.insert(token.user_id);
+        }
+
+        Ok(RevokeAllResult {
+            revoked_count,
+            affected_users: affected_users.len() as u64,
+        })
     }
 }
 

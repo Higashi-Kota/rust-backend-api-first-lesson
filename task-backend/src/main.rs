@@ -21,6 +21,7 @@ use crate::api::handlers::{
     organization_handler::organization_router_with_state,
     permission_handler::permission_router_with_state,
     role_handler::role_router_with_state,
+    security_handler::security_router,
     subscription_handler::subscription_router_with_state,
     task_handler::{admin_task_router, task_router_with_state},
     team_handler::team_router_with_state,
@@ -40,8 +41,9 @@ use crate::repository::{
 };
 use crate::service::{
     auth_service::AuthService, organization_service::OrganizationService,
-    role_service::RoleService, subscription_service::SubscriptionService,
-    task_service::TaskService, team_service::TeamService, user_service::UserService,
+    role_service::RoleService, security_service::SecurityService,
+    subscription_service::SubscriptionService, task_service::TaskService,
+    team_service::TeamService, user_service::UserService,
 };
 use crate::utils::{email::EmailService, jwt::JwtManager, password::PasswordManager};
 use axum::{middleware as axum_middleware, Router};
@@ -181,6 +183,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         UserRepository::new(db_pool.clone()),
     ));
 
+    // Security services creation
+    let security_service = Arc::new(SecurityService::new(
+        refresh_token_repo.clone(),
+        password_reset_token_repo.clone(),
+    ));
+
     tracing::info!("🎯 Business services created.");
 
     // 認証ミドルウェア設定
@@ -212,6 +220,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         team_service,
         organization_service,
         subscription_service,
+        security_service,
         email_service,
         jwt_manager.clone(),
         &app_config,
@@ -227,6 +236,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let subscription_router = subscription_router_with_state(app_state.clone());
     let permission_router = permission_router_with_state(app_state.clone());
     let analytics_router = analytics_router_with_state(app_state.clone());
+    let security_router = security_router(app_state.clone());
     let admin_router = admin_task_router(app_state.clone());
 
     // メインアプリケーションルーターの構築
@@ -240,6 +250,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(subscription_router)
         .merge(permission_router)
         .merge(analytics_router)
+        .merge(security_router)
         .merge(admin_router)
         .route(
             "/",

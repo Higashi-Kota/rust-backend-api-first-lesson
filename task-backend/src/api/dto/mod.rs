@@ -5,6 +5,7 @@ pub mod common;
 pub mod organization_dto;
 pub mod permission_dto;
 pub mod role_dto;
+pub mod security_dto;
 pub mod subscription_dto;
 pub mod task_dto;
 pub mod team_dto;

@@ -362,6 +362,137 @@ impl UserAdditionalInfo {
 
 // --- バリデーション用の正規表現 ---
 
+// --- 新規API用のDTO ---
+
+/// サブスクリプション分析クエリ
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct SubscriptionQuery {
+    pub tier: Option<String>,
+}
+
+/// ユーザー分析レスポンス
+#[derive(Debug, Clone, Serialize)]
+pub struct UserAnalyticsResponse {
+    pub stats: UserStats,
+    pub role_stats: Vec<RoleUserStats>,
+    pub message: String,
+}
+
+/// ロール別ユーザー統計
+#[derive(Debug, Clone, Serialize)]
+pub struct RoleUserStats {
+    pub role_name: String,
+    pub role_display_name: String,
+    pub total_users: u64,
+    pub active_users: u64,
+    pub verified_users: u64,
+}
+
+/// サブスクリプション分析レスポンス
+#[derive(Debug, Clone, Serialize)]
+pub struct SubscriptionAnalyticsResponse {
+    pub tier: String,
+    pub analytics: SubscriptionAnalytics,
+    pub message: String,
+}
+
+/// サブスクリプション分析データ
+#[derive(Debug, Clone, Serialize)]
+pub struct SubscriptionAnalytics {
+    pub total_users: u64,
+    pub free_users: u64,
+    pub pro_users: u64,
+    pub enterprise_users: u64,
+    pub conversion_rate: f64,
+}
+
+/// ユーザーアクティビティ統計レスポンス
+#[derive(Debug, Clone, Serialize)]
+pub struct UserActivityStatsResponse {
+    pub stats: UserActivityStats,
+    pub message: String,
+}
+
+/// ユーザーアクティビティ統計
+#[derive(Debug, Clone, Serialize)]
+pub struct UserActivityStats {
+    pub total_logins_today: u64,
+    pub total_logins_week: u64,
+    pub total_logins_month: u64,
+    pub active_users_today: u64,
+    pub active_users_week: u64,
+    pub active_users_month: u64,
+    pub average_session_duration: f64,
+}
+
+/// 一括ユーザー操作リクエスト
+#[derive(Debug, Clone, Deserialize, Validate)]
+pub struct BulkUserOperationsRequest {
+    #[validate(length(min = 1, message = "At least one user ID is required"))]
+    pub user_ids: Vec<Uuid>,
+
+    pub operation: BulkUserOperation,
+    pub parameters: Option<serde_json::Value>,
+    pub notify_users: Option<bool>,
+}
+
+/// 一括操作の種類
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum BulkUserOperation {
+    // 基本操作
+    Activate,
+    Deactivate,
+    UpdateRole,
+    UpdateSubscription,
+    // 高度な操作
+    SendNotification,
+    ResetPasswords,
+    ExportUserData,
+    BulkDelete,
+    BulkInvite,
+}
+
+impl std::fmt::Display for BulkUserOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            BulkUserOperation::Activate => "activate",
+            BulkUserOperation::Deactivate => "deactivate",
+            BulkUserOperation::UpdateRole => "update_role",
+            BulkUserOperation::UpdateSubscription => "update_subscription",
+            BulkUserOperation::SendNotification => "send_notification",
+            BulkUserOperation::ResetPasswords => "reset_passwords",
+            BulkUserOperation::ExportUserData => "export_user_data",
+            BulkUserOperation::BulkDelete => "bulk_delete",
+            BulkUserOperation::BulkInvite => "bulk_invite",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+/// 一括操作レスポンス
+#[derive(Debug, Clone, Serialize)]
+pub struct BulkOperationResponse {
+    pub operation_id: String,
+    pub operation: String,
+    pub total_users: usize,
+    pub successful_operations: usize,
+    pub failed_operations: usize,
+    pub errors: Vec<String>,
+    pub message: String,
+    pub results: Option<serde_json::Value>,
+    pub execution_time_ms: u64,
+    pub executed_at: String,
+}
+
+/// 一括操作結果
+#[derive(Debug, Clone)]
+pub struct BulkOperationResult {
+    pub successful: usize,
+    pub failed: usize,
+    pub errors: Vec<String>,
+    pub results: Option<serde_json::Value>,
+}
+
 // --- テスト用ヘルパー ---
 
 #[cfg(test)]

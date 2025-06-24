@@ -761,117 +761,6 @@ pub async fn get_user_behavior_analytics_handler(
     )))
 }
 
-/// バルクユーザー操作を実行（管理者のみ）
-pub async fn bulk_user_operation_handler(
-    State(_app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Json(payload): Json<BulkUserOperationRequest>,
-) -> AppResult<Json<ApiResponse<BulkUserOperationResponse>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            "Access denied: Admin permission required for bulk user operations"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
-    // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Bulk user operation validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
-
-    let operation_id = Uuid::new_v4();
-    let start_time = std::time::Instant::now();
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        operation_id = %operation_id,
-        operation = ?payload.operation,
-        user_count = %payload.user_ids.len(),
-        "Bulk user operation started"
-    );
-
-    // バルク操作をシミュレート
-    let mut results = Vec::new();
-    let mut successful_operations = 0;
-    let mut failed_operations = 0;
-
-    for user_id in &payload.user_ids {
-        // 個別ユーザー操作をシミュレート
-        let success = user_id.as_u128() % 10 != 0; // 90% success rate for simulation
-
-        if success {
-            successful_operations += 1;
-            results.push(BulkOperationResult {
-                user_id: *user_id,
-                success: true,
-                message: format!("Operation {:?} completed successfully", payload.operation),
-                details: Some(serde_json::json!({
-                    "operation": payload.operation,
-                    "timestamp": Utc::now(),
-                    "parameters": payload.parameters
-                })),
-                error_code: None,
-            });
-        } else {
-            failed_operations += 1;
-            results.push(BulkOperationResult {
-                user_id: *user_id,
-                success: false,
-                message: "Operation failed due to user constraints".to_string(),
-                details: None,
-                error_code: Some("USER_CONSTRAINT_VIOLATION".to_string()),
-            });
-        }
-    }
-
-    let execution_time_ms = start_time.elapsed().as_millis() as u64;
-
-    let response = BulkUserOperationResponse {
-        operation_id,
-        operation: payload.operation,
-        total_users: payload.user_ids.len() as u32,
-        successful_operations,
-        failed_operations,
-        results,
-        execution_time_ms,
-        executed_at: Utc::now(),
-    };
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        operation_id = %operation_id,
-        total_users = %response.total_users,
-        successful = %response.successful_operations,
-        failed = %response.failed_operations,
-        execution_time_ms = %response.execution_time_ms,
-        "Bulk user operation completed"
-    );
-
-    Ok(Json(ApiResponse::success(
-        "Bulk user operation completed",
-        response,
-    )))
-}
-
 /// 高度なエクスポートを実行
 pub async fn advanced_export_handler(
     State(_app_state): State<AppState>,
@@ -1103,10 +992,6 @@ pub fn analytics_router(app_state: AppState) -> Router {
         .route(
             "/analytics/behavior",
             get(get_user_behavior_analytics_handler),
-        )
-        .route(
-            "/admin/users/bulk-operations",
-            post(bulk_user_operation_handler),
         )
         .route("/exports/advanced", post(advanced_export_handler))
         .with_state(app_state)
