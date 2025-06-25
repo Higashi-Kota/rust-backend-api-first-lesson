@@ -32,13 +32,33 @@ pub enum Relation {
         to = "crate::domain::user_model::Column::Id"
     )]
     Owner,
+    #[sea_orm(
+        belongs_to = "super::organization_model::Entity",
+        from = "Column::OrganizationId",
+        to = "super::organization_model::Column::Id"
+    )]
+    Organization,
     #[sea_orm(has_many = "super::team_member_model::Entity")]
     TeamMembers,
+    #[sea_orm(has_many = "super::team_invitation_model::Entity")]
+    TeamInvitations,
 }
 
 impl Related<crate::domain::user_model::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Owner.def()
+    }
+}
+
+impl Related<super::organization_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Organization.def()
+    }
+}
+
+impl Related<super::team_invitation_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TeamInvitations.def()
     }
 }
 

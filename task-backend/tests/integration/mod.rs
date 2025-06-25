@@ -2,6 +2,7 @@
 
 pub mod analytics;
 pub mod auth;
+pub mod organization_hierarchy;
 pub mod permission;
 pub mod roles;
 pub mod security;

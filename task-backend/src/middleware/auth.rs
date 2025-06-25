@@ -133,6 +133,75 @@ impl AuthenticatedUser {
     pub fn is_member(&self) -> bool {
         self.claims.is_member()
     }
+
+    /// 組織読み取り権限をチェック
+    pub fn ensure_can_read_organization(
+        &self,
+        organization_id: uuid::Uuid,
+    ) -> Result<(), AppError> {
+        // 基本的には管理者またはその組織のメンバーなら読み取り可能
+        if self.is_admin() {
+            return Ok(());
+        }
+
+        // TODO: 実際の組織メンバーシップをチェックする実装
+        // 現在はプレースホルダー
+        if self.user_id() == organization_id {
+            Ok(())
+        } else {
+            Err(AppError::Forbidden(
+                "Cannot read organization data".to_string(),
+            ))
+        }
+    }
+
+    /// 組織管理権限をチェック
+    pub fn ensure_can_manage_organization(
+        &self,
+        organization_id: uuid::Uuid,
+    ) -> Result<(), AppError> {
+        // 管理者または組織の管理者なら管理可能
+        if self.is_admin() {
+            return Ok(());
+        }
+
+        // TODO: 実際の組織管理権限をチェックする実装
+        // 現在はプレースホルダー
+        if self.user_id() == organization_id {
+            Ok(())
+        } else {
+            Err(AppError::Forbidden(
+                "Cannot manage organization".to_string(),
+            ))
+        }
+    }
+
+    /// 組織または部門管理権限をチェック
+    pub fn ensure_can_manage_organization_or_department(
+        &self,
+        organization_id: uuid::Uuid,
+        department_id: uuid::Uuid,
+    ) -> Result<(), AppError> {
+        // 管理者なら全て可能
+        if self.is_admin() {
+            return Ok(());
+        }
+
+        // 組織管理権限があるかチェック
+        if self.ensure_can_manage_organization(organization_id).is_ok() {
+            return Ok(());
+        }
+
+        // TODO: 部門管理権限をチェックする実装
+        // 現在はプレースホルダー
+        if self.user_id() == department_id {
+            Ok(())
+        } else {
+            Err(AppError::Forbidden(
+                "Cannot manage organization or department".to_string(),
+            ))
+        }
+    }
 }
 
 #[allow(dead_code)]

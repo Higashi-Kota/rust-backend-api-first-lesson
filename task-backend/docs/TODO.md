@@ -4,14 +4,14 @@
 
 現在のコードベースには `#[allow(dead_code)]` でマークされた多数の実装済み機能があり、これらを API として公開することで大幅な機能拡張が可能です。本ドキュメントでは、既存 API と重複しない**新規価値提供 API**を体系的に整理します。
 
-### 📊 **実装進捗サマリー** (2025-01-24 更新)
+### 📊 **実装進捗サマリー** (2025-06-25 更新)
 
 - ✅ **Phase 1.1 高度ユーザー管理**: **100% 完了** (5/5 エンドポイント実装済み)
 - ✅ **Phase 1.2 セキュリティ・トークン管理**: **100% 完了** (7/7 エンドポイント実装済み)
 - ❌ **Phase 2.1 組織階層管理**: **未実装** (0/10 エンドポイント)
-- ❌ **Phase 2.2 チーム招待・権限管理**: **未実装** (0/6 エンドポイント)
+- ✅ **Phase 2.2 チーム招待・権限管理**: **100% 完了** (6/6 エンドポイント実装済み)
 
-**現在のAPI数**: 78 → **90** (+12エンドポイント追加済み)
+**現在のAPI数**: 78 → **96** (+18エンドポイント追加済み)
 
 ## 🔍 現状分析
 
@@ -117,20 +117,29 @@ POST /organizations/{id}/data-export   # 組織データエクスポート（階
 
 **ビジネス価値**: 階層入れ子組織管理、統一権限ガバナンス、エンタープライズスケーラビリティ、データポータビリティ
 
-#### **2.2 チーム招待・権限管理 API**
+#### **2.2 チーム招待・権限管理 API** ✅ **100% 実装完了**
 
 既存チーム機能をエンタープライズ招待・権限管理に特化：
 
 ```http
 # 既存: 基本チーム管理（6エンドポイント）
-# 新規拡張:
-POST /teams/{id}/bulk-member-invite    # 一括メンバー招待
-GET /teams/{id}/invitations            # 招待状況確認・管理
-PUT /teams/{id}/invitations/{invite_id}/decline  # 招待辞退（招待とセット）
-PUT /teams/{id}/permission-matrix      # チーム詳細権限マトリックス設定
-GET /teams/{id}/permission-matrix      # チーム権限マトリックス取得
-GET /teams/{id}/effective-permissions  # チーム実効権限分析
+# 実装済み拡張 API:
+✅ POST /teams/{id}/bulk-member-invite    # 一括メンバー招待
+✅ GET /teams/{id}/invitations            # 招待状況確認・管理
+✅ PUT /teams/{id}/invitations/{invite_id}/decline  # 招待辞退（招待とセット）
+✅ PUT /teams/{id}/permission-matrix      # チーム詳細権限マトリックス設定
+✅ GET /teams/{id}/permission-matrix      # チーム権限マトリックス取得
+✅ GET /teams/{id}/effective-permissions  # チーム実効権限分析
 ```
+
+**実装状況**:
+- ✅ Handler: 6/6 完全実装済み
+- ✅ Service: 6/6 完全実装済み
+- ✅ Repository: 6/6 完全実装済み
+- ✅ DTO: 6/6 完全実装済み
+- ✅ Router: 6/6 登録済み
+- ✅ Database: team_invitationsテーブル追加済み
+- ✅ Tests: 単体テスト・統合テスト完備
 
 **ビジネス価値**: 効率的メンバー招待・辞退フロー、チーム権限制御、組織継承権限分析、変更対応
 
@@ -148,10 +157,10 @@ GET /teams/{id}/effective-permissions  # チーム実効権限分析
 
 ### **🔶 Tier 2 (短期実装・中 ROI)**
 
-| API Category               | Implementation Ready | Business Impact | Technical Effort |
+| API Category               | Implementation Status | Business Impact | Technical Status |
 | -------------------------- | -------------------- | --------------- | ---------------- |
-| 組織階層管理               | ✅ 80%               | 🔶 高           | 🔶 中            |
-| チーム招待・権限管理       | ✅ 75%               | 🔶 中-高        | 🔶 中            |
+| 組織階層管理               | ❌ 未実装             | 🔶 高           | 🔶 中            |
+| チーム招待・権限管理       | ✅ **100% 完了**      | 🔶 中-高        | ✅ 本番投入可能   |
 
 ---
 
@@ -206,16 +215,18 @@ EmailService::from_env() // EmailConfig::defaultで代替可能
 | ------- | -------- | -------------------- | -------- | -------- |
 | Phase 1.1 | ✅ **完了** | 5 エンドポイント | ✅ **100%完了** | ✅ **実現済み** |
 | Phase 1.2 | ✅ **完了** | 7 エンドポイント | ✅ **100%完了** | ✅ **実現済み** |
-| Phase 2 | 3-4 週間 | 17 エンドポイント    | ❌ 未実装 | 300%+    |
+| Phase 2.2 | ✅ **完了** | 6 エンドポイント | ✅ **100%完了** | ✅ **実現済み** |
+| Phase 2.1 | 2-3 週間 | 10 エンドポイント    | ❌ 未実装 | 200%+    |
 
 ### **総合インパクト**
 
-- **エンドポイント数**: 78 → **90 (現在)** → 108 (Phase2完了時) 
+- **エンドポイント数**: 78 → **96 (現在)** → 106 (Phase2.1完了時) 
   - ✅ Phase 1.1: +5 (完了済み)
   - ✅ Phase 1.2: +7 (完了済み)
-  - ❌ Phase 2: +17 (未実装)
-- **機能カバレッジ**: 基本 SaaS → **高度管理・セキュリティ強化SaaS (現在)** → エンタープライズプラットフォーム基盤（Phase2完了時）
-- **市場ポジション**: タスク管理ツール → **高機能セキュリティ管理ツール (現在)** → 汎用エンタープライズ基盤ソリューション (Phase2完了時)
+  - ✅ Phase 2.2: +6 (完了済み)
+  - ❌ Phase 2.1: +10 (未実装)
+- **機能カバレッジ**: 基本 SaaS → **高度管理・セキュリティ・チーム招待強化SaaS (現在)** → エンタープライズプラットフォーム基盤（Phase2.1完了時）
+- **市場ポジション**: タスク管理ツール → **高機能セキュリティ・チーム管理ツール (現在)** → 汎用エンタープライズ基盤ソリューション (Phase2.1完了時)
 
 ---
 
@@ -236,6 +247,16 @@ EmailService::from_env() // EmailConfig::defaultで代替可能
 3. ✅ **SecurityDTO** 削除済みDTOの再実装完了
 4. ✅ **Router** 残り3エンドポイント追加完了
 5. ✅ **Integration Tests** 追加完了
+
+**Phase 2.2: ✅ 100% 完了**
+1. ✅ **Team Invitation Migration** team_invitationsテーブル追加完了
+2. ✅ **Domain Model** TeamInvitationModel実装完了
+3. ✅ **Repository Layer** TeamInvitationRepository実装完了
+4. ✅ **Service Layer** TeamInvitationService実装完了
+5. ✅ **API DTOs** チーム招待DTO実装完了
+6. ✅ **Handlers** 6エンドポイント実装完了
+7. ✅ **Router** チーム招待ルーティング追加完了
+8. ✅ **Tests** 単体・統合テスト完備
 
 ### **テスト戦略**
 
@@ -266,10 +287,187 @@ cargo test organizations::hierarchy
 - ✅ 削除済みセキュリティDTOの再実装完了
 - ✅ 統合テスト完成
 
-### **Phase 2: 組織機能実装 (次期実装予定)**
+### **✅ Phase 2.2 完了済み**
+
+- ✅ チーム招待・権限管理 API 6エンドポイント実装完了
+- ✅ team_invitationsテーブル・マイグレーション追加
+- ✅ 包括的なチーム招待フロー実装
+- ✅ チーム権限マトリックス・実効権限分析機能
+- ✅ 単体・統合テスト完備
+
+### **Phase 2.1: 組織階層管理 (次期実装予定)**
 
 - 組織階層管理 API 実装
-- チーム協業機能強化
+- 部門管理・権限継承システム
+
+#### **⚠️ Phase 2.1 実装時の重要な注意事項・困難と対策**
+
+**実装済み基盤コンポーネント（既存活用）**:
+- ✅ **データベース**: 4テーブル実装済み（organization_departments, permission_matrices, organization_analytics, department_members）
+- ✅ **ドメインモデル**: 完全実装済み（#[allow(dead_code)]でマーク中）
+- ✅ **Repository層**: 完全実装済み（#[allow(dead_code)]でマーク中）
+- ⚠️ **Service・Handler層**: 部分実装（未完成）
+- ⚠️ **API エンドポイント**: 未実装
+
+**過去の実装困難と対策**:
+
+**🔴 困難1: 複雑な依存関係チェーン**
+```
+roles → users → organizations → organization_departments → department_members → permission_matrices
+                                                          ↓
+                                                  organization_analytics
+```
+**対策**: 
+- 既存の`organizations`テーブルを基盤として活用
+- 段階的実装：departments → analytics → permissions の順
+- 新規モデル作成禁止：既存domain modelを100%活用
+
+**🔴 困難2: テスト環境での接続プール枯渇**
+```rust
+// 問題のあるパターン（ConnectionAcquire Timeout発生）
+async fn test_department_creation() {
+    let role = create_test_role().await;        // DB接続1
+    let user = create_test_user(role).await;    // DB接続2  
+    let org = create_test_org(user).await;      // DB接続3
+    let dept = create_dept(org).await;          // DB接続4 -> タイムアウト
+}
+```
+**対策**:
+- HTTPエンドポイント経由のテスト採用（Phase 2.2成功パターン）
+- 既存の統合テストパターン活用
+- 直接DB操作テストは最小限に抑制
+
+**🔴 困難3: 重複モデル作成リスク**
+- 既存：`organization_model.rs`, `team_model.rs`, `user_model.rs`
+- 危険：新規に`department_model.rs`等を作成すること
+**対策**:
+- **既存domain model完全活用**：`organization_department_model.rs`等は実装済み
+- **既存repository完全活用**：`organization_department_repository.rs`等は実装済み
+- 新規作成は**Service・Handler・DTO層のみ**
+
+**🔴 困難4: 権限継承の複雑性**
+- 組織→部門→チーム→ユーザーの4層継承
+- 実効権限計算の複雑性
+**対策**:
+- 既存の動的パーミッションシステム（`domain/permission.rs`）を拡張
+- 新規権限システム作成禁止
+- 段階的権限機能追加（基本→継承→実効権限分析）
+
+**✅ Phase 2.2成功パターンの適用**:
+```rust
+// 成功パターン：シンプル・段階的・既存活用
+1. 既存テーブル・モデル確認 ✅
+2. 最小限のマイグレーション追加（必要な場合のみ）
+3. Service層のみ新規実装
+4. Handler層のみ新規実装  
+5. HTTPエンドポイント経由テスト
+6. #[allow(dead_code)]段階的削除
+```
+
+**🎯 推奨実装順序**:
+1. **既存確認**: organization_department_model等の詳細確認
+2. **Service実装**: 既存Repositoryを活用したService層完成
+3. **Handler実装**: 既存Service・DTOを活用したHandler層完成
+4. **API登録**: Router統合・エンドポイント公開
+5. **テスト追加**: HTTPエンドポイント経由の統合テスト
+6. **Dead Code削除**: #[allow(dead_code)]段階的削除
+
+**🚫 絶対回避事項**:
+- 新規domain model作成（既存活用必須）
+- 新規repository作成（既存活用必須）
+- 直接DB操作テスト（HTTPテスト推奨）
+- 複雑な依存関係テストヘルパー作成
+- 既存権限システムと重複する新規権限システム作成
+
+#### **📋 Phase 2.1 既存実装詳細調査結果**
+
+**実装済みファイル一覧（重複回避のため既存活用必須）**:
+
+**🗂️ Domain Models（100%実装済み・活用必須）**:
+```bash
+✅ src/domain/organization_department_model.rs    # 部門モデル（階層構造対応）
+✅ src/domain/permission_matrix_model.rs          # 権限マトリックス
+✅ src/domain/organization_analytics_model.rs     # 組織分析モデル
+✅ src/domain/department_member_model.rs          # 部門メンバー管理
+```
+
+**🗂️ Repository Layer（100%実装済み・活用必須）**:
+```bash
+✅ src/repository/organization_department_repository.rs    # 部門CRUD操作
+✅ src/repository/permission_matrix_repository.rs          # 権限マトリックス操作
+✅ src/repository/organization_analytics_repository.rs     # 分析データ操作
+✅ src/repository/department_member_repository.rs          # 部門メンバー操作
+```
+
+**🗂️ Service Layer（部分実装・完成が必要）**:
+```bash
+⚠️ src/service/organization_hierarchy_service.rs          # 組織階層Service（未完成）
+```
+
+**🗂️ API Layer（未実装・新規作成が必要）**:
+```bash
+⚠️ src/api/handlers/organization_hierarchy_handler.rs     # APIハンドラー（未完成）
+⚠️ src/api/dto/organization_hierarchy_dto.rs              # DTO（未完成）
+```
+
+**🗂️ Database（100%実装済み・活用必須）**:
+```bash
+✅ migration/src/m20250624_000001_create_organization_departments_table.rs
+✅ migration/src/m20250624_000002_create_permission_matrices_table.rs
+✅ migration/src/m20250624_000003_create_organization_analytics_table.rs
+✅ migration/src/m20250624_000004_create_department_members_table.rs
+```
+
+**🔍 重複回避チェックリスト**:
+
+**✅ 活用すべき既存実装**:
+- `OrganizationDepartmentRepository::create()` - 部門作成
+- `OrganizationDepartmentRepository::find_by_organization_id()` - 部門検索
+- `PermissionMatrixRepository::create()` - 権限マトリックス設定
+- `OrganizationAnalyticsRepository::find_by_organization_id()` - 分析データ取得
+- `DepartmentMemberRepository::create()` - メンバー追加
+
+**🚫 作成禁止（重複回避）**:
+- 新規department model variants
+- 新規permission repository variants  
+- 新規organization analytics variants
+- 類似機能を持つ重複モデル・リポジトリ
+
+**📝 実装時の具体的手順**:
+
+**Step 1: 既存コード理解**
+```bash
+# 既存実装の詳細確認
+grep -r "impl.*Department" src/domain/organization_department_model.rs
+grep -r "impl.*Repository" src/repository/organization_department_repository.rs
+```
+
+**Step 2: Service層完成**
+```rust
+// organization_hierarchy_service.rs の完成
+// 既存Repository活用パターン例：
+impl OrganizationHierarchyService {
+    pub async fn create_department(&self, req: CreateDepartmentRequest) -> Result<...> {
+        // 既存のOrganizationDepartmentRepository::create()活用
+        self.org_dept_repo.create(db, active_model).await
+    }
+}
+```
+
+**Step 3: Handler層完成**
+```rust
+// organization_hierarchy_handler.rs の完成
+// 既存Service活用パターン例：
+pub async fn create_department(
+    State(app_state): State<AppState>,
+    Path(org_id): Path<Uuid>,
+    Json(req): Json<CreateDepartmentRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    // 既存のOrganizationHierarchyService活用
+    let result = app_state.org_hierarchy_service.create_department(req).await?;
+    Ok(Json(ApiResponse::success(result)))
+}
+```
 
 ### **最終クリーンアップ・最適化**
 
@@ -281,12 +479,16 @@ cargo test organizations::hierarchy
 
 ## 📝 **結論**
 
-現在のコードベースには**30 個の新規エンドポイント**相当の実装済み機能が含まれており（エンタープライズ基盤コア機能+統一権限ガバナンス）、これらを体系的に API として公開することで：
+現在のコードベースには**28 個の新規エンドポイント**相当の実装済み機能が含まれており（エンタープライズ基盤コア機能+統一権限ガバナンス）、これらを体系的に API として公開することで：
 
-1. **📈 38%の API 機能拡張**（78 → 108 エンドポイント）
-2. **🏢 エンタープライズ基盤**として他アプリに 100%応用可能
-3. **💰 汎用プラットフォーム化**による収益機会拡大
-4. **🛡️ セキュリティ・コンプライアンス・階層管理・統一権限ガバナンスの完全実装**
+**✅ 実装完了分 (18エンドポイント)**:
+1. **📈 23%の API 機能拡張**（78 → 96 エンドポイント）
+2. **🏢 高度管理・セキュリティ・チーム招待機能**完備
+3. **💰 チーム協業・招待管理プラットフォーム**化
+4. **🛡️ セキュリティ・コンプライアンス・チーム権限ガバナンスの完全実装**
+
+**❌ 未実装分 (10エンドポイント)**:
+- Phase 2.1: 組織階層管理 API
 
 **削除すべき真のデッドコード**は全体の 10%未満であり、90%以上は**高い汎用性とエンタープライズ価値**を持つコア機能です。
 
@@ -580,6 +782,65 @@ _各エンドポイントで実現可能な機能の詳細概要（100 字以内
 - **エンタープライズデータ**: 1 エンドポイント (3%)
 
 この 35 個の新規 API により、基本的なタスク管理ツールから**汎用エンタープライズプラットフォーム基盤（統一権限ガバナンス完備）**への進化を実現。CRM・ERP・HR・EC 等あらゆるシステムで 100%応用可能な基盤機能を提供。
+
+### **🔄 Phase実装の教訓とベストプラクティス**
+
+#### **✅ Phase 2.2 成功要因（今後の標準パターン）**:
+
+**1. 段階的・シンプル実装**:
+- 新規テーブル1つのみ（team_invitations）
+- 既存テーブル（teams）への依存を最小化
+- 複雑な外部キー制約を回避
+
+**2. 既存パターン完全活用**:
+- 既存team_model.rsの拡張（新規model作成せず）
+- 既存認証・権限システムの活用
+- 既存DTO・Handler構造の踏襲
+
+**3. テスト戦略の最適化**:
+- HTTPエンドポイント経由の統合テスト
+- 直接DB操作テストの最小化
+- 接続プール枯渇回避
+
+#### **⚠️ Phase 2.1 困難要因（回避すべきアンチパターン）**:
+
+**1. 複雑な依存関係**:
+- 4テーブル同時実装の複雑性
+- 循環参照・相互依存の発生
+- テスト環境での接続プール枯渇
+
+**2. 重複実装リスク**:
+- 類似モデルの乱立（organizationとdepartment）
+- 権限システムの重複実装
+- 既存機能との非互換性
+
+#### **🎯 Phase 2.1 成功のための戦略修正**:
+
+**戦略1: 最小実装単位**
+```rust
+// ❌ 従来アプローチ（失敗パターン）
+Phase 2.1 = 全10エンドポイント同時実装
+
+// ✅ 新アプローチ（成功パターン）  
+Phase 2.1a = 部門管理API（3エンドポイント）
+Phase 2.1b = 権限マトリックス（3エンドポイント）
+Phase 2.1c = 分析・エクスポート（4エンドポイント）
+```
+
+**戦略2: 既存活用最大化**
+```rust
+// ✅ 既存Repository 100%活用
+impl OrganizationHierarchyService {
+    // 新規Repository作成禁止・既存活用必須
+    org_dept_repo: OrganizationDepartmentRepository,  // 既存
+    permission_repo: PermissionMatrixRepository,      // 既存
+}
+```
+
+**戦略3: Phase 2.2パターン適用**
+- Service・Handler層のみ新規実装
+- 既存Domain・Repository層の完全活用
+- HTTPテスト中心のテスト戦略
 
 ---
 

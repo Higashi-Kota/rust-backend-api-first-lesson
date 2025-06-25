@@ -19,6 +19,7 @@ use crate::api::handlers::{
     analytics_handler::analytics_router_with_state,
     auth_handler::auth_router_with_state,
     organization_handler::organization_router_with_state,
+    organization_hierarchy_handler::organization_hierarchy_router,
     permission_handler::permission_router_with_state,
     role_handler::role_router_with_state,
     security_handler::security_router,
@@ -183,6 +184,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         UserRepository::new(db_pool.clone()),
     ));
 
+    let team_invitation_service = Arc::new(
+        crate::service::team_invitation_service::TeamInvitationService::new(
+            crate::repository::team_invitation_repository::TeamInvitationRepository::new(
+                db_pool.clone(),
+            ),
+            TeamRepository::new(db_pool.clone()),
+            UserRepository::new(db_pool.clone()),
+        ),
+    );
+
     // Security services creation
     let security_service = Arc::new(SecurityService::new(
         refresh_token_repo.clone(),
@@ -218,11 +229,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         role_service,
         task_service,
         team_service,
+        team_invitation_service,
         organization_service,
         subscription_service,
         security_service,
         email_service,
         jwt_manager.clone(),
+        Arc::new(db_pool.clone()),
         &app_config,
     );
 
@@ -238,6 +251,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let analytics_router = analytics_router_with_state(app_state.clone());
     let security_router = security_router(app_state.clone());
     let admin_router = admin_task_router(app_state.clone());
+    let hierarchy_router = organization_hierarchy_router().with_state(app_state.clone());
 
     // メインアプリケーションルーターの構築
     let app_router = Router::new()
@@ -252,6 +266,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(analytics_router)
         .merge(security_router)
         .merge(admin_router)
+        .merge(hierarchy_router)
         .route(
             "/",
             axum::routing::get(|| async { "Task Backend API v1.0" }),
@@ -278,6 +293,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • Permission Management: /permissions/*");
     tracing::info!("   • Analytics: /analytics/*");
     tracing::info!("   • Admin Management: /admin/*");
+    tracing::info!(
+        "   • Organization Hierarchy: /organizations/*/hierarchy, /organizations/*/departments/*"
+    );
     tracing::info!("   • Health Check: /health");
 
     // サーバーの起動

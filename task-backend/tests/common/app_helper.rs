@@ -119,17 +119,31 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
             std::sync::Arc::new(task_backend::repository::password_reset_token_repository::PasswordResetTokenRepository::new(db.connection.clone())),
         )
     );
+
+    // Team invitation service
+    let team_invitation_service = Arc::new(
+        task_backend::service::team_invitation_service::TeamInvitationService::new(
+            task_backend::repository::team_invitation_repository::TeamInvitationRepository::new(
+                db.connection.clone(),
+            ),
+            TeamRepository::new(db.connection.clone()),
+            UserRepository::new(db.connection.clone()),
+        ),
+    );
+
     let app_state = AppState::with_config(
         auth_service,
         user_service,
         role_service,
         task_service,
         team_service,
+        team_invitation_service,
         organization_service,
         subscription_service,
         security_service,
         email_service,
         jwt_manager,
+        Arc::new(db.connection.clone()),
         &app_config,
     );
 
@@ -230,6 +244,18 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
             Arc::new(PasswordResetTokenRepository::new(db.connection.clone())),
         ),
     );
+
+    // Team invitation service
+    let team_invitation_service = Arc::new(
+        task_backend::service::team_invitation_service::TeamInvitationService::new(
+            task_backend::repository::team_invitation_repository::TeamInvitationRepository::new(
+                db.connection.clone(),
+            ),
+            TeamRepository::new(db.connection.clone()),
+            UserRepository::new(db.connection.clone()),
+        ),
+    );
+
     // 統一されたAppStateの作成
     let app_state = AppState::with_config(
         auth_service,
@@ -237,11 +263,13 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         role_service,
         task_service,
         team_service,
+        team_invitation_service,
         organization_service,
         subscription_service,
         security_service,
         email_service,
         jwt_manager.clone(),
+        Arc::new(db.connection.clone()),
         &app_config,
     );
 

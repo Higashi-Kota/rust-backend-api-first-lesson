@@ -2,6 +2,7 @@
 
 use crate::api::dto::common::ApiResponse;
 use crate::api::dto::team_dto::*;
+use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
@@ -241,6 +242,19 @@ pub fn team_router(app_state: AppState) -> Router {
         .route(
             "/teams/{team_id}/members/{member_id}",
             delete(remove_team_member_handler),
+        )
+        // Phase 2.2: チーム招待・権限管理 API
+        .route(
+            "/teams/{id}/bulk-member-invite",
+            post(team_invitation_handler::bulk_member_invite),
+        )
+        .route(
+            "/teams/{id}/invitations",
+            get(team_invitation_handler::get_team_invitations),
+        )
+        .route(
+            "/teams/{id}/invitations/{invite_id}/decline",
+            patch(team_invitation_handler::decline_invitation),
         )
         // チーム統計
         .route("/teams/stats", get(get_team_stats_handler))
