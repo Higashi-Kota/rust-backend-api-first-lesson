@@ -167,19 +167,19 @@ macro_rules! with_service_transaction {
 // =============================================================================
 
 /// 複数の操作を順次実行するヘルパー
-#[allow(dead_code)]
 pub struct TransactionOperations<'a> {
     txn: &'a DatabaseTransaction,
 }
 
-#[allow(dead_code)]
 impl<'a> TransactionOperations<'a> {
+    #[allow(dead_code)]
     pub fn new(txn: &'a DatabaseTransaction) -> Self {
         Self { txn }
     }
 
     /// 操作を実行し、結果をログ出力
     #[instrument(skip(self, operation), name = "transaction_operation")]
+    #[allow(dead_code)]
     pub async fn execute<F, R>(&self, operation_name: &str, operation: F) -> Result<R, AppError>
     where
         F: Future<Output = Result<R, AppError>>,
@@ -212,6 +212,7 @@ impl<'a> TransactionOperations<'a> {
     }
 
     /// データベース参照を取得
+    #[allow(dead_code)]
     pub fn db(&self) -> &DatabaseTransaction {
         self.txn
     }
@@ -222,7 +223,6 @@ impl<'a> TransactionOperations<'a> {
 // =============================================================================
 
 /// リトライ設定
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     pub max_attempts: u32,
@@ -293,7 +293,6 @@ where
 }
 
 /// エラーがリトライ可能かどうかを判定
-#[allow(dead_code)]
 fn should_retry(error: &AppError) -> bool {
     match error {
         AppError::DbErr(db_err) => {
@@ -308,7 +307,6 @@ fn should_retry(error: &AppError) -> bool {
 }
 
 /// 指数バックオフでディレイを計算
-#[allow(dead_code)]
 fn calculate_delay(attempt: u32, config: &RetryConfig) -> u64 {
     let delay = config.base_delay_ms * (2u64.pow(attempt - 1));
     delay.min(config.max_delay_ms)

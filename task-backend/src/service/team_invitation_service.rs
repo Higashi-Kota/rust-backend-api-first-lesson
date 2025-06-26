@@ -334,6 +334,131 @@ impl TeamInvitationService {
             .await
     }
 
+    /// ユーザーのメール宛て招待一覧を取得
+    pub async fn get_invitations_by_email(
+        &self,
+        email: &str,
+    ) -> AppResult<Vec<TeamInvitationModel>> {
+        self.team_invitation_repository.find_by_email(email).await
+    }
+
+    /// 特定チーム・メールの招待を確認
+    pub async fn check_team_invitation(
+        &self,
+        team_id: Uuid,
+        email: &str,
+    ) -> AppResult<Option<TeamInvitationModel>> {
+        self.team_invitation_repository
+            .find_by_team_and_email(team_id, email)
+            .await
+    }
+
+    /// 招待一覧をページング付きで取得
+    pub async fn get_invitations_with_pagination(
+        &self,
+        team_id: Uuid,
+        page: u64,
+        page_size: u64,
+        status_filter: Option<TeamInvitationStatus>,
+        requester_id: Uuid,
+    ) -> AppResult<(Vec<TeamInvitationModel>, u64)> {
+        // チーム権限確認
+        if !self
+            .validate_invitation_permissions(team_id, requester_id)
+            .await?
+        {
+            return Err(AppError::Forbidden(
+                "You do not have permission to view team invitations".to_string(),
+            ));
+        }
+
+        self.team_invitation_repository
+            .find_with_pagination(team_id, page, page_size, status_filter)
+            .await
+    }
+
+    /// ユーザーの招待数を取得
+    pub async fn count_user_invitations(&self, email: &str) -> AppResult<u64> {
+        self.team_invitation_repository
+            .count_invitations_by_email(email)
+            .await
+    }
+
+    /// 招待の一括ステータス更新
+    pub async fn bulk_update_invitation_status(
+        &self,
+        invitation_ids: &[Uuid],
+        new_status: TeamInvitationStatus,
+        requester_id: Uuid,
+    ) -> AppResult<u64> {
+        // 各招待の権限確認
+        for &invitation_id in invitation_ids {
+            let invitation = self
+                .team_invitation_repository
+                .find_by_id(invitation_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Invitation not found".to_string()))?;
+
+            if !self
+                .validate_invitation_permissions(invitation.team_id, requester_id)
+                .await?
+            {
+                return Err(AppError::Forbidden(
+                    "You do not have permission to update these invitations".to_string(),
+                ));
+            }
+        }
+
+        self.team_invitation_repository
+            .bulk_update_status(invitation_ids, new_status)
+            .await
+    }
+
+    /// 単一招待を作成
+    pub async fn create_single_invitation(
+        &self,
+        team_id: Uuid,
+        email: String,
+        message: Option<String>,
+        inviter_id: Uuid,
+    ) -> AppResult<TeamInvitationModel> {
+        // チーム存在確認
+        let _team = self
+            .team_repository
+            .find_by_id(team_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Team not found".to_string()))?;
+
+        // 権限確認
+        if !self
+            .validate_invitation_permissions(team_id, inviter_id)
+            .await?
+        {
+            return Err(AppError::Forbidden(
+                "You do not have permission to invite members to this team".to_string(),
+            ));
+        }
+
+        // 既存招待確認
+        if self
+            .team_invitation_repository
+            .find_pending_by_team_and_email(team_id, &email)
+            .await?
+            .is_some()
+        {
+            return Err(AppError::ValidationError(
+                "Pending invitation already exists for this email".to_string(),
+            ));
+        }
+
+        let expires_at = Some(chrono::Utc::now() + chrono::Duration::days(7));
+        let invitation = TeamInvitationModel::new(team_id, email, inviter_id, message, expires_at);
+
+        self.team_invitation_repository
+            .create_invitation(&invitation)
+            .await
+    }
+
     pub async fn validate_invitation_permissions(
         &self,
         team_id: Uuid,

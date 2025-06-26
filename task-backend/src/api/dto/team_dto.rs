@@ -99,7 +99,7 @@ pub struct TeamMemberResponse {
 }
 
 /// チーム一覧レスポンス
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TeamListResponse {
     pub id: Uuid,
     pub name: String,
@@ -186,6 +186,47 @@ impl From<(Team, Vec<TeamMemberResponse>)> for TeamResponse {
             created_at: team.created_at,
             updated_at: team.updated_at,
             members,
+        }
+    }
+}
+
+/// チーム一覧ページング取得クエリ
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeamPaginationQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub organization_id: Option<Uuid>,
+}
+
+impl Default for TeamPaginationQuery {
+    fn default() -> Self {
+        Self {
+            page: Some(1),
+            page_size: Some(20),
+            organization_id: None,
+        }
+    }
+}
+
+/// チーム一覧ページング取得レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeamPaginationResponse {
+    pub teams: Vec<TeamListResponse>,
+    pub total_count: u64,
+    pub page: u64,
+    pub page_size: u64,
+    pub total_pages: u64,
+}
+
+impl TeamPaginationResponse {
+    pub fn new(teams: Vec<TeamListResponse>, total_count: u64, page: u64, page_size: u64) -> Self {
+        let total_pages = total_count.div_ceil(page_size);
+        Self {
+            teams,
+            total_count,
+            page,
+            page_size,
+            total_pages,
         }
     }
 }
@@ -335,5 +376,60 @@ mod tests {
         assert_eq!(stats.teams_by_tier.len(), 3);
         assert_eq!(stats.total_members, 190);
         assert_eq!(stats.average_members_per_team, 19.0);
+    }
+
+    #[test]
+    fn test_team_pagination_query_defaults() {
+        let query = TeamPaginationQuery::default();
+        assert_eq!(query.page, Some(1));
+        assert_eq!(query.page_size, Some(20));
+        assert!(query.organization_id.is_none());
+    }
+
+    #[test]
+    fn test_team_pagination_response_creation() {
+        let teams = vec![
+            TeamListResponse {
+                id: Uuid::new_v4(),
+                name: "Team 1".to_string(),
+                description: Some("Description 1".to_string()),
+                organization_id: None,
+                owner_id: Uuid::new_v4(),
+                subscription_tier: SubscriptionTier::Free,
+                max_members: 3,
+                current_member_count: 2,
+                created_at: Utc::now(),
+            },
+            TeamListResponse {
+                id: Uuid::new_v4(),
+                name: "Team 2".to_string(),
+                description: Some("Description 2".to_string()),
+                organization_id: None,
+                owner_id: Uuid::new_v4(),
+                subscription_tier: SubscriptionTier::Pro,
+                max_members: 50,
+                current_member_count: 25,
+                created_at: Utc::now(),
+            },
+        ];
+
+        let response = TeamPaginationResponse::new(teams.clone(), 2, 1, 20);
+
+        assert_eq!(response.teams.len(), 2);
+        assert_eq!(response.total_count, 2);
+        assert_eq!(response.page, 1);
+        assert_eq!(response.page_size, 20);
+        assert_eq!(response.total_pages, 1);
+    }
+
+    #[test]
+    fn test_team_pagination_response_multiple_pages() {
+        let teams = vec![];
+        let response = TeamPaginationResponse::new(teams, 45, 2, 20);
+
+        assert_eq!(response.total_count, 45);
+        assert_eq!(response.page, 2);
+        assert_eq!(response.page_size, 20);
+        assert_eq!(response.total_pages, 3); // 45 / 20 = 2.25 -> 3 pages
     }
 }

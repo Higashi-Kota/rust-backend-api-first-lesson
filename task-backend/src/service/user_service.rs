@@ -531,13 +531,3 @@ impl UserService {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    // テストは実際の実装では適切なモックライブラリを使用する
-    #[tokio::test]
-    async fn test_user_service_creation() {
-        // UserServiceの作成テスト
-        // 実際のテストでは mock を使用
-    }
-}

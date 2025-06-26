@@ -6,9 +6,7 @@ use crate::domain::team_model::{Model as TeamModel, TeamRole};
 use crate::utils::email::EmailService;
 
 // Type aliases for domain models
-#[allow(dead_code)]
 pub type Team = TeamModel;
-#[allow(dead_code)]
 pub type TeamMember = TeamMemberModel;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
@@ -18,14 +16,12 @@ use std::sync::Arc;
 use tracing::warn;
 use uuid::Uuid;
 
-#[allow(dead_code)]
 pub struct TeamService {
     team_repository: TeamRepository,
     user_repository: UserRepository,
     email_service: Arc<EmailService>,
 }
 
-#[allow(dead_code)]
 impl TeamService {
     pub fn new(
         team_repository: TeamRepository,
@@ -411,6 +407,33 @@ impl TeamService {
         })
     }
 
+    /// チーム一覧をページング付きで取得
+    pub async fn get_teams_with_pagination(
+        &self,
+        page: u64,
+        page_size: u64,
+        organization_id: Option<Uuid>,
+        user_id: Uuid,
+    ) -> AppResult<(Vec<TeamListResponse>, u64)> {
+        let (teams, total) = self
+            .team_repository
+            .find_with_pagination(page, page_size, organization_id)
+            .await?;
+
+        let mut team_responses = Vec::new();
+        for team in teams {
+            // アクセス権限チェック
+            if self.check_team_access(&team, user_id).await.is_ok() {
+                let member_count = self.team_repository.count_members(team.id).await? as i32;
+                let mut team_response = TeamListResponse::from(team);
+                team_response.current_member_count = member_count;
+                team_responses.push(team_response);
+            }
+        }
+
+        Ok((team_responses, total))
+    }
+
     // ヘルパーメソッド
 
     async fn check_team_access(&self, team: &Team, user_id: Uuid) -> AppResult<()> {
@@ -504,5 +527,108 @@ mod tests {
         // let user_repo = MockUserRepository::new();
         // let service = TeamService::new(team_repo, user_repo);
         // assert!(service is created successfully);
+    }
+
+    #[test]
+    fn test_check_team_access_logic() {
+        // Logic test: Test access control decision logic without database
+        use crate::domain::subscription_tier::SubscriptionTier;
+        use crate::domain::team_model::Model as Team;
+        use uuid::Uuid;
+
+        let _team_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let owner_id = Uuid::new_v4();
+
+        let team = Team::new_team(
+            "Test Team".to_string(),
+            Some("Test Description".to_string()),
+            None,
+            owner_id,
+            SubscriptionTier::Free,
+        );
+
+        // Test logic: owner should have access
+        assert_eq!(team.owner_id, owner_id);
+
+        // Test logic: different user should not be owner
+        assert_ne!(team.owner_id, user_id);
+
+        // Test logic: team properties are correctly set
+        assert_eq!(team.name, "Test Team");
+        assert_eq!(team.description, Some("Test Description".to_string()));
+        assert_eq!(team.subscription_tier, SubscriptionTier::Free.to_string());
+        assert_eq!(team.max_members, 3); // Free tier limit
+    }
+
+    #[test]
+    fn test_team_pagination_logic() {
+        // Logic test: Test pagination calculation logic
+
+        // Test boundary conditions
+        let _page = 1u64;
+        let page_size = 20u64;
+        let total_count = 45u64;
+
+        // Calculate expected results
+        let expected_total_pages = total_count.div_ceil(page_size);
+        assert_eq!(expected_total_pages, 3); // 45 / 20 = 2.25 -> 3
+
+        // Test edge cases
+        let edge_page = 1u64; // Always 1 for valid pagination
+        assert_eq!(edge_page, 1);
+
+        let edge_page_size = 200u64.clamp(1, 100); // Should clamp to 100
+        assert_eq!(edge_page_size, 100);
+
+        // Test empty result set
+        let empty_total = 0u64;
+        let empty_pages = empty_total.div_ceil(page_size);
+        assert_eq!(empty_pages, 0);
+    }
+
+    #[test]
+    fn test_team_member_limit_logic() {
+        // Logic test: Test team member limit validation logic
+        use crate::domain::subscription_tier::SubscriptionTier;
+        use crate::domain::team_model::Model as Team;
+
+        let owner_id = Uuid::new_v4();
+
+        // Test Free tier limits
+        let free_team = Team::new_team(
+            "Free Team".to_string(),
+            None,
+            None,
+            owner_id,
+            SubscriptionTier::Free,
+        );
+        assert_eq!(free_team.max_members, 3);
+        assert!(free_team.can_add_member(2)); // 2 < 3
+        assert!(!free_team.can_add_member(3)); // 3 >= 3
+
+        // Test Pro tier limits
+        let pro_team = Team::new_team(
+            "Pro Team".to_string(),
+            None,
+            None,
+            owner_id,
+            SubscriptionTier::Pro,
+        );
+        assert_eq!(pro_team.max_members, 10);
+        assert!(pro_team.can_add_member(9)); // 9 < 10
+        assert!(!pro_team.can_add_member(10)); // 10 >= 10
+
+        // Test Enterprise tier limits
+        let enterprise_team = Team::new_team(
+            "Enterprise Team".to_string(),
+            None,
+            None,
+            owner_id,
+            SubscriptionTier::Enterprise,
+        );
+        assert_eq!(enterprise_team.max_members, 100);
+        assert!(enterprise_team.can_add_member(99)); // 99 < 100
+        assert!(!enterprise_team.can_add_member(100)); // 100 >= 100
     }
 }

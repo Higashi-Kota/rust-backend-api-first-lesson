@@ -21,7 +21,7 @@ async fn test_organization_hierarchy_authentication_logic() {
 
     // 実際のロジックテスト: 組織階層取得APIの認証テスト
     let req = Request::builder()
-        .uri(format!("/organization/{}/hierarchy", organization_id))
+        .uri(format!("/organizations/{}/hierarchy", organization_id))
         .method("GET")
         .header("Authorization", format!("Bearer {}", auth_token))
         .body(Body::empty())
@@ -42,7 +42,7 @@ async fn test_organization_hierarchy_unauthorized_access() {
 
     // 認証なしでのアクセステスト
     let req = Request::builder()
-        .uri(format!("/organization/{}/hierarchy", organization_id))
+        .uri(format!("/organizations/{}/hierarchy", organization_id))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -77,7 +77,7 @@ async fn test_department_creation_request_structure() {
     });
 
     let req = Request::builder()
-        .uri(format!("/organization/{}/departments", organization_id))
+        .uri(format!("/organizations/{}/departments", organization_id))
         .method("POST")
         .header("Authorization", format!("Bearer {}", auth_token))
         .header("Content-Type", "application/json")
@@ -103,7 +103,7 @@ async fn test_analytics_endpoint_access_logic() {
 
     // 分析エンドポイントのアクセステスト
     let req = Request::builder()
-        .uri(format!("/organization/{}/analytics", organization_id))
+        .uri(format!("/organizations/{}/analytics", organization_id))
         .method("GET")
         .header("Authorization", format!("Bearer {}", auth_token))
         .body(Body::empty())
@@ -128,20 +128,32 @@ async fn test_permission_matrix_request_validation() {
 
     // 権限マトリックス設定のリクエスト構造テスト
     let permission_payload = json!({
-        "entity_type": "organization",
         "matrix_data": {
             "tasks": {
                 "create": true,
                 "read": true,
                 "update": true,
                 "delete": false
+            },
+            "analytics": {
+                "view": true,
+                "export": false
+            },
+            "administration": {
+                "manage_users": false,
+                "system_config": false
             }
-        }
+        },
+        "inheritance_settings": null,
+        "compliance_settings": null
     });
 
     let req = Request::builder()
-        .uri(format!("/organization/{}/permissions", organization_id))
-        .method("POST")
+        .uri(format!(
+            "/organizations/{}/permission-matrix",
+            organization_id
+        ))
+        .method("PUT")
         .header("Authorization", format!("Bearer {}", auth_token))
         .header("Content-Type", "application/json")
         .body(Body::from(permission_payload.to_string()))

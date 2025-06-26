@@ -15,17 +15,14 @@ use sea_orm::{
 use uuid::Uuid;
 
 // Helper function to convert SeaORM errors to AppError
-#[allow(dead_code)]
 fn map_db_error(err: DbErr) -> AppError {
     AppError::InternalServerError(err.to_string())
 }
 
-#[allow(dead_code)]
 pub struct TeamRepository {
     db: DatabaseConnection,
 }
 
-#[allow(dead_code)]
 impl TeamRepository {
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }

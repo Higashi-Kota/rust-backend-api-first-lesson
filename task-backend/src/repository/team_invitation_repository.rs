@@ -20,13 +20,11 @@ pub struct TeamInvitationRepository {
     db: DatabaseConnection,
 }
 
-#[allow(dead_code)]
 impl TeamInvitationRepository {
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
-    #[allow(dead_code)]
     pub async fn create_invitation(
         &self,
         invitation: &TeamInvitation,

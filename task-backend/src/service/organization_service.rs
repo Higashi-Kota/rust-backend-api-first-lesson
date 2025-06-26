@@ -8,14 +8,12 @@ use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
 use uuid::Uuid;
 
-#[allow(dead_code)]
 pub struct OrganizationService {
     organization_repository: OrganizationRepository,
     team_repository: TeamRepository,
     user_repository: UserRepository,
 }
 
-#[allow(dead_code)]
 impl OrganizationService {
     pub fn new(
         organization_repository: OrganizationRepository,

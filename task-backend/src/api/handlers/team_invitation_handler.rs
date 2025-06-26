@@ -136,7 +136,6 @@ pub async fn decline_invitation(
     )))
 }
 
-#[allow(dead_code)]
 pub async fn accept_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -154,7 +153,6 @@ pub async fn accept_invitation(
     )))
 }
 
-#[allow(dead_code)]
 pub async fn cancel_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -172,7 +170,6 @@ pub async fn cancel_invitation(
     )))
 }
 
-#[allow(dead_code)]
 pub async fn resend_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -195,7 +192,6 @@ pub async fn resend_invitation(
     )))
 }
 
-#[allow(dead_code)]
 pub async fn get_user_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -214,7 +210,6 @@ pub async fn get_user_invitations(
     )))
 }
 
-#[allow(dead_code)]
 pub async fn get_invitation_statistics(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -239,7 +234,6 @@ pub async fn get_invitation_statistics(
     )))
 }
 
-#[allow(dead_code)]
 pub async fn cleanup_expired_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -263,7 +257,6 @@ pub async fn cleanup_expired_invitations(
     )))
 }
 
-#[allow(dead_code)]
 pub async fn get_invitations_by_creator(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -282,7 +275,6 @@ pub async fn get_invitations_by_creator(
     )))
 }
 
-#[allow(dead_code)]
 pub async fn delete_old_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -314,6 +306,203 @@ pub async fn delete_old_invitations(
             "deleted_count": deleted_count,
             "days": days
         }),
+    )))
+}
+
+/// 単一招待を作成
+pub async fn create_single_invitation(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Path(team_id): Path<Uuid>,
+    Json(request): Json<CreateInvitationRequest>,
+) -> AppResult<Json<ApiResponse<TeamInvitationResponse>>> {
+    let service = &app_state.team_invitation_service;
+    request
+        .validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+
+    let invitation = service
+        .create_single_invitation(team_id, request.email, request.message, user.user_id())
+        .await?;
+
+    let response = TeamInvitationResponse::from(invitation);
+    Ok(Json(ApiResponse::success(
+        "Invitation created successfully",
+        response,
+    )))
+}
+
+/// ユーザーのメール宛て招待一覧を取得
+pub async fn get_invitations_by_email(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Query(query): Query<UserInvitationQuery>,
+) -> AppResult<Json<ApiResponse<Vec<TeamInvitationResponse>>>> {
+    let service = &app_state.team_invitation_service;
+
+    // ユーザーは自分のメールアドレスの招待のみ閲覧可能
+    if query.email != user.claims.email && !user.is_admin() {
+        return Err(AppError::Forbidden(
+            "You can only view your own invitations".to_string(),
+        ));
+    }
+
+    let invitations = service.get_invitations_by_email(&query.email).await?;
+
+    let responses: Vec<TeamInvitationResponse> = invitations
+        .into_iter()
+        .map(TeamInvitationResponse::from)
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        "Invitations retrieved successfully",
+        responses,
+    )))
+}
+
+/// 特定チーム・メールの招待を確認
+pub async fn check_team_invitation(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Path((team_id, email)): Path<(Uuid, String)>,
+) -> AppResult<Json<ApiResponse<CheckInvitationResponse>>> {
+    let service = &app_state.team_invitation_service;
+
+    // 権限確認
+    if !service
+        .validate_invitation_permissions(team_id, user.user_id())
+        .await?
+    {
+        return Err(AppError::Forbidden(
+            "You do not have permission to check invitations for this team".to_string(),
+        ));
+    }
+
+    let invitation = service.check_team_invitation(team_id, &email).await?;
+
+    let response = CheckInvitationResponse {
+        exists: invitation.is_some(),
+        invitation: invitation.map(TeamInvitationResponse::from),
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Invitation check completed",
+        response,
+    )))
+}
+
+/// 招待一覧をページング付きで取得
+pub async fn get_invitations_with_pagination(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Path(team_id): Path<Uuid>,
+    Query(query): Query<TeamInvitationQuery>,
+) -> AppResult<Json<ApiResponse<InvitationPaginationResponse>>> {
+    let service = &app_state.team_invitation_service;
+
+    let page = query.get_page();
+    let page_size = query.get_page_size();
+
+    let (invitations, total_count) = service
+        .get_invitations_with_pagination(
+            team_id,
+            page,
+            page_size,
+            query.status.clone(),
+            user.user_id(),
+        )
+        .await?;
+
+    let responses: Vec<TeamInvitationResponse> = invitations
+        .into_iter()
+        .map(TeamInvitationResponse::from)
+        .collect();
+
+    let response = InvitationPaginationResponse::new(responses, total_count, page, page_size);
+
+    Ok(Json(ApiResponse::success(
+        "Invitations retrieved successfully",
+        response,
+    )))
+}
+
+/// ユーザーの招待数を取得
+pub async fn count_user_invitations(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Query(query): Query<UserInvitationQuery>,
+) -> AppResult<Json<ApiResponse<UserInvitationStatsResponse>>> {
+    let service = &app_state.team_invitation_service;
+
+    // ユーザーは自分のメールアドレスの招待のみ閲覧可能
+    if query.email != user.claims.email && !user.is_admin() {
+        return Err(AppError::Forbidden(
+            "You can only view your own invitation statistics".to_string(),
+        ));
+    }
+
+    let total_invitations = service.count_user_invitations(&query.email).await?;
+
+    // 詳細統計を取得
+    let all_invitations = service.get_invitations_by_email(&query.email).await?;
+
+    let pending_invitations = all_invitations
+        .iter()
+        .filter(|inv| {
+            inv.get_status() == crate::domain::team_invitation_model::TeamInvitationStatus::Pending
+        })
+        .count() as u64;
+
+    let accepted_invitations = all_invitations
+        .iter()
+        .filter(|inv| {
+            inv.get_status() == crate::domain::team_invitation_model::TeamInvitationStatus::Accepted
+        })
+        .count() as u64;
+
+    let declined_invitations = all_invitations
+        .iter()
+        .filter(|inv| {
+            inv.get_status() == crate::domain::team_invitation_model::TeamInvitationStatus::Declined
+        })
+        .count() as u64;
+
+    let response = UserInvitationStatsResponse {
+        total_invitations,
+        pending_invitations,
+        accepted_invitations,
+        declined_invitations,
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Invitation statistics retrieved successfully",
+        response,
+    )))
+}
+
+/// 招待の一括ステータス更新
+pub async fn bulk_update_invitation_status(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Json(request): Json<BulkUpdateStatusRequest>,
+) -> AppResult<Json<ApiResponse<BulkUpdateStatusResponse>>> {
+    let service = &app_state.team_invitation_service;
+    request
+        .validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+
+    let updated_count = service
+        .bulk_update_invitation_status(&request.invitation_ids, request.new_status, user.user_id())
+        .await?;
+
+    let response = BulkUpdateStatusResponse {
+        updated_count,
+        failed_ids: vec![], // All succeeded if no error was thrown
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Invitation status updated successfully",
+        response,
     )))
 }
 

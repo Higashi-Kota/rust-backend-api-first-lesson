@@ -54,7 +54,6 @@ pub enum TokenValidationError {
 
 /// メール認証トークン作成用の構造体
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct CreateEmailVerificationToken {
     pub user_id: Uuid,
     pub token_hash: String,
@@ -63,10 +62,10 @@ pub struct CreateEmailVerificationToken {
 
 /// メール認証トークン検証結果
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct EmailVerificationResult {
     pub token_id: Uuid,
     pub user_id: Uuid,
+    #[allow(dead_code)]
     pub used_at: DateTime<Utc>,
 }
 

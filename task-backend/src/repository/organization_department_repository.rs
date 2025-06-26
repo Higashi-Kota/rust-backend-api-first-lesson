@@ -6,7 +6,6 @@ use uuid::Uuid;
 
 pub struct OrganizationDepartmentRepository;
 
-#[allow(dead_code)]
 impl OrganizationDepartmentRepository {
     pub async fn create(
         db: &DatabaseConnection,
@@ -21,20 +20,6 @@ impl OrganizationDepartmentRepository {
         id: Uuid,
     ) -> Result<Option<organization_department_model::Model>, AppError> {
         let result = OrganizationDepartment::find_by_id(id).one(db).await?;
-        Ok(result)
-    }
-
-    pub async fn find_by_organization_id(
-        db: &DatabaseConnection,
-        organization_id: Uuid,
-    ) -> Result<Vec<organization_department_model::Model>, AppError> {
-        let result = OrganizationDepartment::find()
-            .filter(organization_department_model::Column::OrganizationId.eq(organization_id))
-            .filter(organization_department_model::Column::IsActive.eq(true))
-            .order_by_asc(organization_department_model::Column::HierarchyLevel)
-            .order_by_asc(organization_department_model::Column::Name)
-            .all(db)
-            .await?;
         Ok(result)
     }
 
@@ -59,34 +44,6 @@ impl OrganizationDepartmentRepository {
         let result = OrganizationDepartment::find()
             .filter(organization_department_model::Column::ParentDepartmentId.eq(parent_id))
             .filter(organization_department_model::Column::IsActive.eq(true))
-            .order_by_asc(organization_department_model::Column::Name)
-            .all(db)
-            .await?;
-        Ok(result)
-    }
-
-    pub async fn find_root_departments_by_organization_id(
-        db: &DatabaseConnection,
-        organization_id: Uuid,
-    ) -> Result<Vec<organization_department_model::Model>, AppError> {
-        let result = OrganizationDepartment::find()
-            .filter(organization_department_model::Column::OrganizationId.eq(organization_id))
-            .filter(organization_department_model::Column::ParentDepartmentId.is_null())
-            .filter(organization_department_model::Column::IsActive.eq(true))
-            .order_by_asc(organization_department_model::Column::Name)
-            .all(db)
-            .await?;
-        Ok(result)
-    }
-
-    pub async fn find_by_manager_id(
-        db: &DatabaseConnection,
-        manager_id: Uuid,
-    ) -> Result<Vec<organization_department_model::Model>, AppError> {
-        let result = OrganizationDepartment::find()
-            .filter(organization_department_model::Column::ManagerUserId.eq(manager_id))
-            .filter(organization_department_model::Column::IsActive.eq(true))
-            .order_by_asc(organization_department_model::Column::HierarchyLevel)
             .order_by_asc(organization_department_model::Column::Name)
             .all(db)
             .await?;
@@ -133,33 +90,6 @@ impl OrganizationDepartmentRepository {
         active_model.updated_at = sea_orm::Set(chrono::Utc::now());
         active_model.update(db).await?;
 
-        Ok(())
-    }
-
-    pub async fn count_by_organization_id(
-        db: &DatabaseConnection,
-        organization_id: Uuid,
-    ) -> Result<u64, AppError> {
-        let count = OrganizationDepartment::find()
-            .filter(organization_department_model::Column::OrganizationId.eq(organization_id))
-            .filter(organization_department_model::Column::IsActive.eq(true))
-            .count(db)
-            .await?;
-        Ok(count)
-    }
-
-    pub async fn update_hierarchy_paths_batch(
-        db: &DatabaseConnection,
-        updates: Vec<(Uuid, String, i32)>,
-    ) -> Result<(), AppError> {
-        for (id, new_path, new_level) in updates {
-            let mut active_model = organization_department_model::ActiveModel::new();
-            active_model.id = sea_orm::Set(id);
-            active_model.hierarchy_path = sea_orm::Set(new_path);
-            active_model.hierarchy_level = sea_orm::Set(new_level);
-            active_model.updated_at = sea_orm::Set(chrono::Utc::now());
-            active_model.update(db).await?;
-        }
         Ok(())
     }
 
