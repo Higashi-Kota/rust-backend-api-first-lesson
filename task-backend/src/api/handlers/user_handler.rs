@@ -526,7 +526,7 @@ pub async fn advanced_search_users_handler(
             .task_service
             .count_tasks_for_user(user_with_role.id)
             .await
-            .unwrap_or(0) as u64;
+            .unwrap_or(0);
 
         user_summaries.push(UserSummary {
             id: user_with_role.id,
@@ -633,7 +633,7 @@ pub async fn get_users_by_role_handler(
             .task_service
             .count_tasks_for_user(user_with_role.id)
             .await
-            .unwrap_or(0) as u64;
+            .unwrap_or(0);
 
         user_summaries.push(UserSummary {
             id: user_with_role.id,
@@ -852,7 +852,7 @@ pub async fn list_users_handler(
             .task_service
             .count_tasks_for_user(user_with_role.id)
             .await
-            .unwrap_or(0) as u64;
+            .unwrap_or(0);
 
         user_summaries.push(UserSummary {
             id: user_with_role.id,
