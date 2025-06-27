@@ -504,6 +504,14 @@ impl OrganizationHierarchyService {
         Ok(())
     }
 
+    // 子部門の取得
+    pub async fn get_child_departments(
+        db: &DatabaseConnection,
+        department_id: Uuid,
+    ) -> Result<Vec<organization_department_model::Model>, AppError> {
+        OrganizationDepartmentRepository::find_children_by_parent_id(db, department_id).await
+    }
+
     // 組織分析メトリクスの作成
     #[allow(clippy::too_many_arguments)]
     pub async fn create_analytics_metric(

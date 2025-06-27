@@ -270,13 +270,28 @@ pub async fn verify_email_handler(
 
     info!(user_id = %user.claims.user_id, "Email verification attempt");
 
-    // TODO: トークン検証ロジックを実装
-    // 現在はプレースホルダー
-
-    let verified_user = app_state
+    // トークン検証ロジックを実装
+    // 実際の実装では、メール認証トークンの検証を行う
+    let token_verification_result = app_state
         .user_service
-        .verify_email(user.claims.user_id)
-        .await?;
+        .verify_email_token(user.claims.user_id, &payload.token)
+        .await;
+
+    let verified_user = match token_verification_result {
+        Ok(_verified_user) => {
+            // トークンが有効な場合、ユーザーの email_verified フラグを更新
+            app_state
+                .user_service
+                .verify_email(user.claims.user_id)
+                .await?
+        }
+        Err(_) => {
+            // トークンが無効な場合はエラーを返す
+            return Err(AppError::ValidationError(
+                "Invalid or expired verification token".to_string(),
+            ));
+        }
+    };
 
     info!(user_id = %user.claims.user_id, "Email verified successfully");
 
@@ -289,7 +304,7 @@ pub async fn verify_email_handler(
 
 /// メール認証再送信
 pub async fn resend_verification_email_handler(
-    State(_app_state): State<AppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<ResendVerificationEmailRequest>,
 ) -> AppResult<Json<EmailVerificationResponse>> {
@@ -321,28 +336,53 @@ pub async fn resend_verification_email_handler(
         "Verification email resend attempt"
     );
 
-    // TODO: メール送信ロジックを実装
+    // メール送信ロジックを実装
+    let verification_result = app_state
+        .user_service
+        .resend_verification_email(user.claims.user_id, &payload.email)
+        .await;
 
-    Ok(Json(EmailVerificationResponse {
-        message: "Verification email sent successfully".to_string(),
-        verified: false,
-        user: None,
-    }))
+    match verification_result {
+        Ok(_) => {
+            info!(
+                user_id = %user.claims.user_id,
+                email = %payload.email,
+                "Verification email sent successfully"
+            );
+            Ok(Json(EmailVerificationResponse {
+                message: "Verification email sent successfully".to_string(),
+                verified: false,
+                user: None,
+            }))
+        }
+        Err(e) => {
+            warn!(
+                user_id = %user.claims.user_id,
+                email = %payload.email,
+                error = %e,
+                "Failed to send verification email"
+            );
+            Err(AppError::InternalServerError(
+                "Failed to send verification email".to_string(),
+            ))
+        }
+    }
 }
 
 /// ユーザー設定取得
-pub async fn get_user_settings_handler(user: AuthenticatedUser) -> Json<UserSettingsResponse> {
-    // TODO: 実際の設定をデータベースから取得
-    // 現在はデフォルト値を返す
+pub async fn get_user_settings_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<UserSettingsResponse>> {
+    // 実際の設定をデータベースから取得
+    let user_settings = app_state
+        .user_service
+        .get_user_settings(user.claims.user_id)
+        .await?;
 
     info!(user_id = %user.claims.user_id, "User settings retrieved");
 
-    Json(UserSettingsResponse {
-        user_id: user.claims.user_id,
-        preferences: UserPreferences::default(),
-        security: SecuritySettings::default(),
-        notifications: NotificationSettings::default(),
-    })
+    Ok(Json(user_settings))
 }
 
 /// アカウント状態更新（管理者用）
@@ -477,10 +517,18 @@ pub async fn advanced_search_users_handler(
     let page = query_with_defaults.page.unwrap_or(1);
     let per_page = query_with_defaults.per_page.unwrap_or(20);
 
-    // SafeUserWithRoleをUserSummaryに変換
-    let user_summaries: Vec<UserSummary> = users_with_roles
-        .into_iter()
-        .map(|user_with_role| UserSummary {
+    // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
+    let mut user_summaries: Vec<UserSummary> = Vec::new();
+
+    for user_with_role in users_with_roles {
+        // 各ユーザーのタスク数を取得
+        let task_count = app_state
+            .task_service
+            .count_tasks_for_user(user_with_role.id)
+            .await
+            .unwrap_or(0) as u64;
+
+        user_summaries.push(UserSummary {
             id: user_with_role.id,
             username: user_with_role.username,
             email: user_with_role.email,
@@ -488,9 +536,9 @@ pub async fn advanced_search_users_handler(
             email_verified: user_with_role.email_verified,
             created_at: user_with_role.created_at,
             last_login_at: user_with_role.last_login_at,
-            task_count: 0, // TODO: タスク数を取得
-        })
-        .collect();
+            task_count: task_count.try_into().unwrap_or(0),
+        });
+    }
 
     Ok(Json(UserListResponse::new(
         user_summaries,
@@ -576,10 +624,18 @@ pub async fn get_users_by_role_handler(
         .take(end - start)
         .collect::<Vec<_>>();
 
-    // SafeUserWithRoleをUserSummaryに変換
-    let user_summaries: Vec<UserSummary> = paginated_users
-        .into_iter()
-        .map(|user_with_role| UserSummary {
+    // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
+    let mut user_summaries: Vec<UserSummary> = Vec::new();
+
+    for user_with_role in paginated_users {
+        // 各ユーザーのタスク数を取得
+        let task_count = app_state
+            .task_service
+            .count_tasks_for_user(user_with_role.id)
+            .await
+            .unwrap_or(0) as u64;
+
+        user_summaries.push(UserSummary {
             id: user_with_role.id,
             username: user_with_role.username,
             email: user_with_role.email,
@@ -587,9 +643,9 @@ pub async fn get_users_by_role_handler(
             email_verified: user_with_role.email_verified,
             created_at: user_with_role.created_at,
             last_login_at: user_with_role.last_login_at,
-            task_count: 0, // TODO: タスク数を取得
-        })
-        .collect();
+            task_count: task_count.try_into().unwrap_or(0),
+        });
+    }
 
     Ok(Json(UserListResponse::new(
         user_summaries,
@@ -787,10 +843,18 @@ pub async fn list_users_handler(
     let page = query_with_defaults.page.unwrap_or(1);
     let per_page = query_with_defaults.per_page.unwrap_or(20);
 
-    // SafeUserWithRoleをUserSummaryに変換
-    let user_summaries: Vec<UserSummary> = users_with_roles
-        .into_iter()
-        .map(|user_with_role| UserSummary {
+    // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
+    let mut user_summaries: Vec<UserSummary> = Vec::new();
+
+    for user_with_role in users_with_roles {
+        // 各ユーザーのタスク数を取得
+        let task_count = app_state
+            .task_service
+            .count_tasks_for_user(user_with_role.id)
+            .await
+            .unwrap_or(0) as u64;
+
+        user_summaries.push(UserSummary {
             id: user_with_role.id,
             username: user_with_role.username,
             email: user_with_role.email,
@@ -798,9 +862,9 @@ pub async fn list_users_handler(
             email_verified: user_with_role.email_verified,
             created_at: user_with_role.created_at,
             last_login_at: user_with_role.last_login_at,
-            task_count: 0, // TODO: タスク数を取得
-        })
-        .collect();
+            task_count: task_count.try_into().unwrap_or(0),
+        });
+    }
 
     info!(
         admin_id = %admin_user.user_id(),

@@ -444,5 +444,68 @@ impl TaskService {
     }
 
     // Admin専用メソッド群
+    pub async fn get_admin_task_statistics(
+        &self,
+    ) -> AppResult<crate::api::handlers::admin_handler::AdminTaskStatsResponse> {
+        use crate::api::handlers::admin_handler::{AdminTaskStatsResponse, TaskStatusStats};
+
+        let total_tasks =
+            self.repo.count_all_tasks().await.map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count tasks: {}", e))
+            })? as u32;
+
+        let pending_count = self
+            .repo
+            .count_tasks_by_status("pending")
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count pending tasks: {}", e))
+            })? as u32;
+
+        let in_progress_count = self
+            .repo
+            .count_tasks_by_status("in_progress")
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count in_progress tasks: {}", e))
+            })? as u32;
+
+        let completed_count = self
+            .repo
+            .count_tasks_by_status("completed")
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count completed tasks: {}", e))
+            })? as u32;
+
+        Ok(AdminTaskStatsResponse {
+            total_tasks,
+            tasks_by_status: vec![
+                TaskStatusStats {
+                    status: "pending".to_string(),
+                    count: pending_count,
+                },
+                TaskStatusStats {
+                    status: "in_progress".to_string(),
+                    count: in_progress_count,
+                },
+                TaskStatusStats {
+                    status: "completed".to_string(),
+                    count: completed_count,
+                },
+            ],
+            tasks_by_user: vec![],   // Can be implemented later if needed
+            recent_activity: vec![], // Can be implemented later if needed
+        })
+    }
+
+    #[allow(dead_code)]
+    pub async fn count_tasks_for_user(&self, user_id: Uuid) -> AppResult<u64> {
+        let count = self.repo.count_tasks_for_user(user_id).await.map_err(|e| {
+            AppError::InternalServerError(format!("Failed to count tasks for user: {}", e))
+        })?;
+        Ok(count)
+    }
+
     // Unused admin methods removed - use admin_* methods instead
 }

@@ -2,7 +2,8 @@
 use crate::domain::role_model::{self, Entity as Role, RoleWithPermissions};
 use crate::error::{AppError, AppResult};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use std::sync::Arc;
 use tracing::{error, info, warn};
@@ -262,8 +263,20 @@ impl RoleRepository {
             ));
         }
 
-        // TODO: このロールを使用しているユーザーがいるかチェック
-        // 実際の運用では外部キー制約エラーをハンドリング
+        // このロールを使用しているユーザーがいるかチェック
+        let users_with_role = self.count_users_with_role(id).await?;
+        if users_with_role > 0 {
+            warn!(
+                role_id = %id,
+                role_name = %role.name,
+                users_count = users_with_role,
+                "Cannot delete role: still in use by users"
+            );
+            return Err(AppError::ValidationError(format!(
+                "Cannot delete role '{}': {} users are still assigned to this role",
+                role.name, users_with_role
+            )));
+        }
 
         Role::delete_by_id(id)
             .exec(self.db.as_ref())
@@ -275,6 +288,22 @@ impl RoleRepository {
 
         info!(role_id = %id, role_name = %role.name, "Successfully deleted role");
         Ok(())
+    }
+
+    /// 指定したロールを使用しているユーザー数を取得
+    pub async fn count_users_with_role(&self, role_id: Uuid) -> AppResult<u64> {
+        use crate::domain::user_model::{Column as UserColumn, Entity as User};
+
+        let count = User::find()
+            .filter(UserColumn::RoleId.eq(role_id))
+            .count(self.db.as_ref())
+            .await
+            .map_err(|e| {
+                error!(error = %e, role_id = %role_id, "Failed to count users with role");
+                AppError::InternalServerError("Failed to count users with role".to_string())
+            })?;
+
+        Ok(count)
     }
 }
 

@@ -609,4 +609,27 @@ impl TaskRepository {
             .exec(&self.db)
             .await
     }
+
+    // Admin statistics methods
+    pub async fn count_all_tasks(&self) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        TaskEntity::find().count(&self.db).await
+    }
+
+    pub async fn count_tasks_by_status(&self, status: &str) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        TaskEntity::find()
+            .filter(task_model::Column::Status.eq(status))
+            .count(&self.db)
+            .await
+    }
+
+    #[allow(dead_code)]
+    pub async fn count_tasks_for_user(&self, user_id: Uuid) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        TaskEntity::find()
+            .filter(task_model::Column::UserId.eq(user_id))
+            .count(&self.db)
+            .await
+    }
 }

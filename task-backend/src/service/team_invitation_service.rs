@@ -245,12 +245,19 @@ impl TeamInvitationService {
             .await?
             .len() as u64;
 
+        let cancelled = self
+            .team_invitation_repository
+            .find_by_team_id_with_status(team_id, TeamInvitationStatus::Cancelled)
+            .await?
+            .len() as u64;
+
         Ok(TeamInvitationStatistics {
             total,
             pending,
             accepted,
             declined,
             expired,
+            cancelled,
         })
     }
 
@@ -495,6 +502,7 @@ pub struct TeamInvitationStatistics {
     pub accepted: u64,
     pub declined: u64,
     pub expired: u64,
+    pub cancelled: u64,
 }
 
 #[cfg(test)]
@@ -509,6 +517,7 @@ mod tests {
             accepted: 65,
             declined: 10,
             expired: 5,
+            cancelled: 0,
         };
 
         assert_eq!(stats.total, 100);

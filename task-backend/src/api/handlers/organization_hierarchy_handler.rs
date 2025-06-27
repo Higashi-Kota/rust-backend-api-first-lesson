@@ -40,15 +40,23 @@ pub async fn get_organization_hierarchy(
 
     // 階層構造にネストして返すか、フラットリストで返すかを選択
     if params.include_children.unwrap_or(false) {
-        // TODO: 階層構造を構築するロジック
-        let api_response = ApiResponse::success(
-            "Organization hierarchy retrieved successfully",
-            response_data,
-        );
+        // 階層構造を構築するロジック
+        let hierarchy = build_department_hierarchy(response_data);
+        let api_response =
+            ApiResponse::success("Organization hierarchy retrieved successfully", hierarchy);
         Ok(Json(api_response))
     } else {
+        // フラットリストの場合は、DepartmentHierarchyDtoに変換して返す
+        let hierarchy_list: Vec<DepartmentHierarchyDto> = response_data
+            .into_iter()
+            .map(|dept| DepartmentHierarchyDto {
+                department: dept,
+                children: Vec::new(),
+                member_count: None,
+            })
+            .collect();
         let api_response =
-            ApiResponse::success("Departments retrieved successfully", response_data);
+            ApiResponse::success("Departments retrieved successfully", hierarchy_list);
         Ok(Json(api_response))
     }
 }
@@ -181,13 +189,21 @@ pub async fn delete_department(
     // 権限チェック（組織管理者以上）
     user.ensure_can_manage_organization(organization_id)?;
 
+    // 削除前に影響を受ける子部門のIDを取得
+    let affected_children =
+        OrganizationHierarchyService::get_child_departments(&app_state.db_pool, department_id)
+            .await?
+            .into_iter()
+            .map(|dept| dept.id)
+            .collect();
+
     OrganizationHierarchyService::delete_department(&app_state.db_pool, department_id).await?;
 
     let response_data = DepartmentOperationResponseDto {
         success: true,
         message: "Department deleted successfully".to_string(),
         department_id: Some(department_id),
-        affected_children: None, // TODO: 実際の影響を受けた子部門のIDを返す
+        affected_children: Some(affected_children),
     };
 
     let api_response = ApiResponse::success("Department deleted successfully", response_data);
@@ -568,4 +584,60 @@ pub fn organization_hierarchy_router() -> axum::Router<crate::api::AppState> {
             "/organizations/:organization_id/data-export",
             post(export_organization_data),
         )
+}
+
+/// 部門のフラットリストから階層構造を構築するヘルパー関数
+fn build_department_hierarchy(
+    departments: Vec<DepartmentResponseDto>,
+) -> Vec<DepartmentHierarchyDto> {
+    use std::collections::HashMap;
+
+    // 部門IDから部門データへのマップを作成
+    let mut dept_map: HashMap<Uuid, DepartmentResponseDto> = departments
+        .into_iter()
+        .map(|dept| (dept.id, dept))
+        .collect();
+
+    // 階層構造を構築
+    let mut hierarchy: Vec<DepartmentHierarchyDto> = Vec::new();
+    let mut children_map: HashMap<Option<Uuid>, Vec<DepartmentHierarchyDto>> = HashMap::new();
+
+    // 最初にすべての部門を親IDでグループ化
+    for (_, dept) in dept_map.drain() {
+        let hierarchy_dto = DepartmentHierarchyDto {
+            department: dept.clone(),
+            children: Vec::new(),
+            member_count: None, // 実装時にメンバー数を取得する場合は設定
+        };
+
+        children_map
+            .entry(dept.parent_department_id)
+            .or_default()
+            .push(hierarchy_dto);
+    }
+
+    // ルート部門（parent_department_id が None）を取得
+    if let Some(root_depts) = children_map.remove(&None) {
+        hierarchy = root_depts;
+    }
+
+    // 再帰的に子部門を追加
+    fn add_children(
+        dept: &mut DepartmentHierarchyDto,
+        children_map: &mut HashMap<Option<Uuid>, Vec<DepartmentHierarchyDto>>,
+    ) {
+        if let Some(mut children) = children_map.remove(&Some(dept.department.id)) {
+            for child in &mut children {
+                add_children(child, children_map);
+            }
+            dept.children = children;
+        }
+    }
+
+    // 各ルート部門に子部門を追加
+    for dept in &mut hierarchy {
+        add_children(dept, &mut children_map);
+    }
+
+    hierarchy
 }

@@ -100,7 +100,7 @@ pub async fn get_team_invitations(
         accepted: stats.accepted,
         declined: stats.declined,
         expired: stats.expired,
-        cancelled: 0, // TODO: Add cancelled count to statistics
+        cancelled: stats.cancelled,
     };
 
     let response = TeamInvitationsListResponse {
@@ -565,6 +565,7 @@ mod tests {
             accepted: 30,
             declined: 8,
             expired: 2,
+            cancelled: 0,
         };
 
         let response = InvitationStatisticsResponse::from(stats);

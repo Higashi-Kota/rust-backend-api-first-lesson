@@ -39,7 +39,7 @@ pub struct AdminBulkDeleteTasksRequest {
 /// 管理者向けタスク統計レスポンス
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AdminTaskStatsResponse {
-    pub total_tasks: u64,
+    pub total_tasks: u32,
     pub tasks_by_status: Vec<TaskStatusStats>,
     pub tasks_by_user: Vec<UserTaskStats>,
     pub recent_activity: Vec<TaskActivityStats>,
@@ -48,7 +48,7 @@ pub struct AdminTaskStatsResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TaskStatusStats {
     pub status: String,
-    pub count: u64,
+    pub count: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -324,28 +324,10 @@ pub async fn admin_get_task_statistics(
         ));
     }
 
-    let _task_service = &app_state.task_service;
+    let task_service = &app_state.task_service;
 
     // 基本統計を取得（実装はサービス層で）
-    let stats = AdminTaskStatsResponse {
-        total_tasks: 0, // TODO: 実装
-        tasks_by_status: vec![
-            TaskStatusStats {
-                status: "pending".to_string(),
-                count: 0,
-            },
-            TaskStatusStats {
-                status: "in_progress".to_string(),
-                count: 0,
-            },
-            TaskStatusStats {
-                status: "completed".to_string(),
-                count: 0,
-            },
-        ],
-        tasks_by_user: vec![],
-        recent_activity: vec![],
-    };
+    let stats = task_service.get_admin_task_statistics().await?;
 
     Ok(Json(ApiResponse::success(
         "Task statistics retrieved successfully",

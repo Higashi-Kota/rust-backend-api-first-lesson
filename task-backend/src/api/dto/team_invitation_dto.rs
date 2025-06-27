@@ -82,6 +82,7 @@ pub struct InvitationStatisticsResponse {
     pub accepted: u64,
     pub declined: u64,
     pub expired: u64,
+    pub cancelled: u64,
 }
 
 fn validate_emails(emails: &[String]) -> Result<(), ValidationError> {
@@ -147,6 +148,7 @@ impl From<crate::service::team_invitation_service::TeamInvitationStatistics>
             accepted: stats.accepted,
             declined: stats.declined,
             expired: stats.expired,
+            cancelled: stats.cancelled,
         }
     }
 }
@@ -347,6 +349,7 @@ mod tests {
             accepted: 65,
             declined: 10,
             expired: 5,
+            cancelled: 0,
         };
 
         let response = InvitationStatisticsResponse::from(stats);
@@ -355,6 +358,7 @@ mod tests {
         assert_eq!(response.accepted, 65);
         assert_eq!(response.declined, 10);
         assert_eq!(response.expired, 5);
+        assert_eq!(response.cancelled, 0);
     }
 
     #[test]

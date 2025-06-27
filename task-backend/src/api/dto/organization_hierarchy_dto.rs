@@ -41,7 +41,7 @@ pub struct UpdateDepartmentDto {
     pub new_parent_id: Option<Uuid>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepartmentResponseDto {
     pub id: Uuid,
     pub name: String,
