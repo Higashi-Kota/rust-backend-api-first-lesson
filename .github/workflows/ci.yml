@@ -11,9 +11,64 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  test:
-    name: Test Suite
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-workspace-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-workspace-
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Run unit tests
+        run: cargo test --lib --verbose --locked
+
+      - name: Build release
+        run: cargo build --workspace --release --locked
+
+  integration-tests:
+    name: Integration Tests (${{ matrix.group }})
+    runs-on: ubuntu-latest
+
+    needs: [unit-tests]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        group:
+          - integration_analytics
+          - integration_auth
+          - integration_organization_hierarchy
+          - integration_permission
+          - integration_roles
+          - integration_security
+          - integration_subscription
+          - integration_tasks
+          - integration_team
+          - integration_user
 
     services:
       postgres:
@@ -31,25 +86,10 @@ jobs:
           - 5432:5432
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          # rust-toolchain.tomlが自動的に読み込まれる
-          components: rustfmt, clippy
-
-      # ワークスペース全体でCargo.lockを信頼し、再現可能なビルドを保証
-      - name: Verify reproducible build with Cargo.lock
-        run: |
-          # Cargo.lockが存在することを確認
-          if [ ! -f Cargo.lock ]; then
-            echo "ERROR: Cargo.lock not found. This should be committed for applications."
-            exit 1
-          fi
-          # Cargo.lockを使用してワークスペース全体をチェック（再現可能性のため）
-          cargo check --workspace --locked
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -58,52 +98,29 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-workspace-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-workspace-
+            ${{ runner.os }}-cargo-integration-
 
       - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libpq-dev
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+      - name: Run migration
+        run: cargo run --package migration -- up
 
-      - name: Run clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-      - name: Run tests
+      - name: Run integration tests for ${{ matrix.group }}
         env:
           DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
           SERVER_ADDR: 0.0.0.0:3000
           RUST_LOG: debug
-        run: |
-          # マイグレーション実行（ワークスペース構成）
-          cargo run --package migration -- up
-          # ワークスペース全体のテスト実行
-          cargo test --workspace --verbose --locked
-          # 統合テスト実行
-          cargo test --workspace --test '*' --verbose --locked
-
-      - name: Build release
-        run: cargo build --workspace --release --locked
-
-      - name: Check workspace structure
-        run: |
-          echo "Workspace members:"
-          cargo metadata --format-version 1 | jq -r '.workspace_members[]'
-          echo "Built binaries:"
-          ls -la target/release/
+        run: cargo test --test ${{ matrix.group }} --verbose --locked
 
   security:
     name: Security Audit
     runs-on: ubuntu-latest
-    # テストが成功した場合のみ実行
-    needs: [test]
+    needs: [unit-tests, integration-tests]
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -112,27 +129,24 @@ jobs:
         run: cargo install cargo-audit
 
       - name: Run security audit
-        run: |
-          # Check for vulnerabilities (ignore known unfixable issues)
-          cargo audit
+        run: cargo audit
 
   build-docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
-    needs: [test, security]
+    needs: [unit-tests, integration-tests, security]
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -164,8 +178,6 @@ jobs:
 
       - name: Verify built image
         run: |
-          echo "Built image tags:"
-          echo "${{ steps.meta.outputs.tags }}"
           echo "Testing image health..."
           docker run --rm -d --name test-container \
             -e DATABASE_URL=postgres://test:test@localhost:5432/test \
@@ -183,16 +195,7 @@ jobs:
 
     steps:
       - name: Deploy to staging
-        run: |
-          echo "Deploying ghcr.io/${{ github.repository }}:develop to staging environment..."
-          echo "Available for deployment:"
-          echo "- Application: task-backend"
-          echo "- Migration: migration"
-          echo "- Image: ghcr.io/${{ github.repository }}:develop"
-          # ここにステージング環境へのデプロイ処理を追加
-          # 例: 
-          # docker pull ghcr.io/${{ github.repository }}:develop
-          # docker-compose -f docker-compose.staging.yml up -d
+        run: echo "Deploy staging..."
 
   deploy-production:
     name: Deploy to Production
@@ -203,32 +206,21 @@ jobs:
 
     steps:
       - name: Deploy to production
-        run: |
-          echo "Deploying ghcr.io/${{ github.repository }}:latest to production environment..."
-          echo "Available for deployment:"
-          echo "- Application: task-backend"
-          echo "- Migration: migration"
-          echo "- Image: ghcr.io/${{ github.repository }}:latest"
-          # ここに本番環境へのデプロイ処理を追加
-          # 例:
-          # docker pull ghcr.io/${{ github.repository }}:latest
-          # docker-compose -f docker-compose.prod.yml up -d
+        run: echo "Deploy production..."
 
-  # ワークスペース固有のジョブ
   workspace-info:
     name: Workspace Information
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [unit-tests, integration-tests]
     if: github.event_name == 'pull_request'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Display workspace information
+      - name: Display workspace info
         run: |
           echo "## Workspace Structure" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
