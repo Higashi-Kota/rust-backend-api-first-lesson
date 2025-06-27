@@ -10,7 +10,7 @@ use validator::Validate;
 
 // --- Request DTOs ---
 
-#[derive(Deserialize, Serialize, Debug, Validate)]
+#[derive(Deserialize, Serialize, Debug, Validate, Clone)]
 pub struct CreateTaskDto {
     #[validate(
         length(

@@ -16,16 +16,12 @@ mod service;
 mod utils;
 
 use crate::api::handlers::{
-    analytics_handler::analytics_router_with_state,
-    auth_handler::auth_router_with_state,
-    organization_handler::organization_router_with_state,
+    admin_handler::admin_router, analytics_handler::analytics_router_with_state,
+    auth_handler::auth_router_with_state, organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
-    permission_handler::permission_router_with_state,
-    role_handler::role_router_with_state,
-    security_handler::security_router,
-    subscription_handler::subscription_router_with_state,
-    task_handler::{admin_task_router, task_router_with_state},
-    team_handler::team_router_with_state,
+    permission_handler::permission_router_with_state, role_handler::role_router_with_state,
+    security_handler::security_router, subscription_handler::subscription_router_with_state,
+    task_handler::task_router_with_state, team_handler::team_router_with_state,
     user_handler::user_router_with_state,
 };
 use crate::api::AppState;
@@ -250,7 +246,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let permission_router = permission_router_with_state(app_state.clone());
     let analytics_router = analytics_router_with_state(app_state.clone());
     let security_router = security_router(app_state.clone());
-    let admin_router = admin_task_router(app_state.clone());
+    let admin_router = admin_router(app_state.clone());
     let hierarchy_router = organization_hierarchy_router().with_state(app_state.clone());
 
     // メインアプリケーションルーターの構築

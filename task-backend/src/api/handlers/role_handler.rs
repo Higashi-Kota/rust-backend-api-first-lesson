@@ -22,14 +22,12 @@ use validator::Validate;
 #[derive(Debug, Deserialize, Validate)]
 pub struct RoleSearchQuery {
     pub active_only: Option<bool>,
-    #[allow(dead_code)]
-    pub include_stats: Option<bool>,
 }
 
 // --- カスタム抽出器 ---
 
 /// UUID パス抽出器
-pub struct UuidPath(#[allow(dead_code)] pub Uuid);
+pub struct UuidPath(pub Uuid);
 
 impl<S> axum::extract::FromRequestParts<S> for UuidPath
 where
@@ -368,12 +366,10 @@ mod tests {
         // 正常なクエリパラメータ
         let query = RoleSearchQuery {
             active_only: Some(true),
-            include_stats: Some(false),
         };
 
         assert!(query.validate().is_ok());
         assert_eq!(query.active_only, Some(true));
-        assert_eq!(query.include_stats, Some(false));
     }
 
     #[test]

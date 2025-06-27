@@ -303,7 +303,9 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         .merge(task_backend::api::handlers::role_handler::role_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::task_handler::task_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::team_handler::team_router_with_state(app_state.clone()))
-        .merge(task_backend::api::handlers::task_handler::admin_task_router(app_state.clone()))
+        .merge(task_backend::api::handlers::admin_handler::admin_router(
+            app_state.clone(),
+        ))
         .merge(
             task_backend::api::handlers::subscription_handler::subscription_router_with_state(
                 app_state.clone(),
