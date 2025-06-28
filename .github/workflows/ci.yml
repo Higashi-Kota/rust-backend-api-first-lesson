@@ -16,12 +16,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Verify reproducible build with Cargo.lock
+        run: |
+          if [ ! -f Cargo.lock ]; then
+            echo "ERROR: Cargo.lock not found. This should be committed for applications."
+            exit 1
+          fi
+          cargo check --workspace --locked
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -35,7 +44,9 @@ jobs:
             ${{ runner.os }}-cargo-workspace-
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libpq-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -49,6 +60,13 @@ jobs:
       - name: Build release
         run: cargo build --workspace --release --locked
 
+      - name: Check workspace structure
+        run: |
+          echo "Workspace members:"
+          cargo metadata --format-version 1 | jq -r '.workspace_members[]'
+          echo "Built binaries:"
+          ls -la target/release/
+
   integration-tests:
     name: Integration Tests (${{ matrix.group }})
     runs-on: ubuntu-latest
@@ -59,16 +77,16 @@ jobs:
       fail-fast: false
       matrix:
         group:
-          - integration_analytics
-          - integration_auth
-          - integration_organization_hierarchy
-          - integration_permission
-          - integration_roles
-          - integration_security
-          - integration_subscription
-          - integration_tasks
-          - integration_team
-          - integration_user
+          - integration::analytics
+          - integration::auth
+          - integration::organization_hierarchy
+          - integration::permission
+          - integration::roles
+          - integration::security
+          - integration::subscription
+          - integration::tasks
+          - integration::team
+          - integration::user
 
     services:
       postgres:
@@ -86,7 +104,8 @@ jobs:
           - 5432:5432
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -103,9 +122,13 @@ jobs:
             ${{ runner.os }}-cargo-integration-
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libpq-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpq-dev
 
       - name: Run migration
+        env:
+          DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
         run: cargo run --package migration -- up
 
       - name: Run integration tests for ${{ matrix.group }}
@@ -113,7 +136,7 @@ jobs:
           DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
           SERVER_ADDR: 0.0.0.0:3000
           RUST_LOG: debug
-        run: cargo test --test ${{ matrix.group }} --verbose --locked
+        run: cargo test --test main ${{ matrix.group }} --verbose --locked
 
   security:
     name: Security Audit
@@ -178,6 +201,8 @@ jobs:
 
       - name: Verify built image
         run: |
+          echo "Built image tags:"
+          echo "${{ steps.meta.outputs.tags }}"
           echo "Testing image health..."
           docker run --rm -d --name test-container \
             -e DATABASE_URL=postgres://test:test@localhost:5432/test \
@@ -195,7 +220,12 @@ jobs:
 
     steps:
       - name: Deploy to staging
-        run: echo "Deploy staging..."
+        run: |
+          echo "Deploying ghcr.io/${{ github.repository }}:develop to staging environment..."
+          echo "Available for deployment:"
+          echo "- Application: task-backend"
+          echo "- Migration: migration"
+          echo "- Image: ghcr.io/${{ github.repository }}:develop"
 
   deploy-production:
     name: Deploy to Production
@@ -206,7 +236,12 @@ jobs:
 
     steps:
       - name: Deploy to production
-        run: echo "Deploy production..."
+        run: |
+          echo "Deploying ghcr.io/${{ github.repository }}:latest to production environment..."
+          echo "Available for deployment:"
+          echo "- Application: task-backend"
+          echo "- Migration: migration"
+          echo "- Image: ghcr.io/${{ github.repository }}:latest"
 
   workspace-info:
     name: Workspace Information
@@ -215,12 +250,13 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Display workspace info
+      - name: Display workspace information
         run: |
           echo "## Workspace Structure" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
