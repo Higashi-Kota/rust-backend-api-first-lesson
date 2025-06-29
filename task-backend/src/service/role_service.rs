@@ -4,6 +4,8 @@ use crate::domain::user_model::{SafeUserWithRole, UserClaims};
 use crate::error::{AppError, AppResult};
 use crate::repository::role_repository::{CreateRoleData, RoleRepository, UpdateRoleData};
 use crate::repository::user_repository::UserRepository;
+use crate::utils::transaction::{execute_with_retry, RetryConfig};
+use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -11,14 +13,20 @@ use uuid::Uuid;
 /// ロールサービス
 #[derive(Debug, Clone)]
 pub struct RoleService {
+    db: Arc<DatabaseConnection>,
     role_repository: Arc<RoleRepository>,
     user_repository: Arc<UserRepository>,
 }
 
 impl RoleService {
     /// 新しいロールサービスを作成
-    pub fn new(role_repository: Arc<RoleRepository>, user_repository: Arc<UserRepository>) -> Self {
+    pub fn new(
+        db: Arc<DatabaseConnection>,
+        role_repository: Arc<RoleRepository>,
+        user_repository: Arc<UserRepository>,
+    ) -> Self {
         Self {
+            db,
             role_repository,
             user_repository,
         }
@@ -69,8 +77,15 @@ impl RoleService {
         requesting_user: &UserClaims,
         create_data: CreateRoleInput,
     ) -> AppResult<RoleWithPermissions> {
-        // 管理者権限チェック
-        self.check_admin_permission(requesting_user)?;
+        // UserClaimsのcan_create_resourceメソッドを活用
+        if !requesting_user.can_create_resource("role") {
+            warn!(
+                user_id = %requesting_user.user_id,
+                resource = "role",
+                "Insufficient permissions to create role"
+            );
+            return Err(AppError::Forbidden("Cannot create roles".to_string()));
+        }
 
         // 入力バリデーション
         create_data.validate()?;
@@ -176,8 +191,16 @@ impl RoleService {
 
     /// ロールを削除（管理者のみ）
     pub async fn delete_role(&self, requesting_user: &UserClaims, role_id: Uuid) -> AppResult<()> {
-        // 管理者権限チェック
-        self.check_admin_permission(requesting_user)?;
+        // UserClaimsのcan_delete_resourceメソッドを活用
+        if !requesting_user.can_delete_resource("role", None) {
+            warn!(
+                user_id = %requesting_user.user_id,
+                resource = "role",
+                role_id = %role_id,
+                "Insufficient permissions to delete role"
+            );
+            return Err(AppError::Forbidden("Cannot delete roles".to_string()));
+        }
 
         info!(
             admin_id = %requesting_user.user_id,
@@ -232,15 +255,21 @@ impl RoleService {
 
     /// 管理者権限をチェック
     pub fn check_admin_permission(&self, user: &UserClaims) -> AppResult<()> {
-        if !user.is_admin() {
-            warn!(
-                user_id = %user.user_id,
-                role = ?user.role.as_ref().map(|r| &r.name),
-                "Insufficient permissions for admin operation"
-            );
-            return Err(AppError::Forbidden("Admin access required".to_string()));
+        // UserClaimsの動的権限チェック機能を活用
+        let permission_result = user.can_perform_action("roles", "manage", None);
+
+        match permission_result {
+            crate::domain::permission::PermissionResult::Allowed { .. } => Ok(()),
+            crate::domain::permission::PermissionResult::Denied { reason } => {
+                warn!(
+                    user_id = %user.user_id,
+                    role = ?user.role.as_ref().map(|r| &r.name),
+                    reason = %reason,
+                    "Insufficient permissions for role management"
+                );
+                Err(AppError::Forbidden(reason))
+            }
         }
-        Ok(())
     }
 
     // --- ユーザーロール管理 ---
@@ -252,31 +281,58 @@ impl RoleService {
         user_id: Uuid,
         role_id: Uuid,
     ) -> AppResult<SafeUserWithRole> {
-        // 管理者権限チェック
-        self.check_admin_permission(requesting_user)?;
+        // UserClaimsのcan_update_resourceメソッドを活用 - ユーザーリソースの更新
+        if !requesting_user.can_update_resource("user", Some(user_id)) {
+            warn!(
+                user_id = %requesting_user.user_id,
+                target_user_id = %user_id,
+                resource = "user",
+                "Insufficient permissions to assign role to user"
+            );
+            return Err(AppError::Forbidden(
+                "Cannot assign roles to users".to_string(),
+            ));
+        }
 
         info!(
             admin_id = %requesting_user.user_id,
             target_user_id = %user_id,
             role_id = %role_id,
-            "Assigning role to user"
+            "Assigning role to user with retry capability"
         );
 
         // ロールの存在確認
         let role = self.get_role_by_id(role_id).await?;
 
-        // ユーザーのロールを更新
-        let updated_user = self.user_repository
-            .update_user_role(user_id, role_id)
-            .await
-            .map_err(|e| {
-                error!(error = %e, user_id = %user_id, role_id = %role_id, "Failed to assign role to user");
-                AppError::InternalServerError("Failed to assign role".to_string())
-            })?
-            .ok_or_else(|| {
-                warn!(user_id = %user_id, "User not found for role assignment");
-                AppError::NotFound("User not found".to_string())
-            })?;
+        // execute_with_retryを使用してロール割り当てを実行
+        let retry_config = RetryConfig {
+            max_attempts: 3,
+            base_delay_ms: 100,
+            max_delay_ms: 1000,
+        };
+
+        let user_repo = self.user_repository.clone();
+        let updated_user = execute_with_retry(
+            &self.db,
+            move |_txn| {
+                let user_repo = user_repo.clone();
+                Box::pin(async move {
+                    user_repo
+                        .update_user_role(user_id, role_id)
+                        .await
+                        .map_err(|e| {
+                            error!(error = %e, user_id = %user_id, role_id = %role_id, "Failed to assign role to user");
+                            AppError::InternalServerError("Failed to assign role".to_string())
+                        })?
+                        .ok_or_else(|| {
+                            warn!(user_id = %user_id, "User not found for role assignment");
+                            AppError::NotFound("User not found".to_string())
+                        })
+                })
+            },
+            retry_config,
+        )
+        .await?;
 
         let user_with_role = updated_user.to_safe_user_with_role(role);
 

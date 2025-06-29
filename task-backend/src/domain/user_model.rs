@@ -224,7 +224,6 @@ impl UserClaims {
     }
 
     /// 一般ユーザー権限があるかチェック（統合版）
-    #[allow(dead_code)]
     pub fn is_member(&self) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::is_member(role)
@@ -238,7 +237,6 @@ impl UserClaims {
     }
 
     /// 他のユーザーのデータにアクセス権限があるかチェック（統合版）
-    #[allow(dead_code)]
     pub fn can_access_user(&self, target_user_id: Uuid) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_access_user(role, self.user_id, target_user_id)
@@ -253,7 +251,6 @@ impl UserClaims {
     }
 
     /// リソース作成権限があるかチェック（統合版）
-    #[allow(dead_code)]
     pub fn can_create_resource(&self, resource_type: &str) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_create_resource(role, resource_type)
@@ -268,7 +265,6 @@ impl UserClaims {
     }
 
     /// リソース削除権限があるかチェック（統合版）
-    #[allow(dead_code)]
     pub fn can_delete_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_delete_resource(role, resource_type, owner_id, self.user_id)
@@ -283,7 +279,6 @@ impl UserClaims {
     }
 
     /// リソースの編集権限があるかチェック（新機能）
-    #[allow(dead_code)]
     pub fn can_update_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_update_resource(role, resource_type, owner_id, self.user_id)
@@ -311,7 +306,6 @@ impl UserClaims {
     }
 
     /// リソースの表示権限があるかチェック（新機能）
-    #[allow(dead_code)]
     pub fn can_view_resource(&self, resource_type: &str, owner_id: Option<Uuid>) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::can_view_resource(role, resource_type, owner_id, self.user_id)
@@ -339,7 +333,6 @@ impl UserClaims {
     }
 
     /// 動的権限チェック
-    #[allow(dead_code)]
     pub fn can_perform_action(
         &self,
         resource: &str,
@@ -419,7 +412,6 @@ impl UserClaims {
     }
 
     /// 指定されたサブスクリプション階層以上かチェック
-    #[allow(dead_code)]
     pub fn has_subscription_tier(&self, required_tier: SubscriptionTier) -> bool {
         self.subscription_tier.is_at_least(&required_tier)
     }

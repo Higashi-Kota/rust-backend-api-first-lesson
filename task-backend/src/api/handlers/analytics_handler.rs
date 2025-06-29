@@ -1,7 +1,7 @@
 // task-backend/src/api/handlers/analytics_handler.rs
 
 use crate::api::dto::analytics_dto::*;
-use crate::api::dto::ApiResponse;
+use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
@@ -13,6 +13,7 @@ use axum::{
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
+use serde_json::json;
 use tracing::{info, warn};
 use uuid::Uuid;
 use validator::Validate;
@@ -264,9 +265,19 @@ pub async fn get_user_activity_handler(
         "User activity stats generated"
     );
 
-    Ok(Json(ApiResponse::success(
+    // ApiResponse::success_with_metadataを活用
+    let metadata = json!({
+        "query_period_days": days,
+        "period_start": period_start.to_rfc3339(),
+        "period_end": period_end.to_rfc3339(),
+        "calculation_timestamp": Utc::now().to_rfc3339(),
+        "api_version": "v1"
+    });
+
+    Ok(Json(ApiResponse::success_with_metadata(
         "User activity statistics retrieved successfully",
         response,
+        metadata,
     )))
 }
 
@@ -866,9 +877,12 @@ pub async fn advanced_export_handler(
         "Advanced export completed"
     );
 
+    // エクスポートレスポンスをOperationResult::createdでラップして作成済みを明示
+    let export_result = OperationResult::created(response);
+
     Ok(Json(ApiResponse::success(
         "Advanced export completed successfully",
-        response,
+        export_result.item,
     )))
 }
 

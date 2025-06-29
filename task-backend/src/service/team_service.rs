@@ -12,8 +12,9 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
+use sea_orm::DatabaseConnection;
 use std::sync::Arc;
-use tracing::warn;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 pub struct TeamService {
@@ -24,6 +25,7 @@ pub struct TeamService {
 
 impl TeamService {
     pub fn new(
+        _db: Arc<DatabaseConnection>,
         team_repository: TeamRepository,
         user_repository: UserRepository,
         email_service: Arc<EmailService>,
@@ -48,26 +50,39 @@ impl TeamService {
             ));
         }
 
-        // デフォルトのサブスクリプション階層（ユーザーのサブスクリプションに基づいて決定可能）
+        info!(
+            owner_id = %owner_id,
+            team_name = %request.name,
+            "Starting team creation"
+        );
+
+        // デフォルトのサブスクリプション階層
         let subscription_tier = SubscriptionTier::Free;
 
         let team = Team::new_team(
-            request.name,
-            request.description,
+            request.name.clone(),
+            request.description.clone(),
             request.organization_id,
             owner_id,
             subscription_tier,
         );
 
-        // チームを作成
+        // チームを作成（repositoryのcreate_teamメソッドを使用）
         let created_team = self.team_repository.create_team(&team).await?;
 
         // オーナーをメンバーとして追加
         let owner_member = TeamMember::new_member(created_team.id, owner_id, TeamRole::Owner, None);
-        self.team_repository.add_member(&owner_member).await?;
+        let created_member = self.team_repository.add_member(&owner_member).await?;
+
+        info!(
+            owner_id = %owner_id,
+            team_id = %created_team.id,
+            team_name = %created_team.name,
+            "Team created successfully"
+        );
 
         // レスポンスを作成
-        let member_response = self.build_team_member_response(&owner_member).await?;
+        let member_response = self.build_team_member_response(&created_member).await?;
         Ok(TeamResponse::from((created_team, vec![member_response])))
     }
 

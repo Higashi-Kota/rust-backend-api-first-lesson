@@ -26,7 +26,6 @@ impl<T> ApiResponse<T> {
     }
 
     /// メッセージのみの成功レスポンスを作成
-    #[allow(dead_code)]
     pub fn success_message(message: impl Into<String>) -> ApiResponse<()> {
         ApiResponse {
             success: true,
@@ -37,7 +36,6 @@ impl<T> ApiResponse<T> {
     }
 
     /// メタデータ付き成功レスポンスを作成
-    #[allow(dead_code)]
     pub fn success_with_metadata(
         message: impl Into<String>,
         data: T,
@@ -204,7 +202,6 @@ impl<T> OperationResult<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn created(item: T) -> Self {
         Self::new(item, vec!["Created".to_string()])
     }
@@ -213,7 +210,6 @@ impl<T> OperationResult<T> {
         Self::new(item, changes)
     }
 
-    #[allow(dead_code)]
     pub fn deleted(item: T) -> Self {
         Self::new(item, vec!["Deleted".to_string()])
     }

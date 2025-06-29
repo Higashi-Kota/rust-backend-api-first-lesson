@@ -35,7 +35,10 @@
       "Bash(RUST_BACKTRACE=full EMAIL_DEVELOPMENT_MODE=false make run 2 >& 1)",
       "Bash(EMAIL_DEVELOPMENT_MODE=true make run 2 >& 1)",
       "Bash(nslookup:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(RUSTFLAGS=\"-W dead_code\" cargo check --all-targets)",
+      "Bash(git checkout:*)",
+      "Bash(timeout 5 cargo run)"
     ],
     "deny": [
       "Bash(docker:*)"

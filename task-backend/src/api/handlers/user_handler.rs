@@ -1,14 +1,20 @@
 // task-backend/src/api/handlers/user_handler.rs
-use crate::api::dto::user_dto::*;
-use crate::api::dto::{ApiResponse, OperationResult};
+use crate::api::dto::common::{ApiResponse, OperationResult};
+use crate::api::dto::user_dto::{
+    AccountStatusUpdateResponse, BulkOperationResponse, BulkUserOperationsRequest,
+    EmailVerificationResponse, ProfileUpdateResponse, ResendVerificationEmailRequest,
+    SubscriptionAnalyticsResponse, SubscriptionQuery, UpdateAccountStatusRequest,
+    UpdateEmailRequest, UpdateProfileRequest, UpdateUsernameRequest, UserAdditionalInfo,
+    UserAnalyticsResponse, UserListResponse, UserProfileResponse, UserSearchQuery,
+    UserSettingsResponse, UserStatsResponse, UserSummary, VerifyEmailRequest,
+};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
-    http::{request::Parts, StatusCode},
-    response::IntoResponse,
+    http::request::Parts,
     routing::{get, patch, post},
     Router,
 };
@@ -392,15 +398,17 @@ pub async fn update_account_status_handler(
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<UpdateAccountStatusRequest>,
 ) -> AppResult<Json<AccountStatusUpdateResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
+    // UserClaimsの権限チェックメソッドを活用 - ユーザーリソースの更新権限を確認
+    if !admin_user.claims.can_update_resource("user", Some(user_id)) {
         warn!(
             user_id = %admin_user.user_id(),
             role = ?admin_user.role().map(|r| &r.name),
             target_user_id = %user_id,
-            "Access denied: Admin permission required for account status update"
+            "Access denied: Cannot update user account status"
         );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot update user account status".to_string(),
+        ));
     }
 
     // バリデーション
@@ -887,15 +895,17 @@ pub async fn get_user_by_id_handler(
     UuidPath(user_id): UuidPath,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<UserProfileResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
+    // UserClaimsの権限チェックメソッドを活用
+    if !admin_user.claims.can_access_user(user_id) {
         warn!(
             user_id = %admin_user.user_id(),
             role = ?admin_user.role().map(|r| &r.name),
             target_user_id = %user_id,
-            "Access denied: Admin permission required for user profile access"
+            "Access denied: Cannot access user profile"
         );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot access user profile".to_string(),
+        ));
     }
 
     info!(
@@ -920,7 +930,7 @@ pub async fn get_user_by_id_handler(
 pub async fn update_last_login_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<impl IntoResponse> {
+) -> AppResult<Json<ApiResponse<()>>> {
     app_state
         .user_service
         .update_last_login(user.claims.user_id)
@@ -928,7 +938,12 @@ pub async fn update_last_login_handler(
 
     info!(user_id = %user.claims.user_id, "Last login time updated");
 
-    Ok(StatusCode::NO_CONTENT)
+    // ApiResponse::success_messageを活用
+    Ok(Json(
+        crate::api::dto::common::ApiResponse::<()>::success_message(
+            "Last login time updated successfully",
+        ),
+    ))
 }
 
 // --- ヘルスチェック ---

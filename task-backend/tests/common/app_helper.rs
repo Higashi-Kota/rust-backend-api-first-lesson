@@ -87,7 +87,11 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
 
     // 統一されたAppStateの作成
 
-    let role_service = Arc::new(RoleService::new(role_repo.clone(), user_repo.clone()));
+    let role_service = Arc::new(RoleService::new(
+        Arc::new(db.connection.clone()),
+        role_repo.clone(),
+        user_repo.clone(),
+    ));
     let task_service = Arc::new(TaskService::with_schema(
         db.connection.clone(),
         schema_name.clone(),
@@ -97,6 +101,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         email_service.clone(),
     ));
     let team_service = Arc::new(TeamService::new(
+        Arc::new(db.connection.clone()),
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
         email_service.clone(),
@@ -212,7 +217,11 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         Arc::new(db.connection.clone()),
     ));
     let user_service = Arc::new(UserService::new(user_repo.clone()));
-    let role_service = Arc::new(RoleService::new(role_repo.clone(), user_repo.clone()));
+    let role_service = Arc::new(RoleService::new(
+        Arc::new(db.connection.clone()),
+        role_repo.clone(),
+        user_repo.clone(),
+    ));
     let task_service = Arc::new(TaskService::with_schema(
         db.connection.clone(),
         schema_name.clone(),
@@ -222,6 +231,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         email_service.clone(),
     ));
     let team_service = Arc::new(TeamService::new(
+        Arc::new(db.connection.clone()),
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
         email_service.clone(),

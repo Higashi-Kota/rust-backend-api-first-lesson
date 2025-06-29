@@ -206,7 +206,11 @@ pub async fn delete_department(
         affected_children: Some(affected_children),
     };
 
-    let api_response = ApiResponse::success("Department deleted successfully", response_data);
+    // OperationResult::deletedを使用して削除操作の結果を表現
+    let deletion_result = OperationResult::deleted(response_data);
+
+    let api_response =
+        ApiResponse::success("Department deleted successfully", deletion_result.item);
     Ok(Json(api_response))
 }
 
@@ -545,43 +549,43 @@ pub fn organization_hierarchy_router() -> axum::Router<crate::api::AppState> {
     axum::Router::new()
         // 組織階層管理
         .route(
-            "/organizations/:organization_id/hierarchy",
+            "/organizations/{organization_id}/hierarchy",
             get(get_organization_hierarchy),
         )
         .route(
-            "/organizations/:organization_id/departments",
+            "/organizations/{organization_id}/departments",
             get(get_departments).post(create_department),
         )
         .route(
-            "/organizations/:organization_id/departments/:department_id",
+            "/organizations/{organization_id}/departments/{department_id}",
             put(update_department).delete(delete_department),
         )
         // 部門メンバー管理
         .route(
-            "/organizations/:organization_id/departments/:department_id/members",
+            "/organizations/{organization_id}/departments/{department_id}/members",
             post(add_department_member),
         )
         .route(
-            "/organizations/:organization_id/departments/:department_id/members/:user_id",
+            "/organizations/{organization_id}/departments/{department_id}/members/{user_id}",
             delete(remove_department_member),
         )
         // 組織分析
         .route(
-            "/organizations/:organization_id/analytics",
+            "/organizations/{organization_id}/analytics",
             get(get_organization_analytics).post(create_analytics_metric),
         )
         // 権限マトリックス管理
         .route(
-            "/organizations/:organization_id/permission-matrix",
+            "/organizations/{organization_id}/permission-matrix",
             get(get_organization_permission_matrix).put(set_organization_permission_matrix),
         )
         .route(
-            "/organizations/:organization_id/effective-permissions",
+            "/organizations/{organization_id}/effective-permissions",
             get(get_effective_permissions),
         )
         // データエクスポート
         .route(
-            "/organizations/:organization_id/data-export",
+            "/organizations/{organization_id}/data-export",
             post(export_organization_data),
         )
 }

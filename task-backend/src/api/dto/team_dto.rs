@@ -8,7 +8,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// チーム作成リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CreateTeamRequest {
     #[validate(length(min = 1, max = 100, message = "Team name must be 1-100 characters"))]
     pub name: String,

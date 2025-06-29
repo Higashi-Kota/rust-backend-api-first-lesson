@@ -155,7 +155,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let user_service = Arc::new(UserService::new(user_repo.clone()));
 
-    let role_service = Arc::new(RoleService::new(role_repo.clone(), user_repo.clone()));
+    let role_service = Arc::new(RoleService::new(
+        Arc::new(db_pool.clone()),
+        role_repo.clone(),
+        user_repo.clone(),
+    ));
 
     let task_service = if let Some(schema) = &app_config.database.schema {
         Arc::new(TaskService::with_schema(db_pool.clone(), schema.clone()))
@@ -169,6 +173,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
     let team_service = Arc::new(TeamService::new(
+        Arc::new(db_pool.clone()),
         TeamRepository::new(db_pool.clone()),
         UserRepository::new(db_pool.clone()),
         email_service.clone(),
