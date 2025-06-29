@@ -197,10 +197,3 @@ impl Drop for TestDatabase {
         });
     }
 }
-
-// テスト用のヘルパー関数 - 現在は不使用
-#[allow(dead_code)]
-pub async fn setup_test_db() -> DatabaseConnection {
-    let test_db = TestDatabase::new().await;
-    test_db.connection.clone()
-}
