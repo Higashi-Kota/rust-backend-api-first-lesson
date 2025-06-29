@@ -388,7 +388,7 @@ impl From<PermissionResult> for PermissionCheckResponse {
             PermissionResult::Allowed { privilege, scope } => {
                 let scope_info = Some(PermissionScopeInfo {
                     scope: scope.clone(),
-                    description: scope.description(),
+                    description: scope.description().to_string(),
                     level: scope.level(),
                 });
 
@@ -427,17 +427,6 @@ impl From<PermissionResult> for PermissionCheckResponse {
                     expires_at: None,
                 }
             }
-        }
-    }
-}
-
-impl PermissionScope {
-    pub fn description(&self) -> String {
-        match self {
-            PermissionScope::Own => "Access to own resources only".to_string(),
-            PermissionScope::Team => "Access to team resources".to_string(),
-            PermissionScope::Organization => "Access to organization resources".to_string(),
-            PermissionScope::Global => "Access to all resources".to_string(),
         }
     }
 }

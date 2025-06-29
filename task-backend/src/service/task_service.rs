@@ -7,7 +7,7 @@ use crate::api::dto::task_dto::{
 };
 use crate::api::dto::PaginationMeta;
 use crate::db::DbPool;
-use crate::domain::permission::{PermissionResult, PermissionScope, Privilege};
+use crate::domain::permission::{Permission, PermissionResult, PermissionScope, Privilege};
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::repository::task_repository::TaskRepository;
@@ -34,6 +34,8 @@ impl TaskService {
 
     // --- CRUD ---
     pub async fn create_task(&self, payload: CreateTaskDto) -> AppResult<TaskDto> {
+        // 基本的な書き込み権限の例（実際の使用はハンドラーで行う）
+        let _write_permission = Permission::write_own("tasks");
         let created_task = self.repo.create(payload).await?;
         Ok(created_task.into())
     }
@@ -48,6 +50,8 @@ impl TaskService {
     }
 
     pub async fn get_task(&self, id: Uuid) -> AppResult<TaskDto> {
+        // 基本的な読み取り権限の例
+        let _read_permission = Permission::read_own("tasks");
         let task = self
             .repo
             .find_by_id(id)
@@ -68,6 +72,8 @@ impl TaskService {
     }
 
     pub async fn list_tasks(&self) -> AppResult<Vec<TaskDto>> {
+        // 管理者用のグローバル権限の例
+        let _admin_permission = Permission::admin_global("tasks");
         let tasks = self.repo.find_all().await?;
         Ok(tasks.into_iter().map(Into::into).collect())
     }

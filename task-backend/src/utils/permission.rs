@@ -1,6 +1,6 @@
 // task-backend/src/utils/permission.rs
 
-use crate::domain::permission::PermissionResult;
+use crate::domain::permission::{PermissionResult, PermissionScope};
 use crate::domain::role_model::{RoleName, RoleWithPermissions};
 use crate::domain::subscription_tier::SubscriptionTier;
 use uuid::Uuid;
@@ -14,14 +14,18 @@ impl PermissionChecker {
         role.is_admin() && role.is_active
     }
 
+    /// 権限スコープが要求されたスコープを満たしているかチェック
+    pub fn check_scope(current_scope: &PermissionScope, required_scope: &PermissionScope) -> bool {
+        // current_scopeがrequired_scope以上の権限を持っているかチェック
+        current_scope.includes(required_scope)
+    }
+
     /// 一般ユーザー権限があるかチェック
-    #[allow(dead_code)]
     pub fn is_member(role: &RoleWithPermissions) -> bool {
         role.is_member() && role.is_active
     }
 
     /// 指定されたユーザーIDにアクセス権限があるかチェック
-    #[allow(dead_code)]
     pub fn can_access_user(
         role: &RoleWithPermissions,
         requesting_user_id: Uuid,
@@ -41,7 +45,6 @@ impl PermissionChecker {
     }
 
     /// リソースの作成権限があるかチェック
-    #[allow(dead_code)]
     pub fn can_create_resource(role: &RoleWithPermissions, resource_type: &str) -> bool {
         if !role.is_active {
             return false;
@@ -56,7 +59,6 @@ impl PermissionChecker {
     }
 
     /// リソースの編集権限があるかチェック
-    #[allow(dead_code)]
     pub fn can_update_resource(
         role: &RoleWithPermissions,
         resource_type: &str,
@@ -90,7 +92,6 @@ impl PermissionChecker {
     }
 
     /// リソースの削除権限があるかチェック
-    #[allow(dead_code)]
     pub fn can_delete_resource(
         role: &RoleWithPermissions,
         resource_type: &str,
@@ -117,7 +118,6 @@ impl PermissionChecker {
     }
 
     /// リソースの表示権限があるかチェック
-    #[allow(dead_code)]
     pub fn can_view_resource(
         role: &RoleWithPermissions,
         resource_type: &str,
@@ -275,7 +275,6 @@ impl PermissionChecker {
 
 /// 権限タイプの列挙型
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub enum PermissionType {
     IsAdmin,
     IsMember,

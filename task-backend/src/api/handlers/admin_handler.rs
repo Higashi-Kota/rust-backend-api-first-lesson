@@ -468,6 +468,7 @@ pub async fn admin_list_user_tasks(
 pub fn admin_router(app_state: crate::api::AppState) -> axum::Router {
     use axum::routing::{delete, get, post, put};
 
+    // admin_only_middlewareを使用してルーター全体に管理者権限チェックを適用
     axum::Router::new()
         // 単一タスク操作
         .route("/admin/tasks", post(admin_create_task))
@@ -493,6 +494,7 @@ pub fn admin_router(app_state: crate::api::AppState) -> axum::Router {
             "/admin/invitations/cleanup/old",
             delete(admin_delete_old_invitations),
         )
+        // 管理者専用ミドルウェアは、main.rsで適用されるので、ここでは適用しない
         .with_state(app_state)
 }
 

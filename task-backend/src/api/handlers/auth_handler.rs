@@ -640,6 +640,8 @@ fn add_security_headers(headers: &mut HeaderMap, security: &SecurityHeaders) {
 
 /// 認証ルーターを作成
 pub fn auth_router(app_state: AppState) -> Router {
+    use crate::middleware::auth::rate_limit_middleware;
+
     Router::new()
         .route("/auth/signup", post(signup_handler))
         .route("/auth/signin", post(signin_handler))
@@ -657,6 +659,8 @@ pub fn auth_router(app_state: AppState) -> Router {
         .route("/auth/me", get(me_handler))
         .route("/auth/account", delete(delete_account_handler))
         .route("/auth/status", get(auth_status_handler))
+        // rate_limit_middlewareを適用（認証系エンドポイントへのレート制限）
+        .layer(axum::middleware::from_fn(rate_limit_middleware))
         .with_state(app_state)
 }
 

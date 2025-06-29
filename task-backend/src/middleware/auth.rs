@@ -19,10 +19,10 @@ use tracing::{info, warn};
 
 /// JWT認証ミドルウェアの設定
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct AuthMiddlewareConfig {
     pub jwt_manager: Arc<JwtManager>,
     pub user_repository: Arc<UserRepository>,
+    #[allow(dead_code)]
     pub role_repository: Arc<RoleRepository>,
     pub access_token_cookie_name: String,
     pub skip_auth_paths: Vec<String>,
@@ -31,8 +31,8 @@ pub struct AuthMiddlewareConfig {
     pub require_active_account: bool,
 }
 
-#[allow(dead_code)]
 impl AuthMiddlewareConfig {
+    #[allow(dead_code)]
     pub fn new(
         jwt_manager: Arc<JwtManager>,
         user_repository: Arc<UserRepository>,
@@ -69,13 +69,12 @@ pub struct AuthenticatedUser {
 
 /// ロール情報付き認証済みユーザー情報
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct AuthenticatedUserWithRole {
     pub claims: UserClaims,
+    #[allow(dead_code)]
     pub access_token: String,
 }
 
-#[allow(dead_code)]
 impl AuthenticatedUser {
     pub fn new(claims: UserClaims, access_token: String) -> Self {
         Self {
@@ -88,27 +87,33 @@ impl AuthenticatedUser {
         self.claims.user_id
     }
 
+    #[allow(dead_code)]
     pub fn username(&self) -> &str {
         &self.claims.username
     }
 
+    #[allow(dead_code)]
     pub fn email(&self) -> &str {
         &self.claims.email
     }
 
+    #[allow(dead_code)]
     pub fn is_active(&self) -> bool {
         self.claims.is_active
     }
 
+    #[allow(dead_code)]
     pub fn is_email_verified(&self) -> bool {
         self.claims.email_verified
     }
 
+    #[allow(dead_code)]
     pub fn role_name(&self) -> &str {
         &self.claims.role_name
     }
 
     /// 動的権限チェック
+    #[allow(dead_code)]
     pub fn can_perform_action(
         &self,
         resource: &str,
@@ -120,6 +125,7 @@ impl AuthenticatedUser {
     }
 
     /// サブスクリプション階層を取得
+    #[allow(dead_code)]
     pub fn get_subscription_tier(&self) -> crate::domain::subscription_tier::SubscriptionTier {
         self.claims.get_subscription_tier()
     }
@@ -130,6 +136,7 @@ impl AuthenticatedUser {
     }
 
     /// 一般ユーザーかチェック
+    #[allow(dead_code)]
     pub fn is_member(&self) -> bool {
         self.claims.is_member()
     }
@@ -709,7 +716,6 @@ pub async fn optional_auth_middleware(
 }
 
 /// レート制限ミドルウェア（基本実装）
-#[allow(dead_code)]
 pub async fn rate_limit_middleware(headers: HeaderMap, request: Request, next: Next) -> Response {
     // レート制限の基本実装
     // Note: プロダクションでは Redis やより高度なレート制限ライブラリの使用を推奨
@@ -830,14 +836,12 @@ fn should_require_admin(path: &str, admin_paths: &[String]) -> bool {
 }
 
 /// 認証エンドポイントかチェック
-#[allow(dead_code)]
-fn is_auth_endpoint(path: &str) -> bool {
+pub fn is_auth_endpoint(path: &str) -> bool {
     path.starts_with("/auth/")
 }
 
 /// クライアントIPを抽出
-#[allow(dead_code)]
-fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
+pub fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
     // X-Forwarded-For ヘッダーをチェック（プロキシ経由の場合）
     if let Some(forwarded_for) = headers.get("X-Forwarded-For") {
         if let Ok(forwarded_str) = forwarded_for.to_str() {
@@ -871,6 +875,24 @@ pub fn get_authenticated_user_with_role(request: &Request) -> Option<&Authentica
     request.extensions().get::<AuthenticatedUserWithRole>()
 }
 
+/// UserClaimsからAuthenticatedUserを作成するヘルパー
+pub fn get_authenticated_user_from_claims(claims: &UserClaims) -> AuthenticatedUser {
+    AuthenticatedUser {
+        claims: claims.clone(),
+        access_token: String::new(), // トークンは設定されていない
+    }
+}
+
+/// UserClaimsからAuthenticatedUserWithRoleを作成するヘルパー
+pub fn get_authenticated_user_with_role_from_claims(
+    claims: &UserClaims,
+) -> AuthenticatedUserWithRole {
+    AuthenticatedUserWithRole {
+        claims: claims.clone(),
+        access_token: String::new(), // トークンは設定されていない
+    }
+}
+
 /// 権限チェックヘルパー（統合版を使用）
 #[allow(dead_code)]
 pub fn check_admin_permission(user: &AuthenticatedUserWithRole) -> Result<(), AppError> {
@@ -895,7 +917,6 @@ pub fn check_admin_permission(user: &AuthenticatedUserWithRole) -> Result<(), Ap
 }
 
 /// リソースアクセス権限チェック（統合版を使用）
-#[allow(dead_code)]
 pub fn check_resource_access_permission(
     user: &AuthenticatedUserWithRole,
     target_user_id: uuid::Uuid,
@@ -919,7 +940,6 @@ pub fn check_resource_access_permission(
 }
 
 /// リソース作成権限チェック（統合版を使用）
-#[allow(dead_code)]
 pub fn check_create_permission(
     user: &AuthenticatedUserWithRole,
     resource_type: &str,
@@ -946,7 +966,6 @@ pub fn check_create_permission(
 }
 
 /// リソース削除権限チェック（統合版を使用）
-#[allow(dead_code)]
 pub fn check_delete_permission(
     user: &AuthenticatedUserWithRole,
     resource_type: &str,
@@ -1004,7 +1023,6 @@ pub fn check_update_permission(
 }
 
 /// リソース表示権限チェック（新機能）
-#[allow(dead_code)]
 pub fn check_view_permission(
     user: &AuthenticatedUserWithRole,
     resource_type: &str,
