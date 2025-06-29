@@ -158,7 +158,90 @@ curl -X GET http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-4466554400
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
-### 12. アカウント状態更新 (PATCH /admin/users/{id}/status)
+### 12. 高度ユーザー検索 (GET /admin/users/advanced-search)
+
+高度な検索条件でユーザーを検索します（管理者用）。
+
+**リクエスト例:**
+```bash
+curl -X GET "http://localhost:3000/admin/users/advanced-search?subscription=pro&is_active=true&email_domain=example.com" \
+  -H "Authorization: Bearer <admin_access_token>"
+```
+
+### 13. ユーザーアナリティクス (GET /admin/users/analytics)
+
+ユーザーの分析データを取得します（管理者用）。
+
+**リクエスト例:**
+```bash
+curl -X GET http://localhost:3000/admin/users/analytics \
+  -H "Authorization: Bearer <admin_access_token>"
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "total_users": 1250,
+  "active_users": 1180,
+  "subscription_breakdown": {
+    "free": 800,
+    "pro": 350,
+    "enterprise": 100
+  },
+  "registration_trends": [
+    {
+      "date": "2025-06-29",
+      "new_registrations": 15,
+      "email_verifications": 12
+    }
+  ],
+  "user_activity": {
+    "daily_active_users": 450,
+    "weekly_active_users": 820,
+    "monthly_active_users": 1100
+  }
+}
+```
+
+### 14. ロール別ユーザー取得 (GET /admin/users/by-role/{role})
+
+指定したロールのユーザー一覧を取得します（管理者用）。
+
+**リクエスト例:**
+```bash
+curl -X GET http://localhost:3000/admin/users/by-role/admin \
+  -H "Authorization: Bearer <admin_access_token>"
+```
+
+### 15. サブスクリプション別ユーザー取得 (GET /admin/users/by-subscription)
+
+サブスクリプション階層別のユーザー一覧を取得します（管理者用）。
+
+**リクエスト例:**
+```bash
+curl -X GET "http://localhost:3000/admin/users/by-subscription?tier=enterprise&include_stats=true" \
+  -H "Authorization: Bearer <admin_access_token>"
+```
+
+### 16. 一括ユーザー操作 (POST /admin/users/bulk-operations)
+
+複数ユーザーに対して一括操作を実行します（管理者用）。
+
+**リクエスト例:**
+```bash
+curl -X POST http://localhost:3000/admin/users/bulk-operations \
+  -H "Authorization: Bearer <admin_access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operation": "update_subscription",
+    "user_ids": ["user1", "user2", "user3"],
+    "parameters": {
+      "subscription_tier": "pro"
+    }
+  }'
+```
+
+### 17. アカウント状態更新 (PATCH /admin/users/{id}/status)
 
 ユーザーアカウントの状態（アクティブ/非アクティブ）を更新します（管理者用）。
 
@@ -168,13 +251,14 @@ curl -X PATCH http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-44665544
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "is_active": false
+    "is_active": false,
+    "reason": "Terms of service violation"
   }'
 ```
 
 ## パブリックエンドポイント
 
-### 13. ヘルスチェック (GET /users/health)
+### 18. ヘルスチェック (GET /users/health)
 
 ユーザーサービスの稼働状況を確認します。
 

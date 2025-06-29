@@ -26,7 +26,6 @@ impl<T> ApiResponse<T> {
     }
 
     /// メッセージのみの成功レスポンスを作成
-    #[allow(dead_code)]
     pub fn success_message(message: impl Into<String>) -> ApiResponse<()> {
         ApiResponse {
             success: true,
@@ -37,7 +36,6 @@ impl<T> ApiResponse<T> {
     }
 
     /// メタデータ付き成功レスポンスを作成
-    #[allow(dead_code)]
     pub fn success_with_metadata(
         message: impl Into<String>,
         data: T,
@@ -78,7 +76,6 @@ impl ApiError {
     }
 
     /// 詳細付きエラーレスポンスを作成
-    #[allow(dead_code)]
     pub fn with_details(
         error: impl Into<String>,
         message: impl Into<String>,
@@ -94,7 +91,6 @@ impl ApiError {
     }
 
     /// バリデーションエラーレスポンスを作成
-    #[allow(dead_code)]
     pub fn validation_error(
         message: impl Into<String>,
         validation_errors: HashMap<String, Vec<String>>,
@@ -142,6 +138,26 @@ impl ApiError {
     #[allow(dead_code)]
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::new("BAD_REQUEST", message)
+    }
+}
+
+// ApiErrorをaxumのレスポンスに変換
+impl axum::response::IntoResponse for ApiError {
+    fn into_response(self) -> axum::response::Response {
+        use axum::http::StatusCode;
+        use axum::Json;
+
+        let status = match self.error.as_str() {
+            "UNAUTHORIZED" => StatusCode::UNAUTHORIZED,
+            "FORBIDDEN" => StatusCode::FORBIDDEN,
+            "NOT_FOUND" => StatusCode::NOT_FOUND,
+            "CONFLICT" => StatusCode::CONFLICT,
+            "VALIDATION_ERROR" | "BAD_REQUEST" => StatusCode::BAD_REQUEST,
+            "INTERNAL_SERVER_ERROR" => StatusCode::INTERNAL_SERVER_ERROR,
+            _ => StatusCode::BAD_REQUEST,
+        };
+
+        (status, Json(self)).into_response()
     }
 }
 
@@ -204,7 +220,6 @@ impl<T> OperationResult<T> {
         }
     }
 
-    #[allow(dead_code)]
     pub fn created(item: T) -> Self {
         Self::new(item, vec!["Created".to_string()])
     }
@@ -213,7 +228,6 @@ impl<T> OperationResult<T> {
         Self::new(item, changes)
     }
 
-    #[allow(dead_code)]
     pub fn deleted(item: T) -> Self {
         Self::new(item, vec!["Deleted".to_string()])
     }

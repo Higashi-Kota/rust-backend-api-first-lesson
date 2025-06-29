@@ -1,5 +1,8 @@
 use task_backend::domain::task_status::TaskStatus;
 // tests/unit/service_tests.rs
+use sea_orm::{EntityTrait, Set};
+use task_backend::domain::role_model::{ActiveModel as RoleActiveModel, Entity as RoleEntity};
+use task_backend::domain::user_model::{ActiveModel as UserActiveModel, Entity as UserEntity};
 use task_backend::{
     api::dto::task_dto::{
         BatchCreateTaskDto, BatchDeleteTaskDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto,
@@ -16,6 +19,50 @@ async fn setup_test_service() -> (common::db::TestDatabase, TaskService) {
     let db = common::db::TestDatabase::new().await;
     let service = TaskService::with_schema(db.connection.clone(), db.schema_name.clone());
     (db, service)
+}
+
+// テスト用ユーザーを作成するヘルパー関数
+async fn create_test_user(db: &common::db::TestDatabase) -> Uuid {
+    let user_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    // 基本的なロールレコードを挿入
+    let role_model = RoleActiveModel {
+        id: Set(role_id),
+        name: Set("test_role".to_string()),
+        display_name: Set("Test Role".to_string()),
+        description: Set(Some("Test role for unit tests".to_string())),
+        is_active: Set(true),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+    };
+
+    RoleEntity::insert(role_model)
+        .exec(&db.connection)
+        .await
+        .expect("Failed to create test role");
+
+    // 基本的なユーザーレコードを挿入
+    let user_model = UserActiveModel {
+        id: Set(user_id),
+        email: Set(format!("test{}@example.com", user_id)),
+        username: Set(format!("testuser{}", &user_id.to_string()[..8])),
+        password_hash: Set("dummy_hash".to_string()),
+        is_active: Set(true),
+        email_verified: Set(true),
+        subscription_tier: Set("free".to_string()),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+        role_id: Set(role_id),
+        last_login_at: Set(None),
+    };
+
+    UserEntity::insert(user_model)
+        .exec(&db.connection)
+        .await
+        .expect("Failed to create test user");
+
+    user_id
 }
 
 #[tokio::test]
@@ -115,7 +162,10 @@ async fn test_delete_task_service() {
 
 #[tokio::test]
 async fn test_batch_operations_service() {
-    let (_db, service) = setup_test_service().await;
+    let (db, service) = setup_test_service().await;
+
+    // テスト用ユーザーを作成
+    let user_id = create_test_user(&db).await;
 
     // バッチ作成
     let batch_create_dto = BatchCreateTaskDto {
@@ -125,7 +175,10 @@ async fn test_batch_operations_service() {
         ],
     };
 
-    let batch_create_result = service.create_tasks_batch(batch_create_dto).await.unwrap();
+    let batch_create_result = service
+        .create_tasks_batch_for_user(user_id, batch_create_dto)
+        .await
+        .unwrap();
 
     // 検証
     assert_eq!(batch_create_result.created_tasks.len(), 2);
@@ -151,7 +204,10 @@ async fn test_batch_operations_service() {
             .collect(),
     };
 
-    let batch_update_result = service.update_tasks_batch(batch_update_dto).await.unwrap();
+    let batch_update_result = service
+        .update_tasks_batch_for_user(user_id, batch_update_dto)
+        .await
+        .unwrap();
 
     // 検証
     assert_eq!(batch_update_result.updated_count, 2);
@@ -168,7 +224,10 @@ async fn test_batch_operations_service() {
         ids: task_ids.clone(),
     };
 
-    let batch_delete_result = service.delete_tasks_batch(batch_delete_dto).await.unwrap();
+    let batch_delete_result = service
+        .delete_tasks_batch_for_user(user_id, batch_delete_dto)
+        .await
+        .unwrap();
 
     // 検証
     assert_eq!(batch_delete_result.deleted_count, 2);
@@ -551,8 +610,8 @@ async fn test_admin_list_all_tasks_service() {
     let task_dto2 = common::create_test_task();
     let _created_task2 = service.create_task(task_dto2).await.unwrap();
 
-    // Admin: 全タスクを取得
-    let all_tasks = service.list_all_tasks().await.unwrap();
+    // Admin: 全タスクを取得 (replaced with list_tasks)
+    let all_tasks = service.list_tasks().await.unwrap();
 
     // 検証: 複数のタスクが含まれているべき
     assert!(all_tasks.len() >= 2);
@@ -565,9 +624,9 @@ async fn test_admin_list_tasks_by_user_id_service() {
     // 存在しないuser_idで空のリストが返されることをテスト
     let nonexistent_user_id = Uuid::new_v4();
 
-    // Admin: 存在しないユーザーのタスクを取得
+    // Admin: 存在しないユーザーのタスクを取得 (replaced with list_tasks_for_user)
     let user_tasks = service
-        .list_tasks_by_user_id(nonexistent_user_id)
+        .list_tasks_for_user(nonexistent_user_id)
         .await
         .unwrap();
 
@@ -583,8 +642,8 @@ async fn test_admin_delete_task_by_id_service() {
     let task_dto = common::create_test_task();
     let created_task = service.create_task(task_dto).await.unwrap();
 
-    // Admin: 任意のタスクを削除
-    let result = service.delete_task_by_id(created_task.id).await;
+    // Admin: 任意のタスクを削除 (replaced with delete_task)
+    let result = service.delete_task(created_task.id).await;
     assert!(result.is_ok());
 
     // 検証: タスクが削除されていることを確認
@@ -598,8 +657,8 @@ async fn test_admin_delete_nonexistent_task_service() {
 
     let nonexistent_id = Uuid::new_v4();
 
-    // Admin: 存在しないタスクの削除を試行
-    let result = service.delete_task_by_id(nonexistent_id).await;
+    // Admin: 存在しないタスクの削除を試行 (replaced with delete_task)
+    let result = service.delete_task(nonexistent_id).await;
 
     // 検証: NotFoundエラーが返される
     assert!(result.is_err());

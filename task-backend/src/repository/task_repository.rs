@@ -34,7 +34,6 @@ impl TaskRepository {
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<task_model::Model>, DbErr> {
         self.prepare_connection().await?;
         TaskEntity::find_by_id(id).one(&self.db).await
@@ -60,14 +59,7 @@ impl TaskRepository {
             .await
     }
 
-    pub async fn find_by_user_id(&self, user_id: Uuid) -> Result<Vec<task_model::Model>, DbErr> {
-        self.prepare_connection().await?;
-        TaskEntity::find()
-            .filter(task_model::Column::UserId.eq(user_id))
-            .order_by_desc(task_model::Column::CreatedAt)
-            .all(&self.db)
-            .await
-    }
+    // find_by_user_id removed - use find_all_for_user instead
 
     pub async fn find_all_for_user(&self, user_id: Uuid) -> Result<Vec<task_model::Model>, DbErr> {
         self.prepare_connection().await?;
@@ -289,7 +281,6 @@ impl TaskRepository {
         Ok((tasks, total_count))
     }
 
-    #[allow(dead_code)]
     pub async fn create(&self, payload: CreateTaskDto) -> Result<task_model::Model, DbErr> {
         self.prepare_connection().await?;
 
@@ -321,7 +312,6 @@ impl TaskRepository {
         new_task.insert(&self.db).await
     }
 
-    #[allow(dead_code)]
     pub async fn update(
         &self,
         id: Uuid,
@@ -427,7 +417,6 @@ impl TaskRepository {
             .await
     }
 
-    #[allow(dead_code)]
     pub async fn create_many(
         &self,
         payloads: Vec<CreateTaskDto>,
@@ -500,7 +489,6 @@ impl TaskRepository {
         Ok(created_models)
     }
 
-    #[allow(dead_code)]
     pub async fn update_many(&self, items: Vec<BatchUpdateTaskItemDto>) -> Result<usize, DbErr> {
         self.prepare_connection().await?;
 
@@ -593,7 +581,6 @@ impl TaskRepository {
         Ok(updated_count)
     }
 
-    #[allow(dead_code)]
     pub async fn delete_many(&self, ids: Vec<Uuid>) -> Result<DeleteResult, DbErr> {
         self.prepare_connection().await?;
 
@@ -620,6 +607,28 @@ impl TaskRepository {
             .filter(task_model::Column::Id.is_in(ids))
             .filter(task_model::Column::UserId.eq(user_id))
             .exec(&self.db)
+            .await
+    }
+
+    // Admin statistics methods
+    pub async fn count_all_tasks(&self) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        TaskEntity::find().count(&self.db).await
+    }
+
+    pub async fn count_tasks_by_status(&self, status: &str) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        TaskEntity::find()
+            .filter(task_model::Column::Status.eq(status))
+            .count(&self.db)
+            .await
+    }
+
+    pub async fn count_tasks_for_user(&self, user_id: Uuid) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        TaskEntity::find()
+            .filter(task_model::Column::UserId.eq(user_id))
+            .count(&self.db)
             .await
     }
 }

@@ -287,7 +287,58 @@ curl -X GET http://localhost:3000/admin/tasks \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
-### 17. 特定ユーザーのタスク取得 (GET /admin/users/{user_id}/tasks)
+### 17. 管理者用ページネーション付きタスク一覧 (GET /admin/tasks/paginated)
+
+管理者用のページネーション機能付きタスク一覧です。
+
+**リクエスト例:**
+```bash
+curl -X GET "http://localhost:3000/admin/tasks/paginated?page=1&page_size=50" \
+  -H "Authorization: Bearer <admin_access_token>"
+```
+
+### 18. 管理者用タスク詳細取得 (GET /admin/tasks/{task_id})
+
+任意のタスクに制限なくアクセスします。
+
+**リクエスト例:**
+```bash
+curl -X GET http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
+  -H "Authorization: Bearer <admin_access_token>"
+```
+
+### 19. 管理者用タスク作成 (POST /admin/tasks)
+
+管理者権限でタスクを作成します。
+
+**リクエスト例:**
+```bash
+curl -X POST http://localhost:3000/admin/tasks \
+  -H "Authorization: Bearer <admin_access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "システムメンテナンスタスク",
+    "description": "管理者が作成したシステムタスク",
+    "status": "todo"
+  }'
+```
+
+### 20. 管理者用タスク更新 (PUT /admin/tasks/{task_id})
+
+任意のタスクを管理者権限で更新します。
+
+**リクエスト例:**
+```bash
+curl -X PUT http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
+  -H "Authorization: Bearer <admin_access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "更新されたタスク",
+    "status": "completed"
+  }'
+```
+
+### 21. 特定ユーザーのタスク取得 (GET /admin/users/{user_id}/tasks)
 
 指定したユーザーのタスクを取得します（管理者用）。
 
@@ -297,7 +348,7 @@ curl -X GET http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-4466554400
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
-### 18. 任意のタスクを削除 (DELETE /admin/tasks/{id})
+### 22. 任意のタスクを削除 (DELETE /admin/tasks/{task_id})
 
 管理者権限で任意のタスクを削除します。
 
@@ -307,9 +358,126 @@ curl -X DELETE http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-4466554
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
+## 管理者用一括操作
+
+### 23. 管理者用一括タスク作成 (POST /admin/tasks/bulk/create)
+
+複数のタスクを一度に作成します（管理者用、最大100件）。
+
+**リクエスト例:**
+```bash
+curl -X POST http://localhost:3000/admin/tasks/bulk/create \
+  -H "Authorization: Bearer <admin_access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tasks": [
+      {
+        "title": "一括作成タスク1",
+        "description": "管理者による一括作成",
+        "status": "todo"
+      },
+      {
+        "title": "一括作成タスク2",
+        "description": "システム管理タスク",
+        "status": "in_progress"
+      }
+    ],
+    "assign_to_user": "550e8400-e29b-41d4-a716-446655440100"
+  }'
+```
+
+### 24. 管理者用一括タスク更新 (PUT /admin/tasks/bulk/update)
+
+複数のタスクを一度に更新します（管理者用）。
+
+**リクエスト例:**
+```bash
+curl -X PUT http://localhost:3000/admin/tasks/bulk/update \
+  -H "Authorization: Bearer <admin_access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "updates": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440001",
+        "status": "completed",
+        "title": "完了したタスク"
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "status": "in_progress"
+      }
+    ]
+  }'
+```
+
+### 25. 管理者用一括タスク削除 (DELETE /admin/tasks/bulk/delete)
+
+複数のタスクを一度に削除します（管理者用）。
+
+**リクエスト例:**
+```bash
+curl -X DELETE http://localhost:3000/admin/tasks/bulk/delete \
+  -H "Authorization: Bearer <admin_access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task_ids": [
+      "550e8400-e29b-41d4-a716-446655440001",
+      "550e8400-e29b-41d4-a716-446655440002"
+    ]
+  }'
+```
+
+### 26. 管理者用タスク統計取得 (GET /admin/tasks/statistics)
+
+システム全体のタスク統計を取得します。
+
+**リクエスト例:**
+```bash
+curl -X GET http://localhost:3000/admin/tasks/statistics \
+  -H "Authorization: Bearer <admin_access_token>"
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "message": "Task statistics retrieved successfully",
+  "data": {
+    "total_tasks": 15420,
+    "tasks_by_status": [
+      {
+        "status": "todo",
+        "count": 3200
+      },
+      {
+        "status": "in_progress",
+        "count": 4800
+      },
+      {
+        "status": "completed",
+        "count": 7420
+      }
+    ],
+    "tasks_by_user": [
+      {
+        "user_id": "550e8400-e29b-41d4-a716-446655440100",
+        "task_count": 145,
+        "completed_count": 89
+      }
+    ],
+    "recent_activity": [
+      {
+        "date": "2025-06-29",
+        "created_count": 89,
+        "completed_count": 124
+      }
+    ]
+  }
+}
+```
+
 ## パブリックエンドポイント
 
-### 19. ヘルスチェック (GET /health)
+### 27. ヘルスチェック (GET /health)
 
 タスクサービスの稼働状況を確認します。
 

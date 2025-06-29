@@ -5,15 +5,13 @@ use crate::error::AppResult;
 use sea_orm::DatabaseConnection;
 use uuid::Uuid;
 
-#[allow(dead_code)]
 pub struct OrganizationRepository {
-    db: DatabaseConnection,
+    _db: DatabaseConnection,
 }
 
-#[allow(dead_code)]
 impl OrganizationRepository {
     pub fn new(db: DatabaseConnection) -> Self {
-        Self { db }
+        Self { _db: db }
     }
 
     /// 組織を作成

@@ -15,7 +15,6 @@ pub enum PermissionScope {
 
 impl PermissionScope {
     /// スコープレベルを数値で取得（高いほど広範囲）
-    #[allow(dead_code)]
     pub fn level(&self) -> u8 {
         match self {
             PermissionScope::Own => 1,
@@ -26,9 +25,18 @@ impl PermissionScope {
     }
 
     /// 指定されたスコープ以上かチェック
-    #[allow(dead_code)]
     pub fn includes(&self, other: &PermissionScope) -> bool {
         self.level() >= other.level()
+    }
+
+    /// スコープの説明を取得
+    pub fn description(&self) -> &str {
+        match self {
+            PermissionScope::Own => "Access to own resources only",
+            PermissionScope::Team => "Access to team resources",
+            PermissionScope::Organization => "Access to organization-wide resources",
+            PermissionScope::Global => "Access to all system resources",
+        }
     }
 }
 
@@ -69,7 +77,6 @@ impl PermissionQuota {
     }
 
     /// 指定した機能が利用可能かチェック
-    #[allow(dead_code)]
     pub fn has_feature(&self, feature: &str) -> bool {
         self.features.contains(&feature.to_string())
     }
@@ -156,13 +163,11 @@ impl PermissionResult {
     }
 
     /// 許可結果を作成
-    #[allow(dead_code)]
     pub fn allowed(privilege: Option<Privilege>, scope: PermissionScope) -> Self {
         Self::Allowed { privilege, scope }
     }
 
     /// 拒否結果を作成
-    #[allow(dead_code)]
     pub fn denied(reason: &str) -> Self {
         Self::Denied {
             reason: reason.to_string(),
@@ -171,7 +176,6 @@ impl PermissionResult {
 }
 
 impl Permission {
-    #[allow(dead_code)]
     pub fn new(resource: &str, action: &str, scope: PermissionScope) -> Self {
         Self {
             resource: resource.to_string(),
@@ -181,25 +185,21 @@ impl Permission {
     }
 
     /// 基本的な読み取り権限を作成
-    #[allow(dead_code)]
     pub fn read_own(resource: &str) -> Self {
         Self::new(resource, "read", PermissionScope::Own)
     }
 
     /// 基本的な書き込み権限を作成
-    #[allow(dead_code)]
     pub fn write_own(resource: &str) -> Self {
         Self::new(resource, "write", PermissionScope::Own)
     }
 
     /// 管理者権限を作成
-    #[allow(dead_code)]
     pub fn admin_global(resource: &str) -> Self {
         Self::new(resource, "admin", PermissionScope::Global)
     }
 
     /// リソースとアクションが一致するかチェック
-    #[allow(dead_code)]
     pub fn matches(&self, resource: &str, action: &str) -> bool {
         self.resource == resource && self.action == action
     }
@@ -215,7 +215,6 @@ impl Privilege {
     }
 
     /// Free階層の基本特権を作成
-    #[allow(dead_code)]
     pub fn free_basic(name: &str, max_items: u32, rate_limit: u32) -> Self {
         Self::new(
             name,
@@ -229,7 +228,6 @@ impl Privilege {
     }
 
     /// Pro階層の拡張特権を作成
-    #[allow(dead_code)]
     pub fn pro_advanced(name: &str, max_items: u32, rate_limit: u32, features: Vec<&str>) -> Self {
         Self::new(
             name,
@@ -243,7 +241,6 @@ impl Privilege {
     }
 
     /// Enterprise階層の無制限特権を作成
-    #[allow(dead_code)]
     pub fn enterprise_unlimited(name: &str, features: Vec<&str>) -> Self {
         Self::new(
             name,
@@ -257,19 +254,16 @@ impl Privilege {
     }
 
     /// 特権が指定した階層で利用可能かチェック
-    #[allow(dead_code)]
     pub fn is_available_for_tier(&self, tier: &SubscriptionTier) -> bool {
         tier.is_at_least(&self.subscription_tier)
     }
 
     /// 特権で利用可能な最大アイテム数を取得
-    #[allow(dead_code)]
     pub fn get_max_items(&self) -> Option<u32> {
         self.quota.as_ref().and_then(|q| q.max_items)
     }
 
     /// 特権のレート制限を取得
-    #[allow(dead_code)]
     pub fn get_rate_limit(&self) -> Option<u32> {
         self.quota.as_ref().and_then(|q| q.rate_limit)
     }

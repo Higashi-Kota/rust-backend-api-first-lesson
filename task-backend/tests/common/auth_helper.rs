@@ -271,3 +271,12 @@ pub async fn create_and_authenticate_member(app: &Router) -> TestUser {
 pub async fn create_and_authenticate_admin(app: &Router) -> String {
     create_admin_with_jwt(app).await
 }
+
+/// 認証済みユーザーを作成するヘルパー（統合テスト用）
+pub async fn create_authenticated_user(app: &Router, _schema_name: &str) -> (TestUser, TestUser) {
+    // テストユーザーを作成
+    let user = create_and_authenticate_member(app).await;
+
+    // 同じユーザーを2つ返す（既存テストとの互換性のため）
+    (user.clone(), user)
+}

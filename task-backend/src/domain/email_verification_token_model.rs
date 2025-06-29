@@ -63,10 +63,10 @@ pub struct CreateEmailVerificationToken {
 
 /// メール認証トークン検証結果
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct EmailVerificationResult {
     pub token_id: Uuid,
     pub user_id: Uuid,
+    #[allow(dead_code)]
     pub used_at: DateTime<Utc>,
 }
 

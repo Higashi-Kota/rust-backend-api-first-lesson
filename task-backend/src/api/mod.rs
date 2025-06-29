@@ -4,10 +4,12 @@ use crate::service::{
     auth_service::AuthService, organization_service::OrganizationService,
     role_service::RoleService, security_service::SecurityService,
     subscription_service::SubscriptionService, task_service::TaskService,
-    team_service::TeamService, user_service::UserService,
+    team_invitation_service::TeamInvitationService, team_service::TeamService,
+    user_service::UserService,
 };
 use crate::utils::email::EmailService;
 use crate::utils::jwt::JwtManager;
+use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 pub mod dto;
@@ -21,12 +23,14 @@ pub struct AppState {
     pub role_service: Arc<RoleService>,
     pub task_service: Arc<TaskService>,
     pub team_service: Arc<TeamService>,
+    pub team_invitation_service: Arc<TeamInvitationService>,
     pub organization_service: Arc<OrganizationService>,
     pub subscription_service: Arc<SubscriptionService>,
     pub security_service: Arc<SecurityService>,
     #[allow(dead_code)]
     pub email_service: Arc<EmailService>,
     pub jwt_manager: Arc<JwtManager>,
+    pub db_pool: Arc<DatabaseConnection>,
     pub cookie_config: CookieConfig,
     pub security_headers: SecurityHeaders,
 }
@@ -96,11 +100,13 @@ impl AppState {
         role_service: Arc<RoleService>,
         task_service: Arc<TaskService>,
         team_service: Arc<TeamService>,
+        team_invitation_service: Arc<TeamInvitationService>,
         organization_service: Arc<OrganizationService>,
         subscription_service: Arc<SubscriptionService>,
         security_service: Arc<SecurityService>,
         email_service: Arc<EmailService>,
         jwt_manager: Arc<JwtManager>,
+        db_pool: Arc<DatabaseConnection>,
     ) -> Self {
         Self {
             auth_service,
@@ -108,11 +114,13 @@ impl AppState {
             role_service,
             task_service,
             team_service,
+            team_invitation_service,
             organization_service,
             subscription_service,
             security_service,
             email_service,
             jwt_manager,
+            db_pool,
             cookie_config: CookieConfig::default(),
             security_headers: SecurityHeaders::default(),
         }
@@ -125,11 +133,13 @@ impl AppState {
         role_service: Arc<RoleService>,
         task_service: Arc<TaskService>,
         team_service: Arc<TeamService>,
+        team_invitation_service: Arc<TeamInvitationService>,
         organization_service: Arc<OrganizationService>,
         subscription_service: Arc<SubscriptionService>,
         security_service: Arc<SecurityService>,
         email_service: Arc<EmailService>,
         jwt_manager: Arc<JwtManager>,
+        db_pool: Arc<DatabaseConnection>,
         app_config: &AppConfig,
     ) -> Self {
         Self {
@@ -138,11 +148,13 @@ impl AppState {
             role_service,
             task_service,
             team_service,
+            team_invitation_service,
             organization_service,
             subscription_service,
             security_service,
             email_service,
             jwt_manager,
+            db_pool,
             cookie_config: CookieConfig::from_app_config(app_config),
             security_headers: SecurityHeaders::default(),
         }

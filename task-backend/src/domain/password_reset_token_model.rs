@@ -69,7 +69,6 @@ impl ActiveModelBehavior for ActiveModel {
 }
 
 // パスワードリセットトークン用の便利メソッド実装
-// TODO.md Phase 1.1/1.2で必要な機能のみ保持
 
 /// パスワードリセットトークンの作成用構造体
 #[derive(Debug, Clone)]

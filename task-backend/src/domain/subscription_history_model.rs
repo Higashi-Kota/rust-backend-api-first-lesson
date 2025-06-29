@@ -55,7 +55,6 @@ impl Related<super::user_model::Entity> for Entity {
 impl ActiveModelBehavior for ActiveModel {}
 
 /// サブスクリプション履歴のビジネスロジック
-#[allow(dead_code)]
 impl Model {
     /// 新しいサブスクリプション変更履歴を作成
     #[allow(clippy::new_ret_no_self)]
@@ -79,6 +78,7 @@ impl Model {
     }
 
     /// 階層が実際に変更されたかチェック
+    #[allow(dead_code)]
     pub fn is_tier_changed(&self) -> bool {
         match &self.previous_tier {
             Some(prev) => prev != &self.new_tier,

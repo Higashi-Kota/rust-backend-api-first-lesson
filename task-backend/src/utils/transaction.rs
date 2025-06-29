@@ -222,7 +222,6 @@ impl<'a> TransactionOperations<'a> {
 // =============================================================================
 
 /// リトライ設定
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     pub max_attempts: u32,
@@ -241,7 +240,6 @@ impl Default for RetryConfig {
 }
 
 /// リトライ機能付きトランザクション実行
-#[allow(dead_code)]
 pub async fn execute_with_retry<F, R>(
     db: &DatabaseConnection,
     operation: F,
@@ -293,7 +291,6 @@ where
 }
 
 /// エラーがリトライ可能かどうかを判定
-#[allow(dead_code)]
 fn should_retry(error: &AppError) -> bool {
     match error {
         AppError::DbErr(db_err) => {
@@ -308,7 +305,6 @@ fn should_retry(error: &AppError) -> bool {
 }
 
 /// 指数バックオフでディレイを計算
-#[allow(dead_code)]
 fn calculate_delay(attempt: u32, config: &RetryConfig) -> u64 {
     let delay = config.base_delay_ms * (2u64.pow(attempt - 1));
     delay.min(config.max_delay_ms)

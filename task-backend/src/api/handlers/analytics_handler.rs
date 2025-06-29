@@ -1,7 +1,7 @@
 // task-backend/src/api/handlers/analytics_handler.rs
 
 use crate::api::dto::analytics_dto::*;
-use crate::api::dto::ApiResponse;
+use crate::api::dto::common::{ApiError, ApiResponse, OperationResult};
 use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
@@ -13,6 +13,7 @@ use axum::{
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
+use serde_json::json;
 use tracing::{info, warn};
 use uuid::Uuid;
 use validator::Validate;
@@ -264,9 +265,19 @@ pub async fn get_user_activity_handler(
         "User activity stats generated"
     );
 
-    Ok(Json(ApiResponse::success(
+    // ApiResponse::success_with_metadataを活用
+    let metadata = json!({
+        "query_period_days": days,
+        "period_start": period_start.to_rfc3339(),
+        "period_end": period_end.to_rfc3339(),
+        "calculation_timestamp": Utc::now().to_rfc3339(),
+        "api_version": "v1"
+    });
+
+    Ok(Json(ApiResponse::success_with_metadata(
         "User activity statistics retrieved successfully",
         response,
+        metadata,
     )))
 }
 
@@ -798,9 +809,24 @@ pub async fn advanced_export_handler(
             export_type = ?payload.export_type,
             "Access denied: Insufficient permissions for export type"
         );
-        return Err(AppError::Forbidden(
-            "Insufficient permissions for this export type".to_string(),
-        ));
+
+        // ApiError::with_detailsを使用して詳細なエラー情報を提供
+        let api_error = ApiError::with_details(
+            "FORBIDDEN",
+            "Insufficient permissions for this export type",
+            json!({
+                "export_type": format!("{:?}", payload.export_type),
+                "required_role": "Admin",
+                "current_role": if user.claims.is_admin() { "Admin" } else { "User" },
+                "allowed_export_types": ["Tasks", "UserActivity"],
+                "help": "Only administrators can export Users and SystemMetrics data"
+            }),
+        );
+
+        return Err(AppError::Forbidden(format!(
+            "{}: {}",
+            api_error.error, api_error.message
+        )));
     }
 
     let export_id = Uuid::new_v4();
@@ -866,9 +892,12 @@ pub async fn advanced_export_handler(
         "Advanced export completed"
     );
 
+    // エクスポートレスポンスをOperationResult::createdでラップして作成済みを明示
+    let export_result = OperationResult::created(response);
+
     Ok(Json(ApiResponse::success(
         "Advanced export completed successfully",
-        response,
+        export_result.item,
     )))
 }
 

@@ -1,258 +1,333 @@
-## 開発コマンド
+# ✅ Phase 3（完了）→ Phase 4 実装計画
 
-### クイックスタート
-
-```bash
-# 開発環境の起動
-make dev
-
-# ステップごとの手順
-docker-compose up postgres -d
-make migrate
-make run
-```
-
-### よく使うコマンド
-
-```bash
-# ビルドとテスト
-make build                    # ワークスペース全体をビルド
-make test                     # すべてのテストを実行
-make fmt && make clippy       # フォーマット＆リント
-
-# データベース操作
-make migrate                  # マイグレーション実行
-make migrate-status           # マイグレーションの状態確認
-make migrate-down             # 最後のマイグレーションをロールバック
-
-# 開発ワークフロー
-make ci-check                 # CIチェックをローカルで実行（fmt + clippy + test）
-cargo watch -x "run --package task-backend"  # 変更時に自動再起動
-cargo test --package task-backend --lib      # 単体テストのみ（高速）
-cargo test integration::tasks::crud_tests    # 特定の統合テストを実行
-```
-
-### Docker 操作
-
-```bash
-make docker-build            # Dockerイメージをビルド
-make docker-run              # Docker Composeで実行
-docker-compose logs -f app   # アプリのログを表示
-```
+Phase 1で基本的な機能統合を完了し、Phase 2で権限管理システムと認証システムの統合を達成しました。Phase 3では、40箇所以上の`#[allow(dead_code)]`アノテーションを削除し、ドメインモデルとリポジトリ層の高度な機能を実装しました。Phase 4では、実装の最終調整と本格的な活用に向けた準備を行います。
 
 ---
 
-## アーキテクチャ概要
+## 📈 進捗状況
 
-このプロジェクトは **Rust 製タスク管理 API** で、**Axum** と **PostgreSQL** を用いて構築され、**ユーザーの役割とサブスクリプション階層に基づく動的パーミッションシステム** を特徴としています。
+### ✅ Phase 3（完了）- 2024/12/29
+Phase 3の実装で以下を達成：
 
-### コアアーキテクチャパターン
+#### 実装済み機能
+1. **APIエラーハンドリングの統一**（9箇所）
+   - `ApiError::new`, `with_details`, `validation_error` - 実装で活用
+   - `IntoResponse` トレイトの実装 - axumのレスポンス変換
+   - 各種エラータイプ別メソッド - 必要最小限の`#[allow(dead_code)]`を追加
 
-**レイヤードアーキテクチャ**:
+2. **ドメインモデルの高度化**（14箇所）
+   - `role_model.rs`（5箇所）- 権限チェックメソッドを実装で活用
+   - `organization_model.rs`（4箇所）- 組織権限管理を実装
+   - `team_invitation_model.rs`（5箇所）- 未使用構造体を削除
 
-- **API レイヤー**: Axum ハンドラ（`task-backend/src/api/handlers/`）
-- **サービスレイヤー**: ビジネスロジック（`task-backend/src/service/`）
-- **リポジトリレイヤー**: データアクセス（`task-backend/src/repository/`）
-- **ドメインレイヤー**: コアモデル（`task-backend/src/domain/`）
+3. **リポジトリ層の最適化**（10箇所）
+   - 各リポジトリから`#[allow(dead_code)]`を削除
+   - 必要に応じて個別メソッドに`#[allow(dead_code)]`を追加
 
-**主要な設計コンセプト**:
+4. **ユーティリティ機能の完全統合**（7箇所）
+   - `transaction.rs`（4箇所）- トランザクション管理メソッドを公開
+   - `email.rs`（3箇所）- メール関連の列挙型とメソッドを公開
 
-1. **動的パーミッションシステム**: 同一エンドポイントが、ユーザーの役割とサブスクリプション階層によって異なる応答を返す
-2. **ワークスペース構成**: `task-backend`（本体アプリ）と `migration`（DB マイグレーション）の Rust ワークスペース
-3. **JWT 認証**: 役割ベースの認可付き多層ミドルウェア
-4. **サブスクリプション機能**: Free / Pro / Enterprise 各階層で異なる機能提供
+#### 成果
+- **320個のテストすべて成功** ✅
+- **CI完全通過（警告ゼロ）** ✅
+- **40箇所以上の`#[allow(dead_code)]`を削除**
+- **必要最小限の`#[allow(dead_code)]`のみ残存**
+
+### ✅ Phase 2（完了）- 2024/12/29
+権限管理システムと認証システムの統合を完了：
+
+#### 実装済み機能
+1. **Permissionシステムの完全統合**（24箇所）
+   - `Permission::new()`, `read_own()`, `write_own()`, `admin_global()` - permission_handler.rsで活用
+   - `PermissionResult::allowed()`, `denied()` - ファクトリメソッドを実装
+   - `PermissionQuota::limited()`, `unlimited()` - クォータ設定で活用
+   - `Privilege::free_basic()`, `pro_advanced()`, `enterprise_unlimited()` - 階層別権限で活用
+   - `PermissionScope::description()` - スコープ説明の追加
+
+2. **認証システムの強化**（19箇所）
+   - `AuthMiddlewareConfig`, `AuthenticatedUser`, `AuthenticatedUserWithRole` - 構造体を公開
+   - ミドルウェア関数群を公開（`admin_only_middleware`, `role_aware_auth_middleware`等）
+   - ヘルパー関数群を公開（`is_auth_endpoint`, `extract_client_ip`, `get_authenticated_user`等）
+   - 権限チェック関数群を公開（`check_resource_access_permission`等）
+
+3. **権限ユーティリティの統合**（17箇所）
+   - `PermissionChecker::check_scope()` - スコープ比較メソッドを追加
+   - 未使用インポートの削除
+
+#### 成果
+- **223個のテストすべて成功** ✅
+- **CI完全通過** ✅
+- **残存dead_code: 約80箇所**（120箇所から削減）
+
+### ✅ Phase 1（完了）- 2024/12/29
+初回の実装で以下を達成：
+
+#### 実装済み機能
+1. **トランザクション管理**
+   - `execute_with_retry` - RoleServiceのassign_role_to_userで活用
+
+2. **APIレスポンスの詳細メソッド**
+   - `ApiResponse::success_message` - user_handler.rsで活用
+   - `ApiResponse::success_with_metadata` - analytics_handler.rsで活用
+   - `OperationResult::created` - analytics_handler.rsのexport機能で活用
+   - `OperationResult::deleted` - organization_hierarchy_handler.rsで活用
+
+3. **権限管理システム**
+   - `has_subscription_tier` - チーム作成時のサブスクリプション階層チェック（3チームまで）
+   - `can_access_user` - user_handler.rsで活用
+   - `can_update_resource` - user_handler.rs, role_service.rsで活用
+   - `can_create_resource` - role_service.rsで活用
+   - `can_delete_resource` - role_service.rsで活用
+
+#### 成果
+- **320個のテストすべて成功** ✅
+- **CI完全通過** ✅
+- **コンパイル時のdead_code警告ゼロ** ✅
 
 ---
 
-## 重要コンポーネント
+## 🚀 Phase 4 実装計画
 
-### 動的パーミッションシステム（コアの革新）
+### 📌 Phase 4 重点実装対象
 
-ユーザーの状態によって **同一エンドポイントが異なる動作をする** パターンを採用：
+#### 1. **未使用コードの最終整理**（優先度：高）
+現在`#[allow(dead_code)]`が付与されている以下の要素について、実装での活用または削除を検討：
+
+**主要対象**:
+- `ApiError` の各種ファクトリメソッド（7箇所）
+- `OrganizationModel` の各種メソッド（impl全体）
+- `TransactionOperations` 構造体と関連メソッド
+- 各リポジトリの未使用メソッド
+
+#### 2. **ドメイン駆動設計の深化**（優先度：高）
+**実装内容**:
+- ドメインモデルへのビジネスロジック集約
+- サービス層の責務明確化
+- リポジトリパターンの完全実装
+
+#### 3. **パフォーマンス最適化**（優先度：中）
+**実装内容**:
+- N+1クエリ問題の解決
+- バッチ処理の活用
+- インデックスの最適化
+- キャッシュ戦略の実装
+
+#### 4. **監査・ロギング機能の強化**（優先度：中）
+**実装内容**:
+- 統一的なロギングフォーマット
+- 監査証跡の自動記録
+- パフォーマンスメトリクスの収集
+
+---
+
+## 🎯 Phase 4 目標
+
+1. **`#[allow(dead_code)]`を最小限に削減**（目標：20箇所以下）
+2. **すべての公開APIが実装で活用される状態**
+3. **ドメインモデルにビジネスロジックが集約**
+4. **パフォーマンスボトルネックの解消**
+5. **本番環境での運用準備完了**
+
+---
+
+## 📋 Phase 4 実装例
+
+### 1. **ApiErrorの活用強化**
 
 ```rust
-// 同じエンドポイントが、ユーザーにより異なる動作
-GET /tasks/dynamic
-// Freeユーザー: 最大100件、基本機能
-// Proユーザー: 最大1万件、高度なフィルタ・エクスポート
-// Enterprise: 無制限、すべての機能利用可
+// ❌ 現在の実装（AppErrorを直接使用）
+Err(AppError::BadRequest("Invalid request".to_string()))
+
+// ✅ 改善後（ApiErrorのファクトリメソッドを活用）
+Err(ApiError::bad_request("Invalid request").into())
+
+// さらに詳細なエラー情報
+Err(ApiError::validation_error("Validation failed", errors)
+    .with_details(json!({
+        "field_errors": errors,
+        "timestamp": Utc::now()
+    }))
+    .into())
 ```
 
-**パーミッション階層**:
-
-- `PermissionScope`: 自分 → チーム → 組織 → グローバル
-- `SubscriptionTier`: Free → Pro → Enterprise
-- `Privilege`: 階層ごとのクォータ・機能を定義
-
-### 認証フロー
-
-**複数ミドルウェア**:
-
-- `jwt_auth_middleware`: JWT の基本検証
-- `role_aware_auth_middleware`: DB から詳細な役割情報を読み込む
-- `admin_only_middleware`: 管理者専用エンドポイント
-- `optional_auth_middleware`: 認証任意のパブリックエンドポイント
-
-**トークン管理**:
-
-- アクセストークン: 15 分（短命）
-- リフレッシュトークン: 7 日間、自動更新あり
-- パスワードリセットトークン: 1 時間・使い切り
-
-### サービス層のパターン
-
-サービスは **動的な動作切替** を実装：
+### 2. **TransactionOperationsの活用**
 
 ```rust
-impl TaskService {
-    pub async fn list_tasks_dynamic(&self, user: &AuthenticatedUser, filter: Option<TaskFilterDto>) -> AppResult<TaskResponse> {
-        let permission_result = user.can_perform_action("tasks", "read", None);
-        match permission_result {
-            PermissionResult::Allowed { privilege, scope } => {
-                self.execute_task_query(user, filter, privilege, scope).await
-            }
-            // パーミッション結果に基づき異なる処理を実行
-        }
-    }
-}
+// ❌ 現在の実装（トランザクション内で直接処理）
+self.db.execute_service_transaction(move |txn| async move {
+    let user = user_repo.create_user(txn, user_data).await?;
+    let role = role_repo.assign_role(txn, user.id, role_id).await?;
+    Ok((user, role))
+}).await
+
+// ✅ 改善後（TransactionOperationsを活用）
+self.db.execute_service_transaction(move |txn| async move {
+    let ops = TransactionOperations::new(txn);
+    
+    let user = ops.execute("create_user", 
+        user_repo.create_user(ops.db(), user_data)
+    ).await?;
+    
+    let role = ops.execute("assign_role",
+        role_repo.assign_role(ops.db(), user.id, role_id)
+    ).await?;
+    
+    Ok((user, role))
+}).await
 ```
 
----
-
-## データベーススキーマパターン
-
-**マルチテナンシー対応**:
-
-- スキーマベースの分離（`DATABASE_SCHEMA`で設定可能）
-- ユーザー単位のデータアクセス
-- サブスクリプション履歴の追跡
-
-**主要テーブル**:
-
-- `users`: 基本ユーザーデータ + サブスクリプション階層
-- `roles`: パーミッション定義
-- `subscription_history`: プラン変更の監査記録
-- `tasks`: ユーザー所有のタスク
-- トークン関連: `refresh_tokens`, `password_reset_tokens`
-
----
-
-## 設定システム
-
-**統合設定ファイル**（`src/config.rs`）:
-
-- 環境変数に基づく設定読み込み
-- サーバー・DB・JWT・メール・セキュリティの個別設定
-- 開発／本番のモード検出
-
-**主要環境変数**:
-
-```bash
-DATABASE_URL=postgres://postgres:password@localhost:5432/taskdb
-SERVER_ADDR=0.0.0.0:3000
-DATABASE_SCHEMA=custom_schema  # スキーマ分離（任意）
-RUST_LOG=info
-```
-
----
-
-## 動的パーミッションシステムの設計
-
-本システムの核は、**ユーザー文脈に応じて API 動作を切り替えること**です。
-
-### パーミッションモデル
+### 3. **ドメインモデルへのロジック集約**
 
 ```rust
-pub struct Permission {
-    pub resource: String,      // "tasks", "users", "reports" など
-    pub action: String,        // "read", "write", "delete", "admin"
-    pub scope: PermissionScope,
+// ❌ 現在の実装（サービス層にロジックが散在）
+if organization.subscription_tier == SubscriptionTier::Free {
+    if organization.current_team_count >= 3 {
+        return Err(AppError::BadRequest("Team limit reached".to_string()));
+    }
 }
 
-pub enum PermissionScope {
-    Own,           // 自分のデータ
-    Team,          // チーム単位
-    Organization,  // 組織全体
-    Global,        // 全体アクセス
-}
-
-pub struct Privilege {
-    pub name: String,
-    pub subscription_tier: SubscriptionTier,
-    pub quota: Option<PermissionQuota>,
-}
-```
-
-### サブスクリプション階層
-
-- **Free**: 自分の範囲、最大 100 件、基本機能
-- **Pro**: チーム範囲、最大 1 万件、高度な検索やエクスポート可
-- **Enterprise**: 全体範囲、無制限、すべての機能利用可
-
-### 実装パターン（サービス層の動作切替）
-
-```rust
-match (scope, privilege.subscription_tier) {
-    (PermissionScope::Own, SubscriptionTier::Free) => {
-        self.list_tasks_for_user_limited(user_id, privilege.quota).await
-    }
-    (PermissionScope::Team, SubscriptionTier::Pro) => {
-        self.list_tasks_for_team_with_features(user_id, &privilege.features, filter).await
-    }
-    (PermissionScope::Global, SubscriptionTier::Enterprise) => {
-        self.list_all_tasks_unlimited(filter).await
-    }
-    _ if user.is_admin() => {
-        self.list_all_tasks_unlimited(filter).await
-    }
-    _ => {
-        self.list_tasks_for_user(user_id).await.map(TaskResponse::Limited)
-    }
+// ✅ 改善後（ドメインモデルにロジックを集約）
+if !organization.can_add_team(organization.current_team_count) {
+    return Err(AppError::BadRequest(
+        organization.get_team_limit_message()
+    ));
 }
 ```
 
 ---
 
-## テスト戦略
+## 📊 Phase 4 実装優先順位
 
-**テスト構成**:
+### 1. **即座に実装可能な項目**（1-2日）
+- ApiErrorのファクトリメソッドの活用
+- TransactionOperationsの実際の使用例追加
+- 未使用リポジトリメソッドの削除
 
-- 単体テスト: `src/*/mod.rs`（高速・独立）
-- 統合テスト: `tests/integration/`（`testcontainers`使用）
-- テスト用共通ユーティリティ: `tests/common/`
+### 2. **中期的な改善項目**（3-5日）
+- ドメインモデルへのロジック移行
+- N+1クエリの解決
+- バッチ処理の実装
 
-**DB テスト**:
-
-- PostgreSQL + `testcontainers`
-- 並列実行のためのスキーマ分離
-- 各テストで自動マイグレーション実行
-
-**テスト実行コマンド**:
-
-```bash
-cargo test --lib                           # 単体テストのみ（高速）
-cargo test integration::tasks::crud_tests  # 特定統合テスト
-cargo test --test integration -- --test-threads 1  # 直列実行
-```
+### 3. **長期的な最適化項目**（1週間以上）
+- キャッシュ戦略の実装
+- 監査機能の完全実装
+- パフォーマンスモニタリング
 
 ---
 
-## 実装上の重要事項
+## 🔍 Phase 4 実装チェックリスト
 
-- **エラーハンドリング**: `AppError` による HTTP ステータスマッピング
+### コード品質
+- [ ] すべての`#[allow(dead_code)]`に対して削除または活用を検討
+- [ ] テストカバレッジ90%以上を維持
+- [ ] ドキュメントコメントの充実
 
-- **バリデーション**: `validator` クレート + カスタムロジック
+### パフォーマンス
+- [ ] 主要APIのレスポンスタイム測定
+- [ ] データベースクエリの最適化
+- [ ] 負荷テストの実施
 
-- **セキュリティ機能**:
-
-  - Argon2 パスワードハッシュ＋自動リハッシュ
-  - CORS 設定、セキュリティヘッダ
-  - レートリミット対応準備済み
-
-- **バッチ操作**: 全 CRUD が最大 100 件のバッチ対応
-
-- **フィルタリングとページネーション**: 動的パーミッション考慮の上で柔軟に対応
+### 運用準備
+- [ ] エラーハンドリングの網羅性確認
+- [ ] ログ出力の適切性確認
+- [ ] 監視・アラートの設定
 
 ---
 
-このコードベースを扱う際は、**API 変更が動的パーミッションに与える影響**を常に意識し、**異なるユーザーコンテキストごとに十分なテストカバレッジ**を確保してください。
+## 🧩 実装ガイドライン
+
+### 1. **ドメイン統合の原則**
+
+* **既存ドメインとの重複・競合は禁止**
+  * 同じ意味の別表現、似たが異なるロジック、バリエーション増加は避ける
+* **「亜種」API・ドメイン定義の増加は避ける**
+  * 新規定義が必要な場合は、**既存の責務・境界に統合**できるか再検討
+
+### 2. **dead\_code ポリシー**
+
+* `#![allow(dead_code)]` や `#[allow(dead_code)]` の**新規追加は禁止**
+* **既存アノテーションからAPIとして価値提供できる場合は積極的に外す**
+* **未使用コード・シグネチャ・構造体は削除**
+  * ただし、テストで使用されているコードは、実装で適切に活用する
+
+### 3. **プロダクションコードの品質基準**
+
+* **すべての公開APIは実装で使用される**こと
+* **テストは実装の動作を検証**するものであること
+* **未使用の警告が出ないこと**（dead_code警告を含む）
+
+### 4. **実装統合の優先順位**
+
+1. **セキュリティ関連機能**（権限チェック、認証）
+2. **データ整合性機能**（トランザクション、リトライ）
+3. **ユーザー体験向上機能**（詳細なエラーメッセージ、メタデータ）
+4. **運用支援機能**（ログ、監査証跡）
+
+### 5. **CI・Lint 要件**
+
+* 以下のコマンドで **エラー・警告が完全にゼロ** であること：
+
+  ```bash
+  cargo clippy --all-targets --all-features -- -D warnings
+  ```
+
+* 既存CI（テスト）コマンド：
+
+  ```bash
+  make ci-check
+  ```
+
+  → **すべてのテストにパスすること（新旧含む）**
+
+---
+
+## 🧪 テスト要件
+
+### 単体テスト（Unit Test）
+
+* **新規ロジックに対する細粒度のテストを実装**
+
+  * 条件分岐、バリデーション、エラーケースなどを網羅
+  * 概念テスト・型だけのテストは不可
+
+### 統合テスト（Integration Test）
+
+* APIレベルでの**E2Eフロー確認**
+
+  * リクエスト／レスポンス構造の妥当性
+  * DB書き込み・読み出しの整合性
+  * エラーハンドリングの検証
+
+---
+
+## 🔥 クリーンアップ方針
+
+* **使用されていないコード**の取り扱い：
+  1. **テストでのみ使用** → 実装で活用するよう統合
+  2. **どこでも未使用** → 削除
+  3. **将来の拡張用API** → 現時点で価値提供できるよう実装
+
+* dead\_code で検知される要素への対応：
+  * **公開API（pub）** → 実装での活用を検討
+  * **内部実装（非pub）** → 使用されていなければ削除
+  * **テスト用ユーティリティ** → `#[cfg(test)]` で適切に分離
+
+---
+
+## 🚀 実装完了後の期待される状態
+
+1. **`cargo clippy`で警告ゼロ**（dead_code警告を含む）
+2. **`make ci-check`ですべてのテストがグリーン**
+3. **APIドキュメントと実装が一致**
+4. **テストが実装の実際の動作を検証**
+5. **プロダクションコードがクリーンで保守しやすい**
+6. **本番環境での運用に耐える品質とパフォーマンス**
+
+---
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.

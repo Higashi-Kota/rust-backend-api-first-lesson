@@ -33,7 +33,6 @@ impl SubscriptionTier {
     }
 
     /// 階層レベルを数値で取得
-    #[allow(dead_code)]
     pub fn level(&self) -> u8 {
         match self {
             Self::Free => 1,
@@ -43,7 +42,6 @@ impl SubscriptionTier {
     }
 
     /// 指定した階層以上かチェック
-    #[allow(dead_code)]
     pub fn is_at_least(&self, other: &Self) -> bool {
         self.level() >= other.level()
     }
