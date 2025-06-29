@@ -167,19 +167,19 @@ macro_rules! with_service_transaction {
 // =============================================================================
 
 /// 複数の操作を順次実行するヘルパー
+#[allow(dead_code)]
 pub struct TransactionOperations<'a> {
     txn: &'a DatabaseTransaction,
 }
 
+#[allow(dead_code)]
 impl<'a> TransactionOperations<'a> {
-    #[allow(dead_code)]
     pub fn new(txn: &'a DatabaseTransaction) -> Self {
         Self { txn }
     }
 
     /// 操作を実行し、結果をログ出力
     #[instrument(skip(self, operation), name = "transaction_operation")]
-    #[allow(dead_code)]
     pub async fn execute<F, R>(&self, operation_name: &str, operation: F) -> Result<R, AppError>
     where
         F: Future<Output = Result<R, AppError>>,
@@ -212,7 +212,6 @@ impl<'a> TransactionOperations<'a> {
     }
 
     /// データベース参照を取得
-    #[allow(dead_code)]
     pub fn db(&self) -> &DatabaseTransaction {
         self.txn
     }
@@ -241,7 +240,6 @@ impl Default for RetryConfig {
 }
 
 /// リトライ機能付きトランザクション実行
-#[allow(dead_code)]
 pub async fn execute_with_retry<F, R>(
     db: &DatabaseConnection,
     operation: F,

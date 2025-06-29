@@ -168,7 +168,6 @@ impl RoleWithPermissions {
     }
 
     /// 指定されたユーザーIDにアクセス権限があるかチェック（内部実装）
-    #[allow(dead_code)]
     pub fn can_access_user(&self, requesting_user_id: Uuid, target_user_id: Uuid) -> bool {
         if !self.is_active {
             return false;
@@ -249,7 +248,6 @@ impl RoleWithPermissions {
     }
 
     /// リソースの表示権限があるかチェック（新機能）
-    #[allow(dead_code)]
     pub fn can_view_resource(
         &self,
         resource_type: &str,
@@ -275,7 +273,7 @@ impl RoleWithPermissions {
         }
     }
 
-    /// 動的権限チェック（CLAUDE.md設計の実装）
+    /// 動的権限チェック
     pub fn can_perform_action(
         &self,
         resource: &str,

@@ -624,7 +624,6 @@ impl TaskRepository {
             .await
     }
 
-    #[allow(dead_code)]
     pub async fn count_tasks_for_user(&self, user_id: Uuid) -> Result<u64, DbErr> {
         self.prepare_connection().await?;
         TaskEntity::find()

@@ -21,7 +21,7 @@ impl RefreshTokenRepository {
         Self { db, schema: None }
     }
 
-    #[allow(dead_code)] // テスト環境でのスキーマ分離に使用
+    #[allow(dead_code)]
     pub fn with_schema(db: DbConn, schema: String) -> Self {
         Self {
             db,

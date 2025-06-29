@@ -1,6 +1,6 @@
 // task-backend/src/api/handlers/team_handler.rs
 
-use crate::api::dto::common::ApiResponse;
+use crate::api::dto::common::{ApiError, ApiResponse};
 use crate::api::dto::team_dto::*;
 use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
@@ -14,25 +14,31 @@ use axum::{
     Json, Router,
 };
 use serde_json::json;
+use std::collections::HashMap;
 use uuid::Uuid;
 use validator::Validate;
 
-// Helper function to handle validation errors
+// Helper function to handle validation errors using ApiError
 fn handle_validation_error(err: validator::ValidationErrors) -> AppError {
-    let messages: Vec<String> = err
-        .field_errors()
-        .iter()
-        .flat_map(|(_, errors)| {
-            errors
-                .iter()
-                .filter_map(|e| e.message.clone().map(|m| m.to_string()))
-        })
-        .collect();
+    let mut validation_errors: HashMap<String, Vec<String>> = HashMap::new();
 
-    if messages.is_empty() {
+    for (field, errors) in err.field_errors() {
+        let messages: Vec<String> = errors
+            .iter()
+            .filter_map(|e| e.message.clone().map(|m| m.to_string()))
+            .collect();
+
+        if !messages.is_empty() {
+            validation_errors.insert(field.to_string(), messages);
+        }
+    }
+
+    if validation_errors.is_empty() {
         AppError::ValidationError("Validation failed".to_string())
     } else {
-        AppError::ValidationErrors(messages)
+        // ApiError::validation_errorメソッドを使用
+        let api_error = ApiError::validation_error("Validation failed", validation_errors);
+        AppError::ValidationError(format!("{}: {}", api_error.error, api_error.message))
     }
 }
 

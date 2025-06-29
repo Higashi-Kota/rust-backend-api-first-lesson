@@ -92,10 +92,19 @@ pub async fn get_role_handler(
     UuidPath(role_id): UuidPath,
     user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<RoleResponse>> {
-    // 管理者権限チェック
-    app_state
-        .role_service
-        .check_admin_permission(&user.claims)?;
+    // RoleWithPermissionsのcan_view_resourceメソッドを活用
+    if let Some(role) = user.role() {
+        if !role.can_view_resource("role", Some(role_id), user.user_id()) {
+            warn!(
+                user_id = %user.user_id(),
+                role_id = %role_id,
+                "Insufficient permissions to view role"
+            );
+            return Err(AppError::Forbidden("Cannot view this role".to_string()));
+        }
+    } else {
+        return Err(AppError::Forbidden("No role assigned".to_string()));
+    }
 
     info!(
         admin_id = %user.user_id(),

@@ -218,9 +218,18 @@ impl OrganizationService {
             .await?
             .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
 
-        // 管理権限チェック
-        self.check_organization_management_permission(&organization, user_id)
-            .await?;
+        // 設定変更権限チェック
+        let member = self
+            .organization_repository
+            .find_member_by_user_and_organization(user_id, organization_id)
+            .await?
+            .ok_or_else(|| AppError::Forbidden("Not an organization member".to_string()))?;
+
+        if !member.role.can_change_settings() {
+            return Err(AppError::Forbidden(
+                "Insufficient permissions to change organization settings".to_string(),
+            ));
+        }
 
         // 設定を更新
         let mut settings = organization.settings.clone();

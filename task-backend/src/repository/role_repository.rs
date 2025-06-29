@@ -1,5 +1,6 @@
 // task-backend/src/repository/role_repository.rs
 use crate::domain::role_model::{self, Entity as Role, RoleWithPermissions};
+use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -304,6 +305,51 @@ impl RoleRepository {
             })?;
 
         Ok(count)
+    }
+
+    /// サブスクリプション階層を指定してロールを取得
+    #[allow(dead_code)]
+    pub async fn find_by_id_with_subscription(
+        &self,
+        id: Uuid,
+        subscription_tier: SubscriptionTier,
+    ) -> AppResult<Option<RoleWithPermissions>> {
+        let role = Role::find_by_id(id)
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| {
+                error!(error = %e, role_id = %id, "Failed to fetch role by ID with subscription");
+                AppError::InternalServerError("Failed to fetch role".to_string())
+            })?;
+
+        match role {
+            Some(role_model) => {
+                match RoleWithPermissions::from_model_with_subscription(
+                    role_model,
+                    subscription_tier,
+                ) {
+                    Ok(role_with_perms) => {
+                        info!(
+                            role_id = %id,
+                            role_name = %role_with_perms.name,
+                            subscription_tier = %subscription_tier,
+                            "Successfully fetched role with subscription tier"
+                        );
+                        Ok(Some(role_with_perms))
+                    }
+                    Err(e) => {
+                        error!(error = %e, role_id = %id, "Invalid role data in database");
+                        Err(AppError::InternalServerError(
+                            "Invalid role data".to_string(),
+                        ))
+                    }
+                }
+            }
+            None => {
+                info!(role_id = %id, "Role not found");
+                Ok(None)
+            }
+        }
     }
 }
 

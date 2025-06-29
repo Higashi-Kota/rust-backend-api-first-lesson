@@ -11,7 +11,6 @@ use uuid::Uuid;
 pub struct TeamInvitationService {
     team_invitation_repository: TeamInvitationRepository,
     team_repository: TeamRepository,
-    #[allow(dead_code)]
     user_repository: UserRepository,
 }
 
@@ -54,8 +53,16 @@ impl TeamInvitationService {
                 continue;
             }
 
-            let invitation =
+            // Check if user with this email already exists
+            let invited_user_id = self
+                .user_repository
+                .find_by_email(&email)
+                .await?
+                .map(|u| u.id);
+
+            let mut invitation =
                 TeamInvitationModel::new(team_id, email, inviter_id, message.clone(), expires_at);
+            invitation.invited_user_id = invited_user_id;
             invitations.push(invitation);
         }
 
@@ -458,8 +465,17 @@ impl TeamInvitationService {
             ));
         }
 
+        // Check if user with this email already exists
+        let invited_user_id = self
+            .user_repository
+            .find_by_email(&email)
+            .await?
+            .map(|u| u.id);
+
         let expires_at = Some(chrono::Utc::now() + chrono::Duration::days(7));
-        let invitation = TeamInvitationModel::new(team_id, email, inviter_id, message, expires_at);
+        let mut invitation =
+            TeamInvitationModel::new(team_id, email, inviter_id, message, expires_at);
+        invitation.invited_user_id = invited_user_id;
 
         self.team_invitation_repository
             .create_invitation(&invitation)

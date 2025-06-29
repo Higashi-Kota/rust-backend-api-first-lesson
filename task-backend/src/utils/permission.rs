@@ -168,7 +168,7 @@ impl PermissionChecker {
         Self::is_admin(role)
     }
 
-    /// 動的権限チェック（CLAUDE.md設計の実装）
+    /// 動的権限チェック
     #[allow(dead_code)]
     pub fn check_dynamic_permission(
         role: &RoleWithPermissions,

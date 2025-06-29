@@ -1,7 +1,7 @@
 // task-backend/src/api/handlers/analytics_handler.rs
 
 use crate::api::dto::analytics_dto::*;
-use crate::api::dto::common::{ApiResponse, OperationResult};
+use crate::api::dto::common::{ApiError, ApiResponse, OperationResult};
 use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
@@ -809,9 +809,24 @@ pub async fn advanced_export_handler(
             export_type = ?payload.export_type,
             "Access denied: Insufficient permissions for export type"
         );
-        return Err(AppError::Forbidden(
-            "Insufficient permissions for this export type".to_string(),
-        ));
+
+        // ApiError::with_detailsを使用して詳細なエラー情報を提供
+        let api_error = ApiError::with_details(
+            "FORBIDDEN",
+            "Insufficient permissions for this export type",
+            json!({
+                "export_type": format!("{:?}", payload.export_type),
+                "required_role": "Admin",
+                "current_role": if user.claims.is_admin() { "Admin" } else { "User" },
+                "allowed_export_types": ["Tasks", "UserActivity"],
+                "help": "Only administrators can export Users and SystemMetrics data"
+            }),
+        );
+
+        return Err(AppError::Forbidden(format!(
+            "{}: {}",
+            api_error.error, api_error.message
+        )));
     }
 
     let export_id = Uuid::new_v4();
