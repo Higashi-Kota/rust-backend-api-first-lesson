@@ -112,6 +112,8 @@ pub async fn check_permission_handler(
         resource: payload.resource,
         action: payload.action,
         allowed: is_allowed,
+        is_admin: user.claims.is_admin(),
+        is_member: user.claims.is_member(),
         reason: denial_reason,
         scope: scope_info,
         privilege: privilege_info,

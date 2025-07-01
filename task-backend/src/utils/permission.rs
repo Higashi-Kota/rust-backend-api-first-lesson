@@ -344,7 +344,7 @@ mod tests {
         let member_role = create_test_member_role();
         let inactive_role = create_test_inactive_role();
 
-        assert!(!PermissionChecker::is_member(&admin_role));
+        assert!(PermissionChecker::is_member(&admin_role));
         assert!(PermissionChecker::is_member(&member_role));
         assert!(!PermissionChecker::is_member(&inactive_role));
     }

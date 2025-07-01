@@ -283,33 +283,6 @@ impl UserRepository {
         }
     }
 
-    /// 全ユーザーをロール情報と一緒に取得
-    #[allow(dead_code)]
-    pub async fn find_all_with_roles(&self) -> Result<Vec<SafeUserWithRole>, DbErr> {
-        self.prepare_connection().await?;
-
-        let results = UserEntity::find()
-            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
-            .select_also(RoleEntity)
-            .order_by(user_model::Column::CreatedAt, Order::Desc)
-            .all(&self.db)
-            .await?;
-
-        let mut users_with_roles = Vec::new();
-        for (user, role_opt) in results {
-            if let Some(role) = role_opt {
-                match RoleWithPermissions::from_model(role) {
-                    Ok(role_with_perms) => {
-                        users_with_roles.push(user.to_safe_user_with_role(role_with_perms));
-                    }
-                    Err(_) => continue, // スキップして続行
-                }
-            }
-        }
-
-        Ok(users_with_roles)
-    }
-
     /// ページネーション付きで全ユーザーをロール情報と一緒に取得
     pub async fn find_all_with_roles_paginated(
         &self,

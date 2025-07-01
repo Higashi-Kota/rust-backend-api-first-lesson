@@ -184,7 +184,7 @@ impl GdprService {
             .refresh_token_repo
             .revoke_all_user_tokens(user_id)
             .await?;
-        deleted_records.refresh_tokens_count = refresh_tokens_count as u64;
+        deleted_records.refresh_tokens_count = refresh_tokens_count;
 
         // Delete tasks
         let tasks = self.task_repo.find_all_for_user(user_id).await?;

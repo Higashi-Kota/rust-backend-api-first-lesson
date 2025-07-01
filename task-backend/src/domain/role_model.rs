@@ -76,9 +76,9 @@ impl RoleName {
         matches!(self, RoleName::Admin)
     }
 
-    /// 一般ユーザー権限があるかチェック
+    /// 一般ユーザー権限があるかチェック（管理者も含む）
     pub fn is_member(&self) -> bool {
-        matches!(self, RoleName::Member)
+        matches!(self, RoleName::Member | RoleName::Admin)
     }
 
     /// 権限レベルを数値で取得（高いほど強い権限）
@@ -391,7 +391,7 @@ mod tests {
     #[test]
     fn test_role_checks() {
         assert!(RoleName::Admin.is_admin());
-        assert!(!RoleName::Admin.is_member());
+        assert!(RoleName::Admin.is_member());
         assert!(!RoleName::Member.is_admin());
         assert!(RoleName::Member.is_member());
     }
