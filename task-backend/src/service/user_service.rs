@@ -139,6 +139,17 @@ impl UserService {
         })
     }
 
+    /// IDでユーザーを取得
+    pub async fn get_user_by_id(&self, user_id: Uuid) -> AppResult<SafeUser> {
+        let user = self
+            .user_repo
+            .find_by_id(user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+        Ok(user.into())
+    }
+
     /// ユーザーの最終ログイン時刻を更新
     pub async fn update_last_login(&self, user_id: Uuid) -> AppResult<()> {
         self.user_repo.update_last_login(user_id).await?;
@@ -152,16 +163,14 @@ impl UserService {
         page: i32,
         per_page: i32,
     ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
-        // 簡単な実装として、全ユーザーを取得して手動でページネーション
-        let all_users = self.user_repo.find_all_with_roles().await?;
-        let total_count = all_users.len();
+        // データベースレベルでページネーションを適用
+        let users = self
+            .user_repo
+            .find_all_with_roles_paginated(page, per_page)
+            .await?;
+        let total_count = self.user_repo.count_all_users_with_roles().await? as usize;
 
-        let offset = ((page - 1) * per_page) as usize;
-        let limit = per_page as usize;
-
-        let paginated_users = all_users.into_iter().skip(offset).take(limit).collect();
-
-        Ok((paginated_users, total_count))
+        Ok((users, total_count))
     }
 
     /// ユーザー検索（管理者用）
@@ -255,6 +264,51 @@ impl UserService {
             })
             .collect();
         Ok(dto_stats)
+    }
+
+    /// ロール情報付き全ユーザーをページネーション付きで取得（管理者用）
+    pub async fn get_all_users_with_roles_paginated(
+        &self,
+        page: i32,
+        page_size: i32,
+        role_name: Option<&str>,
+    ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
+        let (users_with_roles, total_count) = if let Some(role_name) = role_name {
+            // 特定のロールでフィルタリング
+            let users = self.user_repo.find_by_role_name(role_name).await?;
+            let total = users.len();
+            let paginated_users = users
+                .into_iter()
+                .skip(((page - 1) * page_size) as usize)
+                .take(page_size as usize)
+                .collect::<Vec<_>>();
+            (paginated_users, total)
+        } else {
+            // 全ユーザーを取得
+            let users = self
+                .user_repo
+                .find_all_with_roles_paginated(page, page_size)
+                .await?;
+            let total_count = self.user_repo.count_all_users_with_roles().await? as usize;
+            (users, total_count)
+        };
+
+        Ok((users_with_roles, total_count))
+    }
+
+    /// 全ユーザー数を取得
+    pub async fn count_all_users(&self) -> AppResult<u64> {
+        self.user_repo
+            .count_all_users()
+            .await
+            .map_err(|e| AppError::InternalServerError(format!("Failed to count all users: {}", e)))
+    }
+
+    /// アクティブユーザー数を取得
+    pub async fn count_active_users(&self) -> AppResult<u64> {
+        self.user_repo.count_active_users().await.map_err(|e| {
+            AppError::InternalServerError(format!("Failed to count active users: {}", e))
+        })
     }
 
     /// ロール名でユーザーを検索

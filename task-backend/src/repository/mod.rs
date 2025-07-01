@@ -1,6 +1,8 @@
 // src/repository/mod.rs
+pub mod activity_log_repository;
 pub mod department_member_repository;
 pub mod email_verification_token_repository;
+pub mod login_attempt_repository;
 pub mod organization_analytics_repository;
 pub mod organization_department_repository;
 pub mod organization_repository;
@@ -8,6 +10,7 @@ pub mod password_reset_token_repository;
 pub mod permission_matrix_repository;
 pub mod refresh_token_repository;
 pub mod role_repository;
+pub mod security_incident_repository;
 pub mod subscription_history_repository;
 pub mod task_repository;
 pub mod team_invitation_repository;

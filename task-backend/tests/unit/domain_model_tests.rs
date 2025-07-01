@@ -1,39 +1,43 @@
 // tests/unit/domain_model_tests.rs
 
-use task_backend::domain::organization_model::{Model as OrganizationModel, OrganizationSettings};
+use task_backend::domain::organization_model::{
+    Model as OrganizationModel, Organization, OrganizationSettings,
+};
 use task_backend::domain::subscription_tier::SubscriptionTier;
 use uuid::Uuid;
 
 #[tokio::test]
 async fn test_organization_model_new_logic() {
     // Model::newメソッドのロジックテスト
-    let name = "Test Organization".to_string();
+    let _name = "Test Organization".to_string();
     let owner_id = Uuid::new_v4();
-    let description = Some("A test organization".to_string());
-    let settings = Some(OrganizationSettings {
+    let description = Some("Test description".to_string());
+    let settings = OrganizationSettings {
         allow_public_teams: true,
         require_approval_for_new_members: false,
         enable_single_sign_on: true,
         default_team_subscription_tier: SubscriptionTier::Pro,
-    });
+    };
 
-    let org = OrganizationModel::new(
-        name.clone(),
+    let mut org = Organization::new(
+        "Test Org".to_string(),
+        description.clone(),
         owner_id,
         SubscriptionTier::Pro,
-        description.clone(),
-        settings.clone(),
     );
+    org.settings = settings;
 
-    assert_eq!(org.name, name);
-    assert_eq!(org.owner_id, owner_id);
-    assert_eq!(org.subscription_tier, "pro");
-    assert_eq!(org.description, description);
-    assert_eq!(org.max_teams, 20);
-    assert_eq!(org.max_members, 100);
-    assert!(org.id != Uuid::nil());
+    let model = OrganizationModel::from_organization(&org);
 
-    let retrieved_settings = org.get_settings().unwrap();
+    assert_eq!(model.name, "Test Org");
+    assert_eq!(model.owner_id, owner_id);
+    assert_eq!(model.subscription_tier, "pro");
+    assert_eq!(model.description, description);
+    assert_eq!(model.max_teams, 20);
+    assert_eq!(model.max_members, 100);
+    assert!(model.id != Uuid::nil());
+
+    let retrieved_settings = model.get_settings().unwrap();
     assert!(retrieved_settings.allow_public_teams);
     assert!(!retrieved_settings.require_approval_for_new_members);
     assert!(retrieved_settings.enable_single_sign_on);
@@ -48,29 +52,25 @@ async fn test_organization_model_get_subscription_tier_logic() {
     // get_subscription_tierメソッドのロジックテスト
     let owner_id = Uuid::new_v4();
 
-    let free_org = OrganizationModel::new(
+    let free_org_struct = Organization::new(
         "Free Org".to_string(),
+        None,
         owner_id,
         SubscriptionTier::Free,
-        None,
-        None,
     );
+    let free_org = OrganizationModel::from_organization(&free_org_struct);
 
-    let pro_org = OrganizationModel::new(
-        "Pro Org".to_string(),
-        owner_id,
-        SubscriptionTier::Pro,
-        None,
-        None,
-    );
+    let pro_org_struct =
+        Organization::new("Pro Org".to_string(), None, owner_id, SubscriptionTier::Pro);
+    let pro_org = OrganizationModel::from_organization(&pro_org_struct);
 
-    let enterprise_org = OrganizationModel::new(
+    let enterprise_org_struct = Organization::new(
         "Enterprise Org".to_string(),
+        None,
         owner_id,
         SubscriptionTier::Enterprise,
-        None,
-        None,
     );
+    let enterprise_org = OrganizationModel::from_organization(&enterprise_org_struct);
 
     assert_eq!(free_org.get_subscription_tier(), SubscriptionTier::Free);
     assert_eq!(pro_org.get_subscription_tier(), SubscriptionTier::Pro);
@@ -92,13 +92,14 @@ async fn test_organization_model_get_settings_logic() {
         default_team_subscription_tier: SubscriptionTier::Enterprise,
     };
 
-    let org = OrganizationModel::new(
+    let mut org_struct = Organization::new(
         "Test Org".to_string(),
+        None,
         owner_id,
         SubscriptionTier::Enterprise,
-        None,
-        Some(custom_settings.clone()),
     );
+    org_struct.settings = custom_settings.clone();
+    let org = OrganizationModel::from_organization(&org_struct);
 
     let retrieved_settings = org.get_settings().unwrap();
     assert!(!retrieved_settings.allow_public_teams);
@@ -115,13 +116,13 @@ async fn test_organization_model_update_settings_logic() {
     // update_settingsメソッドのロジックテスト
     let owner_id = Uuid::new_v4();
 
-    let mut org = OrganizationModel::new(
+    let org_struct = Organization::new(
         "Test Org".to_string(),
+        None,
         owner_id,
         SubscriptionTier::Pro,
-        None,
-        None,
     );
+    let mut org = OrganizationModel::from_organization(&org_struct);
 
     let original_updated_at = org.updated_at;
 
@@ -153,13 +154,13 @@ async fn test_organization_model_update_subscription_tier_logic() {
     // update_subscription_tierメソッドのロジックテスト
     let owner_id = Uuid::new_v4();
 
-    let mut org = OrganizationModel::new(
+    let org_struct = Organization::new(
         "Test Org".to_string(),
+        None,
         owner_id,
         SubscriptionTier::Free,
-        None,
-        None,
     );
+    let mut org = OrganizationModel::from_organization(&org_struct);
 
     // Initial state - Free tier
     assert_eq!(org.get_subscription_tier(), SubscriptionTier::Free);
@@ -196,29 +197,25 @@ async fn test_organization_model_can_add_teams_logic() {
     // can_add_teamsメソッドのロジックテスト
     let owner_id = Uuid::new_v4();
 
-    let free_org = OrganizationModel::new(
+    let free_org_struct = Organization::new(
         "Free Org".to_string(),
+        None,
         owner_id,
         SubscriptionTier::Free,
-        None,
-        None,
     );
+    let free_org = OrganizationModel::from_organization(&free_org_struct);
 
-    let pro_org = OrganizationModel::new(
-        "Pro Org".to_string(),
-        owner_id,
-        SubscriptionTier::Pro,
-        None,
-        None,
-    );
+    let pro_org_struct =
+        Organization::new("Pro Org".to_string(), None, owner_id, SubscriptionTier::Pro);
+    let pro_org = OrganizationModel::from_organization(&pro_org_struct);
 
-    let enterprise_org = OrganizationModel::new(
+    let enterprise_org_struct = Organization::new(
         "Enterprise Org".to_string(),
+        None,
         owner_id,
         SubscriptionTier::Enterprise,
-        None,
-        None,
     );
+    let enterprise_org = OrganizationModel::from_organization(&enterprise_org_struct);
 
     // Test Free tier limits (max 3 teams)
     assert!(free_org.can_add_teams(0));
@@ -244,29 +241,25 @@ async fn test_organization_model_can_add_members_logic() {
     // can_add_membersメソッドのロジックテスト
     let owner_id = Uuid::new_v4();
 
-    let free_org = OrganizationModel::new(
+    let free_org_struct = Organization::new(
         "Free Org".to_string(),
+        None,
         owner_id,
         SubscriptionTier::Free,
-        None,
-        None,
     );
+    let free_org = OrganizationModel::from_organization(&free_org_struct);
 
-    let pro_org = OrganizationModel::new(
-        "Pro Org".to_string(),
-        owner_id,
-        SubscriptionTier::Pro,
-        None,
-        None,
-    );
+    let pro_org_struct =
+        Organization::new("Pro Org".to_string(), None, owner_id, SubscriptionTier::Pro);
+    let pro_org = OrganizationModel::from_organization(&pro_org_struct);
 
-    let enterprise_org = OrganizationModel::new(
+    let enterprise_org_struct = Organization::new(
         "Enterprise Org".to_string(),
+        None,
         owner_id,
         SubscriptionTier::Enterprise,
-        None,
-        None,
     );
+    let enterprise_org = OrganizationModel::from_organization(&enterprise_org_struct);
 
     // Test Free tier limits (max 10 members)
     assert!(free_org.can_add_members(5));
@@ -306,13 +299,13 @@ async fn test_organization_model_conversion_methods_logic() {
     // to_organization/from_organizationメソッドのロジックテスト
     let owner_id = Uuid::new_v4();
 
-    let model = OrganizationModel::new(
+    let org_struct = Organization::new(
         "Test Org".to_string(),
+        Some("Test description".to_string()),
         owner_id,
         SubscriptionTier::Pro,
-        Some("Test description".to_string()),
-        None,
     );
+    let model = OrganizationModel::from_organization(&org_struct);
 
     // Test conversion to Organization struct
     let organization = model.to_organization().unwrap();

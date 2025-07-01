@@ -152,6 +152,128 @@ pub struct RevenueInfo {
     pub churn_rate: f64,
 }
 
+/// サブスクリプション履歴クエリパラメータ
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct SubscriptionHistoryQuery {
+    pub start_date: Option<DateTime<Utc>>,
+    pub end_date: Option<DateTime<Utc>>,
+    #[serde(rename = "type")]
+    pub change_type: Option<SubscriptionChangeType>,
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+}
+
+/// サブスクリプション変更タイプ
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum SubscriptionChangeType {
+    Upgrade,
+    Downgrade,
+    All,
+}
+
+/// 管理者向けサブスクリプション履歴レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AdminSubscriptionHistoryResponse {
+    pub changes: Vec<SubscriptionChangeInfo>,
+    pub pagination: PaginationMeta,
+    pub summary: SubscriptionHistorySummary,
+}
+
+/// サブスクリプション履歴サマリー
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SubscriptionHistorySummary {
+    pub total_changes: u64,
+    pub upgrades_count: u64,
+    pub downgrades_count: u64,
+    pub date_range: DateRange,
+}
+
+/// 日付範囲
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DateRange {
+    pub start_date: DateTime<Utc>,
+    pub end_date: DateTime<Utc>,
+}
+
+/// サブスクリプション統計レスポンス（Phase 5.2用）
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SubscriptionStatsResponseV2 {
+    pub tier_change_stats: Vec<TierChangeStat>,
+    pub trend_analysis: TrendAnalysis,
+    pub revenue_impact: RevenueImpact,
+}
+
+/// 階層変更統計
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TierChangeStat {
+    pub tier: String,
+    pub change_count: u64,
+    pub percentage: f64,
+}
+
+/// トレンド分析
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TrendAnalysis {
+    pub growth_rate: f64,
+    pub churn_rate: f64,
+    pub net_movement: i64,
+    pub period: String,
+}
+
+/// 収益影響
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RevenueImpact {
+    pub revenue_change: f64,
+    pub revenue_change_percentage: f64,
+    pub upgrades_revenue: f64,
+    pub downgrades_revenue_loss: f64,
+}
+
+/// サブスクリプション履歴詳細レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SubscriptionHistoryDetailResponse {
+    pub history_id: Uuid,
+    pub user_id: Uuid,
+    pub previous_tier: Option<String>,
+    pub new_tier: String,
+    pub change_type: String,
+    pub reason: Option<String>,
+    pub changed_at: DateTime<Utc>,
+    pub changed_by: Option<Uuid>,
+    pub changed_by_user: Option<ChangedByUserInfo>,
+    pub tier_comparison: TierComparison,
+}
+
+/// 変更実行者情報
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChangedByUserInfo {
+    pub user_id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub role: String,
+}
+
+/// 階層比較情報
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TierComparison {
+    pub previous_tier_info: Option<SubscriptionTierInfo>,
+    pub new_tier_info: SubscriptionTierInfo,
+    pub features_added: Vec<String>,
+    pub features_removed: Vec<String>,
+    pub limits_changed: LimitsChanged,
+}
+
+/// 制限の変更
+#[derive(Debug, Serialize, Deserialize)]
+pub struct LimitsChanged {
+    pub max_tasks_change: Option<i64>,
+    pub max_projects_change: Option<i64>,
+    pub max_team_members_change: Option<i64>,
+    pub max_storage_mb_change: Option<i64>,
+    pub api_requests_per_hour_change: Option<i64>,
+}
+
 /// 階層別ユーザーリストレスポンス
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TierUsersResponse {
@@ -195,7 +317,7 @@ impl CurrentSubscriptionResponse {
         }
     }
 
-    fn get_tier_info(tier: &str) -> SubscriptionTierInfo {
+    pub fn get_tier_info(tier: &str) -> SubscriptionTierInfo {
         match tier.to_lowercase().as_str() {
             "free" => SubscriptionTierInfo {
                 tier: "free".to_string(),

@@ -1,5 +1,6 @@
 // task-backend/src/api/mod.rs
 use crate::config::AppConfig;
+use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
 use crate::service::{
     auth_service::AuthService, organization_service::OrganizationService,
     role_service::RoleService, security_service::SecurityService,
@@ -7,7 +8,6 @@ use crate::service::{
     team_invitation_service::TeamInvitationService, team_service::TeamService,
     user_service::UserService,
 };
-use crate::utils::email::EmailService;
 use crate::utils::jwt::JwtManager;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
@@ -26,10 +26,10 @@ pub struct AppState {
     pub team_invitation_service: Arc<TeamInvitationService>,
     pub organization_service: Arc<OrganizationService>,
     pub subscription_service: Arc<SubscriptionService>,
+    pub subscription_history_repo: Arc<SubscriptionHistoryRepository>,
     pub security_service: Arc<SecurityService>,
-    #[allow(dead_code)]
-    pub email_service: Arc<EmailService>,
     pub jwt_manager: Arc<JwtManager>,
+    pub db: Arc<DatabaseConnection>,
     pub db_pool: Arc<DatabaseConnection>,
     pub cookie_config: CookieConfig,
     pub security_headers: SecurityHeaders,
@@ -92,40 +92,6 @@ impl Default for SecurityHeaders {
 }
 
 impl AppState {
-    #[allow(dead_code)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        auth_service: Arc<AuthService>,
-        user_service: Arc<UserService>,
-        role_service: Arc<RoleService>,
-        task_service: Arc<TaskService>,
-        team_service: Arc<TeamService>,
-        team_invitation_service: Arc<TeamInvitationService>,
-        organization_service: Arc<OrganizationService>,
-        subscription_service: Arc<SubscriptionService>,
-        security_service: Arc<SecurityService>,
-        email_service: Arc<EmailService>,
-        jwt_manager: Arc<JwtManager>,
-        db_pool: Arc<DatabaseConnection>,
-    ) -> Self {
-        Self {
-            auth_service,
-            user_service,
-            role_service,
-            task_service,
-            team_service,
-            team_invitation_service,
-            organization_service,
-            subscription_service,
-            security_service,
-            email_service,
-            jwt_manager,
-            db_pool,
-            cookie_config: CookieConfig::default(),
-            security_headers: SecurityHeaders::default(),
-        }
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub fn with_config(
         auth_service: Arc<AuthService>,
@@ -136,8 +102,8 @@ impl AppState {
         team_invitation_service: Arc<TeamInvitationService>,
         organization_service: Arc<OrganizationService>,
         subscription_service: Arc<SubscriptionService>,
+        subscription_history_repo: Arc<SubscriptionHistoryRepository>,
         security_service: Arc<SecurityService>,
-        email_service: Arc<EmailService>,
         jwt_manager: Arc<JwtManager>,
         db_pool: Arc<DatabaseConnection>,
         app_config: &AppConfig,
@@ -151,9 +117,10 @@ impl AppState {
             team_invitation_service,
             organization_service,
             subscription_service,
+            subscription_history_repo,
             security_service,
-            email_service,
             jwt_manager,
+            db: db_pool.clone(),
             db_pool,
             cookie_config: CookieConfig::from_app_config(app_config),
             security_headers: SecurityHeaders::default(),

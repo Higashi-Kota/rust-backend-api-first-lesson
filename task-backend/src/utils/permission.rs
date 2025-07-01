@@ -1,6 +1,6 @@
 // task-backend/src/utils/permission.rs
 
-use crate::domain::permission::{PermissionResult, PermissionScope};
+use crate::domain::permission::PermissionScope;
 use crate::domain::role_model::{RoleName, RoleWithPermissions};
 use crate::domain::subscription_tier::SubscriptionTier;
 use uuid::Uuid;
@@ -148,7 +148,6 @@ impl PermissionChecker {
     }
 
     /// 管理機能へのアクセス権限があるかチェック
-    #[allow(dead_code)]
     pub fn can_access_admin_features(role: &RoleWithPermissions) -> bool {
         Self::is_admin(role)
             || role
@@ -157,55 +156,8 @@ impl PermissionChecker {
     }
 
     /// 他のユーザーのデータを一覧表示する権限があるかチェック
-    #[allow(dead_code)]
     pub fn can_list_users(role: &RoleWithPermissions) -> bool {
         Self::is_admin(role) || role.subscription_tier.is_at_least(&SubscriptionTier::Pro)
-    }
-
-    /// システム設定へのアクセス権限があるかチェック
-    #[allow(dead_code)]
-    pub fn can_access_system_settings(role: &RoleWithPermissions) -> bool {
-        Self::is_admin(role)
-    }
-
-    /// 動的権限チェック
-    #[allow(dead_code)]
-    pub fn check_dynamic_permission(
-        role: &RoleWithPermissions,
-        resource: &str,
-        action: &str,
-        target_user_id: Option<Uuid>,
-    ) -> PermissionResult {
-        role.can_perform_action(resource, action, target_user_id)
-    }
-
-    /// サブスクリプションベースの権限チェック
-    #[allow(dead_code)]
-    pub fn check_subscription_access(
-        role: &RoleWithPermissions,
-        required_tier: SubscriptionTier,
-    ) -> bool {
-        role.subscription_tier.is_at_least(&required_tier)
-    }
-
-    /// 特権ベースの機能アクセスチェック
-    #[allow(dead_code)]
-    pub fn check_privilege_access(
-        role: &RoleWithPermissions,
-        resource: &str,
-        action: &str,
-        feature: &str,
-    ) -> bool {
-        if let Some(privilege) = role.get_subscription_privilege(resource, action) {
-            if let Some(quota) = privilege.quota {
-                quota.has_feature(feature)
-            } else {
-                // クォータがない場合は無制限アクセス
-                true
-            }
-        } else {
-            false
-        }
     }
 
     /// ロール名ベースの基本的な権限チェック（JWTから詳細ロール情報がない場合のフォールバック）
@@ -293,7 +245,6 @@ pub struct ResourceContext {
 }
 
 impl ResourceContext {
-    #[allow(dead_code)]
     pub fn new(
         resource_type: &str,
         requesting_user_id: Uuid,
@@ -309,7 +260,6 @@ impl ResourceContext {
     }
 
     /// ユーザーリソース用のコンテキストを作成
-    #[allow(dead_code)]
     pub fn for_user(requesting_user_id: Uuid, target_user_id: Uuid) -> Self {
         Self::new(
             "user",
@@ -317,18 +267,6 @@ impl ResourceContext {
             Some(target_user_id),
             Some(target_user_id),
         )
-    }
-
-    /// タスクリソース用のコンテキストを作成
-    #[allow(dead_code)]
-    pub fn for_task(requesting_user_id: Uuid, task_owner_id: Option<Uuid>) -> Self {
-        Self::new("task", requesting_user_id, None, task_owner_id)
-    }
-
-    /// ロールリソース用のコンテキストを作成
-    #[allow(dead_code)]
-    pub fn for_role(requesting_user_id: Uuid) -> Self {
-        Self::new("role", requesting_user_id, None, None)
     }
 }
 
@@ -562,132 +500,10 @@ mod tests {
         assert_eq!(context.requesting_user_id, user_id);
         assert_eq!(context.target_user_id, Some(target_id));
 
-        let task_context = ResourceContext::for_task(user_id, Some(target_id));
+        let task_context = ResourceContext::new("task", user_id, None, Some(target_id));
         assert_eq!(task_context.resource_type, "task");
         assert_eq!(task_context.requesting_user_id, user_id);
         assert_eq!(task_context.owner_id, Some(target_id));
-    }
-
-    #[test]
-    fn test_dynamic_permission_check() {
-        let admin_role = create_test_admin_role();
-        let member_role = create_test_member_role();
-        let pro_member = create_test_pro_member_role();
-
-        // Admin can access all tasks
-        let result =
-            PermissionChecker::check_dynamic_permission(&admin_role, "tasks", "read", None);
-        assert!(result.is_allowed());
-
-        // Member can access own tasks
-        let result =
-            PermissionChecker::check_dynamic_permission(&member_role, "tasks", "read", None);
-        assert!(result.is_allowed());
-
-        // Member cannot access role management
-        let result =
-            PermissionChecker::check_dynamic_permission(&member_role, "roles", "create", None);
-        assert!(result.is_denied());
-
-        // Pro member has enhanced features
-        let result =
-            PermissionChecker::check_dynamic_permission(&pro_member, "tasks", "read", None);
-        assert!(result.is_allowed());
-    }
-
-    #[test]
-    fn test_subscription_access() {
-        let admin_role = create_test_admin_role();
-        let member_role = create_test_member_role();
-        let pro_member = create_test_pro_member_role();
-
-        // Enterprise tier access
-        assert!(PermissionChecker::check_subscription_access(
-            &admin_role,
-            SubscriptionTier::Enterprise
-        ));
-        assert!(!PermissionChecker::check_subscription_access(
-            &member_role,
-            SubscriptionTier::Enterprise
-        ));
-        assert!(!PermissionChecker::check_subscription_access(
-            &pro_member,
-            SubscriptionTier::Enterprise
-        ));
-
-        // Pro tier access
-        assert!(PermissionChecker::check_subscription_access(
-            &admin_role,
-            SubscriptionTier::Pro
-        ));
-        assert!(!PermissionChecker::check_subscription_access(
-            &member_role,
-            SubscriptionTier::Pro
-        ));
-        assert!(PermissionChecker::check_subscription_access(
-            &pro_member,
-            SubscriptionTier::Pro
-        ));
-
-        // Free tier access
-        assert!(PermissionChecker::check_subscription_access(
-            &admin_role,
-            SubscriptionTier::Free
-        ));
-        assert!(PermissionChecker::check_subscription_access(
-            &member_role,
-            SubscriptionTier::Free
-        ));
-        assert!(PermissionChecker::check_subscription_access(
-            &pro_member,
-            SubscriptionTier::Free
-        ));
-    }
-
-    #[test]
-    fn test_privilege_access() {
-        let pro_member = create_test_pro_member_role();
-        let free_member = create_test_member_role();
-
-        // Pro member has advanced features for task reading
-        assert!(PermissionChecker::check_privilege_access(
-            &pro_member,
-            "tasks",
-            "read",
-            "advanced_filter"
-        ));
-        assert!(PermissionChecker::check_privilege_access(
-            &pro_member,
-            "tasks",
-            "read",
-            "export"
-        ));
-        assert!(!PermissionChecker::check_privilege_access(
-            &pro_member,
-            "tasks",
-            "read",
-            "unlimited_access"
-        ));
-
-        // Free member has basic features only
-        assert!(!PermissionChecker::check_privilege_access(
-            &free_member,
-            "tasks",
-            "read",
-            "advanced_filter"
-        ));
-        assert!(!PermissionChecker::check_privilege_access(
-            &free_member,
-            "tasks",
-            "read",
-            "export"
-        ));
-        assert!(PermissionChecker::check_privilege_access(
-            &free_member,
-            "tasks",
-            "read",
-            "basic_access"
-        ));
     }
 
     #[test]
@@ -705,10 +521,5 @@ mod tests {
         assert!(PermissionChecker::can_list_users(&admin_role));
         assert!(PermissionChecker::can_list_users(&pro_member));
         assert!(!PermissionChecker::can_list_users(&free_member));
-
-        // System settings (still admin only)
-        assert!(PermissionChecker::can_access_system_settings(&admin_role));
-        assert!(!PermissionChecker::can_access_system_settings(&pro_member));
-        assert!(!PermissionChecker::can_access_system_settings(&free_member));
     }
 }

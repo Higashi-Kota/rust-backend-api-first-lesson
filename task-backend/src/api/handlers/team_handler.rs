@@ -1,6 +1,6 @@
 // task-backend/src/api/handlers/team_handler.rs
 
-use crate::api::dto::common::{ApiError, ApiResponse};
+use crate::api::dto::common::ApiResponse;
 use crate::api::dto::team_dto::*;
 use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
@@ -14,31 +14,25 @@ use axum::{
     Json, Router,
 };
 use serde_json::json;
-use std::collections::HashMap;
 use uuid::Uuid;
 use validator::Validate;
 
-// Helper function to handle validation errors using ApiError
+// Helper function to handle validation errors
 fn handle_validation_error(err: validator::ValidationErrors) -> AppError {
-    let mut validation_errors: HashMap<String, Vec<String>> = HashMap::new();
+    let error_messages: Vec<String> = err
+        .field_errors()
+        .into_iter()
+        .flat_map(|(field, errors)| {
+            errors
+                .iter()
+                .filter_map(move |e| e.message.clone().map(|m| format!("{}: {}", field, m)))
+        })
+        .collect();
 
-    for (field, errors) in err.field_errors() {
-        let messages: Vec<String> = errors
-            .iter()
-            .filter_map(|e| e.message.clone().map(|m| m.to_string()))
-            .collect();
-
-        if !messages.is_empty() {
-            validation_errors.insert(field.to_string(), messages);
-        }
-    }
-
-    if validation_errors.is_empty() {
+    if error_messages.is_empty() {
         AppError::ValidationError("Validation failed".to_string())
     } else {
-        // ApiError::validation_errorメソッドを使用
-        let api_error = ApiError::validation_error("Validation failed", validation_errors);
-        AppError::ValidationError(format!("{}: {}", api_error.error, api_error.message))
+        AppError::ValidationErrors(error_messages)
     }
 }
 
@@ -268,6 +262,23 @@ pub async fn get_teams_with_pagination_handler(
     )))
 }
 
+/// チームメンバーの詳細情報を取得（権限情報付き）
+pub async fn get_team_member_details_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Path((team_id, member_id)): Path<(Uuid, Uuid)>,
+) -> AppResult<Json<ApiResponse<TeamMemberDetailResponse>>> {
+    let member_detail = app_state
+        .team_service
+        .get_team_member_detail(team_id, member_id, user.user_id())
+        .await?;
+
+    Ok(Json(ApiResponse::success(
+        "Team member details retrieved successfully",
+        member_detail,
+    )))
+}
+
 // --- ルーター ---
 
 /// チームルーターを作成
@@ -281,6 +292,10 @@ pub fn team_router(app_state: AppState) -> Router {
         .route("/teams/{id}", delete(delete_team_handler))
         // チームメンバー管理
         .route("/teams/{id}/members", post(invite_team_member_handler))
+        .route(
+            "/teams/{team_id}/members/{member_id}",
+            get(get_team_member_details_handler),
+        )
         .route(
             "/teams/{team_id}/members/{member_id}/role",
             patch(update_team_member_role_handler),

@@ -2,6 +2,7 @@
 
 use crate::domain::subscription_tier::SubscriptionTier;
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use uuid::Uuid;
 
 /// 権限スコープ
@@ -111,7 +112,7 @@ pub enum PermissionResult {
 }
 
 impl PermissionResult {
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn new(
         base_permission: Option<Permission>,
         subscription_privilege: Option<Privilege>,
@@ -128,17 +129,14 @@ impl PermissionResult {
         }
     }
 
-    #[allow(dead_code)]
     pub fn is_allowed(&self) -> bool {
         matches!(self, Self::Allowed { .. })
     }
 
-    #[allow(dead_code)]
     pub fn is_denied(&self) -> bool {
         matches!(self, Self::Denied { .. })
     }
 
-    #[allow(dead_code)]
     pub fn get_scope(&self) -> Option<&PermissionScope> {
         match self {
             Self::Allowed { scope, .. } => Some(scope),
@@ -146,7 +144,6 @@ impl PermissionResult {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_privilege(&self) -> Option<&Privilege> {
         match self {
             Self::Allowed { privilege, .. } => privilege.as_ref(),
@@ -154,7 +151,6 @@ impl PermissionResult {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_denial_reason(&self) -> Option<&String> {
         match self {
             Self::Allowed { .. } => None,
@@ -269,17 +265,10 @@ impl Privilege {
     }
 
     /// 特権で利用可能な機能をチェック
-    #[allow(dead_code)]
     pub fn has_feature(&self, feature: &str) -> bool {
         self.quota
             .as_ref()
             .is_some_and(|q| q.features.contains(&feature.to_string()))
-    }
-
-    /// 特権が指定した階層で利用可能かチェック
-    #[allow(dead_code)]
-    pub fn is_available_for(&self, tier: SubscriptionTier) -> bool {
-        tier.is_at_least(&self.subscription_tier)
     }
 }
 

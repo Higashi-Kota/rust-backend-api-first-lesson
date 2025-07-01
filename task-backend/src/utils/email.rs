@@ -5,32 +5,10 @@ use lettre::message::{header, MultiPart, SinglePart};
 use lettre::{Message, SmtpTransport, Transport};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use tracing::{error, info};
-
-/// メール送信エラー
-#[derive(Error, Debug)]
-#[allow(dead_code)]
-pub enum EmailError {
-    #[error("SMTP configuration error: {0}")]
-    ConfigurationError(String),
-
-    #[error("Failed to send email: {0}")]
-    SendError(String),
-
-    #[error("Invalid email address: {0}")]
-    InvalidAddress(String),
-
-    #[error("Template rendering error: {0}")]
-    TemplateError(String),
-
-    #[error("Missing email configuration")]
-    MissingConfiguration,
-}
 
 /// メールプロバイダーの種類
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub enum EmailProvider {
     /// 開発モード（コンソール出力）
     Development,
@@ -77,8 +55,53 @@ impl Default for EmailConfig {
 }
 
 impl EmailConfig {
+    /// 環境変数から設定を読み込む
+    pub fn from_env() -> Result<Self, crate::error::AppError> {
+        use std::env;
+
+        // 環境を判定
+        let environment = env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string());
+        let development_mode = environment == "development";
+
+        // プロバイダーを決定
+        let provider = match env::var("EMAIL_PROVIDER").as_deref() {
+            Ok("mailgun") => EmailProvider::Mailgun,
+            Ok("mailhog") => EmailProvider::MailHog,
+            Ok("development") | Err(_) => EmailProvider::Development,
+            Ok(other) => {
+                return Err(crate::error::AppError::InternalServerError(format!(
+                    "Unknown email provider: {}",
+                    other
+                )))
+            }
+        };
+
+        // メール設定を構築
+        let config = Self {
+            provider: provider.clone(),
+            smtp_host: env::var("SMTP_HOST").unwrap_or_else(|_| "localhost".to_string()),
+            smtp_port: env::var("SMTP_PORT")
+                .unwrap_or_else(|_| "1025".to_string())
+                .parse()
+                .map_err(|_| {
+                    crate::error::AppError::InternalServerError("Invalid SMTP port".to_string())
+                })?,
+            from_email: env::var("FROM_EMAIL")
+                .unwrap_or_else(|_| "noreply@example.com".to_string()),
+            from_name: env::var("FROM_NAME").unwrap_or_else(|_| "Task Backend".to_string()),
+            mailgun_api_key: env::var("MAILGUN_API_KEY").ok(),
+            mailgun_domain: env::var("MAILGUN_DOMAIN").ok(),
+            development_mode,
+        };
+
+        // 設定を検証
+        config.validate()?;
+
+        Ok(config)
+    }
+
     /// 設定の検証
-    pub fn validate(&self) -> Result<(), EmailError> {
+    pub fn validate(&self) -> Result<(), crate::error::AppError> {
         if self.development_mode {
             return Ok(()); // 開発モードでは検証をスキップ
         }
@@ -87,33 +110,39 @@ impl EmailConfig {
             EmailProvider::Development => Ok(()),
             EmailProvider::MailHog => {
                 if self.smtp_host.is_empty() {
-                    return Err(EmailError::ConfigurationError(
+                    return Err(crate::error::AppError::InternalServerError(
                         "SMTP host is required for MailHog".to_string(),
                     ));
                 }
                 if self.from_email.is_empty() {
-                    return Err(EmailError::ConfigurationError(
+                    return Err(crate::error::AppError::InternalServerError(
                         "From email is required".to_string(),
                     ));
                 }
                 if !is_valid_email(&self.from_email) {
-                    return Err(EmailError::InvalidAddress(self.from_email.clone()));
+                    return Err(crate::error::AppError::ValidationError(format!(
+                        "Invalid from email address: {}",
+                        self.from_email
+                    )));
                 }
                 Ok(())
             }
             EmailProvider::Mailgun => {
                 if self.mailgun_api_key.is_none() || self.mailgun_domain.is_none() {
-                    return Err(EmailError::ConfigurationError(
+                    return Err(crate::error::AppError::InternalServerError(
                         "Mailgun API key and domain are required".to_string(),
                     ));
                 }
                 if self.from_email.is_empty() {
-                    return Err(EmailError::ConfigurationError(
+                    return Err(crate::error::AppError::InternalServerError(
                         "From email is required".to_string(),
                     ));
                 }
                 if !is_valid_email(&self.from_email) {
-                    return Err(EmailError::InvalidAddress(self.from_email.clone()));
+                    return Err(crate::error::AppError::ValidationError(format!(
+                        "Invalid from email address: {}",
+                        self.from_email
+                    )));
                 }
                 Ok(())
             }
@@ -158,16 +187,9 @@ pub struct EmailService {
 
 impl EmailService {
     /// 新しいEmailServiceを作成
-    pub fn new(config: EmailConfig) -> Result<Self, EmailError> {
+    pub fn new(config: EmailConfig) -> Result<Self, crate::error::AppError> {
         config.validate()?;
         Ok(Self { config })
-    }
-
-    /// デフォルト設定でEmailServiceを作成
-    #[allow(dead_code)]
-    pub fn from_env() -> Result<Self, EmailError> {
-        let config = EmailConfig::default();
-        Self::new(config)
     }
 
     /// メールを送信

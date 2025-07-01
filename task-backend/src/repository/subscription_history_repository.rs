@@ -39,8 +39,16 @@ impl SubscriptionHistoryRepository {
         Ok(created_history)
     }
 
+    /// すべてのサブスクリプション履歴を取得
+    pub async fn find_all(&self) -> AppResult<Vec<Model>> {
+        let histories = Entity::find()
+            .order_by_desc(Column::ChangedAt)
+            .all(&self.db)
+            .await?;
+        Ok(histories)
+    }
+
     /// ユーザーのサブスクリプション履歴を時系列で取得
-    #[allow(dead_code)]
     pub async fn find_by_user_id(&self, user_id: Uuid) -> AppResult<Vec<Model>> {
         let histories = Entity::find()
             .filter(Column::UserId.eq(user_id))
@@ -88,7 +96,6 @@ impl SubscriptionHistoryRepository {
     }
 
     /// 特定期間のサブスクリプション変更履歴を取得
-    #[allow(dead_code)]
     pub async fn find_by_date_range(
         &self,
         start_date: chrono::DateTime<chrono::Utc>,
@@ -104,7 +111,6 @@ impl SubscriptionHistoryRepository {
     }
 
     /// 特定階層への変更履歴を取得
-    #[allow(dead_code)]
     pub async fn find_by_tier(&self, tier: &str) -> AppResult<Vec<Model>> {
         let histories = Entity::find()
             .filter(Column::NewTier.eq(tier))
@@ -116,7 +122,6 @@ impl SubscriptionHistoryRepository {
     }
 
     /// アップグレード履歴のみを取得
-    #[allow(dead_code)]
     pub async fn find_upgrades(&self) -> AppResult<Vec<SubscriptionChangeInfo>> {
         let histories = Entity::find()
             .order_by_desc(Column::ChangedAt)
@@ -133,7 +138,6 @@ impl SubscriptionHistoryRepository {
     }
 
     /// ダウングレード履歴のみを取得
-    #[allow(dead_code)]
     pub async fn find_downgrades(&self) -> AppResult<Vec<SubscriptionChangeInfo>> {
         let histories = Entity::find()
             .order_by_desc(Column::ChangedAt)
@@ -150,7 +154,6 @@ impl SubscriptionHistoryRepository {
     }
 
     /// 統計情報: 階層別の変更回数
-    #[allow(dead_code)]
     pub async fn get_tier_change_stats(&self) -> AppResult<Vec<(String, u64)>> {
         use sea_orm::QuerySelect;
 
@@ -213,21 +216,18 @@ impl SubscriptionHistoryRepository {
     }
 
     /// ID で履歴を取得
-    #[allow(dead_code)]
     pub async fn find_by_id(&self, id: Uuid) -> AppResult<Option<Model>> {
         let history = Entity::find_by_id(id).one(&self.db).await?;
         Ok(history)
     }
 
     /// 履歴を削除（通常は行わないが、GDPR対応など）
-    #[allow(dead_code)]
     pub async fn delete_by_id(&self, id: Uuid) -> AppResult<bool> {
         let result = Entity::delete_by_id(id).exec(&self.db).await?;
         Ok(result.rows_affected > 0)
     }
 
     /// ユーザーの全履歴を削除（ユーザー削除時など）
-    #[allow(dead_code)]
     pub async fn delete_by_user_id(&self, user_id: Uuid) -> AppResult<u64> {
         let result = Entity::delete_many()
             .filter(Column::UserId.eq(user_id))

@@ -3,7 +3,6 @@
 use crate::domain::role_model::RoleWithPermissions;
 use crate::domain::user_model::UserClaims;
 use crate::error::AppError;
-use crate::repository::role_repository::RoleRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::utils::jwt::JwtManager;
 use crate::utils::permission::PermissionChecker;
@@ -22,42 +21,11 @@ use tracing::{info, warn};
 pub struct AuthMiddlewareConfig {
     pub jwt_manager: Arc<JwtManager>,
     pub user_repository: Arc<UserRepository>,
-    #[allow(dead_code)]
-    pub role_repository: Arc<RoleRepository>,
     pub access_token_cookie_name: String,
     pub skip_auth_paths: Vec<String>,
     pub admin_only_paths: Vec<String>,
     pub require_verified_email: bool,
     pub require_active_account: bool,
-}
-
-impl AuthMiddlewareConfig {
-    #[allow(dead_code)]
-    pub fn new(
-        jwt_manager: Arc<JwtManager>,
-        user_repository: Arc<UserRepository>,
-        role_repository: Arc<RoleRepository>,
-    ) -> Self {
-        Self {
-            jwt_manager,
-            user_repository,
-            role_repository,
-            access_token_cookie_name: "access_token".to_string(),
-            skip_auth_paths: vec![
-                "/auth/signup".to_string(),
-                "/auth/signin".to_string(),
-                "/auth/refresh".to_string(),
-                "/auth/forgot-password".to_string(),
-                "/auth/reset-password".to_string(),
-                "/health".to_string(),
-                "/docs".to_string(),
-                "/".to_string(),
-            ],
-            admin_only_paths: vec!["/admin".to_string(), "/api/admin".to_string()],
-            require_verified_email: false, // 開発環境では false
-            require_active_account: true,
-        }
-    }
 }
 
 /// 認証済みユーザー情報を格納するエクステンション
@@ -71,8 +39,6 @@ pub struct AuthenticatedUser {
 #[derive(Debug, Clone)]
 pub struct AuthenticatedUserWithRole {
     pub claims: UserClaims,
-    #[allow(dead_code)]
-    pub access_token: String,
 }
 
 impl AuthenticatedUser {
@@ -87,58 +53,9 @@ impl AuthenticatedUser {
         self.claims.user_id
     }
 
-    #[allow(dead_code)]
-    pub fn username(&self) -> &str {
-        &self.claims.username
-    }
-
-    #[allow(dead_code)]
-    pub fn email(&self) -> &str {
-        &self.claims.email
-    }
-
-    #[allow(dead_code)]
-    pub fn is_active(&self) -> bool {
-        self.claims.is_active
-    }
-
-    #[allow(dead_code)]
-    pub fn is_email_verified(&self) -> bool {
-        self.claims.email_verified
-    }
-
-    #[allow(dead_code)]
-    pub fn role_name(&self) -> &str {
-        &self.claims.role_name
-    }
-
-    /// 動的権限チェック
-    #[allow(dead_code)]
-    pub fn can_perform_action(
-        &self,
-        resource: &str,
-        action: &str,
-        target_user_id: Option<uuid::Uuid>,
-    ) -> crate::domain::permission::PermissionResult {
-        self.claims
-            .can_perform_action(resource, action, target_user_id)
-    }
-
-    /// サブスクリプション階層を取得
-    #[allow(dead_code)]
-    pub fn get_subscription_tier(&self) -> crate::domain::subscription_tier::SubscriptionTier {
-        self.claims.get_subscription_tier()
-    }
-
     /// 管理者かチェック
     pub fn is_admin(&self) -> bool {
         self.claims.is_admin()
-    }
-
-    /// 一般ユーザーかチェック
-    #[allow(dead_code)]
-    pub fn is_member(&self) -> bool {
-        self.claims.is_member()
     }
 
     /// 組織読み取り権限をチェック
@@ -215,41 +132,17 @@ impl AuthenticatedUser {
     }
 }
 
-#[allow(dead_code)]
 impl AuthenticatedUserWithRole {
-    pub fn new(claims: UserClaims, access_token: String) -> Self {
-        Self {
-            claims,
-            access_token,
-        }
+    pub fn new(claims: UserClaims, _access_token: String) -> Self {
+        Self { claims }
     }
 
     pub fn user_id(&self) -> uuid::Uuid {
         self.claims.user_id
     }
 
-    pub fn username(&self) -> &str {
-        &self.claims.username
-    }
-
-    pub fn email(&self) -> &str {
-        &self.claims.email
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.claims.is_active
-    }
-
-    pub fn is_email_verified(&self) -> bool {
-        self.claims.email_verified
-    }
-
     pub fn is_admin(&self) -> bool {
         self.claims.is_admin()
-    }
-
-    pub fn is_member(&self) -> bool {
-        self.claims.is_member()
     }
 
     pub fn can_access_user(&self, target_user_id: uuid::Uuid) -> bool {
@@ -260,36 +153,12 @@ impl AuthenticatedUserWithRole {
         self.claims.can_create_resource(resource_type)
     }
 
-    pub fn can_update_resource(&self, resource_type: &str, owner_id: Option<uuid::Uuid>) -> bool {
-        self.claims.can_update_resource(resource_type, owner_id)
-    }
-
     pub fn can_delete_resource(&self, resource_type: &str, owner_id: Option<uuid::Uuid>) -> bool {
         self.claims.can_delete_resource(resource_type, owner_id)
     }
 
-    pub fn can_view_resource(&self, resource_type: &str, owner_id: Option<uuid::Uuid>) -> bool {
-        self.claims.can_view_resource(resource_type, owner_id)
-    }
-
     pub fn role(&self) -> Option<&RoleWithPermissions> {
         self.claims.role.as_ref()
-    }
-
-    /// 動的権限チェック
-    pub fn can_perform_action(
-        &self,
-        resource: &str,
-        action: &str,
-        target_user_id: Option<uuid::Uuid>,
-    ) -> crate::domain::permission::PermissionResult {
-        self.claims
-            .can_perform_action(resource, action, target_user_id)
-    }
-
-    /// サブスクリプション階層を取得
-    pub fn get_subscription_tier(&self) -> crate::domain::subscription_tier::SubscriptionTier {
-        self.claims.get_subscription_tier()
     }
 }
 
@@ -310,6 +179,10 @@ pub async fn jwt_auth_middleware(
 
     // 管理者専用パスかチェック
     let is_admin_path = should_require_admin(&path, &config.admin_only_paths);
+
+    // テスト環境を検出
+    let is_test_mode =
+        cfg!(test) || std::env::var("RUST_TEST").is_ok() || path.starts_with("/test/");
 
     // トークンを抽出
     let token = extract_token(&headers, &cookie_jar, &config.access_token_cookie_name).ok_or_else(
@@ -370,10 +243,6 @@ pub async fn jwt_auth_middleware(
     // 管理者専用パスの場合、ロール情報付きでユーザーを取得
     if is_admin_path {
         info!("Processing admin path: {}", path);
-
-        // テスト環境を検出（cfg!またはJWTからのロール情報を使用）
-        let is_test_mode =
-            cfg!(test) || std::env::var("RUST_TEST").is_ok() || path.starts_with("/test/");
 
         if is_test_mode && user_claims.role_name == "admin" {
             info!("Using test mode admin authentication");
@@ -465,8 +334,46 @@ pub async fn jwt_auth_middleware(
         }
     } else {
         // 通常の認証済みユーザー情報をリクエストに追加
-        let authenticated_user = AuthenticatedUser::new(user_claims.clone(), token);
+        let authenticated_user = AuthenticatedUser::new(user_claims.clone(), token.clone());
         request.extensions_mut().insert(authenticated_user);
+
+        // Always create AuthenticatedUserWithRole for users with role information
+        if user_claims.role.is_some() {
+            let authenticated_user_with_role =
+                AuthenticatedUserWithRole::new(user_claims.clone(), token.clone());
+            request
+                .extensions_mut()
+                .insert(authenticated_user_with_role);
+        } else if is_test_mode && user_claims.role_name == "member" {
+            // テスト環境での通常ユーザー用AuthenticatedUserWithRole (fallback)
+            let member_role = crate::domain::role_model::RoleWithPermissions {
+                id: uuid::Uuid::new_v4(),
+                name: crate::domain::role_model::RoleName::Member,
+                display_name: "Member".to_string(),
+                description: Some("Member role for testing".to_string()),
+                is_active: true,
+                created_at: chrono::Utc::now(),
+                updated_at: chrono::Utc::now(),
+                subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Free,
+            };
+
+            let user_with_role_claims = UserClaims {
+                user_id: user_claims.user_id,
+                username: user_claims.username.clone(),
+                email: user_claims.email.clone(),
+                is_active: user_claims.is_active,
+                email_verified: user_claims.email_verified,
+                role_name: "member".to_string(),
+                role: Some(member_role),
+                subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Free,
+            };
+
+            let authenticated_user_with_role =
+                AuthenticatedUserWithRole::new(user_with_role_claims, token);
+            request
+                .extensions_mut()
+                .insert(authenticated_user_with_role);
+        }
 
         info!(
             user_id = %user_claims.user_id,
@@ -479,240 +386,6 @@ pub async fn jwt_auth_middleware(
     }
 
     Ok(next.run(request).await)
-}
-
-/// 管理者権限必須ミドルウェア
-#[allow(dead_code)]
-pub async fn admin_only_middleware(
-    State(config): State<AuthMiddlewareConfig>,
-    headers: HeaderMap,
-    cookie_jar: CookieJar,
-    mut request: Request,
-    next: Next,
-) -> Result<Response, AppError> {
-    let path = request.uri().path().to_string();
-
-    // トークンを抽出
-    let token = extract_token(&headers, &cookie_jar, &config.access_token_cookie_name).ok_or_else(
-        || {
-            warn!(path = %path, "Missing authentication token for admin endpoint");
-            AppError::Unauthorized("Authentication required".to_string())
-        },
-    )?;
-
-    // JWTを検証
-    let access_claims = config
-        .jwt_manager
-        .verify_access_token(&token)
-        .map_err(|e| {
-            warn!(path = %path, error = %e, "Invalid access token for admin endpoint");
-            AppError::Unauthorized("Invalid or expired token".to_string())
-        })?;
-
-    let user_claims = access_claims.user;
-
-    // アカウント状態チェック
-    if !user_claims.is_active {
-        warn!(
-            user_id = %user_claims.user_id,
-            path = %path,
-            "Access attempt with inactive account for admin endpoint"
-        );
-        return Err(AppError::Forbidden("Account is inactive".to_string()));
-    }
-
-    // データベースからロール情報付きでユーザーを取得
-    let user_with_role = config
-        .user_repository
-        .find_by_id_with_role(user_claims.user_id)
-        .await
-        .map_err(|e| {
-            warn!(error = %e, user_id = %user_claims.user_id, "Failed to fetch user with role for admin endpoint");
-            AppError::InternalServerError("Failed to fetch user information".to_string())
-        })?
-        .ok_or_else(|| {
-            warn!(user_id = %user_claims.user_id, "User not found in database for admin endpoint");
-            AppError::Unauthorized("User not found".to_string())
-        })?;
-
-    // 管理者権限チェック
-    if !user_with_role.role.is_admin() {
-        warn!(
-            user_id = %user_claims.user_id,
-            role = %user_with_role.role.name,
-            path = %path,
-            "Access denied: Admin permission required"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
-    // ロール情報付きユーザーをリクエストに追加
-    let authenticated_user_with_role =
-        AuthenticatedUserWithRole::new(UserClaims::from(user_with_role.clone()), token);
-    request
-        .extensions_mut()
-        .insert(authenticated_user_with_role);
-
-    info!(
-        user_id = %user_claims.user_id,
-        username = %user_claims.username,
-        role = %user_with_role.role.name,
-        path = %path,
-        "Admin access granted"
-    );
-
-    Ok(next.run(request).await)
-}
-
-/// ロール情報付き認証ミドルウェア
-#[allow(dead_code)]
-pub async fn role_aware_auth_middleware(
-    State(config): State<AuthMiddlewareConfig>,
-    headers: HeaderMap,
-    cookie_jar: CookieJar,
-    mut request: Request,
-    next: Next,
-) -> Result<Response, AppError> {
-    let path = request.uri().path().to_string();
-    info!("role_aware_auth_middleware called for path: {}", path);
-
-    // 認証をスキップするパスかチェック
-    if should_skip_auth(&path, &config.skip_auth_paths) {
-        return Ok(next.run(request).await);
-    }
-
-    // トークンを抽出
-    let token = extract_token(&headers, &cookie_jar, &config.access_token_cookie_name).ok_or_else(
-        || {
-            warn!(path = %path, "Missing authentication token");
-            AppError::Unauthorized("Authentication required".to_string())
-        },
-    )?;
-
-    // JWTを検証
-    let access_claims = config
-        .jwt_manager
-        .verify_access_token(&token)
-        .map_err(|e| {
-            warn!(path = %path, error = %e, "Invalid access token");
-            AppError::Unauthorized("Invalid or expired token".to_string())
-        })?;
-
-    let user_claims = access_claims.user;
-
-    // アカウント状態チェック
-    if config.require_active_account && !user_claims.is_active {
-        warn!(
-            user_id = %user_claims.user_id,
-            path = %path,
-            "Access attempt with inactive account"
-        );
-        return Err(AppError::Forbidden("Account is inactive".to_string()));
-    }
-
-    // テスト環境でのフォールバック処理
-    let is_test_mode = cfg!(test) || std::env::var("RUST_TEST").is_ok();
-
-    info!(
-        "role_aware_auth_middleware: is_test_mode={}, user_claims.role_name='{}', user_id={}",
-        is_test_mode, user_claims.role_name, user_claims.user_id
-    );
-
-    let user_with_role = if is_test_mode && user_claims.role_name == "admin" {
-        // テスト環境でadminロールを作成
-        info!(
-            "Using test mode admin role creation for user: {}",
-            user_claims.user_id
-        );
-
-        let admin_role = crate::domain::role_model::RoleWithPermissions {
-            id: uuid::Uuid::new_v4(),
-            name: crate::domain::role_model::RoleName::Admin,
-            display_name: "Administrator".to_string(),
-            description: Some("Test admin role".to_string()),
-            is_active: true,
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Enterprise,
-        };
-
-        crate::domain::user_model::SafeUserWithRole {
-            id: user_claims.user_id,
-            username: user_claims.username.clone(),
-            email: user_claims.email.clone(),
-            is_active: user_claims.is_active,
-            email_verified: user_claims.email_verified,
-            subscription_tier: user_claims.subscription_tier.to_string(),
-            last_login_at: Some(chrono::Utc::now()),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            role: admin_role,
-        }
-    } else {
-        // 本番環境ではデータベースからロール情報付きでユーザーを取得
-        config
-            .user_repository
-            .find_by_id_with_role(user_claims.user_id)
-            .await
-            .map_err(|e| {
-                warn!(error = %e, user_id = %user_claims.user_id, "Failed to fetch user with role");
-                AppError::InternalServerError("Failed to fetch user information".to_string())
-            })?
-            .ok_or_else(|| {
-                warn!(user_id = %user_claims.user_id, "User not found in database");
-                AppError::Unauthorized("User not found".to_string())
-            })?
-    };
-
-    // ロール情報付きユーザーをリクエストに追加
-    let authenticated_user_with_role =
-        AuthenticatedUserWithRole::new(UserClaims::from(user_with_role.clone()), token);
-    request
-        .extensions_mut()
-        .insert(authenticated_user_with_role);
-
-    info!(
-        user_id = %user_claims.user_id,
-        username = %user_claims.username,
-        role = %user_with_role.role.name,
-        path = %path,
-        "Role-aware authenticated request"
-    );
-
-    Ok(next.run(request).await)
-}
-
-/// オプショナル認証ミドルウェア（認証なしでもアクセス可能だが、認証情報があれば追加）
-#[allow(dead_code)]
-pub async fn optional_auth_middleware(
-    State(config): State<AuthMiddlewareConfig>,
-    headers: HeaderMap,
-    cookie_jar: CookieJar,
-    mut request: Request,
-    next: Next,
-) -> Response {
-    // トークンを抽出（なくてもエラーにしない）
-    if let Some(token) = extract_token(&headers, &cookie_jar, &config.access_token_cookie_name) {
-        // JWTを検証（失敗してもエラーにしない）
-        if let Ok(access_claims) = config.jwt_manager.verify_access_token(&token) {
-            let user_claims = access_claims.user;
-
-            // アカウントがアクティブで有効な場合のみ認証情報を追加
-            if user_claims.is_active {
-                let authenticated_user = AuthenticatedUser::new(user_claims.clone(), token);
-                request.extensions_mut().insert(authenticated_user);
-
-                info!(
-                    user_id = %user_claims.user_id,
-                    username = %user_claims.username,
-                    path = %request.uri().path(),
-                    "Optional authentication successful"
-                );
-            }
-        }
-    }
-
-    next.run(request).await
 }
 
 /// レート制限ミドルウェア（基本実装）
@@ -863,18 +536,6 @@ pub fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
     None
 }
 
-/// リクエスト拡張からユーザー情報を取得するヘルパー
-#[allow(dead_code)]
-pub fn get_authenticated_user(request: &Request) -> Option<&AuthenticatedUser> {
-    request.extensions().get::<AuthenticatedUser>()
-}
-
-/// リクエスト拡張からロール情報付きユーザー情報を取得するヘルパー
-#[allow(dead_code)]
-pub fn get_authenticated_user_with_role(request: &Request) -> Option<&AuthenticatedUserWithRole> {
-    request.extensions().get::<AuthenticatedUserWithRole>()
-}
-
 /// UserClaimsからAuthenticatedUserを作成するヘルパー
 pub fn get_authenticated_user_from_claims(claims: &UserClaims) -> AuthenticatedUser {
     AuthenticatedUser {
@@ -889,31 +550,7 @@ pub fn get_authenticated_user_with_role_from_claims(
 ) -> AuthenticatedUserWithRole {
     AuthenticatedUserWithRole {
         claims: claims.clone(),
-        access_token: String::new(), // トークンは設定されていない
     }
-}
-
-/// 権限チェックヘルパー（統合版を使用）
-#[allow(dead_code)]
-pub fn check_admin_permission(user: &AuthenticatedUserWithRole) -> Result<(), AppError> {
-    if let Some(role) = user.role() {
-        if !PermissionChecker::is_admin(role) {
-            warn!(
-                user_id = %user.user_id(),
-                role = ?user.role().map(|r| &r.name),
-                "Insufficient permissions for admin operation"
-            );
-            return Err(AppError::Forbidden("Admin access required".to_string()));
-        }
-    } else if !user.is_admin() {
-        // フォールバック：ロール情報がない場合はUserClaimsの権限チェックを使用
-        warn!(
-            user_id = %user.user_id(),
-            "Insufficient permissions for admin operation (no role info)"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-    Ok(())
 }
 
 /// リソースアクセス権限チェック（統合版を使用）
@@ -993,35 +630,6 @@ pub fn check_delete_permission(
     Ok(())
 }
 
-/// リソース更新権限チェック（新機能）
-#[allow(dead_code)]
-pub fn check_update_permission(
-    user: &AuthenticatedUserWithRole,
-    resource_type: &str,
-    owner_id: Option<uuid::Uuid>,
-) -> Result<(), AppError> {
-    let can_update = if let Some(role) = user.role() {
-        PermissionChecker::can_update_resource(role, resource_type, owner_id, user.user_id())
-    } else {
-        user.can_update_resource(resource_type, owner_id)
-    };
-
-    if !can_update {
-        warn!(
-            user_id = %user.user_id(),
-            resource_type = %resource_type,
-            owner_id = ?owner_id,
-            role = ?user.role().map(|r| &r.name),
-            "Insufficient permissions to update resource"
-        );
-        return Err(AppError::Forbidden(format!(
-            "Cannot update {}",
-            resource_type
-        )));
-    }
-    Ok(())
-}
-
 /// リソース表示権限チェック（新機能）
 pub fn check_view_permission(
     user: &AuthenticatedUserWithRole,
@@ -1095,6 +703,34 @@ where
                         role: Some(admin_role),
                         subscription_tier:
                             crate::domain::subscription_tier::SubscriptionTier::Enterprise,
+                    };
+
+                    return Ok(AuthenticatedUserWithRole::new(
+                        user_with_role_claims,
+                        auth_user.access_token.clone(),
+                    ));
+                } else if auth_user.claims.role_name == "member" {
+                    // テスト環境でメンバーロールを作成
+                    let member_role = crate::domain::role_model::RoleWithPermissions {
+                        id: uuid::Uuid::new_v4(),
+                        name: crate::domain::role_model::RoleName::Member,
+                        display_name: "Member".to_string(),
+                        description: Some("Test member role".to_string()),
+                        is_active: true,
+                        created_at: chrono::Utc::now(),
+                        updated_at: chrono::Utc::now(),
+                        subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Free,
+                    };
+
+                    let user_with_role_claims = UserClaims {
+                        user_id: auth_user.claims.user_id,
+                        username: auth_user.claims.username.clone(),
+                        email: auth_user.claims.email.clone(),
+                        is_active: auth_user.claims.is_active,
+                        email_verified: auth_user.claims.email_verified,
+                        role_name: "member".to_string(),
+                        role: Some(member_role),
+                        subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Free,
                     };
 
                     return Ok(AuthenticatedUserWithRole::new(

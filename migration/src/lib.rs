@@ -38,6 +38,11 @@ mod m20250624_000004_create_department_members_table;
 // チーム招待・権限管理関連マイグレーション - Phase 2.2
 mod m20250625_000001_create_team_invitations_table;
 
+// セキュリティ分析関連マイグレーション
+mod m20250630_000001_create_activity_logs_table;
+mod m20250630_000002_create_security_incidents_table;
+mod m20250630_000003_create_login_attempts_table;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -76,6 +81,10 @@ impl MigratorTrait for Migrator {
             Box::new(m20250624_000004_create_department_members_table::Migration),
             // 11. チーム招待・権限管理システム - Phase 2.2
             Box::new(m20250625_000001_create_team_invitations_table::Migration),
+            // 12. セキュリティ分析システム
+            Box::new(m20250630_000001_create_activity_logs_table::Migration),
+            Box::new(m20250630_000002_create_security_incidents_table::Migration),
+            Box::new(m20250630_000003_create_login_attempts_table::Migration),
         ]
     }
 }

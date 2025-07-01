@@ -5,31 +5,7 @@ use argon2::{
     Argon2,
 };
 use std::env;
-use thiserror::Error;
 use validator::Validate;
-
-/// パスワード関連のエラー
-#[derive(Error, Debug)]
-#[allow(dead_code)]
-pub enum PasswordError {
-    #[error("Password hashing failed: {0}")]
-    HashingError(#[from] argon2::password_hash::Error),
-
-    #[error("Argon2 parameter error: {0}")]
-    Argon2Error(#[from] argon2::Error),
-
-    #[error("Password verification failed")]
-    VerificationFailed,
-
-    #[error("Password validation failed: {0}")]
-    ValidationError(String),
-
-    #[error("Weak password: {0}")]
-    WeakPassword(String),
-
-    #[error("Password configuration error: {0}")]
-    ConfigurationError(String),
-}
 
 /// パスワード強度要件
 #[derive(Debug, Clone)]
@@ -114,23 +90,17 @@ impl PasswordPolicy {
     }
 
     /// パスワードポリシーを検証
-    pub fn validate(&self) -> Result<(), PasswordError> {
+    pub fn validate(&self) -> Result<(), String> {
         if self.min_length < 4 {
-            return Err(PasswordError::ConfigurationError(
-                "Minimum password length must be at least 4".to_string(),
-            ));
+            return Err("Minimum password length must be at least 4".to_string());
         }
 
         if self.max_length < self.min_length {
-            return Err(PasswordError::ConfigurationError(
-                "Maximum password length must be greater than minimum".to_string(),
-            ));
+            return Err("Maximum password length must be greater than minimum".to_string());
         }
 
         if self.max_length > 1024 {
-            return Err(PasswordError::ConfigurationError(
-                "Maximum password length cannot exceed 1024".to_string(),
-            ));
+            return Err("Maximum password length cannot exceed 1024".to_string());
         }
 
         Ok(())
@@ -201,7 +171,7 @@ pub struct PasswordManager {
 
 impl PasswordManager {
     /// 新しいPasswordManagerを作成
-    pub fn new(argon2_config: Argon2Config, policy: PasswordPolicy) -> Result<Self, PasswordError> {
+    pub fn new(argon2_config: Argon2Config, policy: PasswordPolicy) -> Result<Self, String> {
         policy.validate()?;
 
         let argon2 = Argon2::new(
@@ -213,32 +183,34 @@ impl PasswordManager {
                 argon2_config.parallelism,
                 Some(argon2_config.output_length),
             )
-            .map_err(PasswordError::Argon2Error)?,
+            .map_err(|e| format!("Argon2 parameter error: {}", e))?,
         );
 
         Ok(Self { argon2, policy })
     }
 
     /// パスワードをハッシュ化
-    pub fn hash_password(&self, password: &str) -> Result<String, PasswordError> {
+    pub fn hash_password(&self, password: &str) -> Result<String, argon2::password_hash::Error> {
         // パスワード強度チェック
-        self.validate_password_strength(password)?;
+        self.validate_password_strength(password)
+            .map_err(|_| argon2::password_hash::Error::Password)?;
 
         // ソルト生成
         let salt = SaltString::generate(&mut OsRng);
 
         // パスワードハッシュ
-        let password_hash = self
-            .argon2
-            .hash_password(password.as_bytes(), &salt)
-            .map_err(PasswordError::HashingError)?;
+        let password_hash = self.argon2.hash_password(password.as_bytes(), &salt)?;
 
         Ok(password_hash.to_string())
     }
 
     /// パスワードを検証
-    pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, PasswordError> {
-        let parsed_hash = PasswordHash::new(hash).map_err(PasswordError::HashingError)?;
+    pub fn verify_password(
+        &self,
+        password: &str,
+        hash: &str,
+    ) -> Result<bool, argon2::password_hash::Error> {
+        let parsed_hash = PasswordHash::new(hash)?;
 
         match self
             .argon2
@@ -246,12 +218,12 @@ impl PasswordManager {
         {
             Ok(()) => Ok(true),
             Err(argon2::password_hash::Error::Password) => Ok(false),
-            Err(e) => Err(PasswordError::HashingError(e)),
+            Err(e) => Err(e),
         }
     }
 
     /// パスワード強度をチェック
-    pub fn validate_password_strength(&self, password: &str) -> Result<(), PasswordError> {
+    pub fn validate_password_strength(&self, password: &str) -> Result<(), String> {
         let mut errors = Vec::new();
 
         // 長さチェック
@@ -319,15 +291,15 @@ impl PasswordManager {
         }
 
         if !errors.is_empty() {
-            return Err(PasswordError::WeakPassword(errors.join("; ")));
+            return Err(errors.join("; "));
         }
 
         Ok(())
     }
 
     /// パスワードが再ハッシュが必要かチェック
-    pub fn needs_rehash(&self, hash: &str) -> Result<bool, PasswordError> {
-        let parsed_hash = PasswordHash::new(hash).map_err(PasswordError::HashingError)?;
+    pub fn needs_rehash(&self, hash: &str) -> Result<bool, argon2::password_hash::Error> {
+        let parsed_hash = PasswordHash::new(hash)?;
 
         // Argon2パラメータが現在の設定と一致するかチェック
         let _current_params = self.argon2.params();

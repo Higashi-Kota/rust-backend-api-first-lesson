@@ -3,8 +3,11 @@
 use crate::api::dto::security_dto::*;
 use crate::error::AppResult;
 use crate::repository::{
+    activity_log_repository::ActivityLogRepository,
+    login_attempt_repository::LoginAttemptRepository,
     password_reset_token_repository::PasswordResetTokenRepository,
     refresh_token_repository::RefreshTokenRepository,
+    security_incident_repository::SecurityIncidentRepository,
 };
 use chrono::Utc;
 use std::sync::Arc;
@@ -14,16 +17,25 @@ use uuid::Uuid;
 pub struct SecurityService {
     refresh_token_repo: Arc<RefreshTokenRepository>,
     password_reset_repo: Arc<PasswordResetTokenRepository>,
+    activity_log_repo: Arc<ActivityLogRepository>,
+    security_incident_repo: Arc<SecurityIncidentRepository>,
+    login_attempt_repo: Arc<LoginAttemptRepository>,
 }
 
 impl SecurityService {
     pub fn new(
         refresh_token_repo: Arc<RefreshTokenRepository>,
         password_reset_repo: Arc<PasswordResetTokenRepository>,
+        activity_log_repo: Arc<ActivityLogRepository>,
+        security_incident_repo: Arc<SecurityIncidentRepository>,
+        login_attempt_repo: Arc<LoginAttemptRepository>,
     ) -> Self {
         Self {
             refresh_token_repo,
             password_reset_repo,
+            activity_log_repo,
+            security_incident_repo,
+            login_attempt_repo,
         }
     }
 
@@ -164,17 +176,28 @@ impl SecurityService {
 
     /// セッション分析を取得
     pub async fn get_session_analytics(&self) -> AppResult<SessionAnalytics> {
-        // 実際の実装では複数のリポジトリからデータを取得
+        // 実際のデータをリポジトリから取得
         let refresh_stats = self.refresh_token_repo.get_token_stats().await?;
+
+        // アクティビティログから実際のユーザー数を取得
+        let unique_users_today = self.activity_log_repo.count_unique_users_today().await?;
+        let unique_users_this_week = self
+            .activity_log_repo
+            .count_unique_users_this_week()
+            .await?;
+
+        // 不審なアクティビティをログイン試行から検出
+        let suspicious_ips = self.login_attempt_repo.find_suspicious_ips(5, 1).await?;
+        let suspicious_activity_count = suspicious_ips.len() as u64;
 
         Ok(SessionAnalytics {
             total_sessions: refresh_stats.total_tokens,
             active_sessions: refresh_stats.active_tokens,
-            unique_users_today: 25,      // 簡易実装
-            unique_users_this_week: 150, // 簡易実装
-            average_session_duration_minutes: 45.0,
+            unique_users_today,
+            unique_users_this_week,
+            average_session_duration_minutes: 45.0, // これは計算が複雑なため、簡易実装のまま
             peak_concurrent_sessions: refresh_stats.active_tokens + 50,
-            suspicious_activity_count: 2, // 簡易実装
+            suspicious_activity_count,
             geographic_distribution: vec![
                 GeographicSession {
                     country: "Japan".to_string(),
@@ -202,6 +225,56 @@ impl SecurityService {
         })
     }
 
+    /// 不審なIPアドレス情報を取得
+    pub async fn get_suspicious_ips(
+        &self,
+        failed_attempts_threshold: u32,
+        hours: u32,
+    ) -> AppResult<Vec<crate::api::dto::analytics_dto::SuspiciousIpInfo>> {
+        let suspicious_ips = self
+            .login_attempt_repo
+            .find_suspicious_ips(failed_attempts_threshold as u64, hours as i64)
+            .await?;
+
+        Ok(suspicious_ips
+            .into_iter()
+            .map(
+                |(ip_address, count)| crate::api::dto::analytics_dto::SuspiciousIpInfo {
+                    ip_address,
+                    failed_attempts: count,
+                    last_attempt: Utc::now(), // 簡易実装: 実際の最終試行時刻は別クエリが必要
+                },
+            )
+            .collect())
+    }
+
+    /// 失敗したログイン試行回数を取得
+    pub async fn get_failed_login_counts(&self) -> AppResult<(u64, u64)> {
+        let today = Utc::now() - chrono::Duration::days(1);
+        let this_week = Utc::now() - chrono::Duration::days(7);
+
+        let failed_today = self
+            .login_attempt_repo
+            .count_total_failed_attempts(today)
+            .await?;
+        let failed_this_week = self
+            .login_attempt_repo
+            .count_total_failed_attempts(this_week)
+            .await?;
+
+        Ok((failed_today, failed_this_week))
+    }
+
+    /// セキュリティインシデント数を取得
+    pub async fn get_security_incident_count(&self, days: i64) -> AppResult<u64> {
+        let start_date = Utc::now() - chrono::Duration::days(days);
+        let end_date = Utc::now();
+
+        self.security_incident_repo
+            .count_by_date_range(start_date, end_date)
+            .await
+    }
+
     /// 監査レポートを生成
     pub async fn generate_audit_report(
         &self,
@@ -211,8 +284,33 @@ impl SecurityService {
         let refresh_stats = self.refresh_token_repo.get_token_stats().await?;
         let password_stats = self.password_reset_repo.get_token_stats().await?;
 
+        // 実際のデータを取得
         let total_events = refresh_stats.total_tokens + password_stats.total_tokens;
-        let suspicious_activities = 5; // 簡易実装
+
+        // デフォルトの日付範囲を設定（過去30日間）
+        let (start_date, end_date) = if let Some(date_range) = &request.date_range {
+            (date_range.start_date, date_range.end_date)
+        } else {
+            let end_date = Utc::now();
+            let start_date = end_date - chrono::Duration::days(30);
+            (start_date, end_date)
+        };
+
+        // セキュリティインシデントの実数を取得
+        let security_incidents = self
+            .security_incident_repo
+            .count_by_date_range(start_date, end_date)
+            .await?;
+
+        // 失敗ログインの実数を取得
+        let failed_logins = self
+            .login_attempt_repo
+            .count_total_failed_attempts(start_date)
+            .await?;
+
+        // 不審なアクティビティを検出
+        let suspicious_ips = self.login_attempt_repo.find_suspicious_ips(5, 24).await?;
+        let suspicious_activities = suspicious_ips.len() as u64;
 
         let risk_level = if suspicious_activities > 10 {
             "high"
@@ -224,8 +322,8 @@ impl SecurityService {
 
         let summary = AuditSummary {
             total_events,
-            security_incidents: 2, // 簡易実装
-            failed_logins: 12,     // 簡易実装
+            security_incidents,
+            failed_logins,
             token_irregularities: refresh_stats.expired_tokens / 10,
             suspicious_activities,
             risk_level: risk_level.to_string(),

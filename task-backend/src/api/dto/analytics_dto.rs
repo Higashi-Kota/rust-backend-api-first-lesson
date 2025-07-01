@@ -52,7 +52,46 @@ pub struct SystemStatsResponse {
     pub user_metrics: UserMetrics,
     pub task_metrics: TaskMetrics,
     pub subscription_metrics: SubscriptionMetrics,
+    pub security_metrics: SecurityMetrics,
     pub generated_at: DateTime<Utc>,
+}
+
+impl SystemStatsResponse {
+    pub fn new() -> Self {
+        Self {
+            overview: SystemOverview {
+                total_users: 0,
+                active_users_last_30_days: 0,
+                total_tasks: 0,
+                completed_tasks: 0,
+                system_uptime_days: 0,
+                database_size_mb: 0.0,
+            },
+            user_metrics: UserMetrics {
+                new_registrations_today: 0,
+                new_registrations_this_week: 0,
+                new_registrations_this_month: 0,
+                active_users_today: 0,
+                daily_active_users: 0,
+                weekly_active_users: 0,
+                retention_rate_30_days: 0.0,
+                average_session_duration_minutes: 0.0,
+                user_distribution_by_tier: vec![],
+            },
+            task_metrics: TaskMetrics {
+                tasks_created_today: 0,
+                tasks_completed_today: 0,
+                tasks_created_this_week: 0,
+                tasks_completed_this_week: 0,
+                average_completion_time_hours: 0.0,
+                completion_rate_percentage: 0.0,
+                top_task_categories: vec![],
+            },
+            subscription_metrics: SubscriptionMetrics::default(),
+            security_metrics: SecurityMetrics::default(),
+            generated_at: Utc::now(),
+        }
+    }
 }
 
 /// システム概要
@@ -73,6 +112,8 @@ pub struct UserMetrics {
     pub new_registrations_this_week: u64,
     pub new_registrations_this_month: u64,
     pub active_users_today: u64,
+    pub daily_active_users: u64,
+    pub weekly_active_users: u64,
     pub retention_rate_30_days: f64,
     pub average_session_duration_minutes: f64,
     pub user_distribution_by_tier: Vec<TierDistribution>,
@@ -99,6 +140,23 @@ pub struct SubscriptionMetrics {
     pub monthly_recurring_revenue: f64,
     pub upgrade_rate_percentage: f64,
     pub downgrade_rate_percentage: f64,
+}
+
+/// セキュリティメトリクス
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct SecurityMetrics {
+    pub suspicious_ips: Vec<SuspiciousIpInfo>,
+    pub failed_login_attempts_today: u64,
+    pub failed_login_attempts_this_week: u64,
+    pub security_incidents_this_month: u64,
+}
+
+/// 不審なIPアドレス情報
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SuspiciousIpInfo {
+    pub ip_address: String,
+    pub failed_attempts: u64,
+    pub last_attempt: DateTime<Utc>,
 }
 
 /// 階層分布
@@ -246,18 +304,6 @@ impl Default for SystemStatsResponse {
     }
 }
 
-impl SystemStatsResponse {
-    pub fn new() -> Self {
-        Self {
-            overview: SystemOverview::default(),
-            user_metrics: UserMetrics::default(),
-            task_metrics: TaskMetrics::default(),
-            subscription_metrics: SubscriptionMetrics::default(),
-            generated_at: Utc::now(),
-        }
-    }
-}
-
 impl Default for SystemOverview {
     fn default() -> Self {
         Self {
@@ -278,6 +324,8 @@ impl Default for UserMetrics {
             new_registrations_this_week: 0,
             new_registrations_this_month: 0,
             active_users_today: 0,
+            daily_active_users: 0,
+            weekly_active_users: 0,
             retention_rate_30_days: 0.0,
             average_session_duration_minutes: 0.0,
             user_distribution_by_tier: Vec::new(),

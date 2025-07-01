@@ -2,11 +2,10 @@
 
 use crate::db::DbPool;
 use crate::domain::email_verification_token_model::{
-    ActiveModel, Column, CreateEmailVerificationToken, EmailVerificationResult, Entity, Model,
-    TokenValidationError,
+    ActiveModel, Column, EmailVerificationResult, Entity, Model, TokenValidationError,
 };
 use crate::error::{AppError, AppResult};
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, Set,
     TransactionTrait,
@@ -18,26 +17,9 @@ pub struct EmailVerificationTokenRepository {
     db: DbPool,
 }
 
-#[allow(dead_code)]
 impl EmailVerificationTokenRepository {
     pub fn new(db: DbPool) -> Self {
         Self { db }
-    }
-
-    /// メール認証トークンを作成
-    pub async fn create(&self, create_token: CreateEmailVerificationToken) -> AppResult<Model> {
-        let new_token = ActiveModel {
-            user_id: Set(create_token.user_id),
-            token_hash: Set(create_token.token_hash),
-            expires_at: Set(create_token.expires_at),
-            is_used: Set(false),
-            created_at: Set(Utc::now()),
-            used_at: Set(None),
-            ..Default::default()
-        };
-
-        let token = new_token.insert(&self.db).await?;
-        Ok(token)
     }
 
     /// ユーザーIDでトークンを検索（最新のもの）
@@ -118,6 +100,7 @@ impl EmailVerificationTokenRepository {
                         token_id: token.id,
                         user_id: token.user_id,
                         used_at,
+                        is_verified: true,
                     })
                 })
             })
@@ -193,40 +176,6 @@ impl EmailVerificationTokenRepository {
         Ok(result)
     }
 
-    /// 期限切れトークンの削除
-    pub async fn cleanup_expired_tokens(&self, before_hours: u32) -> AppResult<CleanupResult> {
-        let cutoff_time = Utc::now() - Duration::hours(before_hours as i64);
-
-        let expired_tokens = Entity::find()
-            .filter(Column::ExpiresAt.lt(cutoff_time))
-            .all(&self.db)
-            .await?;
-
-        let deleted_count = expired_tokens.len();
-
-        // 期限切れトークンを削除
-        Entity::delete_many()
-            .filter(Column::ExpiresAt.lt(cutoff_time))
-            .exec(&self.db)
-            .await?;
-
-        Ok(CleanupResult {
-            deleted_count: deleted_count as u32,
-        })
-    }
-
-    /// すべてのトークンを削除（テスト用）
-    pub async fn cleanup_all(&self, _keep_latest: u32) -> AppResult<CleanupResult> {
-        let all_tokens = Entity::find().all(&self.db).await?;
-        let deleted_count = all_tokens.len();
-
-        Entity::delete_many().exec(&self.db).await?;
-
-        Ok(CleanupResult {
-            deleted_count: deleted_count as u32,
-        })
-    }
-
     /// ユーザーのトークン履歴を取得
     pub async fn find_by_user_id(&self, user_id: Uuid) -> AppResult<Vec<Model>> {
         let tokens = Entity::find()
@@ -237,6 +186,32 @@ impl EmailVerificationTokenRepository {
 
         Ok(tokens)
     }
+
+    /// ユーザーの使用済みトークンを取得（used_atフィールドを活用）
+    pub async fn find_used_by_user_id(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<Vec<EmailVerificationResult>> {
+        let tokens = Entity::find()
+            .filter(Column::UserId.eq(user_id))
+            .filter(Column::IsUsed.eq(true))
+            .order_by_desc(Column::UsedAt)
+            .all(&self.db)
+            .await?;
+
+        // EmailVerificationResultに変換
+        let results: Vec<EmailVerificationResult> = tokens
+            .into_iter()
+            .map(|token| EmailVerificationResult {
+                token_id: token.id,
+                user_id: token.user_id,
+                used_at: token.used_at.unwrap_or(token.created_at),
+                is_verified: true, // 使用済みトークンは認証済みとする
+            })
+            .collect();
+
+        Ok(results)
+    }
 }
 
 /// メール認証リクエスト作成結果
@@ -244,11 +219,4 @@ impl EmailVerificationTokenRepository {
 pub struct CreateVerificationRequestResult {
     pub token_id: Uuid,
     pub old_tokens_invalidated: u32,
-}
-
-/// クリーンアップ結果
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct CleanupResult {
-    pub deleted_count: u32,
 }

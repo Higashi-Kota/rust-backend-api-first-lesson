@@ -66,34 +66,6 @@ impl ActiveModelBehavior for ActiveModel {}
 // SeaORM Model implementations
 #[allow(dead_code)]
 impl Model {
-    pub fn new(
-        name: String,
-        owner_id: Uuid,
-        subscription_tier: SubscriptionTier,
-        description: Option<String>,
-        settings: Option<OrganizationSettings>,
-    ) -> Self {
-        let settings = settings.unwrap_or_default();
-        let (max_teams, max_members) = match subscription_tier {
-            SubscriptionTier::Free => (3, 10),
-            SubscriptionTier::Pro => (20, 100),
-            SubscriptionTier::Enterprise => (100, 1000),
-        };
-
-        Self {
-            id: Uuid::new_v4(),
-            name,
-            description,
-            owner_id,
-            subscription_tier: subscription_tier.to_string(),
-            max_teams,
-            max_members,
-            settings_json: serde_json::to_string(&settings).unwrap_or_default(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        }
-    }
-
     pub fn get_subscription_tier(&self) -> SubscriptionTier {
         SubscriptionTier::from_str(&self.subscription_tier).unwrap_or(SubscriptionTier::Free)
     }
@@ -227,22 +199,7 @@ pub enum OrganizationRole {
     Member, // 一般メンバー
 }
 
-#[allow(dead_code)]
 impl OrganizationRole {
-    /// 役割レベルを数値で取得（高いほど権限が強い）
-    pub fn level(&self) -> u8 {
-        match self {
-            OrganizationRole::Owner => 3,
-            OrganizationRole::Admin => 2,
-            OrganizationRole::Member => 1,
-        }
-    }
-
-    /// 指定された役割以上の権限を持つかチェック
-    pub fn is_at_least(&self, other: &OrganizationRole) -> bool {
-        self.level() >= other.level()
-    }
-
     /// 管理権限を持つかチェック
     pub fn can_manage(&self) -> bool {
         matches!(self, OrganizationRole::Owner | OrganizationRole::Admin)
@@ -290,7 +247,6 @@ impl std::str::FromStr for OrganizationRole {
     }
 }
 
-#[allow(dead_code)]
 impl Organization {
     /// 新しい組織を作成
     pub fn new(
@@ -366,7 +322,6 @@ impl Organization {
     }
 }
 
-#[allow(dead_code)]
 impl OrganizationMember {
     /// 新しい組織メンバーを作成
     pub fn new(
@@ -409,13 +364,6 @@ impl OrganizationMember {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_organization_role_levels() {
-        assert_eq!(OrganizationRole::Owner.level(), 3);
-        assert_eq!(OrganizationRole::Admin.level(), 2);
-        assert_eq!(OrganizationRole::Member.level(), 1);
-    }
 
     #[test]
     fn test_organization_role_permissions() {
@@ -561,13 +509,15 @@ mod tests {
             default_team_subscription_tier: SubscriptionTier::Pro,
         };
 
-        let model = Model::new(
+        let mut org = Organization::new(
             name.clone(),
+            description.clone(),
             owner_id,
             SubscriptionTier::Pro,
-            description.clone(),
-            Some(expected_settings.clone()),
         );
+        org.settings = expected_settings.clone();
+
+        let model = Model::from_organization(&org);
 
         assert_eq!(model.name, name);
         assert_eq!(model.description, description);
@@ -598,13 +548,13 @@ mod tests {
     #[test]
     fn test_organization_model_subscription_tier_operations() {
         let owner_id = Uuid::new_v4();
-        let mut model = Model::new(
+        let org = Organization::new(
             "Test Org".to_string(),
+            None,
             owner_id,
             SubscriptionTier::Free,
-            None,
-            None,
         );
+        let mut model = Model::from_organization(&org);
 
         // Initial free tier
         assert_eq!(model.get_subscription_tier(), SubscriptionTier::Free);
@@ -627,13 +577,13 @@ mod tests {
     #[test]
     fn test_organization_model_settings_operations() {
         let owner_id = Uuid::new_v4();
-        let mut model = Model::new(
+        let org = Organization::new(
             "Test Org".to_string(),
+            None,
             owner_id,
             SubscriptionTier::Pro,
-            None,
-            None,
         );
+        let mut model = Model::from_organization(&org);
 
         // Test default settings
         let initial_settings = model.get_settings().unwrap();
@@ -673,13 +623,13 @@ mod tests {
     #[test]
     fn test_organization_model_capacity_checks() {
         let owner_id = Uuid::new_v4();
-        let model = Model::new(
+        let org = Organization::new(
             "Test Org".to_string(),
+            None,
             owner_id,
             SubscriptionTier::Free, // 3 teams, 10 members max
-            None,
-            None,
         );
+        let model = Model::from_organization(&org);
 
         // Team capacity checks
         assert!(model.can_add_teams(2)); // 2 < 3, should be true
@@ -695,13 +645,13 @@ mod tests {
     #[test]
     fn test_organization_model_name_and_description_updates() {
         let owner_id = Uuid::new_v4();
-        let mut model = Model::new(
+        let org = Organization::new(
             "Original Name".to_string(),
+            Some("Original Description".to_string()),
             owner_id,
             SubscriptionTier::Pro,
-            Some("Original Description".to_string()),
-            None,
         );
+        let mut model = Model::from_organization(&org);
 
         // Update name
         let new_name = "Updated Organization Name".to_string();
@@ -721,13 +671,13 @@ mod tests {
     #[test]
     fn test_organization_model_conversion() {
         let owner_id = Uuid::new_v4();
-        let model = Model::new(
+        let org = Organization::new(
             "Test Org".to_string(),
+            Some("Test Description".to_string()),
             owner_id,
             SubscriptionTier::Pro,
-            Some("Test Description".to_string()),
-            None,
         );
+        let model = Model::from_organization(&org);
 
         // Convert to Organization struct
         let organization = model.to_organization().unwrap();

@@ -308,7 +308,6 @@ impl RoleRepository {
     }
 
     /// サブスクリプション階層を指定してロールを取得
-    #[allow(dead_code)]
     pub async fn find_by_id_with_subscription(
         &self,
         id: Uuid,

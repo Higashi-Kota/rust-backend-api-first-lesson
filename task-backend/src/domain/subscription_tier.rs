@@ -46,7 +46,6 @@ impl SubscriptionTier {
         self.level() >= other.level()
     }
     /// 全ての有効な階層を取得
-    #[allow(dead_code)]
     pub fn all() -> Vec<Self> {
         vec![Self::Free, Self::Pro, Self::Enterprise]
     }

@@ -449,6 +449,13 @@ impl TeamService {
         Ok((team_responses, total))
     }
 
+    /// アクティブなチーム数を取得
+    pub async fn count_active_teams(&self) -> AppResult<u64> {
+        // 現在の実装では全チームがアクティブとみなす
+        // 将来的にはis_activeフラグやactivity_statusなどでフィルタリング可能
+        self.team_repository.count_all_teams().await
+    }
+
     // ヘルパーメソッド
 
     async fn check_team_access(&self, team: &Team, user_id: Uuid) -> AppResult<()> {
@@ -524,6 +531,70 @@ impl TeamService {
             responses.push(self.build_team_member_response(member).await?);
         }
         Ok(responses)
+    }
+
+    /// チームメンバーの詳細情報を取得（権限情報付き）
+    pub async fn get_team_member_detail(
+        &self,
+        team_id: Uuid,
+        member_id: Uuid,
+        user_id: Uuid,
+    ) -> AppResult<TeamMemberDetailResponse> {
+        // チームの存在確認と権限チェック
+        let _team = self
+            .team_repository
+            .find_by_id(team_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Team not found".to_string()))?;
+
+        // チームメンバーかどうかをチェック
+        let members = self
+            .team_repository
+            .find_members_by_team_id(team_id)
+            .await?;
+        let _current_member = members
+            .iter()
+            .find(|m| m.user_id == user_id)
+            .ok_or_else(|| AppError::Forbidden("You are not a member of this team".to_string()))?;
+
+        // 対象メンバーの取得
+        let member = self
+            .team_repository
+            .find_member_by_id(member_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Team member not found".to_string()))?;
+
+        // メンバーがこのチームに所属しているか確認
+        if member.team_id != team_id {
+            return Err(AppError::NotFound("Team member not found".to_string()));
+        }
+
+        // ユーザー情報の取得
+        let user = self
+            .user_repository
+            .find_by_id(member.user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+        // 権限情報の生成
+        let is_owner = member.is_owner();
+        let is_admin = member.is_admin();
+        let can_invite = is_owner || is_admin;
+        let can_remove_members = is_owner || is_admin;
+
+        Ok(TeamMemberDetailResponse {
+            id: member.id,
+            user_id: member.user_id,
+            username: user.username,
+            email: user.email,
+            role: member.get_role(),
+            is_owner,
+            is_admin,
+            can_invite,
+            can_remove_members,
+            joined_at: member.joined_at,
+            invited_by: member.invited_by,
+        })
     }
 }
 

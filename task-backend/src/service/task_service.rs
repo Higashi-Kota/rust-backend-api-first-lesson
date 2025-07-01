@@ -505,12 +505,29 @@ impl TaskService {
         })
     }
 
-    #[allow(dead_code)]
     pub async fn count_tasks_for_user(&self, user_id: Uuid) -> AppResult<u64> {
         let count = self.repo.count_tasks_for_user(user_id).await.map_err(|e| {
             AppError::InternalServerError(format!("Failed to count tasks for user: {}", e))
         })?;
         Ok(count)
+    }
+
+    /// 全タスク数を取得
+    pub async fn count_all_tasks(&self) -> AppResult<u64> {
+        self.repo
+            .count_all_tasks()
+            .await
+            .map_err(|e| AppError::InternalServerError(format!("Failed to count all tasks: {}", e)))
+    }
+
+    /// 完了済みタスク数を取得
+    pub async fn count_completed_tasks(&self) -> AppResult<u64> {
+        self.repo
+            .count_tasks_by_status("completed")
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count completed tasks: {}", e))
+            })
     }
 
     // Unused admin methods removed - use admin_* methods instead

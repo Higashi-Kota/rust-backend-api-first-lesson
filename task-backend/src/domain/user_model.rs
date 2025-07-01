@@ -224,6 +224,7 @@ impl UserClaims {
     }
 
     /// 一般ユーザー権限があるかチェック（統合版）
+    #[allow(dead_code)]
     pub fn is_member(&self) -> bool {
         if let Some(ref role) = self.role {
             PermissionChecker::is_member(role)

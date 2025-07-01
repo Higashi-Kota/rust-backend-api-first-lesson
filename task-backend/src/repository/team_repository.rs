@@ -258,4 +258,13 @@ impl TeamRepository {
             .map_err(map_db_error)?;
         Ok(count)
     }
+
+    /// 全チーム数を取得
+    pub async fn count_all_teams(&self) -> AppResult<u64> {
+        let count = TeamEntity::find()
+            .count(&self.db)
+            .await
+            .map_err(map_db_error)?;
+        Ok(count)
+    }
 }

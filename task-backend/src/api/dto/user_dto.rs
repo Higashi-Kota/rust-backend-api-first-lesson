@@ -315,6 +315,59 @@ impl UserSearchQuery {
     }
 }
 
+/// ユーザー権限チェックレスポンス
+#[derive(Debug, Serialize)]
+pub struct UserPermissionsResponse {
+    pub user_id: Uuid,
+    pub is_member: bool,
+    pub is_admin: bool,
+    pub is_active: bool,
+    pub email_verified: bool,
+    pub subscription_tier: String,
+    pub can_create_teams: bool,
+    pub can_access_analytics: bool,
+}
+
+/// メール認証履歴レスポンス
+#[derive(Debug, Serialize)]
+pub struct EmailVerificationHistoryResponse {
+    pub user_id: Uuid,
+    pub verification_history: Vec<EmailVerificationHistoryItem>,
+    pub total_verifications: u32,
+    pub last_verification: Option<DateTime<Utc>>,
+}
+
+/// メール認証履歴アイテム
+#[derive(Debug, Serialize)]
+pub struct EmailVerificationHistoryItem {
+    pub token_id: Uuid,
+    pub verified_at: DateTime<Utc>,
+    pub days_since_verification: i64,
+    pub verification_status: String,
+}
+
+/// メール認証保留状態レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PendingEmailVerificationResponse {
+    pub user_id: Uuid,
+    pub has_pending_verification: bool,
+    pub latest_token_sent_at: Option<DateTime<Utc>>,
+    pub token_expires_at: Option<DateTime<Utc>>,
+    pub attempts_count: u32,
+}
+
+/// トークン状態レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TokenStatusResponse {
+    pub exists: bool,
+    pub is_valid: bool,
+    pub is_used: bool,
+    pub is_expired: bool,
+    pub created_at: Option<DateTime<Utc>>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub used_at: Option<DateTime<Utc>>,
+}
+
 // --- ヘルパー関数 ---
 
 impl UserAdditionalInfo {
@@ -376,6 +429,20 @@ pub struct UserAnalyticsResponse {
     pub stats: UserStats,
     pub role_stats: Vec<RoleUserStats>,
     pub message: String,
+}
+
+/// ロール情報付きユーザーレスポンス
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserWithRoleResponse {
+    pub id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub is_active: bool,
+    pub email_verified: bool,
+    pub subscription_tier: String,
+    pub created_at: DateTime<Utc>,
+    pub last_login_at: Option<DateTime<Utc>>,
+    pub role: crate::api::dto::role_dto::RoleResponse,
 }
 
 /// ロール別ユーザー統計

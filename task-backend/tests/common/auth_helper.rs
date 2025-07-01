@@ -280,3 +280,58 @@ pub async fn create_authenticated_user(app: &Router, _schema_name: &str) -> (Tes
     // 同じユーザーを2つ返す（既存テストとの互換性のため）
     (user.clone(), user)
 }
+
+/// 基本的なHTTPリクエストを作成するヘルパー
+pub fn create_request(method: &str, uri: &str, body: Option<String>) -> Request<Body> {
+    let request_builder = Request::builder()
+        .uri(uri)
+        .method(method)
+        .header("Content-Type", "application/json");
+
+    match body {
+        Some(body_content) => request_builder.body(Body::from(body_content)).unwrap(),
+        None => request_builder.body(Body::empty()).unwrap(),
+    }
+}
+
+/// テストユーザーを作成してアクセストークンを返す
+#[allow(dead_code)]
+pub async fn create_test_user(
+    app_state: &task_backend::api::AppState,
+    email: &str,
+    username: &str,
+    password: &str,
+    _role_name: &str,
+) -> String {
+    use task_backend::api::dto::auth_dto::{SigninRequest, SignupRequest};
+
+    // ユーザーを作成
+    let signup_req = SignupRequest {
+        email: email.to_string(),
+        username: username.to_string(),
+        password: password.to_string(),
+    };
+
+    let _user = app_state
+        .auth_service
+        .signup(signup_req)
+        .await
+        .expect("Failed to create test user");
+
+    // 注意: ロール変更は現在の実装では複雑なため、スキップ
+    // 全てのユーザーはデフォルトで "User" ロールになる
+
+    // ログインしてトークンを取得
+    let signin_req = SigninRequest {
+        identifier: email.to_string(),
+        password: password.to_string(),
+    };
+
+    let auth_response = app_state
+        .auth_service
+        .signin(signin_req, None, None)
+        .await
+        .expect("Failed to sign in test user");
+
+    auth_response.tokens.access_token
+}

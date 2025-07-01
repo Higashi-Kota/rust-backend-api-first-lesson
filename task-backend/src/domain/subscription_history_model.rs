@@ -77,15 +77,6 @@ impl Model {
         }
     }
 
-    /// 階層が実際に変更されたかチェック
-    #[allow(dead_code)]
-    pub fn is_tier_changed(&self) -> bool {
-        match &self.previous_tier {
-            Some(prev) => prev != &self.new_tier,
-            None => true, // 初回設定の場合は変更とみなす
-        }
-    }
-
     /// 階層がアップグレードされたかチェック
     pub fn is_upgrade(&self) -> bool {
         match &self.previous_tier {
@@ -110,11 +101,17 @@ impl Model {
         }
     }
 
-    /// 変更理由の設定
-    #[allow(dead_code)]
-    pub fn with_reason(mut self, reason: &str) -> Self {
-        self.reason = Some(reason.to_string());
-        self
+    /// 変更タイプを取得
+    pub fn change_type(&self) -> String {
+        if self.is_upgrade() {
+            "upgrade".to_string()
+        } else if self.is_downgrade() {
+            "downgrade".to_string()
+        } else if self.previous_tier.is_none() {
+            "initial".to_string()
+        } else {
+            "admin_change".to_string()
+        }
     }
 }
 
@@ -171,30 +168,6 @@ mod tests {
     }
 
     #[test]
-    fn test_is_tier_changed() {
-        let history = Model {
-            id: Uuid::new_v4(),
-            user_id: Uuid::new_v4(),
-            previous_tier: Some("free".to_string()),
-            new_tier: "pro".to_string(),
-            changed_at: Utc::now(),
-            changed_by: None,
-            reason: None,
-            created_at: Utc::now(),
-        };
-
-        assert!(history.is_tier_changed());
-
-        let no_change = Model {
-            previous_tier: Some("pro".to_string()),
-            new_tier: "pro".to_string(),
-            ..history
-        };
-
-        assert!(!no_change.is_tier_changed());
-    }
-
-    #[test]
     fn test_is_upgrade() {
         let upgrade = Model {
             id: Uuid::new_v4(),
@@ -232,7 +205,7 @@ mod tests {
             created_at: Utc::now(),
         };
 
-        assert!(initial_free.is_tier_changed());
+        // 初期サブスクリプションはアップグレードでもダウングレードでもない
         assert!(!initial_free.is_upgrade());
         assert!(!initial_free.is_downgrade());
 

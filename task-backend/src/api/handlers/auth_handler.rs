@@ -132,6 +132,7 @@ pub async fn signup_handler(
 /// ログイン
 pub async fn signin_handler(
     State(app_state): State<AppState>,
+    headers: HeaderMap,
     Json(payload): Json<SigninRequest>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション
@@ -155,8 +156,23 @@ pub async fn signin_handler(
 
     info!(identifier = %payload.identifier, "User signin attempt");
 
+    // IPアドレスとUser-Agentを抽出
+    let ip_address = headers
+        .get("x-forwarded-for")
+        .or_else(|| headers.get("x-real-ip"))
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string());
+
     // ログイン
-    let auth_response = app_state.auth_service.signin(payload).await?;
+    let auth_response = app_state
+        .auth_service
+        .signin(payload, ip_address, user_agent)
+        .await?;
 
     // レスポンスクッキーを設定
     let mut response = Json(auth_response.clone()).into_response();
@@ -636,6 +652,51 @@ fn add_security_headers(headers: &mut HeaderMap, security: &SecurityHeaders) {
     );
 }
 
+/// 保留中のメール認証状態確認
+pub async fn check_pending_verification_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<crate::api::dto::user_dto::PendingEmailVerificationResponse>> {
+    let response = app_state
+        .auth_service
+        .check_pending_email_verification(user.claims.user_id)
+        .await?;
+
+    info!(
+        user_id = %user.claims.user_id,
+        has_pending = response.has_pending_verification,
+        "Checked pending email verification status"
+    );
+
+    Ok(Json(response))
+}
+
+/// トークン状態確認リクエスト
+#[derive(Debug, serde::Deserialize)]
+pub struct TokenStatusRequest {
+    pub token: String,
+}
+
+/// トークン状態確認（管理者用）
+pub async fn check_token_status_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUser,
+    Json(payload): Json<TokenStatusRequest>,
+) -> AppResult<Json<crate::api::dto::user_dto::TokenStatusResponse>> {
+    let response = app_state
+        .auth_service
+        .check_token_status(&payload.token)
+        .await?;
+
+    info!(
+        exists = response.exists,
+        is_valid = response.is_valid,
+        "Checked token status"
+    );
+
+    Ok(Json(response))
+}
+
 // --- ルーター ---
 
 /// 認証ルーターを作成
@@ -656,6 +717,11 @@ pub fn auth_router(app_state: AppState) -> Router {
             "/auth/resend-verification",
             post(resend_verification_email_handler),
         )
+        .route(
+            "/auth/pending-verification",
+            get(check_pending_verification_handler),
+        )
+        .route("/auth/token-status", post(check_token_status_handler))
         .route("/auth/me", get(me_handler))
         .route("/auth/account", delete(delete_account_handler))
         .route("/auth/status", get(auth_status_handler))

@@ -1,6 +1,8 @@
 // src/domain/mod.rs
+pub mod activity_log_model;
 pub mod department_member_model;
 pub mod email_verification_token_model;
+pub mod login_attempt_model;
 pub mod organization_analytics_model;
 pub mod organization_department_model;
 pub mod organization_model;
@@ -9,6 +11,7 @@ pub mod permission;
 pub mod permission_matrix_model;
 pub mod refresh_token_model;
 pub mod role_model;
+pub mod security_incident_model;
 pub mod subscription_history_model;
 pub mod subscription_tier;
 pub mod task_model;

@@ -38,8 +38,6 @@ pub struct PasswordConfig {
 #[derive(Debug, Clone)]
 pub struct SecurityConfig {
     pub cookie_secure: bool,
-    #[allow(dead_code)]
-    pub development_mode: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -62,8 +60,6 @@ impl fmt::Display for Environment {
 #[derive(Debug)]
 pub enum ConfigError {
     EnvVar(String),
-    #[allow(dead_code)]
-    Parse(String),
     Validation(String),
 }
 
@@ -71,7 +67,6 @@ impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConfigError::EnvVar(msg) => write!(f, "Environment variable error: {}", msg),
-            ConfigError::Parse(msg) => write!(f, "Parse error: {}", msg),
             ConfigError::Validation(msg) => write!(f, "Validation error: {}", msg),
         }
     }
@@ -94,7 +89,7 @@ impl AppConfig {
         let server = ServerConfig::from_env(&environment)?;
         let database = DatabaseConfig::from_env()?;
         let jwt = JwtConfig::from_env().map_err(|e| ConfigError::Validation(e.to_string()))?;
-        let email = EmailConfig::default();
+        let email = EmailConfig::from_env().map_err(|e| ConfigError::Validation(e.to_string()))?;
         let password = PasswordConfig::from_env()?;
         let security = SecurityConfig::from_env(&environment)?;
 
@@ -178,13 +173,10 @@ impl PasswordConfig {
 
 impl SecurityConfig {
     fn from_env(environment: &Environment) -> Result<Self, ConfigError> {
-        let development_mode = matches!(environment, Environment::Development | Environment::Test);
-        let cookie_secure = !development_mode;
+        let is_development = matches!(environment, Environment::Development | Environment::Test);
+        let cookie_secure = !is_development;
 
-        Ok(SecurityConfig {
-            cookie_secure,
-            development_mode,
-        })
+        Ok(SecurityConfig { cookie_secure })
     }
 }
 
@@ -249,7 +241,6 @@ impl AppConfig {
 
         let security = SecurityConfig {
             cookie_secure: false,
-            development_mode: true,
         };
 
         AppConfig {

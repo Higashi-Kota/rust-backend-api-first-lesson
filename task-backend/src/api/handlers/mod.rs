@@ -2,6 +2,7 @@
 pub mod admin_handler;
 pub mod analytics_handler;
 pub mod auth_handler;
+pub mod gdpr_handler;
 pub mod organization_handler;
 pub mod organization_hierarchy_handler;
 pub mod permission_handler;

@@ -11,6 +11,7 @@ use crate::repository::subscription_history_repository::{
 };
 use crate::repository::user_repository::{SubscriptionTierStats, UserRepository};
 use crate::utils::email::EmailService;
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -91,7 +92,7 @@ impl SubscriptionService {
         Ok((updated_user, history))
     }
 
-    /// ユーザーのサブスクリプション履歴を取得
+    /// ユーザーのサブスクリプション履歴を取得（ページング付き）
     pub async fn get_user_subscription_history(
         &self,
         user_id: Uuid,
@@ -138,5 +139,59 @@ impl SubscriptionService {
                 tier
             ))),
         }
+    }
+
+    /// 期間内のサブスクリプション履歴を取得
+    pub async fn get_subscription_history_by_date_range(
+        &self,
+        start_date: DateTime<Utc>,
+        end_date: DateTime<Utc>,
+    ) -> AppResult<Vec<SubscriptionChangeInfo>> {
+        let histories = self
+            .subscription_history_repo
+            .find_by_date_range(start_date, end_date)
+            .await?;
+
+        Ok(histories
+            .into_iter()
+            .map(SubscriptionChangeInfo::from)
+            .collect())
+    }
+
+    /// 階層変更統計を取得
+    pub async fn get_tier_change_statistics(&self) -> AppResult<Vec<(String, u64)>> {
+        self.subscription_history_repo.get_tier_change_stats().await
+    }
+
+    /// アップグレード履歴を取得
+    pub async fn get_upgrade_history(&self) -> AppResult<Vec<SubscriptionChangeInfo>> {
+        self.subscription_history_repo.find_upgrades().await
+    }
+
+    /// ダウングレード履歴を取得
+    pub async fn get_downgrade_history(&self) -> AppResult<Vec<SubscriptionChangeInfo>> {
+        self.subscription_history_repo.find_downgrades().await
+    }
+
+    /// サブスクリプション分布を取得
+    pub async fn get_subscription_distribution(&self) -> AppResult<Vec<(String, u64)>> {
+        // サブスクリプション階層別のユーザー数を取得
+        let tier_stats = self.user_repo.get_subscription_tier_stats().await?;
+
+        Ok(tier_stats
+            .into_iter()
+            .map(|stat| (stat.tier, stat.user_count))
+            .collect())
+    }
+
+    /// サブスクリプション履歴詳細を取得（find_by_idを活用）
+    pub async fn get_subscription_history_detail(
+        &self,
+        history_id: Uuid,
+    ) -> AppResult<SubscriptionHistory> {
+        self.subscription_history_repo
+            .find_by_id(history_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Subscription history not found".to_string()))
     }
 }

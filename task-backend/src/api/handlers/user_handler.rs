@@ -2,16 +2,18 @@
 use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::dto::user_dto::{
     AccountStatusUpdateResponse, BulkOperationResponse, BulkUserOperationsRequest,
-    EmailVerificationResponse, ProfileUpdateResponse, ResendVerificationEmailRequest,
-    SubscriptionAnalyticsResponse, SubscriptionQuery, UpdateAccountStatusRequest,
-    UpdateEmailRequest, UpdateProfileRequest, UpdateUsernameRequest, UserAdditionalInfo,
-    UserAnalyticsResponse, UserListResponse, UserProfileResponse, UserSearchQuery,
-    UserSettingsResponse, UserStatsResponse, UserSummary, VerifyEmailRequest,
+    EmailVerificationHistoryResponse, EmailVerificationResponse, ProfileUpdateResponse,
+    ResendVerificationEmailRequest, SubscriptionAnalyticsResponse, SubscriptionQuery,
+    UpdateAccountStatusRequest, UpdateEmailRequest, UpdateProfileRequest, UpdateUsernameRequest,
+    UserAdditionalInfo, UserAnalyticsResponse, UserListResponse, UserPermissionsResponse,
+    UserProfileResponse, UserSearchQuery, UserSettingsResponse, UserStatsResponse, UserSummary,
+    VerifyEmailRequest,
 };
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
+use crate::utils::permission::PermissionChecker;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::request::Parts,
@@ -293,7 +295,7 @@ pub async fn verify_email_handler(
         }
         Err(_) => {
             // トークンが無効な場合はエラーを返す
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Invalid or expired verification token".to_string(),
             ));
         }
@@ -439,7 +441,7 @@ pub async fn update_account_status_handler(
             admin_id = %admin_user.user_id(),
             "Admin attempting to change own account status"
         );
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Cannot change your own account status".to_string(),
         ));
     }
@@ -493,11 +495,21 @@ pub async fn advanced_search_users_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<Json<UserListResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
+    // can_list_usersを使用して、管理者またはProプラン以上のユーザーのアクセスを許可
+    if let Some(role) = admin_user.role() {
+        if !PermissionChecker::can_list_users(role) {
+            warn!(
+                user_id = %admin_user.user_id(),
+                role = ?admin_user.role().map(|r| &r.name),
+                "Access denied: Admin or Pro subscription required for user search"
+            );
+            return Err(AppError::Forbidden(
+                "Admin or Pro subscription required".to_string(),
+            ));
+        }
+    } else if !admin_user.is_admin() {
         warn!(
             user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
             "Access denied: Admin permission required for advanced user search"
         );
         return Err(AppError::Forbidden("Admin access required".to_string()));
@@ -946,7 +958,71 @@ pub async fn update_last_login_handler(
     ))
 }
 
+/// ユーザー権限チェック
+pub async fn check_user_permissions_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUserWithRole,
+) -> AppResult<Json<ApiResponse<UserPermissionsResponse>>> {
+    // ユーザー情報を取得
+    let user_profile = app_state
+        .user_service
+        .get_user_profile(user.user_id())
+        .await?;
+
+    // 権限情報を生成
+    let is_member = user.role().is_some_and(PermissionChecker::is_member);
+    let is_admin = user.is_admin();
+    let is_active = user_profile.is_active;
+    let email_verified = user_profile.email_verified;
+
+    let permissions = UserPermissionsResponse {
+        user_id: user.user_id(),
+        is_member,
+        is_admin,
+        is_active,
+        email_verified,
+        subscription_tier: user_profile.subscription_tier.clone(),
+        can_create_teams: is_member
+            && (user_profile.subscription_tier == "Pro"
+                || user_profile.subscription_tier == "Enterprise"),
+        can_access_analytics: is_admin || user_profile.subscription_tier == "Enterprise",
+    };
+
+    Ok(Json(ApiResponse::success(
+        "User permissions retrieved successfully",
+        permissions,
+    )))
+}
+
 // --- ヘルスチェック ---
+
+/// メール認証履歴を取得
+pub async fn get_email_verification_history_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<ApiResponse<EmailVerificationHistoryResponse>>> {
+    info!(
+        user_id = %user.user_id(),
+        "Getting email verification history"
+    );
+
+    // メール認証履歴を取得
+    let history_response = app_state
+        .auth_service
+        .get_email_verification_history(user.user_id())
+        .await?;
+
+    info!(
+        user_id = %user.user_id(),
+        total_verifications = %history_response.total_verifications,
+        "Email verification history retrieved"
+    );
+
+    Ok(Json(ApiResponse::success(
+        "Email verification history retrieved successfully",
+        history_response,
+    )))
+}
 
 /// ユーザーサービスのヘルスチェック
 async fn user_health_check_handler() -> &'static str {
@@ -971,8 +1047,13 @@ pub fn user_router(app_state: AppState) -> Router {
             "/users/resend-verification",
             post(resend_verification_email_handler),
         )
+        .route(
+            "/users/email-verification-history",
+            get(get_email_verification_history_handler),
+        )
         // ユーティリティ
         .route("/users/update-last-login", post(update_last_login_handler))
+        .route("/users/permissions", get(check_user_permissions_handler))
         // 管理者用エンドポイント - Phase 1.1 高度なユーザー管理 API
         .route("/admin/users", get(list_users_handler))
         .route(

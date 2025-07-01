@@ -65,7 +65,6 @@ impl ActiveModelBehavior for ActiveModel {
     }
 }
 
-#[allow(dead_code)]
 impl Model {
     /// 新しいチームメンバーを作成
     pub fn new_member(

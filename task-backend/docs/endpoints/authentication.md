@@ -14,8 +14,8 @@
 curl -X POST http://localhost:3000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "higashi-kota-8",
-    "email": "higashi.kota+8@gri.jp",
+    "username": "higashi-kota-12",
+    "email": "higashi.kota+12@gri.jp",
     "password": "SecurePass342!"
   }' | jq
 ```

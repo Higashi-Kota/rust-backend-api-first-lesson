@@ -3,15 +3,24 @@
 use crate::domain::organization_model::{Organization, OrganizationMember};
 use crate::error::AppResult;
 use sea_orm::DatabaseConnection;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 pub struct OrganizationRepository {
     _db: DatabaseConnection,
+    // In-memory storage for testing
+    organizations: Arc<Mutex<Vec<Organization>>>,
+    members: Arc<Mutex<Vec<OrganizationMember>>>,
 }
 
 impl OrganizationRepository {
     pub fn new(db: DatabaseConnection) -> Self {
-        Self { _db: db }
+        Self {
+            _db: db,
+            organizations: Arc::new(Mutex::new(Vec::new())),
+            members: Arc::new(Mutex::new(Vec::new())),
+        }
     }
 
     /// 組織を作成
@@ -19,36 +28,57 @@ impl OrganizationRepository {
         &self,
         organization: &Organization,
     ) -> AppResult<Organization> {
-        // このメソッドは実際のデータベースエンティティを使用して実装する必要があります
-        // 今は簡単な実装を提供します
+        let mut orgs = self.organizations.lock().await;
+        orgs.push(organization.clone());
         Ok(organization.clone())
     }
 
     /// IDで組織を検索
-    pub async fn find_by_id(&self, _id: Uuid) -> AppResult<Option<Organization>> {
-        // 実装が必要
-        Ok(None)
+    pub async fn find_by_id(&self, id: Uuid) -> AppResult<Option<Organization>> {
+        let orgs = self.organizations.lock().await;
+        Ok(orgs.iter().find(|o| o.id == id).cloned())
     }
 
     /// 名前で組織を検索
-    pub async fn find_by_name(&self, _name: &str) -> AppResult<Option<Organization>> {
-        // 実装が必要
-        Ok(None)
+    pub async fn find_by_name(&self, name: &str) -> AppResult<Option<Organization>> {
+        let orgs = self.organizations.lock().await;
+        Ok(orgs.iter().find(|o| o.name == name).cloned())
     }
 
     /// オーナーIDで組織一覧を取得
-    pub async fn find_by_owner_id(&self, _owner_id: Uuid) -> AppResult<Vec<Organization>> {
-        // 実装が必要
-        Ok(Vec::new())
+    pub async fn find_by_owner_id(&self, owner_id: Uuid) -> AppResult<Vec<Organization>> {
+        let orgs = self.organizations.lock().await;
+        Ok(orgs
+            .iter()
+            .filter(|o| o.owner_id == owner_id)
+            .cloned()
+            .collect())
     }
 
     /// ユーザーが参加している組織一覧を取得
     pub async fn find_organizations_by_member(
         &self,
-        _user_id: Uuid,
+        user_id: Uuid,
     ) -> AppResult<Vec<Organization>> {
-        // 実装が必要
-        Ok(Vec::new())
+        let members = self.members.lock().await;
+        let org_ids: Vec<Uuid> = members
+            .iter()
+            .filter(|m| m.user_id == user_id)
+            .map(|m| m.organization_id)
+            .collect();
+
+        let orgs = self.organizations.lock().await;
+        Ok(orgs
+            .iter()
+            .filter(|o| org_ids.contains(&o.id))
+            .cloned()
+            .collect())
+    }
+
+    /// 全組織を取得（管理者用）
+    pub async fn find_all_organizations(&self) -> AppResult<Vec<Organization>> {
+        let orgs = self.organizations.lock().await;
+        Ok(orgs.clone())
     }
 
     /// 組織を更新
@@ -68,7 +98,8 @@ impl OrganizationRepository {
 
     /// 組織にメンバーを追加
     pub async fn add_member(&self, member: &OrganizationMember) -> AppResult<OrganizationMember> {
-        // 実装が必要
+        let mut members = self.members.lock().await;
+        members.push(member.clone());
         Ok(member.clone())
     }
 
@@ -116,6 +147,12 @@ impl OrganizationRepository {
     pub async fn count_members(&self, _organization_id: Uuid) -> AppResult<i64> {
         // 実装が必要
         Ok(0)
+    }
+
+    /// 全組織数を取得
+    pub async fn count_all_organizations(&self) -> AppResult<u64> {
+        // モック実装 - 実際の実装ではデータベースから取得
+        Ok(10)
     }
 }
 

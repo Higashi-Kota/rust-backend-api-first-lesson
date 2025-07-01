@@ -1,7 +1,7 @@
 // task-backend/src/api/handlers/analytics_handler.rs
 
 use crate::api::dto::analytics_dto::*;
-use crate::api::dto::common::{ApiError, ApiResponse, OperationResult};
+use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
@@ -31,9 +31,107 @@ pub struct StatsPeriodQuery {
 
 // --- Handler Functions ---
 
+/// システム全体の統計を取得（管理者のみ）- 拡張版
+pub async fn get_system_analytics_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    // 各サービスから統計情報を収集
+    let user_service = &app_state.user_service;
+    let task_service = &app_state.task_service;
+    let team_service = &app_state.team_service;
+    let organization_service = &app_state.organization_service;
+    let subscription_service = &app_state.subscription_service;
+
+    // リポジトリを作成
+    use crate::repository::activity_log_repository::ActivityLogRepository;
+    use crate::repository::login_attempt_repository::LoginAttemptRepository;
+
+    let activity_log_repo = ActivityLogRepository::new((*app_state.db_pool).clone());
+    let login_attempt_repo = LoginAttemptRepository::new((*app_state.db_pool).clone());
+
+    // ユーザー統計
+    let total_users = user_service.count_all_users().await.unwrap_or(0);
+    let active_users = user_service.count_active_users().await.unwrap_or(0);
+
+    // タスク統計
+    let total_tasks = task_service.count_all_tasks().await.unwrap_or(0);
+    let completed_tasks = task_service.count_completed_tasks().await.unwrap_or(0);
+
+    // チーム統計
+    let active_teams = team_service.count_active_teams().await.unwrap_or(0);
+
+    // 組織統計
+    let total_organizations = organization_service
+        .count_all_organizations()
+        .await
+        .unwrap_or(0);
+
+    // サブスクリプション分布
+    let subscription_distribution = subscription_service
+        .get_subscription_distribution()
+        .await
+        .unwrap_or_default();
+
+    // セキュリティ統計
+    let suspicious_ips = login_attempt_repo
+        .find_suspicious_ips(5, 24)
+        .await
+        .unwrap_or_default();
+
+    // アクティビティ統計
+    let daily_active_users = activity_log_repo
+        .count_unique_users_today()
+        .await
+        .unwrap_or(0);
+    let weekly_active_users = activity_log_repo
+        .count_unique_users_this_week()
+        .await
+        .unwrap_or(0);
+
+    // 計算値
+    let user_growth_rate = 15.2; // モック値
+    let task_completion_rate = if total_tasks > 0 {
+        (completed_tasks as f64 / total_tasks as f64) * 100.0
+    } else {
+        0.0
+    };
+    let average_tasks_per_user = if total_users > 0 {
+        total_tasks as f64 / total_users as f64
+    } else {
+        0.0
+    };
+
+    let analytics = json!({
+        "total_users": total_users,
+        "active_users": active_users,
+        "total_tasks": total_tasks,
+        "completed_tasks": completed_tasks,
+        "active_teams": active_teams,
+        "total_organizations": total_organizations,
+        "user_growth_rate": user_growth_rate,
+        "task_completion_rate": task_completion_rate,
+        "average_tasks_per_user": average_tasks_per_user,
+        "subscription_distribution": subscription_distribution,
+        "suspicious_ips": suspicious_ips,
+        "daily_active_users": daily_active_users,
+        "weekly_active_users": weekly_active_users,
+    });
+
+    Ok(Json(ApiResponse::success(
+        "System analytics retrieved successfully",
+        analytics,
+    )))
+}
+
 /// システム全体の統計を取得（管理者のみ）
 pub async fn get_system_stats_handler(
-    State(_app_state): State<AppState>,
+    State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<Json<ApiResponse<SystemStatsResponse>>> {
@@ -79,8 +177,46 @@ pub async fn get_system_stats_handler(
         "System stats requested"
     );
 
-    // システム統計を生成（実際の実装では適切なサービスから取得）
+    // システム統計を生成
     let mut stats = SystemStatsResponse::new();
+
+    // セキュリティサービス経由でセキュリティ情報を取得
+    let security_service = &app_state.security_service;
+
+    // セッション分析を取得（アクティブユーザー数と不審なアクティビティを含む）
+    let session_analytics = security_service
+        .get_session_analytics()
+        .await
+        .unwrap_or_else(|_| crate::api::dto::security_dto::SessionAnalytics {
+            total_sessions: 0,
+            active_sessions: 0,
+            unique_users_today: 0,
+            unique_users_this_week: 0,
+            average_session_duration_minutes: 0.0,
+            peak_concurrent_sessions: 0,
+            suspicious_activity_count: 0,
+            geographic_distribution: vec![],
+            device_distribution: vec![],
+        });
+
+    let daily_active_users = session_analytics.unique_users_today;
+    let weekly_active_users = session_analytics.unique_users_this_week;
+
+    // セキュリティメトリクスを取得
+    let suspicious_ips = security_service
+        .get_suspicious_ips(5, 24)
+        .await
+        .unwrap_or_default();
+
+    let (failed_login_today, failed_login_this_week) = security_service
+        .get_failed_login_counts()
+        .await
+        .unwrap_or((0, 0));
+
+    let security_incidents_this_month = security_service
+        .get_security_incident_count(30)
+        .await
+        .unwrap_or(0);
 
     // モックデータを設定
     stats.overview = SystemOverview {
@@ -97,6 +233,8 @@ pub async fn get_system_stats_handler(
         new_registrations_this_week: 85,
         new_registrations_this_month: 340,
         active_users_today: 234,
+        daily_active_users,
+        weekly_active_users,
         retention_rate_30_days: 78.5,
         average_session_duration_minutes: 45.2,
         user_distribution_by_tier: vec![
@@ -154,6 +292,13 @@ pub async fn get_system_stats_handler(
         monthly_recurring_revenue: 56780.0,
         upgrade_rate_percentage: 8.9,
         downgrade_rate_percentage: 2.1,
+    };
+
+    stats.security_metrics = SecurityMetrics {
+        suspicious_ips,
+        failed_login_attempts_today: failed_login_today,
+        failed_login_attempts_this_week: failed_login_this_week,
+        security_incidents_this_month,
     };
 
     info!(
@@ -810,23 +955,11 @@ pub async fn advanced_export_handler(
             "Access denied: Insufficient permissions for export type"
         );
 
-        // ApiError::with_detailsを使用して詳細なエラー情報を提供
-        let api_error = ApiError::with_details(
-            "FORBIDDEN",
-            "Insufficient permissions for this export type",
-            json!({
-                "export_type": format!("{:?}", payload.export_type),
-                "required_role": "Admin",
-                "current_role": if user.claims.is_admin() { "Admin" } else { "User" },
-                "allowed_export_types": ["Tasks", "UserActivity"],
-                "help": "Only administrators can export Users and SystemMetrics data"
-            }),
-        );
-
-        return Err(AppError::Forbidden(format!(
-            "{}: {}",
-            api_error.error, api_error.message
-        )));
+        // 詳細なエラー情報を含むForbiddenエラーを返す
+        // 将来的にはErrorResponseのwith_detailsを活用できる
+        return Err(AppError::Forbidden(
+            "Insufficient permissions for this export type".to_string(),
+        ));
     }
 
     let export_id = Uuid::new_v4();
@@ -1008,7 +1141,11 @@ fn generate_mock_user_performance() -> Vec<UserTaskPerformance> {
 pub fn analytics_router(app_state: AppState) -> Router {
     Router::new()
         // システム統計（管理者のみ）
-        .route("/admin/analytics/system", get(get_system_stats_handler))
+        .route("/admin/analytics/system", get(get_system_analytics_handler))
+        .route(
+            "/admin/analytics/system/stats",
+            get(get_system_stats_handler),
+        )
         // ユーザー統計
         .route("/analytics/activity", get(get_user_activity_handler))
         .route("/analytics/tasks", get(get_task_stats_handler))

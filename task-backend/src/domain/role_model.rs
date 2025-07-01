@@ -137,7 +137,6 @@ impl RoleWithPermissions {
     }
 
     /// Modelから変換（サブスクリプション階層指定）
-    #[allow(dead_code)]
     pub fn from_model_with_subscription(
         model: Model,
         subscription_tier: SubscriptionTier,
@@ -187,62 +186,6 @@ impl RoleWithPermissions {
             "user" => self.is_admin(),
             "role" => self.is_admin(),
             "task" => true,
-            _ => false,
-        }
-    }
-
-    /// リソースの削除権限があるかチェック（内部実装）
-    #[allow(dead_code)]
-    pub fn can_delete_resource(
-        &self,
-        resource_type: &str,
-        owner_id: Option<Uuid>,
-        requesting_user_id: Uuid,
-    ) -> bool {
-        if !self.is_active {
-            return false;
-        }
-        match resource_type {
-            "user" => self.is_admin(),
-            "role" => self.is_admin(),
-            "task" => {
-                if let Some(owner) = owner_id {
-                    owner == requesting_user_id || self.is_admin()
-                } else {
-                    self.is_admin()
-                }
-            }
-            _ => false,
-        }
-    }
-
-    /// リソースの編集権限があるかチェック（新機能）
-    #[allow(dead_code)]
-    pub fn can_update_resource(
-        &self,
-        resource_type: &str,
-        owner_id: Option<Uuid>,
-        requesting_user_id: Uuid,
-    ) -> bool {
-        if !self.is_active {
-            return false;
-        }
-        match resource_type {
-            "user" => {
-                if let Some(owner) = owner_id {
-                    owner == requesting_user_id || self.is_admin()
-                } else {
-                    self.is_admin()
-                }
-            }
-            "role" => self.is_admin(),
-            "task" => {
-                if let Some(owner) = owner_id {
-                    owner == requesting_user_id || self.is_admin()
-                } else {
-                    self.is_admin()
-                }
-            }
             _ => false,
         }
     }
@@ -519,9 +462,9 @@ mod tests {
             Some(PermissionQuota::limited(1000, 50)),
         );
 
-        assert!(privilege.is_available_for(SubscriptionTier::Pro));
-        assert!(privilege.is_available_for(SubscriptionTier::Enterprise));
-        assert!(!privilege.is_available_for(SubscriptionTier::Free));
+        assert!(privilege.is_available_for_tier(&SubscriptionTier::Pro));
+        assert!(privilege.is_available_for_tier(&SubscriptionTier::Enterprise));
+        assert!(!privilege.is_available_for_tier(&SubscriptionTier::Free));
     }
 
     #[test]

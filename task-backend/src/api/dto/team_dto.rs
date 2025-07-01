@@ -46,28 +46,13 @@ pub struct UpdateTeamMemberRoleRequest {
     pub role: TeamRole,
 }
 
-/// チーム検索クエリ
-#[derive(Debug, Serialize, Deserialize)]
+/// チーム検索クエリ（ページネーション情報を除く）
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TeamSearchQuery {
     pub name: Option<String>,
     pub organization_id: Option<Uuid>,
     pub owner_id: Option<Uuid>,
     pub subscription_tier: Option<SubscriptionTier>,
-    pub page: Option<u32>,
-    pub page_size: Option<u32>,
-}
-
-impl Default for TeamSearchQuery {
-    fn default() -> Self {
-        Self {
-            name: None,
-            organization_id: None,
-            owner_id: None,
-            subscription_tier: None,
-            page: Some(1),
-            page_size: Some(20),
-        }
-    }
 }
 
 /// チーム詳細レスポンス
@@ -94,6 +79,22 @@ pub struct TeamMemberResponse {
     pub username: String,
     pub email: String,
     pub role: TeamRole,
+    pub joined_at: DateTime<Utc>,
+    pub invited_by: Option<Uuid>,
+}
+
+/// チームメンバー詳細レスポンス（権限情報付き）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamMemberDetailResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub role: TeamRole,
+    pub is_owner: bool,
+    pub is_admin: bool,
+    pub can_invite: bool,
+    pub can_remove_members: bool,
     pub joined_at: DateTime<Utc>,
     pub invited_by: Option<Uuid>,
 }
@@ -301,8 +302,6 @@ mod tests {
     #[test]
     fn test_team_search_query_defaults() {
         let query = TeamSearchQuery::default();
-        assert_eq!(query.page, Some(1));
-        assert_eq!(query.page_size, Some(20));
         assert!(query.name.is_none());
         assert!(query.organization_id.is_none());
         assert!(query.owner_id.is_none());
