@@ -66,13 +66,14 @@ impl EmailConfig {
             Ok("development") => EmailProvider::Development,
             Err(_) => {
                 // EMAIL_PROVIDERが未設定の場合は環境に基づいて決定
-                let environment = env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string());
+                let environment =
+                    env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string());
                 if environment == "development" {
                     EmailProvider::Development
                 } else {
                     EmailProvider::MailHog
                 }
-            },
+            }
             Ok(other) => {
                 return Err(crate::error::AppError::InternalServerError(format!(
                     "Unknown email provider: {}",
