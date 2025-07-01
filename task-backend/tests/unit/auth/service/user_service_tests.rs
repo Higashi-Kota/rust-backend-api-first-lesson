@@ -77,9 +77,9 @@ async fn test_user_activity_stats_structure() {
 #[tokio::test]
 async fn test_subscription_tier_validation() {
     // サブスクリプション階層のバリデーションテスト
-    let subscription_tier = "Pro".to_string();
+    let subscription_tier = "pro".to_string();
 
-    let subscription_tiers = ["Free", "Pro", "Enterprise"];
+    let subscription_tiers = ["free", "pro", "enterprise"];
     assert!(subscription_tiers.contains(&subscription_tier.as_str()));
 
     // 無効な階層のテスト
@@ -112,15 +112,15 @@ async fn test_bulk_operation_result_aggregation() {
 #[tokio::test]
 async fn test_subscription_tier_validation_comprehensive() {
     // サブスクリプション階層の包括的バリデーションテスト
-    let valid_tiers = ["Free", "Pro", "Enterprise"];
+    let valid_tiers = ["free", "pro", "enterprise"];
     let invalid_tiers = ["", "Basic", "Premium", "Ultimate"];
 
     for tier in valid_tiers {
-        assert!(["Free", "Pro", "Enterprise"].contains(&tier));
+        assert!(["free", "pro", "enterprise"].contains(&tier));
     }
 
     for tier in invalid_tiers {
-        assert!(!["Free", "Pro", "Enterprise"].contains(&tier));
+        assert!(!["free", "pro", "enterprise"].contains(&tier));
     }
 }
 

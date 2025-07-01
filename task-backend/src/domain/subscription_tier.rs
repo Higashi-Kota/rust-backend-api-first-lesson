@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 /// サブスクリプション階層
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum SubscriptionTier {
     Free,
     Pro,

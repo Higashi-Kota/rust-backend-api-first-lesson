@@ -119,34 +119,44 @@ impl OrganizationRepository {
     }
 
     /// IDでメンバーを検索
-    pub async fn find_member_by_id(&self, _id: Uuid) -> AppResult<Option<OrganizationMember>> {
-        // 実装が必要
-        Ok(None)
+    pub async fn find_member_by_id(&self, id: Uuid) -> AppResult<Option<OrganizationMember>> {
+        let members = self.members.lock().await;
+        Ok(members.iter().find(|m| m.id == id).cloned())
     }
 
     /// ユーザーと組織でメンバーを検索
     pub async fn find_member_by_user_and_organization(
         &self,
-        _user_id: Uuid,
-        _organization_id: Uuid,
+        user_id: Uuid,
+        organization_id: Uuid,
     ) -> AppResult<Option<OrganizationMember>> {
-        // 実装が必要
-        Ok(None)
+        let members = self.members.lock().await;
+        Ok(members
+            .iter()
+            .find(|m| m.user_id == user_id && m.organization_id == organization_id)
+            .cloned())
     }
 
     /// 組織のメンバー一覧を取得
     pub async fn find_members_by_organization_id(
         &self,
-        _organization_id: Uuid,
+        organization_id: Uuid,
     ) -> AppResult<Vec<OrganizationMember>> {
-        // 実装が必要
-        Ok(Vec::new())
+        let members = self.members.lock().await;
+        Ok(members
+            .iter()
+            .filter(|m| m.organization_id == organization_id)
+            .cloned()
+            .collect())
     }
 
     /// 組織のメンバー数をカウント
-    pub async fn count_members(&self, _organization_id: Uuid) -> AppResult<i64> {
-        // 実装が必要
-        Ok(0)
+    pub async fn count_members(&self, organization_id: Uuid) -> AppResult<i64> {
+        let members = self.members.lock().await;
+        Ok(members
+            .iter()
+            .filter(|m| m.organization_id == organization_id)
+            .count() as i64)
     }
 
     /// 全組織数を取得

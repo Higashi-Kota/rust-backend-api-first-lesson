@@ -21,7 +21,7 @@ async fn test_admin_list_organizations() {
         let org_request = json!({
             "name": format!("Test Organization {}", i),
             "description": format!("Test organization number {}", i),
-            "subscription_tier": if i == 0 { "Free" } else if i == 1 { "Pro" } else { "Enterprise" }
+            "subscription_tier": if i == 0 { "free" } else if i == 1 { "pro" } else { "enterprise" }
         });
 
         println!(
@@ -96,7 +96,7 @@ async fn test_admin_list_organizations() {
     // サブスクリプション階層でフィルタリング
     let req = auth_helper::create_authenticated_request(
         "GET",
-        "/admin/organizations?subscription_tier=Pro",
+        "/admin/organizations?subscription_tier=pro",
         &admin_token,
         None,
     );
@@ -108,7 +108,7 @@ async fn test_admin_list_organizations() {
     let response: Value = serde_json::from_slice(&body).unwrap();
     let organizations = response["data"]["organizations"].as_array().unwrap();
     for org in organizations {
-        assert_eq!(org["subscription_tier"].as_str().unwrap(), "Pro");
+        assert_eq!(org["subscription_tier"].as_str().unwrap(), "pro");
     }
 }
 
@@ -237,7 +237,7 @@ async fn test_admin_organization_pagination() {
         let org_request = json!({
             "name": format!("Pagination Test Org {}", i),
             "description": "Test organization for pagination",
-            "subscription_tier": "Free"
+            "subscription_tier": "free"
         });
 
         let req = auth_helper::create_authenticated_request(

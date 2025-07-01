@@ -60,7 +60,7 @@ async fn test_create_team_with_authentication() {
     );
     assert!(team_data["id"].is_string());
     assert_eq!(team_data["owner_id"], user.id.to_string());
-    assert_eq!(team_data["subscription_tier"], "Free");
+    assert_eq!(team_data["subscription_tier"], "free");
     assert!(team_data["created_at"].is_string());
 }
 

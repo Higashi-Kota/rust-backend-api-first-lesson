@@ -93,9 +93,9 @@ async fn test_subscription_tier_response_format() {
             let has_valid_variant = map.contains_key("Limited")
                 || map.contains_key("Enhanced")
                 || map.contains_key("Unlimited")
-                || map.contains_key("Free")
-                || map.contains_key("Pro")
-                || map.contains_key("Enterprise");
+                || map.contains_key("free")
+                || map.contains_key("pro")
+                || map.contains_key("enterprise");
             assert!(
                 has_valid_variant,
                 "Response should contain a valid TaskResponse variant"
@@ -122,7 +122,7 @@ async fn test_subscription_tier_response_format() {
                 assert!(pro_data["tasks"].is_array());
                 assert!(pro_data["features"].is_array());
                 assert!(pro_data["export_available"].is_boolean());
-            } else if let Some(enterprise_data) = map.get("Enterprise") {
+            } else if let Some(enterprise_data) = map.get("enterprise") {
                 assert!(enterprise_data["tasks"].is_array());
                 assert!(enterprise_data["bulk_operations"].is_boolean());
                 assert!(enterprise_data["unlimited_access"].is_boolean());
@@ -158,8 +158,8 @@ async fn test_admin_gets_enterprise_level_access() {
     // 管理者はEnterprise級のアクセスを持つべき
     match body {
         Value::Object(map) => {
-            if map.contains_key("Enterprise") {
-                let enterprise_data = &map["Enterprise"];
+            if map.contains_key("enterprise") {
+                let enterprise_data = &map["enterprise"];
                 assert!(enterprise_data["bulk_operations"]
                     .as_bool()
                     .unwrap_or(false));
@@ -183,7 +183,7 @@ async fn test_admin_gets_enterprise_level_access() {
                 assert!(
                     map.contains_key("Enhanced")
                         || map.contains_key("Pro")
-                        || map.contains_key("Enterprise"),
+                        || map.contains_key("enterprise"),
                     "Admin should have high-level access, got: {:?}",
                     map.keys().collect::<Vec<_>>()
                 );
@@ -256,7 +256,7 @@ async fn test_dynamic_permissions_user_isolation() {
                 free_data["tasks"].as_array().unwrap().len()
             } else if let Some(pro_data) = map.get("Pro") {
                 pro_data["tasks"].as_array().unwrap().len()
-            } else if let Some(enterprise_data) = map.get("Enterprise") {
+            } else if let Some(enterprise_data) = map.get("enterprise") {
                 enterprise_data["tasks"].as_array().unwrap().len()
             } else {
                 panic!(

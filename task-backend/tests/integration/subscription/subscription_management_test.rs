@@ -28,7 +28,7 @@ async fn test_admin_subscription_history_search() {
         // Change some users to different tiers
         if i % 2 == 0 {
             let tier_change = json!({
-                "new_tier": "Pro"
+                "new_tier": "pro"
             });
 
             let req = auth_helper::create_authenticated_request(
@@ -45,7 +45,7 @@ async fn test_admin_subscription_history_search() {
     // Search for pro tier changes
     let req = auth_helper::create_authenticated_request(
         "GET",
-        "/admin/subscription/history/search?tier=Pro&page=1&per_page=10",
+        "/admin/subscription/history/search?tier=pro&page=1&per_page=10",
         &admin_token,
         None,
     );
@@ -70,7 +70,7 @@ async fn test_admin_subscription_history_search() {
 
     let histories = response["data"]["items"].as_array().unwrap();
     for history in histories {
-        assert_eq!(history["new_tier"].as_str().unwrap(), "Pro");
+        assert_eq!(history["new_tier"].as_str().unwrap(), "pro");
     }
 }
 
@@ -93,7 +93,7 @@ async fn test_admin_subscription_analytics() {
 
         // Simulate subscription journey: free -> pro -> enterprise
         let tier_change_pro = json!({
-            "new_tier": "Pro"
+            "new_tier": "pro"
         });
 
         let req = auth_helper::create_authenticated_request(
@@ -107,7 +107,7 @@ async fn test_admin_subscription_analytics() {
         if i == 0 {
             // One user upgrades to enterprise
             let tier_change_enterprise = json!({
-                "new_tier": "Enterprise"
+                "new_tier": "enterprise"
             });
 
             let req = auth_helper::create_authenticated_request(
@@ -160,7 +160,7 @@ async fn test_admin_delete_subscription_history() {
 
     // Change user's subscription to create history
     let tier_change = json!({
-        "new_tier": "Pro"
+        "new_tier": "pro"
     });
 
     let req = auth_helper::create_authenticated_request(
@@ -227,7 +227,7 @@ async fn test_admin_delete_user_subscription_history() {
     let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
 
     // Create multiple subscription changes
-    for tier in &["Pro", "Enterprise", "Pro"] {
+    for tier in &["pro", "enterprise", "pro"] {
         let tier_change = json!({
             "new_tier": tier
         });
@@ -285,7 +285,7 @@ async fn test_update_organization_subscription() {
     let create_org = json!({
         "name": "Test Organization",
         "description": "Organization for subscription test",
-        "subscription_tier": "Free"
+        "subscription_tier": "free"
     });
 
     let req = auth_helper::create_authenticated_request(
@@ -311,7 +311,7 @@ async fn test_update_organization_subscription() {
 
     // Update organization subscription
     let subscription_update = json!({
-        "subscription_tier": "Enterprise"
+        "subscription_tier": "enterprise"
     });
 
     let req = auth_helper::create_authenticated_request(
@@ -341,7 +341,7 @@ async fn test_update_organization_subscription() {
     assert!(response["success"].as_bool().unwrap());
     assert_eq!(
         response["data"]["subscription_tier"].as_str().unwrap(),
-        "Enterprise"
+        "enterprise"
     );
 }
 
@@ -356,7 +356,7 @@ async fn test_subscription_history_search_filters() {
     let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
 
     // Upgrade to pro
-    let tier_change = json!({ "new_tier": "Pro" });
+    let tier_change = json!({ "new_tier": "pro" });
     let req = auth_helper::create_authenticated_request(
         "PUT",
         &format!("/users/{}/subscription", user.id),
@@ -366,7 +366,7 @@ async fn test_subscription_history_search_filters() {
     app.clone().oneshot(req).await.unwrap();
 
     // Upgrade to enterprise
-    let tier_change = json!({ "new_tier": "Enterprise" });
+    let tier_change = json!({ "new_tier": "enterprise" });
     let req = auth_helper::create_authenticated_request(
         "PUT",
         &format!("/users/{}/subscription", user.id),
@@ -376,7 +376,7 @@ async fn test_subscription_history_search_filters() {
     app.clone().oneshot(req).await.unwrap();
 
     // Downgrade back to pro
-    let tier_change = json!({ "new_tier": "Pro" });
+    let tier_change = json!({ "new_tier": "pro" });
     let req = auth_helper::create_authenticated_request(
         "PUT",
         &format!("/users/{}/subscription", user.id),
@@ -388,7 +388,7 @@ async fn test_subscription_history_search_filters() {
     // Test tier filter (search for Enterprise tier changes)
     let req = auth_helper::create_authenticated_request(
         "GET",
-        "/admin/subscription/history/search?tier=Enterprise",
+        "/admin/subscription/history/search?tier=enterprise",
         &admin_token,
         None,
     );
@@ -404,15 +404,15 @@ async fn test_subscription_history_search_filters() {
     assert!(!histories.is_empty());
     for history in histories {
         // Check if this involves Enterprise tier
-        let is_enterprise = history["new_tier"].as_str().unwrap() == "Enterprise"
-            || history["previous_tier"].as_str().unwrap_or("") == "Enterprise";
+        let is_enterprise = history["new_tier"].as_str().unwrap() == "enterprise"
+            || history["previous_tier"].as_str().unwrap_or("") == "enterprise";
         assert!(is_enterprise);
     }
 
     // Test Pro tier filter
     let req = auth_helper::create_authenticated_request(
         "GET",
-        "/admin/subscription/history/search?tier=Pro",
+        "/admin/subscription/history/search?tier=pro",
         &admin_token,
         None,
     );
@@ -425,8 +425,8 @@ async fn test_subscription_history_search_filters() {
     // Should have histories with Pro tier
     assert!(!histories.is_empty());
     for history in histories {
-        let is_pro = history["new_tier"].as_str().unwrap() == "Pro"
-            || history["previous_tier"].as_str().unwrap_or("") == "Pro";
+        let is_pro = history["new_tier"].as_str().unwrap() == "pro"
+            || history["previous_tier"].as_str().unwrap_or("") == "pro";
         assert!(is_pro);
     }
 }

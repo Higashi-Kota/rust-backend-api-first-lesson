@@ -216,7 +216,7 @@ async fn test_bulk_user_operation_admin() {
         "user_ids": [user1.user_id, user2.user_id],
         "operation": "UpdateSubscription",
         "parameters": {
-            "new_tier": "Pro"
+            "new_tier": "pro"
         },
         "notify_users": true
     });
@@ -290,7 +290,7 @@ async fn test_bulk_user_operation_member_denied() {
         "user_ids": [member_user.user_id],
         "operation": "UpdateSubscription",
         "parameters": {
-            "new_tier": "Pro"
+            "new_tier": "pro"
         }
     });
 

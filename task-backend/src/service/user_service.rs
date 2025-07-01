@@ -328,7 +328,7 @@ impl UserService {
         let pro_users = self.user_repo.find_by_subscription_tier("Pro").await?.len() as u64;
         let enterprise_users = self
             .user_repo
-            .find_by_subscription_tier("Enterprise")
+            .find_by_subscription_tier("enterprise")
             .await?
             .len() as u64;
         let total_users = free_users + pro_users + enterprise_users;
@@ -361,7 +361,7 @@ impl UserService {
             total_users: tier_users,
             free_users: if tier == "Free" { tier_users } else { 0 },
             pro_users: if tier == "Pro" { tier_users } else { 0 },
-            enterprise_users: if tier == "Enterprise" { tier_users } else { 0 },
+            enterprise_users: if tier == "enterprise" { tier_users } else { 0 },
             conversion_rate: all_analytics.conversion_rate,
         })
     }

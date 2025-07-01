@@ -984,8 +984,8 @@ pub async fn check_user_permissions_handler(
         subscription_tier: user_profile.subscription_tier.clone(),
         can_create_teams: is_member
             && (user_profile.subscription_tier == "Pro"
-                || user_profile.subscription_tier == "Enterprise"),
-        can_access_analytics: is_admin || user_profile.subscription_tier == "Enterprise",
+                || user_profile.subscription_tier == "enterprise"),
+        can_access_analytics: is_admin || user_profile.subscription_tier == "enterprise",
     };
 
     Ok(Json(ApiResponse::success(
