@@ -1,11 +1,14 @@
 // task-backend/src/service/auth_service.rs
 use crate::api::dto::auth_dto::*;
+use crate::api::dto::user_dto::{EmailVerificationHistoryResponse, TokenStatusResponse};
 use crate::domain::email_verification_token_model::TokenValidationError as EmailTokenValidationError;
 use crate::domain::refresh_token_model::CreateRefreshToken;
 use crate::domain::role_model::RoleName;
 use crate::domain::user_model::UserClaims;
 use crate::error::{AppError, AppResult};
+use crate::repository::activity_log_repository::ActivityLogRepository;
 use crate::repository::email_verification_token_repository::EmailVerificationTokenRepository;
+use crate::repository::login_attempt_repository::LoginAttemptRepository;
 use crate::repository::password_reset_token_repository::PasswordResetTokenRepository;
 use crate::repository::refresh_token_repository::RefreshTokenRepository;
 use crate::repository::role_repository::RoleRepository;
@@ -31,6 +34,8 @@ pub struct AuthService {
     refresh_token_repo: Arc<RefreshTokenRepository>,
     password_reset_token_repo: Arc<PasswordResetTokenRepository>,
     email_verification_token_repo: Arc<EmailVerificationTokenRepository>,
+    activity_log_repo: Arc<ActivityLogRepository>,
+    login_attempt_repo: Arc<LoginAttemptRepository>,
     password_manager: Arc<PasswordManager>,
     jwt_manager: Arc<JwtManager>,
     email_service: Arc<EmailService>,
@@ -45,6 +50,8 @@ impl AuthService {
         refresh_token_repo: Arc<RefreshTokenRepository>,
         password_reset_token_repo: Arc<PasswordResetTokenRepository>,
         email_verification_token_repo: Arc<EmailVerificationTokenRepository>,
+        activity_log_repo: Arc<ActivityLogRepository>,
+        login_attempt_repo: Arc<LoginAttemptRepository>,
         password_manager: Arc<PasswordManager>,
         jwt_manager: Arc<JwtManager>,
         email_service: Arc<EmailService>,
@@ -56,6 +63,8 @@ impl AuthService {
             refresh_token_repo,
             password_reset_token_repo,
             email_verification_token_repo,
+            activity_log_repo,
+            login_attempt_repo,
             password_manager,
             jwt_manager,
             email_service,
@@ -76,11 +85,7 @@ impl AuthService {
         // パスワード強度チェック
         self.password_manager
             .validate_password_strength(&signup_data.password)
-            .map_err(|_| {
-                AppError::ValidationError(
-                    "password: Password does not meet strength requirements".to_string(),
-                )
-            })?;
+            .map_err(|e| AppError::ValidationError(format!("password: {}", e)))?;
 
         // パスワードハッシュ化
         let password_hash = self
@@ -196,24 +201,43 @@ impl AuthService {
     }
 
     /// ログイン
-    pub async fn signin(&self, signin_data: SigninRequest) -> AppResult<AuthResponse> {
+    pub async fn signin(
+        &self,
+        signin_data: SigninRequest,
+        ip_address: Option<String>,
+        user_agent: Option<String>,
+    ) -> AppResult<AuthResponse> {
         // バリデーション
         signin_data
             .validate()
             .map_err(|e| AppError::ValidationError(format!("Validation failed: {}", e)))?;
 
         // ユーザー検索（メールアドレスまたはユーザー名）
-        let user = self
+        let user = match self
             .user_repo
             .find_by_email_or_username(&signin_data.identifier)
             .await?
-            .ok_or_else(|| {
+        {
+            Some(user) => user,
+            None => {
                 warn!(
                     identifier = %signin_data.identifier,
                     "Login attempt with invalid credentials"
                 );
-                AppError::Unauthorized("Invalid credentials".to_string())
-            })?;
+
+                // 失敗したログイン試行を記録
+                let login_attempt = crate::domain::login_attempt_model::Model::failed(
+                    signin_data.identifier.clone(),
+                    None,
+                    "invalid_credentials".to_string(),
+                    ip_address.clone().unwrap_or_else(|| "unknown".to_string()),
+                    user_agent.clone(),
+                );
+                let _ = self.login_attempt_repo.create(&login_attempt).await;
+
+                return Err(AppError::Unauthorized("Invalid credentials".to_string()));
+            }
+        };
 
         // アカウント状態チェック
         if !user.can_authenticate() {
@@ -222,6 +246,17 @@ impl AuthService {
                 is_active = %user.is_active,
                 "Login attempt for inactive account"
             );
+
+            // 失敗したログイン試行を記録
+            let login_attempt = crate::domain::login_attempt_model::Model::failed(
+                signin_data.identifier.clone(),
+                Some(user.id),
+                "account_inactive".to_string(),
+                ip_address.clone().unwrap_or_else(|| "unknown".to_string()),
+                user_agent.clone(),
+            );
+            let _ = self.login_attempt_repo.create(&login_attempt).await;
+
             return Err(AppError::Unauthorized("Account is inactive".to_string()));
         }
 
@@ -244,6 +279,17 @@ impl AuthService {
                 identifier = %signin_data.identifier,
                 "Login attempt with incorrect password"
             );
+
+            // 失敗したログイン試行を記録
+            let login_attempt = crate::domain::login_attempt_model::Model::failed(
+                signin_data.identifier.clone(),
+                Some(user.id),
+                "invalid_password".to_string(),
+                ip_address.clone().unwrap_or_else(|| "unknown".to_string()),
+                user_agent.clone(),
+            );
+            let _ = self.login_attempt_repo.create(&login_attempt).await;
+
             return Err(AppError::Unauthorized("Invalid credentials".to_string()));
         }
 
@@ -275,6 +321,23 @@ impl AuthService {
             email = %user_with_role.email,
             "User signed in successfully"
         );
+
+        // 成功したログイン試行を記録
+        let login_attempt = crate::domain::login_attempt_model::Model::successful(
+            signin_data.identifier.clone(),
+            user.id,
+            ip_address.clone().unwrap_or_else(|| "unknown".to_string()),
+            user_agent.clone(),
+        );
+        let _ = self.login_attempt_repo.create(&login_attempt).await;
+
+        // アクティビティログを記録
+        let activity_log = crate::domain::activity_log_model::Model::login(
+            user.id,
+            ip_address.clone(),
+            user_agent.clone(),
+        );
+        let _ = self.activity_log_repo.create(&activity_log).await;
 
         // JWT トークン生成
         let user_claims = user_with_role.to_simple_claims();
@@ -485,6 +548,41 @@ impl AuthService {
             });
         }
 
+        // 再送信制限チェック（5分以内に3回以上のリクエストは拒否）
+        let recent_requests = self
+            .password_reset_token_repo
+            .count_recent_requests_by_user(user.id, 5)
+            .await?;
+
+        if recent_requests >= 3 {
+            warn!(
+                user_id = %user.id,
+                recent_requests = %recent_requests,
+                "Too many password reset requests"
+            );
+
+            // アクティビティログに記録
+            let activity_log = crate::domain::activity_log_model::Model {
+                id: Uuid::new_v4(),
+                user_id: user.id,
+                action: "password_reset_rate_limit".to_string(),
+                resource_type: "auth".to_string(),
+                resource_id: None,
+                ip_address: None,
+                user_agent: None,
+                details: Some(serde_json::json!({
+                    "reason": "Too many password reset requests"
+                })),
+                created_at: Utc::now(),
+            };
+            let _ = self.activity_log_repo.create(&activity_log).await;
+
+            return Ok(PasswordResetRequestResponse {
+                message: "If the email address exists, a password reset link has been sent"
+                    .to_string(),
+            });
+        }
+
         // パスワードリセットトークンを生成
         let token_hash = self.generate_token_hash();
         let expires_at = Utc::now() + Duration::hours(1); // 1時間有効
@@ -499,6 +597,23 @@ impl AuthService {
             result = %result,
             "Password reset token created"
         );
+
+        // アクティビティログに記録
+        let activity_log = crate::domain::activity_log_model::Model {
+            id: Uuid::new_v4(),
+            user_id: user.id,
+            action: "password_reset_requested".to_string(),
+            resource_type: "auth".to_string(),
+            resource_id: None,
+            ip_address: None,
+            user_agent: None,
+            details: Some(serde_json::json!({
+                "email": email,
+                "message": "Password reset requested"
+            })),
+            created_at: Utc::now(),
+        };
+        let _ = self.activity_log_repo.create(&activity_log).await;
 
         // パスワードリセットメールを送信
         let reset_url = std::env::var("FRONTEND_URL")
@@ -593,6 +708,22 @@ impl AuthService {
             revoked_tokens = %revoked_count,
             "Password reset completed successfully"
         );
+
+        // アクティビティログに記録
+        let activity_log = crate::domain::activity_log_model::Model {
+            id: Uuid::new_v4(),
+            user_id: user.id,
+            action: "password_reset_completed".to_string(),
+            resource_type: "auth".to_string(),
+            resource_id: None,
+            ip_address: None,
+            user_agent: None,
+            details: Some(serde_json::json!({
+                "message": "Password successfully reset using token"
+            })),
+            created_at: Utc::now(),
+        };
+        let _ = self.activity_log_repo.create(&activity_log).await;
 
         // パスワードリセット完了のセキュリティ通知メールを送信
         {
@@ -927,10 +1058,26 @@ impl AuthService {
 
     /// メール認証を実行
     pub async fn verify_email(&self, token: &str) -> AppResult<EmailVerificationResponse> {
+        // まず有効なトークンが存在するか確認（find_valid_by_token_hashを活用）
+        let token_hash = self.hash_token(token);
+        let valid_token = self
+            .email_verification_token_repo
+            .find_valid_by_token_hash(&token_hash)
+            .await?;
+
+        if valid_token.is_none() {
+            warn!("Email verification attempt with invalid token");
+            return Err(AppError::ValidationError(
+                "Invalid or expired verification token".to_string(),
+            ));
+        }
+
         // トークンの検証と実行
+        // execute_email_verificationはtoken_hashを期待するため、ここでハッシュ化
+        let token_hash_for_execution = self.hash_token(token);
         let verification_result = self
             .email_verification_token_repo
-            .execute_email_verification(token)
+            .execute_email_verification(&token_hash_for_execution)
             .await?;
 
         let verification_result = match verification_result {
@@ -1032,5 +1179,125 @@ impl AuthService {
         Ok(ResendVerificationEmailResponse {
             message: "Verification email has been sent".to_string(),
         })
+    }
+
+    /// メール認証履歴を取得
+    pub async fn get_email_verification_history(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<EmailVerificationHistoryResponse> {
+        use crate::api::dto::user_dto::{
+            EmailVerificationHistoryItem, EmailVerificationHistoryResponse,
+        };
+
+        // ユーザーの全ての使用済みメール認証トークンを取得
+        let used_tokens = self
+            .email_verification_token_repo
+            .find_used_by_user_id(user_id)
+            .await?;
+
+        // 履歴アイテムに変換
+        let mut verification_history: Vec<EmailVerificationHistoryItem> = used_tokens
+            .into_iter()
+            .map(|result| {
+                // used_atフィールドを活用
+                let days_since = Utc::now().signed_duration_since(result.used_at).num_days();
+                EmailVerificationHistoryItem {
+                    token_id: result.token_id,
+                    verified_at: result.used_at,
+                    days_since_verification: days_since,
+                    verification_status: if result.is_verified {
+                        "Verified".to_string()
+                    } else {
+                        "Used".to_string()
+                    },
+                }
+            })
+            .collect();
+
+        // 日付でソート（新しい順）
+        verification_history.sort_by(|a, b| b.verified_at.cmp(&a.verified_at));
+
+        let total_verifications = verification_history.len() as u32;
+        let last_verification = verification_history.first().map(|item| item.verified_at);
+
+        Ok(EmailVerificationHistoryResponse {
+            user_id,
+            verification_history,
+            total_verifications,
+            last_verification,
+        })
+    }
+
+    /// 保留中のメール認証を確認（find_latest_by_user_idを活用）
+    pub async fn check_pending_email_verification(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<crate::api::dto::user_dto::PendingEmailVerificationResponse> {
+        use crate::api::dto::user_dto::PendingEmailVerificationResponse;
+
+        // 最新のトークンを取得
+        let latest_token = self
+            .email_verification_token_repo
+            .find_latest_by_user_id(user_id)
+            .await?;
+
+        // ユーザーの全トークンを取得して履歴を確認
+        let all_tokens = self
+            .email_verification_token_repo
+            .find_by_user_id(user_id)
+            .await?;
+
+        let attempts_count = all_tokens.len() as u32;
+
+        let (has_pending, sent_at, expires_at) = if let Some(token) = latest_token {
+            // 未使用かつ期限内であれば保留中
+            let has_pending = !token.is_used && token.expires_at > Utc::now();
+            (has_pending, Some(token.created_at), Some(token.expires_at))
+        } else {
+            (false, None, None)
+        };
+
+        Ok(PendingEmailVerificationResponse {
+            user_id,
+            has_pending_verification: has_pending,
+            latest_token_sent_at: sent_at,
+            token_expires_at: expires_at,
+            attempts_count,
+        })
+    }
+
+    /// トークンの状態を確認（find_by_token_hashを活用）
+    pub async fn check_token_status(&self, token: &str) -> AppResult<TokenStatusResponse> {
+        let token_hash = self.hash_token(token);
+        let token_info = self
+            .email_verification_token_repo
+            .find_by_token_hash(&token_hash)
+            .await?;
+
+        if let Some(token) = token_info {
+            let is_valid = !token.is_used && token.expires_at > Utc::now();
+            let is_expired = token.expires_at <= Utc::now();
+
+            Ok(TokenStatusResponse {
+                exists: true,
+                is_valid,
+                is_used: token.is_used,
+                is_expired,
+                created_at: Some(token.created_at),
+                expires_at: Some(token.expires_at),
+                used_at: token.used_at,
+            })
+        } else {
+            Ok(TokenStatusResponse {
+                exists: false,
+                is_valid: false,
+                is_used: false,
+                is_expired: false,
+                created_at: None,
+                expires_at: None,
+                used_at: None,
+            })
+        }
     }
 }

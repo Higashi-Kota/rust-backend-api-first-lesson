@@ -2,20 +2,19 @@
 
 use crate::api::dto::organization_dto::*;
 use crate::domain::organization_model::{Organization, OrganizationMember, OrganizationRole};
+use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
 use uuid::Uuid;
 
-#[allow(dead_code)]
 pub struct OrganizationService {
     organization_repository: OrganizationRepository,
     team_repository: TeamRepository,
     user_repository: UserRepository,
 }
 
-#[allow(dead_code)]
 impl OrganizationService {
     pub fn new(
         organization_repository: OrganizationRepository,
@@ -152,6 +151,115 @@ impl OrganizationService {
         Ok(organization_responses)
     }
 
+    /// 組織一覧をページネーション付きで取得（管理者用）
+    pub async fn get_all_organizations_paginated(
+        &self,
+        query: OrganizationSearchQuery,
+    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
+        let page = query.page.unwrap_or(1) as i32;
+        let page_size = query.page_size.unwrap_or(20) as i32;
+        let page_size = std::cmp::min(page_size, 100); // 最大10件に制限
+
+        // 管理者用: 全組織を取得
+        let all_organizations = self
+            .organization_repository
+            .find_all_organizations()
+            .await?;
+
+        // サブスクリプション階層でフィルタリング
+        let filtered_organizations = if let Some(tier) = query.subscription_tier {
+            all_organizations
+                .into_iter()
+                .filter(|org| org.subscription_tier == tier)
+                .collect()
+        } else {
+            all_organizations
+        };
+
+        let total_count = filtered_organizations.len();
+        let offset = ((page - 1) * page_size) as usize;
+        let limit = page_size as usize;
+
+        // ページネーション適用
+        let organizations = filtered_organizations
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .collect::<Vec<_>>();
+
+        let mut organization_responses = Vec::new();
+        for organization in organizations {
+            let member_count = self
+                .organization_repository
+                .count_members(organization.id)
+                .await? as u32;
+            let team_count = self
+                .team_repository
+                .count_teams_by_organization(organization.id)
+                .await? as u32;
+
+            let mut org_response = OrganizationListResponse::from(organization);
+            org_response.current_member_count = member_count;
+            org_response.current_team_count = team_count;
+            organization_responses.push(org_response);
+        }
+
+        Ok((organization_responses, total_count))
+    }
+
+    /// 組織一覧をページネーション付きで取得
+    pub async fn get_organizations_paginated(
+        &self,
+        query: OrganizationSearchQuery,
+        user_id: Uuid,
+    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
+        let page = query.page.unwrap_or(1) as i32;
+        let page_size = query.page_size.unwrap_or(20) as i32;
+        let page_size = std::cmp::min(page_size, 100); // 最大100件に制限
+
+        // 現在の実装では、全件取得してからページネーションしているが、
+        // リポジトリ層が実装されたらデータベースレベルでページネーションを適用する
+        let all_organizations = if let Some(owner_id) = query.owner_id {
+            self.organization_repository
+                .find_by_owner_id(owner_id)
+                .await?
+        } else {
+            self.organization_repository
+                .find_organizations_by_member(user_id)
+                .await?
+        };
+
+        let total_count = all_organizations.len();
+        let offset = ((page - 1) * page_size) as usize;
+        let limit = page_size as usize;
+
+        // ページネーション適用
+        let organizations = all_organizations
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .collect::<Vec<_>>();
+
+        let mut organization_responses = Vec::new();
+        for organization in organizations {
+            let member_count = self
+                .organization_repository
+                .count_members(organization.id)
+                .await? as u32;
+            let team_count = self
+                .team_repository
+                .count_teams_by_organization(organization.id)
+                .await? as u32;
+
+            let mut org_response = OrganizationListResponse::from(organization);
+            org_response.current_member_count = member_count;
+            org_response.current_team_count = team_count;
+            organization_responses.push(org_response);
+        }
+
+        Ok((organization_responses, total_count))
+    }
+
     /// 組織を更新
     pub async fn update_organization(
         &self,
@@ -220,9 +328,18 @@ impl OrganizationService {
             .await?
             .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
 
-        // 管理権限チェック
-        self.check_organization_management_permission(&organization, user_id)
-            .await?;
+        // 設定変更権限チェック
+        let member = self
+            .organization_repository
+            .find_member_by_user_and_organization(user_id, organization_id)
+            .await?
+            .ok_or_else(|| AppError::Forbidden("Not an organization member".to_string()))?;
+
+        if !member.role.can_change_settings() {
+            return Err(AppError::Forbidden(
+                "Insufficient permissions to change organization settings".to_string(),
+            ));
+        }
 
         // 設定を更新
         let mut settings = organization.settings.clone();
@@ -240,6 +357,51 @@ impl OrganizationService {
         }
 
         organization.update_settings(settings);
+        let updated_organization = self
+            .organization_repository
+            .update_organization(&organization)
+            .await?;
+
+        let members = self
+            .organization_repository
+            .find_members_by_organization_id(organization_id)
+            .await?;
+        let member_responses = self.build_organization_member_responses(&members).await?;
+        let team_count = self
+            .team_repository
+            .count_teams_by_organization(organization_id)
+            .await? as u32;
+
+        Ok(OrganizationResponse::from((
+            updated_organization,
+            member_responses,
+            team_count,
+        )))
+    }
+
+    /// 組織のサブスクリプション階層を更新
+    pub async fn update_organization_subscription(
+        &self,
+        organization_id: Uuid,
+        new_tier: SubscriptionTier,
+        user_id: Uuid,
+    ) -> AppResult<OrganizationResponse> {
+        let mut organization = self
+            .organization_repository
+            .find_by_id(organization_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+
+        // 管理権限チェック
+        if organization.owner_id != user_id {
+            return Err(AppError::Forbidden(
+                "Only organization owner can update subscription".to_string(),
+            ));
+        }
+
+        // サブスクリプション階層を更新
+        organization.update_subscription_tier(new_tier);
+
         let updated_organization = self
             .organization_repository
             .update_organization(&organization)
@@ -532,6 +694,11 @@ impl OrganizationService {
         })
     }
 
+    /// 全組織数を取得
+    pub async fn count_all_organizations(&self) -> AppResult<u64> {
+        self.organization_repository.count_all_organizations().await
+    }
+
     // ヘルパーメソッド
 
     async fn check_organization_access(
@@ -621,6 +788,119 @@ impl OrganizationService {
             responses.push(self.build_organization_member_response(member).await?);
         }
         Ok(responses)
+    }
+
+    /// 組織メンバーの詳細情報を取得（権限情報付き）
+    pub async fn get_organization_member_detail(
+        &self,
+        organization_id: Uuid,
+        member_id: Uuid,
+        user_id: Uuid,
+    ) -> AppResult<OrganizationMemberDetailResponse> {
+        // 組織の存在確認と権限チェック
+        let organization = self
+            .organization_repository
+            .find_by_id(organization_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+
+        // 組織メンバーかどうかをチェック
+        self.check_organization_access(&organization, user_id)
+            .await?;
+
+        // 対象メンバーの取得
+        let member = self
+            .organization_repository
+            .find_member_by_id(member_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Organization member not found".to_string()))?;
+
+        // メンバーがこの組織に所属しているか確認
+        if member.organization_id != organization_id {
+            return Err(AppError::NotFound(
+                "Organization member not found".to_string(),
+            ));
+        }
+
+        // ユーザー情報の取得
+        let user = self
+            .user_repository
+            .find_by_id(member.user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+        // 権限情報の生成
+        let is_owner = member.is_owner();
+        let is_admin = member.is_admin();
+        let can_manage = member.can_manage();
+        let can_create_teams = member.role.can_create_teams();
+        let can_invite_members = member.role.can_invite_members();
+        let can_change_settings = member.role.can_change_settings();
+
+        Ok(OrganizationMemberDetailResponse {
+            id: member.id,
+            user_id: member.user_id,
+            username: user.username,
+            email: user.email,
+            role: member.role,
+            is_owner,
+            is_admin,
+            can_manage,
+            can_create_teams,
+            can_invite_members,
+            can_change_settings,
+            joined_at: member.joined_at,
+            invited_by: member.invited_by,
+        })
+    }
+
+    /// 組織容量チェック
+    pub async fn check_organization_capacity(
+        &self,
+        organization_id: Uuid,
+        user_id: Uuid,
+    ) -> AppResult<OrganizationCapacityResponse> {
+        let organization = self
+            .organization_repository
+            .find_by_id(organization_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+
+        // アクセス権限チェック
+        self.check_organization_access(&organization, user_id)
+            .await?;
+
+        let current_team_count = self
+            .team_repository
+            .count_teams_by_organization(organization_id)
+            .await? as u32;
+
+        let current_member_count = self
+            .organization_repository
+            .count_members(organization_id)
+            .await? as u32;
+
+        let can_add_teams = organization.can_add_team(current_team_count);
+        let can_add_members = organization.can_add_member(current_member_count);
+
+        let utilization_percentage = {
+            let team_utilization = current_team_count as f64 / organization.max_teams as f64;
+            let member_utilization = current_member_count as f64 / organization.max_members as f64;
+            ((team_utilization + member_utilization) / 2.0 * 100.0).round()
+        };
+
+        Ok(OrganizationCapacityResponse {
+            organization_id: organization.id,
+            organization_name: organization.name,
+            subscription_tier: organization.subscription_tier,
+            max_teams: organization.max_teams,
+            current_team_count,
+            can_add_teams,
+            max_members: organization.max_members,
+            current_member_count,
+            can_add_members,
+            utilization_percentage,
+        })
     }
 }
 

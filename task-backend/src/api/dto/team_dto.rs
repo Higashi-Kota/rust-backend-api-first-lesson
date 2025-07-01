@@ -8,7 +8,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// チーム作成リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct CreateTeamRequest {
     #[validate(length(min = 1, max = 100, message = "Team name must be 1-100 characters"))]
     pub name: String,
@@ -46,28 +46,13 @@ pub struct UpdateTeamMemberRoleRequest {
     pub role: TeamRole,
 }
 
-/// チーム検索クエリ
-#[derive(Debug, Serialize, Deserialize)]
+/// チーム検索クエリ（ページネーション情報を除く）
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TeamSearchQuery {
     pub name: Option<String>,
     pub organization_id: Option<Uuid>,
     pub owner_id: Option<Uuid>,
     pub subscription_tier: Option<SubscriptionTier>,
-    pub page: Option<u32>,
-    pub page_size: Option<u32>,
-}
-
-impl Default for TeamSearchQuery {
-    fn default() -> Self {
-        Self {
-            name: None,
-            organization_id: None,
-            owner_id: None,
-            subscription_tier: None,
-            page: Some(1),
-            page_size: Some(20),
-        }
-    }
 }
 
 /// チーム詳細レスポンス
@@ -98,8 +83,24 @@ pub struct TeamMemberResponse {
     pub invited_by: Option<Uuid>,
 }
 
+/// チームメンバー詳細レスポンス（権限情報付き）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamMemberDetailResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub role: TeamRole,
+    pub is_owner: bool,
+    pub is_admin: bool,
+    pub can_invite: bool,
+    pub can_remove_members: bool,
+    pub joined_at: DateTime<Utc>,
+    pub invited_by: Option<Uuid>,
+}
+
 /// チーム一覧レスポンス
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TeamListResponse {
     pub id: Uuid,
     pub name: String,
@@ -190,6 +191,47 @@ impl From<(Team, Vec<TeamMemberResponse>)> for TeamResponse {
     }
 }
 
+/// チーム一覧ページング取得クエリ
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeamPaginationQuery {
+    pub page: Option<u64>,
+    pub page_size: Option<u64>,
+    pub organization_id: Option<Uuid>,
+}
+
+impl Default for TeamPaginationQuery {
+    fn default() -> Self {
+        Self {
+            page: Some(1),
+            page_size: Some(20),
+            organization_id: None,
+        }
+    }
+}
+
+/// チーム一覧ページング取得レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TeamPaginationResponse {
+    pub teams: Vec<TeamListResponse>,
+    pub total_count: u64,
+    pub page: u64,
+    pub page_size: u64,
+    pub total_pages: u64,
+}
+
+impl TeamPaginationResponse {
+    pub fn new(teams: Vec<TeamListResponse>, total_count: u64, page: u64, page_size: u64) -> Self {
+        let total_pages = total_count.div_ceil(page_size);
+        Self {
+            teams,
+            total_count,
+            page,
+            page_size,
+            total_pages,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -260,8 +302,6 @@ mod tests {
     #[test]
     fn test_team_search_query_defaults() {
         let query = TeamSearchQuery::default();
-        assert_eq!(query.page, Some(1));
-        assert_eq!(query.page_size, Some(20));
         assert!(query.name.is_none());
         assert!(query.organization_id.is_none());
         assert!(query.owner_id.is_none());
@@ -335,5 +375,60 @@ mod tests {
         assert_eq!(stats.teams_by_tier.len(), 3);
         assert_eq!(stats.total_members, 190);
         assert_eq!(stats.average_members_per_team, 19.0);
+    }
+
+    #[test]
+    fn test_team_pagination_query_defaults() {
+        let query = TeamPaginationQuery::default();
+        assert_eq!(query.page, Some(1));
+        assert_eq!(query.page_size, Some(20));
+        assert!(query.organization_id.is_none());
+    }
+
+    #[test]
+    fn test_team_pagination_response_creation() {
+        let teams = vec![
+            TeamListResponse {
+                id: Uuid::new_v4(),
+                name: "Team 1".to_string(),
+                description: Some("Description 1".to_string()),
+                organization_id: None,
+                owner_id: Uuid::new_v4(),
+                subscription_tier: SubscriptionTier::Free,
+                max_members: 3,
+                current_member_count: 2,
+                created_at: Utc::now(),
+            },
+            TeamListResponse {
+                id: Uuid::new_v4(),
+                name: "Team 2".to_string(),
+                description: Some("Description 2".to_string()),
+                organization_id: None,
+                owner_id: Uuid::new_v4(),
+                subscription_tier: SubscriptionTier::Pro,
+                max_members: 50,
+                current_member_count: 25,
+                created_at: Utc::now(),
+            },
+        ];
+
+        let response = TeamPaginationResponse::new(teams.clone(), 2, 1, 20);
+
+        assert_eq!(response.teams.len(), 2);
+        assert_eq!(response.total_count, 2);
+        assert_eq!(response.page, 1);
+        assert_eq!(response.page_size, 20);
+        assert_eq!(response.total_pages, 1);
+    }
+
+    #[test]
+    fn test_team_pagination_response_multiple_pages() {
+        let teams = vec![];
+        let response = TeamPaginationResponse::new(teams, 45, 2, 20);
+
+        assert_eq!(response.total_count, 45);
+        assert_eq!(response.page, 2);
+        assert_eq!(response.page_size, 20);
+        assert_eq!(response.total_pages, 3); // 45 / 20 = 2.25 -> 3 pages
     }
 }

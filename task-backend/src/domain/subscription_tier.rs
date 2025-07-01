@@ -5,6 +5,7 @@ use std::str::FromStr;
 
 /// サブスクリプション階層
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum SubscriptionTier {
     Free,
     Pro,
@@ -33,7 +34,6 @@ impl SubscriptionTier {
     }
 
     /// 階層レベルを数値で取得
-    #[allow(dead_code)]
     pub fn level(&self) -> u8 {
         match self {
             Self::Free => 1,
@@ -43,12 +43,10 @@ impl SubscriptionTier {
     }
 
     /// 指定した階層以上かチェック
-    #[allow(dead_code)]
     pub fn is_at_least(&self, other: &Self) -> bool {
         self.level() >= other.level()
     }
     /// 全ての有効な階層を取得
-    #[allow(dead_code)]
     pub fn all() -> Vec<Self> {
         vec![Self::Free, Self::Pro, Self::Enterprise]
     }

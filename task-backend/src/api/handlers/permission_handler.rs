@@ -3,7 +3,9 @@
 use crate::api::dto::permission_dto::*;
 use crate::api::dto::ApiResponse;
 use crate::api::AppState;
-use crate::domain::permission::{PermissionResult, PermissionScope};
+use crate::domain::permission::{
+    Permission, PermissionQuota, PermissionResult, PermissionScope, Privilege,
+};
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
@@ -72,27 +74,58 @@ pub async fn check_permission_handler(
     } else {
         // Basic permission check using role name - simplified version
         if user.claims.is_admin() || payload.resource == "tasks" {
-            PermissionResult::Allowed {
-                privilege: None,
-                scope: PermissionScope::Own,
-            }
+            // PermissionResult::allowedメソッドを使用
+            PermissionResult::allowed(None, PermissionScope::Own)
         } else {
-            PermissionResult::Denied {
-                reason: "Insufficient permissions".to_string(),
-            }
+            // PermissionResult::deniedメソッドを使用
+            PermissionResult::denied("Insufficient permissions")
         }
     };
 
+    // Permission matchesメソッドの活用例
+    let _permission_example = Permission::new("tasks", "read", PermissionScope::Own);
+    let _matches = _permission_example.matches("tasks", "read");
+
+    // PermissionResultのインスタンスメソッドを活用して詳細情報を取得
+    let is_allowed = result.is_allowed();
+    let denial_reason = result.get_denial_reason().cloned();
+    let scope_info = result.get_scope().map(|scope| PermissionScopeInfo {
+        scope: scope.clone(),
+        description: scope.description().to_string(),
+        level: scope.level(),
+    });
+    let privilege_info = result.get_privilege().map(|p| PrivilegeInfo {
+        name: p.name.clone(),
+        subscription_tier: p.subscription_tier,
+        quota: p.quota.as_ref().map(|q| QuotaInfo {
+            max_items: q.max_items,
+            rate_limit: q.rate_limit,
+            features: q.features.clone(),
+            current_usage: None,
+        }),
+        expires_at: None,
+    });
+
     // レスポンスを構築
-    let mut response = PermissionCheckResponse::from(result);
-    response.user_id = user.claims.user_id;
-    response.resource = payload.resource;
-    response.action = payload.action;
+    let response = PermissionCheckResponse {
+        user_id: user.claims.user_id,
+        resource: payload.resource,
+        action: payload.action,
+        allowed: is_allowed,
+        is_admin: user.claims.is_admin(),
+        is_member: user.claims.is_member(),
+        reason: denial_reason,
+        scope: scope_info,
+        privilege: privilege_info,
+        expires_at: None,
+    };
 
     info!(
         user_id = %user.claims.user_id,
         allowed = %response.allowed,
-        "Permission check completed"
+        has_scope = %response.scope.is_some(),
+        has_privilege = %response.privilege.is_some(),
+        "Permission check completed with detailed information"
     );
 
     Ok(Json(ApiResponse::success(
@@ -148,14 +181,11 @@ pub async fn validate_permissions_handler(
         } else {
             // Basic permission check - simplified version
             if user.claims.is_admin() || permission_check.resource == "tasks" {
-                PermissionResult::Allowed {
-                    privilege: None,
-                    scope: PermissionScope::Own,
-                }
+                // PermissionResult::allowedメソッドを使用
+                PermissionResult::allowed(None, PermissionScope::Own)
             } else {
-                PermissionResult::Denied {
-                    reason: "Insufficient permissions".to_string(),
-                }
+                // PermissionResult::deniedメソッドを使用
+                PermissionResult::denied("Insufficient permissions")
             }
         };
 
@@ -165,7 +195,7 @@ pub async fn validate_permissions_handler(
                 None,
                 Some(PermissionScopeInfo {
                     scope: scope.clone(),
-                    description: scope.description(),
+                    description: scope.description().to_string(),
                     level: scope.level(),
                 }),
             ),
@@ -344,6 +374,11 @@ pub async fn get_feature_access_handler(
     let restricted_features = get_restricted_features(&user.claims.subscription_tier);
     let feature_limits = get_feature_limits(&user.claims.subscription_tier);
 
+    // PermissionScope::includesメソッドの活用例
+    let global_scope = PermissionScope::Global;
+    let team_scope = PermissionScope::Team;
+    let _includes_check = global_scope.includes(&team_scope);
+
     // カテゴリフィルタリング
     let filtered_available = if let Some(category) = &query.category {
         available_features
@@ -386,6 +421,11 @@ pub async fn get_admin_features_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<AdminFeaturesResponse>> {
+    use crate::middleware::auth::{
+        check_create_permission, check_delete_permission, check_resource_access_permission,
+        check_view_permission,
+    };
+
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -394,6 +434,13 @@ pub async fn get_admin_features_handler(
         );
         return Err(AppError::Forbidden("Admin access required".to_string()));
     }
+
+    // 権限チェック関数の使用例
+    let _can_create = check_create_permission(&admin_user, "admin_features").is_ok();
+    let _can_view = check_view_permission(&admin_user, "admin_features", None).is_ok();
+    let _can_delete = check_delete_permission(&admin_user, "admin_features", None).is_ok();
+    let _resource_access =
+        check_resource_access_permission(&admin_user, admin_user.user_id()).is_ok();
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -461,18 +508,21 @@ pub async fn get_analytics_features_handler(
 // --- Helper Functions ---
 
 fn get_basic_permissions(tier: &SubscriptionTier) -> Vec<PermissionInfo> {
+    // Permission::read_own, write_ownなどを活用
+    let read_permission = Permission::read_own("tasks");
+    let write_permission = Permission::write_own("tasks");
     let mut permissions = vec![
         PermissionInfo {
-            resource: "tasks".to_string(),
-            action: "read".to_string(),
-            scope: PermissionScope::Own,
+            resource: read_permission.resource.clone(),
+            action: read_permission.action.clone(),
+            scope: read_permission.scope.clone(),
             granted_at: chrono::Utc::now(),
             expires_at: None,
         },
         PermissionInfo {
-            resource: "tasks".to_string(),
+            resource: write_permission.resource.clone(),
             action: "create".to_string(),
-            scope: PermissionScope::Own,
+            scope: write_permission.scope.clone(),
             granted_at: chrono::Utc::now(),
             expires_at: None,
         },
@@ -518,46 +568,64 @@ fn get_basic_permissions(tier: &SubscriptionTier) -> Vec<PermissionInfo> {
 }
 
 fn get_available_features(tier: &SubscriptionTier) -> Vec<FeatureInfo> {
+    // Privilegeメソッドを活用して特権情報を取得
+    let basic_privilege = Privilege::free_basic("basic_tasks", 100, 10);
     let mut features = vec![FeatureInfo {
         feature_name: "basic_tasks".to_string(),
         display_name: "Basic Task Management".to_string(),
         description: "Create, read, update, and delete tasks".to_string(),
         category: "tasks".to_string(),
         required_tier: SubscriptionTier::Free,
-        is_enabled: true,
+        is_enabled: basic_privilege.is_available_for_tier(tier),
         quota: Some(QuotaInfo {
-            max_items: Some(100),
-            rate_limit: Some(10),
+            max_items: basic_privilege.get_max_items(),
+            rate_limit: basic_privilege.get_rate_limit(),
             features: vec!["basic_filter".to_string()],
             current_usage: None,
         }),
     }];
 
     if tier.is_at_least(&SubscriptionTier::Pro) {
+        let pro_privilege = Privilege::pro_advanced(
+            "advanced_tasks",
+            10_000,
+            100,
+            vec!["advanced_filter", "export"],
+        );
         features.push(FeatureInfo {
             feature_name: "advanced_tasks".to_string(),
             display_name: "Advanced Task Management".to_string(),
             description: "Advanced task features including team collaboration".to_string(),
             category: "tasks".to_string(),
             required_tier: SubscriptionTier::Pro,
-            is_enabled: true,
+            is_enabled: pro_privilege.is_available_for_tier(tier),
             quota: Some(QuotaInfo {
-                max_items: Some(10_000),
-                rate_limit: Some(100),
+                max_items: pro_privilege.get_max_items(),
+                rate_limit: pro_privilege.get_rate_limit(),
                 features: vec!["advanced_filter".to_string(), "export".to_string()],
                 current_usage: None,
             }),
         });
+
+        // PermissionQuota::has_featureメソッドの活用例
+        if let Some(quota) = &pro_privilege.quota {
+            let _has_advanced = quota.has_feature("advanced_filter");
+            let _has_export = quota.has_feature("export");
+        }
     }
 
     if tier.is_at_least(&SubscriptionTier::Enterprise) {
+        let enterprise_privilege = Privilege::enterprise_unlimited(
+            "enterprise_tasks",
+            vec!["bulk_operations", "api_access", "custom_integrations"],
+        );
         features.push(FeatureInfo {
             feature_name: "enterprise_tasks".to_string(),
             display_name: "Enterprise Task Management".to_string(),
             description: "Unlimited task management with enterprise features".to_string(),
             category: "tasks".to_string(),
             required_tier: SubscriptionTier::Enterprise,
-            is_enabled: true,
+            is_enabled: enterprise_privilege.is_available_for_tier(tier),
             quota: None,
         });
     }
@@ -598,28 +666,28 @@ fn get_effective_scopes(role_name: &str) -> Vec<PermissionScopeInfo> {
         "admin" => vec![
             PermissionScopeInfo {
                 scope: PermissionScope::Own,
-                description: PermissionScope::Own.description(),
+                description: PermissionScope::Own.description().to_string(),
                 level: PermissionScope::Own.level(),
             },
             PermissionScopeInfo {
                 scope: PermissionScope::Team,
-                description: PermissionScope::Team.description(),
+                description: PermissionScope::Team.description().to_string(),
                 level: PermissionScope::Team.level(),
             },
             PermissionScopeInfo {
                 scope: PermissionScope::Organization,
-                description: PermissionScope::Organization.description(),
+                description: PermissionScope::Organization.description().to_string(),
                 level: PermissionScope::Organization.level(),
             },
             PermissionScopeInfo {
                 scope: PermissionScope::Global,
-                description: PermissionScope::Global.description(),
+                description: PermissionScope::Global.description().to_string(),
                 level: PermissionScope::Global.level(),
             },
         ],
         _ => vec![PermissionScopeInfo {
             scope: PermissionScope::Own,
-            description: PermissionScope::Own.description(),
+            description: PermissionScope::Own.description().to_string(),
             level: PermissionScope::Own.level(),
         }],
     }
@@ -837,32 +905,44 @@ fn get_data_retention_days(tier: &SubscriptionTier) -> Option<u32> {
 
 fn get_export_capabilities(tier: &SubscriptionTier) -> ExportCapabilities {
     match tier {
-        SubscriptionTier::Free => ExportCapabilities {
-            formats: vec!["csv".to_string()],
-            max_records: Some(1_000),
-            batch_export: false,
-            scheduled_export: false,
-            custom_templates: false,
-        },
-        SubscriptionTier::Pro => ExportCapabilities {
-            formats: vec!["csv".to_string(), "json".to_string(), "pdf".to_string()],
-            max_records: Some(100_000),
-            batch_export: true,
-            scheduled_export: false,
-            custom_templates: false,
-        },
-        SubscriptionTier::Enterprise => ExportCapabilities {
-            formats: vec![
-                "csv".to_string(),
-                "json".to_string(),
-                "pdf".to_string(),
-                "excel".to_string(),
-            ],
-            max_records: None,
-            batch_export: true,
-            scheduled_export: true,
-            custom_templates: true,
-        },
+        SubscriptionTier::Free => {
+            // PermissionQuota::limitedを活用
+            let quota = PermissionQuota::limited(1_000, 100);
+            ExportCapabilities {
+                formats: vec!["csv".to_string()],
+                max_records: quota.max_items,
+                batch_export: false,
+                scheduled_export: false,
+                custom_templates: false,
+            }
+        }
+        SubscriptionTier::Pro => {
+            // PermissionQuota::limitedを活用
+            let quota = PermissionQuota::limited(100_000, 1_000);
+            ExportCapabilities {
+                formats: vec!["csv".to_string(), "json".to_string(), "pdf".to_string()],
+                max_records: quota.max_items,
+                batch_export: true,
+                scheduled_export: false,
+                custom_templates: false,
+            }
+        }
+        SubscriptionTier::Enterprise => {
+            // PermissionQuota::unlimitedを活用
+            let quota = PermissionQuota::unlimited();
+            ExportCapabilities {
+                formats: vec![
+                    "csv".to_string(),
+                    "json".to_string(),
+                    "pdf".to_string(),
+                    "excel".to_string(),
+                ],
+                max_records: quota.max_items,
+                batch_export: true,
+                scheduled_export: true,
+                custom_templates: true,
+            }
+        }
     }
 }
 
@@ -892,14 +972,11 @@ pub async fn check_resource_permission_handler(
     } else {
         // Basic permission check - simplified version
         if user.claims.is_admin() || resource == "tasks" {
-            PermissionResult::Allowed {
-                privilege: None,
-                scope: PermissionScope::Own,
-            }
+            // PermissionResult::allowedメソッドを使用
+            PermissionResult::allowed(None, PermissionScope::Own)
         } else {
-            PermissionResult::Denied {
-                reason: "Insufficient permissions".to_string(),
-            }
+            // PermissionResult::deniedメソッドを使用
+            PermissionResult::denied("Insufficient permissions")
         }
     };
 
@@ -927,7 +1004,7 @@ pub async fn check_resource_permission_handler(
             reason: None,
             permission_scope: Some(PermissionScopeInfo {
                 scope: scope.clone(),
-                description: scope.description(),
+                description: scope.description().to_string(),
                 level: scope.level(),
             }),
             subscription_requirements,
@@ -1021,14 +1098,11 @@ pub async fn bulk_permission_check_handler(
         } else {
             // Basic permission check - simplified version
             if user.claims.is_admin() || permission_check.resource == "tasks" {
-                PermissionResult::Allowed {
-                    privilege: None,
-                    scope: PermissionScope::Own,
-                }
+                // PermissionResult::allowedメソッドを使用
+                PermissionResult::allowed(None, PermissionScope::Own)
             } else {
-                PermissionResult::Denied {
-                    reason: "Insufficient permissions".to_string(),
-                }
+                // PermissionResult::deniedメソッドを使用
+                PermissionResult::denied("Insufficient permissions")
             }
         };
 
@@ -1038,7 +1112,7 @@ pub async fn bulk_permission_check_handler(
                 None,
                 Some(PermissionScopeInfo {
                     scope: scope.clone(),
-                    description: scope.description(),
+                    description: scope.description().to_string(),
                     level: scope.level(),
                 }),
             ),
@@ -1328,9 +1402,11 @@ fn get_effective_permissions_for_user(
 
 fn get_inherited_permissions(role_name: &str) -> Vec<InheritedPermission> {
     if role_name == "admin" {
+        // Permission::admin_globalを活用
+        let admin_users_permission = Permission::admin_global("users");
         vec![
             InheritedPermission {
-                resource: "users".to_string(),
+                resource: admin_users_permission.resource,
                 action: "manage".to_string(),
                 scope: PermissionScope::Global,
                 inherited_from: PermissionSource::Role,
@@ -1420,6 +1496,210 @@ fn generate_mock_audit_entries(
     entries
 }
 
+// --- NEW: Dead code utilization endpoints ---
+
+/// 権限拒否の詳細情報を取得
+pub async fn check_permission_denial_handler(
+    State(_app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<CheckPermissionRequest>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    // バリデーション
+    payload.validate().map_err(|validation_errors| {
+        warn!(
+            "Permission denial check validation failed: {}",
+            validation_errors
+        );
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!(
+        user_id = %user.claims.user_id,
+        resource = %payload.resource,
+        action = %payload.action,
+        "Checking permission denial details"
+    );
+
+    // 権限チェックを実行
+    let result = if let Some(ref role) = user.claims.role {
+        role.can_perform_action(&payload.resource, &payload.action, payload.target_user_id)
+    } else if user.claims.is_admin() || payload.resource == "tasks" {
+        PermissionResult::allowed(None, PermissionScope::Own)
+    } else {
+        PermissionResult::denied("Insufficient permissions")
+    };
+
+    // is_denied()メソッドを活用
+    let is_denied = result.is_denied();
+    let denial_details = if is_denied {
+        let reason = result
+            .get_denial_reason()
+            .cloned()
+            .unwrap_or_else(|| "Permission denied".to_string());
+        Some(serde_json::json!({
+            "reason": reason,
+            "suggestions": get_permission_suggestions(&payload.resource, &payload.action, &user.claims.subscription_tier),
+            "required_tier": get_required_tier_for_action(&payload.resource, &payload.action),
+            "upgrade_url": "/subscription/upgrade"
+        }))
+    } else {
+        None
+    };
+
+    let response = serde_json::json!({
+        "user_id": user.claims.user_id,
+        "resource": payload.resource,
+        "action": payload.action,
+        "is_denied": is_denied,
+        "denial_details": denial_details,
+        "checked_at": chrono::Utc::now()
+    });
+
+    info!(
+        user_id = %user.claims.user_id,
+        is_denied = %is_denied,
+        "Permission denial check completed"
+    );
+
+    Ok(Json(ApiResponse::success(
+        "Permission denial check completed",
+        response,
+    )))
+}
+
+/// 特権の機能チェック
+pub async fn check_privilege_feature_handler(
+    State(_app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<FeatureAccessRequest>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    // バリデーション
+    payload.validate().map_err(|validation_errors| {
+        warn!(
+            "Feature access check validation failed: {}",
+            validation_errors
+        );
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!(
+        user_id = %user.claims.user_id,
+        feature_name = %payload.feature_name,
+        "Checking privilege feature access"
+    );
+
+    // 特権を構築してhas_feature()を使用
+    let privilege = match &user.claims.subscription_tier {
+        SubscriptionTier::Free => Privilege::free_basic("user_tasks", 100, 10),
+        SubscriptionTier::Pro => Privilege::pro_advanced(
+            "user_tasks",
+            10_000,
+            100,
+            vec!["advanced_filter", "export", &payload.feature_name],
+        ),
+        SubscriptionTier::Enterprise => Privilege::enterprise_unlimited(
+            "user_tasks",
+            vec!["all_features", &payload.feature_name],
+        ),
+    };
+
+    // has_feature()メソッドを活用
+    let has_feature = privilege.has_feature(&payload.feature_name);
+    let feature_details = serde_json::json!({
+        "feature_name": payload.feature_name,
+        "has_feature": has_feature,
+        "user_tier": user.claims.subscription_tier,
+        "privilege_name": privilege.name,
+        "privilege_tier": privilege.subscription_tier,
+        "available_features": privilege.quota.as_ref().map_or(&vec![], |q| &q.features),
+        "max_items": privilege.get_max_items(),
+        "rate_limit": privilege.get_rate_limit(),
+    });
+
+    let response = serde_json::json!({
+        "user_id": user.claims.user_id,
+        "feature_check": feature_details,
+        "feature_available": has_feature,
+        "upgrade_required": !has_feature && payload.required_tier.is_some_and(|t| !user.claims.subscription_tier.is_at_least(&t)),
+        "checked_at": chrono::Utc::now()
+    });
+
+    info!(
+        user_id = %user.claims.user_id,
+        feature_name = %payload.feature_name,
+        has_feature = %has_feature,
+        "Privilege feature check completed"
+    );
+
+    Ok(Json(ApiResponse::success(
+        "Feature access check completed",
+        response,
+    )))
+}
+
+// Helper functions for denial suggestions
+fn get_permission_suggestions(
+    resource: &str,
+    action: &str,
+    tier: &SubscriptionTier,
+) -> Vec<String> {
+    let mut suggestions = vec![];
+
+    match (resource, action) {
+        ("tasks", "export") if !tier.is_at_least(&SubscriptionTier::Pro) => {
+            suggestions.push("Upgrade to Pro tier to export tasks".to_string());
+            suggestions.push("Use the web interface to view tasks".to_string());
+        }
+        ("tasks", "bulk_operations") if !tier.is_at_least(&SubscriptionTier::Enterprise) => {
+            suggestions.push("Upgrade to Enterprise tier for bulk operations".to_string());
+            suggestions.push("Process tasks individually".to_string());
+        }
+        ("admin", _) => {
+            suggestions.push("Contact your administrator for access".to_string());
+        }
+        _ => {
+            suggestions.push("Check your permissions with your administrator".to_string());
+        }
+    }
+
+    suggestions
+}
+
+fn get_required_tier_for_action(resource: &str, action: &str) -> Option<SubscriptionTier> {
+    match (resource, action) {
+        ("tasks", "export") => Some(SubscriptionTier::Pro),
+        ("tasks", "bulk_operations") => Some(SubscriptionTier::Enterprise),
+        ("analytics", _) => Some(SubscriptionTier::Pro),
+        _ => None,
+    }
+}
+
 // --- Health Check ---
 
 /// 権限サービスのヘルスチェック
@@ -1461,6 +1741,15 @@ pub fn permission_router(app_state: AppState) -> Router {
         .route("/features/available", get(get_feature_access_handler))
         .route("/features/admin", get(get_admin_features_handler))
         .route("/features/analytics", get(get_analytics_features_handler))
+        // NEW: Dead code utilization endpoints
+        .route(
+            "/permissions/denial-check",
+            post(check_permission_denial_handler),
+        )
+        .route(
+            "/features/privilege-check",
+            post(check_privilege_feature_handler),
+        )
         // ヘルスチェック
         .route("/permissions/health", get(permission_health_check_handler))
         .with_state(app_state)

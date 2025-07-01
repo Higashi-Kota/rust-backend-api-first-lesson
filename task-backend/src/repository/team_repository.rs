@@ -15,17 +15,14 @@ use sea_orm::{
 use uuid::Uuid;
 
 // Helper function to convert SeaORM errors to AppError
-#[allow(dead_code)]
 fn map_db_error(err: DbErr) -> AppError {
     AppError::InternalServerError(err.to_string())
 }
 
-#[allow(dead_code)]
 pub struct TeamRepository {
     db: DatabaseConnection,
 }
 
-#[allow(dead_code)]
 impl TeamRepository {
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
@@ -256,6 +253,15 @@ impl TeamRepository {
     pub async fn count_teams_by_organization(&self, org_id: Uuid) -> AppResult<u64> {
         let count = TeamEntity::find()
             .filter(TeamColumn::OrganizationId.eq(org_id))
+            .count(&self.db)
+            .await
+            .map_err(map_db_error)?;
+        Ok(count)
+    }
+
+    /// 全チーム数を取得
+    pub async fn count_all_teams(&self) -> AppResult<u64> {
+        let count = TeamEntity::find()
             .count(&self.db)
             .await
             .map_err(map_db_error)?;

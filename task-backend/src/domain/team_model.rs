@@ -32,13 +32,33 @@ pub enum Relation {
         to = "crate::domain::user_model::Column::Id"
     )]
     Owner,
+    #[sea_orm(
+        belongs_to = "super::organization_model::Entity",
+        from = "Column::OrganizationId",
+        to = "super::organization_model::Column::Id"
+    )]
+    Organization,
     #[sea_orm(has_many = "super::team_member_model::Entity")]
     TeamMembers,
+    #[sea_orm(has_many = "super::team_invitation_model::Entity")]
+    TeamInvitations,
 }
 
 impl Related<crate::domain::user_model::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Owner.def()
+    }
+}
+
+impl Related<super::organization_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Organization.def()
+    }
+}
+
+impl Related<super::team_invitation_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::TeamInvitations.def()
     }
 }
 
@@ -73,49 +93,6 @@ pub enum TeamRole {
     Viewer, // 閲覧のみ
 }
 
-#[allow(dead_code)]
-impl TeamRole {
-    /// 役割レベルを数値で取得（高いほど権限が強い）
-    pub fn level(&self) -> u8 {
-        match self {
-            TeamRole::Owner => 4,
-            TeamRole::Admin => 3,
-            TeamRole::Member => 2,
-            TeamRole::Viewer => 1,
-        }
-    }
-
-    /// 指定された役割以上の権限を持つかチェック
-    pub fn is_at_least(&self, other: &TeamRole) -> bool {
-        self.level() >= other.level()
-    }
-
-    /// 管理権限を持つかチェック
-    pub fn can_manage(&self) -> bool {
-        matches!(self, TeamRole::Owner | TeamRole::Admin)
-    }
-
-    /// メンバー招待権限を持つかチェック
-    pub fn can_invite(&self) -> bool {
-        matches!(self, TeamRole::Owner | TeamRole::Admin)
-    }
-
-    /// メンバー削除権限を持つかチェック
-    pub fn can_remove_members(&self) -> bool {
-        matches!(self, TeamRole::Owner | TeamRole::Admin)
-    }
-
-    /// 書き込み権限を持つかチェック
-    pub fn can_write(&self) -> bool {
-        matches!(self, TeamRole::Owner | TeamRole::Admin | TeamRole::Member)
-    }
-
-    /// 読み込み権限を持つかチェック
-    pub fn can_read(&self) -> bool {
-        true // 全ての役割で読み込み可能
-    }
-}
-
 impl std::fmt::Display for TeamRole {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -141,7 +118,18 @@ impl std::str::FromStr for TeamRole {
     }
 }
 
-#[allow(dead_code)]
+impl TeamRole {
+    /// Check if role can manage team settings
+    pub fn can_manage(&self) -> bool {
+        matches!(self, TeamRole::Owner | TeamRole::Admin)
+    }
+
+    /// Check if role can invite members
+    pub fn can_invite(&self) -> bool {
+        matches!(self, TeamRole::Owner | TeamRole::Admin)
+    }
+}
+
 impl Model {
     /// 新しいチームを作成
     pub fn new_team(
@@ -188,14 +176,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_team_role_levels() {
-        assert_eq!(TeamRole::Owner.level(), 4);
-        assert_eq!(TeamRole::Admin.level(), 3);
-        assert_eq!(TeamRole::Member.level(), 2);
-        assert_eq!(TeamRole::Viewer.level(), 1);
-    }
-
-    #[test]
     fn test_team_role_permissions() {
         let owner = TeamRole::Owner;
         let admin = TeamRole::Admin;
@@ -205,43 +185,18 @@ mod tests {
         // Owner permissions
         assert!(owner.can_manage());
         assert!(owner.can_invite());
-        assert!(owner.can_remove_members());
-        assert!(owner.can_write());
-        assert!(owner.can_read());
 
         // Admin permissions
         assert!(admin.can_manage());
         assert!(admin.can_invite());
-        assert!(admin.can_remove_members());
-        assert!(admin.can_write());
-        assert!(admin.can_read());
 
         // Member permissions
         assert!(!member.can_manage());
         assert!(!member.can_invite());
-        assert!(!member.can_remove_members());
-        assert!(member.can_write());
-        assert!(member.can_read());
 
         // Viewer permissions
         assert!(!viewer.can_manage());
         assert!(!viewer.can_invite());
-        assert!(!viewer.can_remove_members());
-        assert!(!viewer.can_write());
-        assert!(viewer.can_read());
-    }
-
-    #[test]
-    fn test_team_role_comparison() {
-        let owner = TeamRole::Owner;
-        let admin = TeamRole::Admin;
-        let member = TeamRole::Member;
-        let viewer = TeamRole::Viewer;
-
-        assert!(owner.is_at_least(&admin));
-        assert!(admin.is_at_least(&member));
-        assert!(member.is_at_least(&viewer));
-        assert!(!viewer.is_at_least(&member));
     }
 
     #[test]

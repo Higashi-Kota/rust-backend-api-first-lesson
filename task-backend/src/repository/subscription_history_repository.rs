@@ -5,12 +5,10 @@ use crate::error::AppResult;
 use sea_orm::*;
 use uuid::Uuid;
 
-#[allow(dead_code)]
 pub struct SubscriptionHistoryRepository {
     db: DbPool,
 }
 
-#[allow(dead_code)]
 impl SubscriptionHistoryRepository {
     pub fn new(db: DbPool) -> Self {
         Self { db }
@@ -39,6 +37,15 @@ impl SubscriptionHistoryRepository {
             })?;
 
         Ok(created_history)
+    }
+
+    /// すべてのサブスクリプション履歴を取得
+    pub async fn find_all(&self) -> AppResult<Vec<Model>> {
+        let histories = Entity::find()
+            .order_by_desc(Column::ChangedAt)
+            .all(&self.db)
+            .await?;
+        Ok(histories)
     }
 
     /// ユーザーのサブスクリプション履歴を時系列で取得

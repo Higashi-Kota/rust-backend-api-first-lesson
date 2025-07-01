@@ -211,26 +211,127 @@ pub async fn get_organization_stats_handler(
     })))
 }
 
+/// 組織メンバー詳細取得（権限情報付き）
+pub async fn get_organization_member_details_handler(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
+) -> AppResult<Json<ApiResponse<OrganizationMemberDetailResponse>>> {
+    let member_detail = app_state
+        .organization_service
+        .get_organization_member_detail(organization_id, member_id, user.user_id())
+        .await?;
+
+    Ok(Json(ApiResponse::success(
+        "Organization member details retrieved successfully",
+        member_detail,
+    )))
+}
+
+/// 組織容量チェック
+pub async fn check_organization_capacity_handler(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Path(organization_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<OrganizationCapacityResponse>>> {
+    let capacity = app_state
+        .organization_service
+        .check_organization_capacity(organization_id, user.user_id())
+        .await?;
+
+    Ok(Json(ApiResponse::success(
+        "Organization capacity retrieved successfully",
+        capacity,
+    )))
+}
+
+/// 組織一覧をページネーション付きで取得
+pub async fn get_organizations_paginated_handler(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Query(query): Query<OrganizationSearchQuery>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    let (organizations, total_count) = app_state
+        .organization_service
+        .get_organizations_paginated(query, user.user_id())
+        .await?;
+
+    Ok(Json(ApiResponse::success(
+        "Organizations retrieved successfully",
+        json!({
+            "organizations": organizations,
+            "total_count": total_count,
+            "page": 1,
+            "per_page": 20
+        }),
+    )))
+}
+
+/// 組織のサブスクリプション階層を更新
+pub async fn update_organization_subscription_handler(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Path(organization_id): Path<Uuid>,
+    Json(payload): Json<UpdateOrganizationSubscriptionRequest>,
+) -> AppResult<Json<ApiResponse<OrganizationResponse>>> {
+    let organization_response = app_state
+        .organization_service
+        .update_organization_subscription(
+            organization_id,
+            payload.subscription_tier,
+            user.user_id(),
+        )
+        .await?;
+
+    Ok(Json(ApiResponse::success(
+        "Organization subscription updated successfully",
+        organization_response,
+    )))
+}
+
 /// 組織ルーターを構築
 pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::Router {
     use axum::{
-        routing::{delete, get, patch, post},
+        routing::{delete, get, patch, post, put},
         Router,
     };
 
     Router::new()
+        // 静的ルートを先に定義
+        .route("/organizations/stats", get(get_organization_stats_handler))
+        .route(
+            "/organizations/paginated",
+            get(get_organizations_paginated_handler),
+        )
+        // リソースルート
         .route("/organizations", post(create_organization_handler))
         .route("/organizations", get(get_organizations_handler))
         .route("/organizations/{id}", get(get_organization_handler))
         .route("/organizations/{id}", patch(update_organization_handler))
         .route("/organizations/{id}", delete(delete_organization_handler))
         .route(
+            "/organizations/{id}/capacity",
+            get(check_organization_capacity_handler),
+        )
+        .route(
             "/organizations/{id}/settings",
             patch(update_organization_settings_handler),
         )
         .route(
+            "/organizations/{id}/subscription",
+            patch(update_organization_subscription_handler),
+        )
+        .route(
+            "/organizations/{id}/subscription",
+            put(update_organization_subscription_handler),
+        )
+        .route(
             "/organizations/{id}/members",
             post(invite_organization_member_handler),
+        )
+        .route(
+            "/organizations/{id}/members/{member_id}",
+            get(get_organization_member_details_handler),
         )
         .route(
             "/organizations/{id}/members/{member_id}",
@@ -240,6 +341,5 @@ pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::
             "/organizations/{id}/members/{member_id}",
             delete(remove_organization_member_handler),
         )
-        .route("/organizations/stats", get(get_organization_stats_handler))
         .with_state(app_state)
 }

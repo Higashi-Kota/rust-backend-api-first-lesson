@@ -46,6 +46,12 @@ pub struct UpdateOrganizationSettingsRequest {
     pub default_team_subscription_tier: Option<SubscriptionTier>,
 }
 
+/// 組織サブスクリプション更新リクエスト
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct UpdateOrganizationSubscriptionRequest {
+    pub subscription_tier: SubscriptionTier,
+}
+
 /// 組織メンバー招待リクエスト
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct InviteOrganizationMemberRequest {
@@ -173,6 +179,39 @@ pub struct OrganizationInvitationResponse {
     pub invited_by: Uuid,
     pub created_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
+}
+
+/// 組織メンバー詳細レスポンス（権限情報付き）
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrganizationMemberDetailResponse {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub role: OrganizationRole,
+    pub is_owner: bool,
+    pub is_admin: bool,
+    pub can_manage: bool,
+    pub can_create_teams: bool,
+    pub can_invite_members: bool,
+    pub can_change_settings: bool,
+    pub joined_at: DateTime<Utc>,
+    pub invited_by: Option<Uuid>,
+}
+
+/// 組織容量チェックレスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrganizationCapacityResponse {
+    pub organization_id: Uuid,
+    pub organization_name: String,
+    pub subscription_tier: SubscriptionTier,
+    pub max_teams: u32,
+    pub current_team_count: u32,
+    pub can_add_teams: bool,
+    pub max_members: u32,
+    pub current_member_count: u32,
+    pub can_add_members: bool,
+    pub utilization_percentage: f64,
 }
 
 impl From<Organization> for OrganizationListResponse {

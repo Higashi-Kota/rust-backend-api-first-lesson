@@ -21,7 +21,7 @@ impl UserRepository {
         Self { db, schema: None }
     }
 
-    #[allow(dead_code)] // テスト環境でのスキーマ分離に使用
+    #[allow(dead_code)]
     pub fn with_schema(db: DbConn, schema: String) -> Self {
         Self {
             db,
@@ -283,14 +283,23 @@ impl UserRepository {
         }
     }
 
-    /// 全ユーザーをロール情報と一緒に取得
-    pub async fn find_all_with_roles(&self) -> Result<Vec<SafeUserWithRole>, DbErr> {
+    /// ページネーション付きで全ユーザーをロール情報と一緒に取得
+    pub async fn find_all_with_roles_paginated(
+        &self,
+        page: i32,
+        per_page: i32,
+    ) -> Result<Vec<SafeUserWithRole>, DbErr> {
         self.prepare_connection().await?;
+
+        let page_size = std::cmp::min(per_page as u64, 100); // 最大100件に制限
+        let offset = ((page - 1) * per_page) as u64;
 
         let results = UserEntity::find()
             .join(JoinType::InnerJoin, user_model::Relation::Role.def())
             .select_also(RoleEntity)
             .order_by(user_model::Column::CreatedAt, Order::Desc)
+            .limit(page_size)
+            .offset(offset)
             .all(&self.db)
             .await?;
 
@@ -301,12 +310,39 @@ impl UserRepository {
                     Ok(role_with_perms) => {
                         users_with_roles.push(user.to_safe_user_with_role(role_with_perms));
                     }
-                    Err(_) => continue, // スキップして続行
+                    Err(_) => continue,
                 }
             }
         }
 
         Ok(users_with_roles)
+    }
+
+    /// 全ユーザー数を取得（ロール情報付き）
+    pub async fn count_all_users_with_roles(&self) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+
+        let count = UserEntity::find()
+            .join(JoinType::InnerJoin, user_model::Relation::Role.def())
+            .count(&self.db)
+            .await?;
+
+        Ok(count)
+    }
+
+    /// 全ユーザー数を取得
+    pub async fn count_all_users(&self) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        UserEntity::find().count(&self.db).await
+    }
+
+    /// アクティブユーザー数を取得
+    pub async fn count_active_users(&self) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        UserEntity::find()
+            .filter(user_model::Column::IsActive.eq(true))
+            .count(&self.db)
+            .await
     }
 
     /// 特定のロールを持つユーザーを取得

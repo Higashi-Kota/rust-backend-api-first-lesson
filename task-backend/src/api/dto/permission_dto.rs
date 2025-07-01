@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::domain::permission::{PermissionResult, PermissionScope};
+use crate::domain::permission::PermissionScope;
 use crate::domain::subscription_tier::SubscriptionTier;
 
 // --- Request DTOs ---
@@ -90,6 +90,8 @@ pub struct PermissionCheckResponse {
     pub resource: String,
     pub action: String,
     pub allowed: bool,
+    pub is_admin: bool,
+    pub is_member: bool,
     pub reason: Option<String>,
     pub scope: Option<PermissionScopeInfo>,
     pub privilege: Option<PrivilegeInfo>,
@@ -382,66 +384,6 @@ pub enum SystemPermissionScope {
 
 // --- Helper Implementations ---
 
-impl From<PermissionResult> for PermissionCheckResponse {
-    fn from(result: PermissionResult) -> Self {
-        match result {
-            PermissionResult::Allowed { privilege, scope } => {
-                let scope_info = Some(PermissionScopeInfo {
-                    scope: scope.clone(),
-                    description: scope.description(),
-                    level: scope.level(),
-                });
-
-                let privilege_info = privilege.map(|p| PrivilegeInfo {
-                    name: p.name,
-                    subscription_tier: p.subscription_tier,
-                    quota: p.quota.map(|q| QuotaInfo {
-                        max_items: q.max_items,
-                        rate_limit: q.rate_limit,
-                        features: q.features,
-                        current_usage: None, // Would be populated from actual usage tracking
-                    }),
-                    expires_at: None,
-                });
-
-                Self {
-                    user_id: Uuid::new_v4(),  // This would be set by the handler
-                    resource: "".to_string(), // This would be set by the handler
-                    action: "".to_string(),   // This would be set by the handler
-                    allowed: true,
-                    reason: None,
-                    scope: scope_info,
-                    privilege: privilege_info,
-                    expires_at: None,
-                }
-            }
-            PermissionResult::Denied { reason } => {
-                Self {
-                    user_id: Uuid::new_v4(),  // This would be set by the handler
-                    resource: "".to_string(), // This would be set by the handler
-                    action: "".to_string(),   // This would be set by the handler
-                    allowed: false,
-                    reason: Some(reason),
-                    scope: None,
-                    privilege: None,
-                    expires_at: None,
-                }
-            }
-        }
-    }
-}
-
-impl PermissionScope {
-    pub fn description(&self) -> String {
-        match self {
-            PermissionScope::Own => "Access to own resources only".to_string(),
-            PermissionScope::Team => "Access to team resources".to_string(),
-            PermissionScope::Organization => "Access to organization resources".to_string(),
-            PermissionScope::Global => "Access to all resources".to_string(),
-        }
-    }
-}
-
 impl ValidationSummary {
     pub fn new(checks: &[PermissionCheckResult]) -> Self {
         let total = checks.len() as u32;
@@ -674,54 +616,6 @@ pub enum AuditResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_permission_check_response_allowed() {
-        use crate::domain::permission::{PermissionResult, PermissionScope};
-
-        let result = PermissionResult::Allowed {
-            privilege: None,
-            scope: PermissionScope::Own,
-        };
-        let mut response = PermissionCheckResponse::from(result);
-
-        // Update the response with specific values
-        let user_id = Uuid::new_v4();
-        response.user_id = user_id;
-        response.resource = "tasks".to_string();
-        response.action = "read".to_string();
-
-        assert_eq!(response.user_id, user_id);
-        assert_eq!(response.resource, "tasks");
-        assert_eq!(response.action, "read");
-        assert!(response.allowed);
-        assert!(response.reason.is_none());
-    }
-
-    #[test]
-    fn test_permission_check_response_denied() {
-        use crate::domain::permission::PermissionResult;
-
-        let result = PermissionResult::Denied {
-            reason: "Insufficient permissions".to_string(),
-        };
-        let mut response = PermissionCheckResponse::from(result);
-
-        // Update the response with specific values
-        let user_id = Uuid::new_v4();
-        response.user_id = user_id;
-        response.resource = "admin".to_string();
-        response.action = "delete_user".to_string();
-
-        assert_eq!(response.user_id, user_id);
-        assert_eq!(response.resource, "admin");
-        assert_eq!(response.action, "delete_user");
-        assert!(!response.allowed);
-        assert_eq!(
-            response.reason,
-            Some("Insufficient permissions".to_string())
-        );
-    }
 
     #[test]
     fn test_permission_scope_level() {

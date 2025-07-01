@@ -1,14 +1,22 @@
 // task-backend/src/api/handlers/user_handler.rs
-use crate::api::dto::user_dto::*;
-use crate::api::dto::{ApiResponse, OperationResult};
+use crate::api::dto::common::{ApiResponse, OperationResult};
+use crate::api::dto::user_dto::{
+    AccountStatusUpdateResponse, BulkOperationResponse, BulkUserOperationsRequest,
+    EmailVerificationHistoryResponse, EmailVerificationResponse, ProfileUpdateResponse,
+    ResendVerificationEmailRequest, SubscriptionAnalyticsResponse, SubscriptionQuery,
+    UpdateAccountStatusRequest, UpdateEmailRequest, UpdateProfileRequest, UpdateUsernameRequest,
+    UserAdditionalInfo, UserAnalyticsResponse, UserListResponse, UserPermissionsResponse,
+    UserProfileResponse, UserSearchQuery, UserSettingsResponse, UserStatsResponse, UserSummary,
+    VerifyEmailRequest,
+};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
+use crate::utils::permission::PermissionChecker;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
-    http::{request::Parts, StatusCode},
-    response::IntoResponse,
+    http::request::Parts,
     routing::{get, patch, post},
     Router,
 };
@@ -270,13 +278,28 @@ pub async fn verify_email_handler(
 
     info!(user_id = %user.claims.user_id, "Email verification attempt");
 
-    // TODO: トークン検証ロジックを実装
-    // 現在はプレースホルダー
-
-    let verified_user = app_state
+    // トークン検証ロジックを実装
+    // 実際の実装では、メール認証トークンの検証を行う
+    let token_verification_result = app_state
         .user_service
-        .verify_email(user.claims.user_id)
-        .await?;
+        .verify_email_token(user.claims.user_id, &payload.token)
+        .await;
+
+    let verified_user = match token_verification_result {
+        Ok(_verified_user) => {
+            // トークンが有効な場合、ユーザーの email_verified フラグを更新
+            app_state
+                .user_service
+                .verify_email(user.claims.user_id)
+                .await?
+        }
+        Err(_) => {
+            // トークンが無効な場合はエラーを返す
+            return Err(AppError::BadRequest(
+                "Invalid or expired verification token".to_string(),
+            ));
+        }
+    };
 
     info!(user_id = %user.claims.user_id, "Email verified successfully");
 
@@ -289,7 +312,7 @@ pub async fn verify_email_handler(
 
 /// メール認証再送信
 pub async fn resend_verification_email_handler(
-    State(_app_state): State<AppState>,
+    State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<ResendVerificationEmailRequest>,
 ) -> AppResult<Json<EmailVerificationResponse>> {
@@ -321,28 +344,53 @@ pub async fn resend_verification_email_handler(
         "Verification email resend attempt"
     );
 
-    // TODO: メール送信ロジックを実装
+    // メール送信ロジックを実装
+    let verification_result = app_state
+        .user_service
+        .resend_verification_email(user.claims.user_id, &payload.email)
+        .await;
 
-    Ok(Json(EmailVerificationResponse {
-        message: "Verification email sent successfully".to_string(),
-        verified: false,
-        user: None,
-    }))
+    match verification_result {
+        Ok(_) => {
+            info!(
+                user_id = %user.claims.user_id,
+                email = %payload.email,
+                "Verification email sent successfully"
+            );
+            Ok(Json(EmailVerificationResponse {
+                message: "Verification email sent successfully".to_string(),
+                verified: false,
+                user: None,
+            }))
+        }
+        Err(e) => {
+            warn!(
+                user_id = %user.claims.user_id,
+                email = %payload.email,
+                error = %e,
+                "Failed to send verification email"
+            );
+            Err(AppError::InternalServerError(
+                "Failed to send verification email".to_string(),
+            ))
+        }
+    }
 }
 
 /// ユーザー設定取得
-pub async fn get_user_settings_handler(user: AuthenticatedUser) -> Json<UserSettingsResponse> {
-    // TODO: 実際の設定をデータベースから取得
-    // 現在はデフォルト値を返す
+pub async fn get_user_settings_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<UserSettingsResponse>> {
+    // 実際の設定をデータベースから取得
+    let user_settings = app_state
+        .user_service
+        .get_user_settings(user.claims.user_id)
+        .await?;
 
     info!(user_id = %user.claims.user_id, "User settings retrieved");
 
-    Json(UserSettingsResponse {
-        user_id: user.claims.user_id,
-        preferences: UserPreferences::default(),
-        security: SecuritySettings::default(),
-        notifications: NotificationSettings::default(),
-    })
+    Ok(Json(user_settings))
 }
 
 /// アカウント状態更新（管理者用）
@@ -352,15 +400,17 @@ pub async fn update_account_status_handler(
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<UpdateAccountStatusRequest>,
 ) -> AppResult<Json<AccountStatusUpdateResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
+    // UserClaimsの権限チェックメソッドを活用 - ユーザーリソースの更新権限を確認
+    if !admin_user.claims.can_update_resource("user", Some(user_id)) {
         warn!(
             user_id = %admin_user.user_id(),
             role = ?admin_user.role().map(|r| &r.name),
             target_user_id = %user_id,
-            "Access denied: Admin permission required for account status update"
+            "Access denied: Cannot update user account status"
         );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot update user account status".to_string(),
+        ));
     }
 
     // バリデーション
@@ -391,7 +441,7 @@ pub async fn update_account_status_handler(
             admin_id = %admin_user.user_id(),
             "Admin attempting to change own account status"
         );
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Cannot change your own account status".to_string(),
         ));
     }
@@ -445,11 +495,21 @@ pub async fn advanced_search_users_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<Json<UserListResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
+    // can_list_usersを使用して、管理者またはProプラン以上のユーザーのアクセスを許可
+    if let Some(role) = admin_user.role() {
+        if !PermissionChecker::can_list_users(role) {
+            warn!(
+                user_id = %admin_user.user_id(),
+                role = ?admin_user.role().map(|r| &r.name),
+                "Access denied: Admin or Pro subscription required for user search"
+            );
+            return Err(AppError::Forbidden(
+                "Admin or Pro subscription required".to_string(),
+            ));
+        }
+    } else if !admin_user.is_admin() {
         warn!(
             user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
             "Access denied: Admin permission required for advanced user search"
         );
         return Err(AppError::Forbidden("Admin access required".to_string()));
@@ -477,10 +537,18 @@ pub async fn advanced_search_users_handler(
     let page = query_with_defaults.page.unwrap_or(1);
     let per_page = query_with_defaults.per_page.unwrap_or(20);
 
-    // SafeUserWithRoleをUserSummaryに変換
-    let user_summaries: Vec<UserSummary> = users_with_roles
-        .into_iter()
-        .map(|user_with_role| UserSummary {
+    // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
+    let mut user_summaries: Vec<UserSummary> = Vec::new();
+
+    for user_with_role in users_with_roles {
+        // 各ユーザーのタスク数を取得
+        let task_count = app_state
+            .task_service
+            .count_tasks_for_user(user_with_role.id)
+            .await
+            .unwrap_or(0);
+
+        user_summaries.push(UserSummary {
             id: user_with_role.id,
             username: user_with_role.username,
             email: user_with_role.email,
@@ -488,9 +556,9 @@ pub async fn advanced_search_users_handler(
             email_verified: user_with_role.email_verified,
             created_at: user_with_role.created_at,
             last_login_at: user_with_role.last_login_at,
-            task_count: 0, // TODO: タスク数を取得
-        })
-        .collect();
+            task_count: task_count.try_into().unwrap_or(0),
+        });
+    }
 
     Ok(Json(UserListResponse::new(
         user_summaries,
@@ -576,10 +644,18 @@ pub async fn get_users_by_role_handler(
         .take(end - start)
         .collect::<Vec<_>>();
 
-    // SafeUserWithRoleをUserSummaryに変換
-    let user_summaries: Vec<UserSummary> = paginated_users
-        .into_iter()
-        .map(|user_with_role| UserSummary {
+    // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
+    let mut user_summaries: Vec<UserSummary> = Vec::new();
+
+    for user_with_role in paginated_users {
+        // 各ユーザーのタスク数を取得
+        let task_count = app_state
+            .task_service
+            .count_tasks_for_user(user_with_role.id)
+            .await
+            .unwrap_or(0);
+
+        user_summaries.push(UserSummary {
             id: user_with_role.id,
             username: user_with_role.username,
             email: user_with_role.email,
@@ -587,9 +663,9 @@ pub async fn get_users_by_role_handler(
             email_verified: user_with_role.email_verified,
             created_at: user_with_role.created_at,
             last_login_at: user_with_role.last_login_at,
-            task_count: 0, // TODO: タスク数を取得
-        })
-        .collect();
+            task_count: task_count.try_into().unwrap_or(0),
+        });
+    }
 
     Ok(Json(UserListResponse::new(
         user_summaries,
@@ -787,10 +863,18 @@ pub async fn list_users_handler(
     let page = query_with_defaults.page.unwrap_or(1);
     let per_page = query_with_defaults.per_page.unwrap_or(20);
 
-    // SafeUserWithRoleをUserSummaryに変換
-    let user_summaries: Vec<UserSummary> = users_with_roles
-        .into_iter()
-        .map(|user_with_role| UserSummary {
+    // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
+    let mut user_summaries: Vec<UserSummary> = Vec::new();
+
+    for user_with_role in users_with_roles {
+        // 各ユーザーのタスク数を取得
+        let task_count = app_state
+            .task_service
+            .count_tasks_for_user(user_with_role.id)
+            .await
+            .unwrap_or(0);
+
+        user_summaries.push(UserSummary {
             id: user_with_role.id,
             username: user_with_role.username,
             email: user_with_role.email,
@@ -798,9 +882,9 @@ pub async fn list_users_handler(
             email_verified: user_with_role.email_verified,
             created_at: user_with_role.created_at,
             last_login_at: user_with_role.last_login_at,
-            task_count: 0, // TODO: タスク数を取得
-        })
-        .collect();
+            task_count: task_count.try_into().unwrap_or(0),
+        });
+    }
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -823,15 +907,17 @@ pub async fn get_user_by_id_handler(
     UuidPath(user_id): UuidPath,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<UserProfileResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
+    // UserClaimsの権限チェックメソッドを活用
+    if !admin_user.claims.can_access_user(user_id) {
         warn!(
             user_id = %admin_user.user_id(),
             role = ?admin_user.role().map(|r| &r.name),
             target_user_id = %user_id,
-            "Access denied: Admin permission required for user profile access"
+            "Access denied: Cannot access user profile"
         );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot access user profile".to_string(),
+        ));
     }
 
     info!(
@@ -856,7 +942,7 @@ pub async fn get_user_by_id_handler(
 pub async fn update_last_login_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<impl IntoResponse> {
+) -> AppResult<Json<ApiResponse<()>>> {
     app_state
         .user_service
         .update_last_login(user.claims.user_id)
@@ -864,10 +950,79 @@ pub async fn update_last_login_handler(
 
     info!(user_id = %user.claims.user_id, "Last login time updated");
 
-    Ok(StatusCode::NO_CONTENT)
+    // ApiResponse::success_messageを活用
+    Ok(Json(
+        crate::api::dto::common::ApiResponse::<()>::success_message(
+            "Last login time updated successfully",
+        ),
+    ))
+}
+
+/// ユーザー権限チェック
+pub async fn check_user_permissions_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUserWithRole,
+) -> AppResult<Json<ApiResponse<UserPermissionsResponse>>> {
+    // ユーザー情報を取得
+    let user_profile = app_state
+        .user_service
+        .get_user_profile(user.user_id())
+        .await?;
+
+    // 権限情報を生成
+    let is_member = user.role().is_some_and(PermissionChecker::is_member);
+    let is_admin = user.is_admin();
+    let is_active = user_profile.is_active;
+    let email_verified = user_profile.email_verified;
+
+    let permissions = UserPermissionsResponse {
+        user_id: user.user_id(),
+        is_member,
+        is_admin,
+        is_active,
+        email_verified,
+        subscription_tier: user_profile.subscription_tier.clone(),
+        can_create_teams: is_member
+            && (user_profile.subscription_tier == "Pro"
+                || user_profile.subscription_tier == "enterprise"),
+        can_access_analytics: is_admin || user_profile.subscription_tier == "enterprise",
+    };
+
+    Ok(Json(ApiResponse::success(
+        "User permissions retrieved successfully",
+        permissions,
+    )))
 }
 
 // --- ヘルスチェック ---
+
+/// メール認証履歴を取得
+pub async fn get_email_verification_history_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<ApiResponse<EmailVerificationHistoryResponse>>> {
+    info!(
+        user_id = %user.user_id(),
+        "Getting email verification history"
+    );
+
+    // メール認証履歴を取得
+    let history_response = app_state
+        .auth_service
+        .get_email_verification_history(user.user_id())
+        .await?;
+
+    info!(
+        user_id = %user.user_id(),
+        total_verifications = %history_response.total_verifications,
+        "Email verification history retrieved"
+    );
+
+    Ok(Json(ApiResponse::success(
+        "Email verification history retrieved successfully",
+        history_response,
+    )))
+}
 
 /// ユーザーサービスのヘルスチェック
 async fn user_health_check_handler() -> &'static str {
@@ -892,8 +1047,13 @@ pub fn user_router(app_state: AppState) -> Router {
             "/users/resend-verification",
             post(resend_verification_email_handler),
         )
+        .route(
+            "/users/email-verification-history",
+            get(get_email_verification_history_handler),
+        )
         // ユーティリティ
         .route("/users/update-last-login", post(update_last_login_handler))
+        .route("/users/permissions", get(check_user_permissions_handler))
         // 管理者用エンドポイント - Phase 1.1 高度なユーザー管理 API
         .route("/admin/users", get(list_users_handler))
         .route(

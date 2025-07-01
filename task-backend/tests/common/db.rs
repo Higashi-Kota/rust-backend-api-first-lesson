@@ -116,12 +116,12 @@ impl TestDatabase {
     ) -> Result<DatabaseConnection, DbErr> {
         use sea_orm::ConnectOptions;
         let mut opt = ConnectOptions::new(url.to_string());
-        opt.max_connections(10)
+        opt.max_connections(50)
             .min_connections(1)
-            .connect_timeout(Duration::from_secs(10))
-            .acquire_timeout(Duration::from_secs(10))
-            .idle_timeout(Duration::from_secs(10))
-            .max_lifetime(Duration::from_secs(30))
+            .connect_timeout(Duration::from_secs(30))
+            .acquire_timeout(Duration::from_secs(30))
+            .idle_timeout(Duration::from_secs(30))
+            .max_lifetime(Duration::from_secs(300))
             .sqlx_logging(true);
         if let Some(schema_name) = schema {
             opt.set_schema_search_path(schema_name.to_string());

@@ -35,7 +35,11 @@
       "Bash(RUST_BACKTRACE=full EMAIL_DEVELOPMENT_MODE=false make run 2 >& 1)",
       "Bash(EMAIL_DEVELOPMENT_MODE=true make run 2 >& 1)",
       "Bash(nslookup:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(RUSTFLAGS=\"-W dead_code\" cargo check --all-targets)",
+      "Bash(git checkout:*)",
+      "Bash(timeout 5 cargo run)",
+      "Bash(rg -c \"#\\[allow\\(dead_code\\)\\]\" --type rust | awk -F: '{sum+=$2} END {print \"Total dead_code annotations: \" sum}')"
     ],
     "deny": [
       "Bash(docker:*)"

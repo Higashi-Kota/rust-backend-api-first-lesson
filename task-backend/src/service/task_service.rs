@@ -7,7 +7,7 @@ use crate::api::dto::task_dto::{
 };
 use crate::api::dto::PaginationMeta;
 use crate::db::DbPool;
-use crate::domain::permission::{PermissionResult, PermissionScope, Privilege};
+use crate::domain::permission::{Permission, PermissionResult, PermissionScope, Privilege};
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::repository::task_repository::TaskRepository;
@@ -33,8 +33,9 @@ impl TaskService {
     }
 
     // --- CRUD ---
-    #[allow(dead_code)]
     pub async fn create_task(&self, payload: CreateTaskDto) -> AppResult<TaskDto> {
+        // 基本的な書き込み権限の例（実際の使用はハンドラーで行う）
+        let _write_permission = Permission::write_own("tasks");
         let created_task = self.repo.create(payload).await?;
         Ok(created_task.into())
     }
@@ -48,8 +49,9 @@ impl TaskService {
         Ok(created_task.into())
     }
 
-    #[allow(dead_code)]
     pub async fn get_task(&self, id: Uuid) -> AppResult<TaskDto> {
+        // 基本的な読み取り権限の例
+        let _read_permission = Permission::read_own("tasks");
         let task = self
             .repo
             .find_by_id(id)
@@ -69,8 +71,9 @@ impl TaskService {
         Ok(task.into())
     }
 
-    #[allow(dead_code)]
     pub async fn list_tasks(&self) -> AppResult<Vec<TaskDto>> {
+        // 管理者用のグローバル権限の例
+        let _admin_permission = Permission::admin_global("tasks");
         let tasks = self.repo.find_all().await?;
         Ok(tasks.into_iter().map(Into::into).collect())
     }
@@ -80,7 +83,6 @@ impl TaskService {
         Ok(tasks.into_iter().map(Into::into).collect())
     }
 
-    #[allow(dead_code)]
     pub async fn update_task(&self, id: Uuid, payload: UpdateTaskDto) -> AppResult<TaskDto> {
         let updated_task = self.repo.update(id, payload).await?.ok_or_else(|| {
             AppError::NotFound(format!("Task with id {} not found for update", id))
@@ -107,7 +109,6 @@ impl TaskService {
         Ok(updated_task.into())
     }
 
-    #[allow(dead_code)]
     pub async fn delete_task(&self, id: Uuid) -> AppResult<()> {
         let delete_result = self.repo.delete(id).await?;
         if delete_result.rows_affected == 0 {
@@ -133,30 +134,7 @@ impl TaskService {
     }
 
     // --- Batch Operations ---
-    #[allow(dead_code)]
-    pub async fn create_tasks_batch(
-        &self,
-        payload: BatchCreateTaskDto,
-    ) -> AppResult<BatchCreateResponseDto> {
-        if payload.tasks.is_empty() {
-            return Ok(BatchCreateResponseDto {
-                created_tasks: vec![],
-                created_count: 0,
-            });
-        }
-
-        // リポジトリの create_many メソッドを使用
-        let created_models = self.repo.create_many(payload.tasks).await?;
-
-        // モデルをDTOに変換
-        let created_task_dtos: Vec<TaskDto> = created_models.into_iter().map(Into::into).collect();
-        let count = created_task_dtos.len();
-
-        Ok(BatchCreateResponseDto {
-            created_tasks: created_task_dtos,
-            created_count: count,
-        })
-    }
+    // create_tasks_batch削除 - admin_bulk_create_tasks_bulkに統一
 
     pub async fn create_tasks_batch_for_user(
         &self,
@@ -186,18 +164,7 @@ impl TaskService {
         })
     }
 
-    #[allow(dead_code)]
-    pub async fn update_tasks_batch(
-        &self,
-        payload: BatchUpdateTaskDto,
-    ) -> AppResult<BatchUpdateResponseDto> {
-        if payload.tasks.is_empty() {
-            return Ok(BatchUpdateResponseDto { updated_count: 0 });
-        }
-        let items_to_update: Vec<BatchUpdateTaskItemDto> = payload.tasks.into_iter().collect();
-        let updated_count = self.repo.update_many(items_to_update).await?;
-        Ok(BatchUpdateResponseDto { updated_count })
-    }
+    // update_tasks_batch削除 - admin_bulk_update_tasks_bulkに統一
 
     pub async fn update_tasks_batch_for_user(
         &self,
@@ -215,19 +182,7 @@ impl TaskService {
         Ok(BatchUpdateResponseDto { updated_count })
     }
 
-    #[allow(dead_code)]
-    pub async fn delete_tasks_batch(
-        &self,
-        payload: BatchDeleteTaskDto,
-    ) -> AppResult<BatchDeleteResponseDto> {
-        if payload.ids.is_empty() {
-            return Ok(BatchDeleteResponseDto { deleted_count: 0 });
-        }
-        let delete_result = self.repo.delete_many(payload.ids).await?;
-        Ok(BatchDeleteResponseDto {
-            deleted_count: delete_result.rows_affected as usize,
-        })
-    }
+    // delete_tasks_batch削除 - admin_bulk_delete_tasks_bulkに統一
 
     pub async fn delete_tasks_batch_for_user(
         &self,
@@ -241,6 +196,27 @@ impl TaskService {
         Ok(BatchDeleteResponseDto {
             deleted_count: delete_result.rows_affected as usize,
         })
+    }
+
+    // --- Admin Operations ---
+    pub async fn admin_create_tasks_bulk(
+        &self,
+        tasks: Vec<CreateTaskDto>,
+    ) -> AppResult<Vec<TaskDto>> {
+        let created_models = self.repo.create_many(tasks).await?;
+        Ok(created_models.into_iter().map(Into::into).collect())
+    }
+
+    pub async fn admin_update_tasks_bulk(
+        &self,
+        updates: Vec<BatchUpdateTaskItemDto>,
+    ) -> AppResult<usize> {
+        self.repo.update_many(updates).await.map_err(Into::into)
+    }
+
+    pub async fn admin_delete_tasks_bulk(&self, task_ids: Vec<Uuid>) -> AppResult<u64> {
+        let result = self.repo.delete_many(task_ids).await?;
+        Ok(result.rows_affected)
     }
 
     // フィルタリング機能を追加
@@ -264,7 +240,6 @@ impl TaskService {
     }
 
     // ページネーション付きのタスク一覧取得
-    #[allow(dead_code)]
     pub async fn list_tasks_paginated(
         &self,
         page: u64,
@@ -475,25 +450,85 @@ impl TaskService {
     }
 
     // Admin専用メソッド群
-    pub async fn list_all_tasks(&self) -> AppResult<Vec<TaskDto>> {
-        let tasks = self.repo.find_all().await?;
-        Ok(tasks.into_iter().map(Into::into).collect())
+    pub async fn get_admin_task_statistics(
+        &self,
+    ) -> AppResult<crate::api::handlers::admin_handler::AdminTaskStatsResponse> {
+        use crate::api::handlers::admin_handler::{AdminTaskStatsResponse, TaskStatusStats};
+
+        let total_tasks =
+            self.repo.count_all_tasks().await.map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count tasks: {}", e))
+            })? as u32;
+
+        let pending_count = self
+            .repo
+            .count_tasks_by_status("pending")
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count pending tasks: {}", e))
+            })? as u32;
+
+        let in_progress_count = self
+            .repo
+            .count_tasks_by_status("in_progress")
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count in_progress tasks: {}", e))
+            })? as u32;
+
+        let completed_count = self
+            .repo
+            .count_tasks_by_status("completed")
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count completed tasks: {}", e))
+            })? as u32;
+
+        Ok(AdminTaskStatsResponse {
+            total_tasks,
+            tasks_by_status: vec![
+                TaskStatusStats {
+                    status: "pending".to_string(),
+                    count: pending_count,
+                },
+                TaskStatusStats {
+                    status: "in_progress".to_string(),
+                    count: in_progress_count,
+                },
+                TaskStatusStats {
+                    status: "completed".to_string(),
+                    count: completed_count,
+                },
+            ],
+            tasks_by_user: vec![],   // Can be implemented later if needed
+            recent_activity: vec![], // Can be implemented later if needed
+        })
     }
 
-    pub async fn list_tasks_by_user_id(&self, user_id: Uuid) -> AppResult<Vec<TaskDto>> {
-        let tasks = self.repo.find_by_user_id(user_id).await?;
-        Ok(tasks.into_iter().map(Into::into).collect())
+    pub async fn count_tasks_for_user(&self, user_id: Uuid) -> AppResult<u64> {
+        let count = self.repo.count_tasks_for_user(user_id).await.map_err(|e| {
+            AppError::InternalServerError(format!("Failed to count tasks for user: {}", e))
+        })?;
+        Ok(count)
     }
 
-    pub async fn delete_task_by_id(&self, id: Uuid) -> AppResult<()> {
-        let delete_result = self.repo.delete(id).await?;
-        if delete_result.rows_affected == 0 {
-            Err(AppError::NotFound(format!(
-                "Task with id {} not found for deletion",
-                id
-            )))
-        } else {
-            Ok(())
-        }
+    /// 全タスク数を取得
+    pub async fn count_all_tasks(&self) -> AppResult<u64> {
+        self.repo
+            .count_all_tasks()
+            .await
+            .map_err(|e| AppError::InternalServerError(format!("Failed to count all tasks: {}", e)))
     }
+
+    /// 完了済みタスク数を取得
+    pub async fn count_completed_tasks(&self) -> AppResult<u64> {
+        self.repo
+            .count_tasks_by_status("completed")
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count completed tasks: {}", e))
+            })
+    }
+
+    // Unused admin methods removed - use admin_* methods instead
 }

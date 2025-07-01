@@ -1,258 +1,300 @@
-## 開発コマンド
+## 実現トピック
 
-### クイックスタート
+### 📊 統合テストの拡充と機能重複の解消ならびに実装がモック実装になっている箇所の正規実装
 
-```bash
-# 開発環境の起動
-make dev
+#### 🎯 目的
+1. **モック実装の正規実装化**
+   - ハードコードされた値の動的計算への置き換え
+   - プレースホルダー実装の完成
+   - 未実装機能の実装
 
-# ステップごとの手順
-docker-compose up postgres -d
-make migrate
-make run
-```
+2. **統合テストカバレッジの向上**
+   - 既存APIの網羅的なテスト
+   - エッジケースとエラーパスの検証
+   - 権限チェックの完全性確認
 
-### よく使うコマンド
+3. **機能重複の解消**
+   - 類似機能の統合
+   - セマンティックな整理
+   - APIエンドポイントの最適化
 
-```bash
-# ビルドとテスト
-make build                    # ワークスペース全体をビルド
-make test                     # すべてのテストを実行
-make fmt && make clippy       # フォーマット＆リント
+#### 📋 実装計画
 
-# データベース操作
-make migrate                  # マイグレーション実行
-make migrate-status           # マイグレーションの状態確認
-make migrate-down             # 最後のマイグレーションをロールバック
+##### Phase 1: モック実装の正規実装化【優先度: 高】
 
-# 開発ワークフロー
-make ci-check                 # CIチェックをローカルで実行（fmt + clippy + test）
-cargo watch -x "run --package task-backend"  # 変更時に自動再起動
-cargo test --package task-backend --lib      # 単体テストのみ（高速）
-cargo test integration::tasks::crud_tests    # 特定の統合テストを実行
-```
+1. **Analytics Handler の実装**
+   - `src/api/handlers/analytics_handler.rs`
+     - Line 98: `user_growth_rate` を実際のデータから計算
+     - Lines 222-303: システム統計を実データベースから取得
+     - Lines 1039-1136: モックデータ生成を実際のデータ集計に置き換え
+   
+   **必要なDB設計**:
+   ```sql
+   -- 機能使用状況追跡テーブル
+   CREATE TABLE feature_usage_metrics (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     user_id UUID REFERENCES users(id),
+     feature_name VARCHAR(100) NOT NULL,
+     action_type VARCHAR(50) NOT NULL,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     metadata JSONB
+   );
+   
+   -- 日次活動サマリーテーブル
+   CREATE TABLE daily_activity_summaries (
+     date DATE NOT NULL,
+     total_users INTEGER NOT NULL DEFAULT 0,
+     active_users INTEGER NOT NULL DEFAULT 0,
+     new_users INTEGER NOT NULL DEFAULT 0,
+     tasks_created INTEGER NOT NULL DEFAULT 0,
+     tasks_completed INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (date)
+   );
+   ```
 
-### Docker 操作
+2. **User Service の実装**
+   - `src/service/user_service.rs`
+     - Lines 222-250: `get_user_stats_for_analytics()` の実装
+     - Lines 563-573: UpdateRole 一括操作の実装
+     - Lines 371-389: メールトークン検証の完全実装
+     - Lines 418-443: ユーザー設定の永続化
+   
+   **必要なDB設計**:
+   ```sql
+   -- ユーザー設定テーブル
+   CREATE TABLE user_settings (
+     user_id UUID PRIMARY KEY REFERENCES users(id),
+     language VARCHAR(10) NOT NULL DEFAULT 'ja',
+     timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Tokyo',
+     notifications_enabled BOOLEAN NOT NULL DEFAULT true,
+     email_notifications JSONB NOT NULL DEFAULT '{}',
+     ui_preferences JSONB NOT NULL DEFAULT '{}',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   );
+   ```
 
-```bash
-make docker-build            # Dockerイメージをビルド
-make docker-run              # Docker Composeで実行
-docker-compose logs -f app   # アプリのログを表示
-```
+3. **Security Service の実装**
+   - `src/service/security_service.rs`
+     - Lines 55-56: トークン年齢を実際のデータから計算
+     - Lines 68-70: リクエスト数を実際にカウント
+
+##### Phase 2: 統合テストの追加【優先度: 高】
+
+1. **欠落している統合テストの実装**
+   ```
+   tests/integration/
+   ├── organization/
+   │   ├── organization_settings_tests.rs    # 新規作成
+   │   └── organization_subscription_tests.rs # 新規作成
+   ├── gdpr/                                  # 新規フォルダ
+   │   ├── mod.rs
+   │   ├── data_export_tests.rs
+   │   ├── data_deletion_tests.rs
+   │   ├── consent_management_tests.rs
+   │   └── admin_gdpr_tests.rs
+   ├── analytics/
+   │   └── behavior_analytics_tests.rs       # 新規作成
+   ├── team/
+   │   └── team_invitation_tests.rs          # 新規作成
+   └── user/
+       └── bulk_operations_tests.rs           # 新規作成
+   ```
+
+   **注意**: 新規フォルダ（gdpr/）を作成する場合は、`.github/workflows/ci.yml`のテストマトリックスに`integration::gdpr`を追加する必要があります。
+
+2. **各APIエンドポイントの必須テストパターン**
+   ```rust
+   // 組織設定APIのテスト例
+   #[tokio::test]
+   async fn test_update_organization_settings_success() { }
+   
+   #[tokio::test]
+   async fn test_update_organization_settings_validation_error() { }
+   
+   #[tokio::test]
+   async fn test_update_organization_settings_unauthorized() { }
+   
+   #[tokio::test]
+   async fn test_update_organization_settings_forbidden() { }
+   
+   #[tokio::test]
+   async fn test_update_organization_settings_not_found() { }
+   ```
+
+3. **既存テストの整理**
+   - `security/gdpr_compliance_test.rs`を新規`gdpr/`ディレクトリへ移動
+   - 重複する`auth/password_reset_test.rs`と`auth/password_reset_tests.rs`を統合
+   - テストファイル名を`*_tests.rs`（複数形）に統一
+
+##### Phase 3: 機能重複の解消【優先度: 中】
+
+1. **UserService の統合**
+   - `list_users_with_roles_paginated()` と `get_all_users_with_roles_paginated()` を統合
+   - 共通のページネーションロジックを抽出
+
+2. **OrganizationService の統合**
+   - `get_organizations()` と `get_organizations_paginated()` を統合
+   - 統一されたクエリビルダーの実装
+
+3. **権限チェックの集約**
+   - 分散している権限チェックロジックを `PermissionService` に集約
+   - 共通の権限検証ミドルウェアの実装
+
+##### Phase 4: DB最適化とインデックス追加【優先度: 中】
+
+1. **検索パフォーマンス改善**
+   ```sql
+   -- 組織名検索用インデックス
+   CREATE INDEX idx_organizations_name_search ON organizations USING gin(name gin_trgm_ops);
+   
+   -- ユーザー検索用インデックス
+   CREATE INDEX idx_users_email_search ON users(email);
+   CREATE INDEX idx_users_username_search ON users(username);
+   
+   -- 機能使用状況の集計用インデックス
+   CREATE INDEX idx_feature_usage_metrics_date ON feature_usage_metrics(created_at);
+   CREATE INDEX idx_feature_usage_metrics_user_feature ON feature_usage_metrics(user_id, feature_name);
+   ```
+
+2. **一括操作履歴テーブル**
+   ```sql
+   CREATE TABLE bulk_operation_histories (
+     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+     operation_type VARCHAR(50) NOT NULL,
+     performed_by UUID REFERENCES users(id),
+     affected_count INTEGER NOT NULL,
+     status VARCHAR(20) NOT NULL,
+     error_details JSONB,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     completed_at TIMESTAMPTZ
+   );
+   ```
+
+#### 🏁 完了基準
+1. **dead_codeアノテーションがテスト用途以外でゼロ**
+2. **すべてのモック実装が実データに基づく実装に置き換わっている**
+3. **すべての公開APIに統合テストが存在**
+4. **各APIに最低5パターンのテスト**（正常系、バリデーション、認証、権限、リソース不在）
+5. **機能重複が解消され、シンプルなAPI構造**
+6. **必要なDBテーブルとインデックスが作成されている**
+7. **CI/CDパイプラインですべてのテストが通過**
+
+#### 📈 メトリクス
+- モック実装の残存数: 0
+- テストカバレッジ: 80%以上
+- 統合テスト数: 各API × 5パターン以上
+- API応答時間: 200ms以下（95パーセンタイル）
+
+## 🧩 実装ガイドライン
+
+### 1. **ドメイン統合の原則**
+
+* **既存ドメインとの重複・競合は禁止**
+  * 同じ意味の別表現、似たが異なるロジック、バリエーション増加は避ける
+  * APIのスラグなど機能別の統一感を意識
+  * APIのスラグなどルーティングの重複排除＆集約統合を意識
+* **「亜種」API・ドメイン定義の増加は避ける**
+  * 新規定義が必要な場合は、**既存の責務・境界に統合**できるか再検討
+
+### 2. **データベース設計の原則**
+
+* **テーブル名は必ず複数形**
+  * `users`, `tasks`, `teams`, `organizations` など
+  * ジャンクションテーブルも複数形: `team_members`, `department_members`
+* **カラム名は snake_case**
+  * 外部キーは `{参照テーブル単数形}_id` 形式: `user_id`, `team_id`
+* **標準カラム**
+  * すべてのテーブルに `id` (UUID型), `created_at`, `updated_at` を含める
+  * タイムスタンプは必ず `TIMESTAMPTZ` 型を使用
+* **インデックス設計**
+  * 外部キー、頻繁に検索される項目には必ずインデックスを作成
+  * 複合インデックスは順序を考慮して設計
+
+### 3. **dead\_code ポリシー**
+
+* `#![allow(dead_code)]` や `#[allow(dead_code)]` の**新規追加は禁止**
+* **既存アノテーションからAPIとして価値提供できる場合は積極的に外す**
+  * 新規APIには統合テストを実施
+    ```rust
+    // 必須: 3パターンのテスト
+    #[tokio::test]
+    async fn test_feature_success() { /* 正常系 */ }
+
+    #[tokio::test]
+    async fn test_feature_invalid_data() { /* 異常系 */ }
+
+    #[tokio::test]
+    async fn test_feature_forbidden() { /* 権限エラー */ }
+    ```
+  * 必要に応じてマイグレーションによるDB設計も考慮
+* **未使用コード・シグネチャ・構造体は削除**
+  * ただし、テストで使用されているコードは、実装で適切に活用する
+
+### 4. **プロダクションコードの品質基準**
+
+* **すべての公開APIは実装で使用される**こと
+* **テストは実装の動作を検証**するものであること
+* **未使用の警告が出ないこと**（dead_code警告を含む）
+
+### 5. **CI・Lint 要件**
+
+* 以下のコマンドで **エラー・警告が完全にゼロ** であること：
+
+  ```bash
+  cargo clippy --all-targets --all-features -- -D warnings
+  ```
+
+* 既存CI（テスト）コマンド：
+
+  ```bash
+  make ci-check
+  ```
+
+  → **すべてのテストにパスすること（新旧含む）**
 
 ---
 
-## アーキテクチャ概要
+## 🧪 テスト要件
 
-このプロジェクトは **Rust 製タスク管理 API** で、**Axum** と **PostgreSQL** を用いて構築され、**ユーザーの役割とサブスクリプション階層に基づく動的パーミッションシステム** を特徴としています。
+### 単体テスト（Unit Test）
 
-### コアアーキテクチャパターン
+* **新規ロジックに対する細粒度のテストを実装**
 
-**レイヤードアーキテクチャ**:
+  * 条件分岐、バリデーション、エラーケースなどを網羅
+  * 概念テスト・型だけのテストは不可
 
-- **API レイヤー**: Axum ハンドラ（`task-backend/src/api/handlers/`）
-- **サービスレイヤー**: ビジネスロジック（`task-backend/src/service/`）
-- **リポジトリレイヤー**: データアクセス（`task-backend/src/repository/`）
-- **ドメインレイヤー**: コアモデル（`task-backend/src/domain/`）
+### 統合テスト（Integration Test）
 
-**主要な設計コンセプト**:
+* APIレベルでの**E2Eフロー確認**
 
-1. **動的パーミッションシステム**: 同一エンドポイントが、ユーザーの役割とサブスクリプション階層によって異なる応答を返す
-2. **ワークスペース構成**: `task-backend`（本体アプリ）と `migration`（DB マイグレーション）の Rust ワークスペース
-3. **JWT 認証**: 役割ベースの認可付き多層ミドルウェア
-4. **サブスクリプション機能**: Free / Pro / Enterprise 各階層で異なる機能提供
+  * リクエスト／レスポンス構造の妥当性
+  * DB書き込み・読み出しの整合性
+  * エラーハンドリングの検証
 
 ---
 
-## 重要コンポーネント
+## 🔥 クリーンアップ方針
 
-### 動的パーミッションシステム（コアの革新）
+* **使用されていないコード**の取り扱い：
+  1. **テストでのみ使用** → 実装で活用するよう統合
+  2. **どこでも未使用** → 削除
+  3. **将来の拡張用** → 現時点で価値提供できるよう実装
 
-ユーザーの状態によって **同一エンドポイントが異なる動作をする** パターンを採用：
-
-```rust
-// 同じエンドポイントが、ユーザーにより異なる動作
-GET /tasks/dynamic
-// Freeユーザー: 最大100件、基本機能
-// Proユーザー: 最大1万件、高度なフィルタ・エクスポート
-// Enterprise: 無制限、すべての機能利用可
-```
-
-**パーミッション階層**:
-
-- `PermissionScope`: 自分 → チーム → 組織 → グローバル
-- `SubscriptionTier`: Free → Pro → Enterprise
-- `Privilege`: 階層ごとのクォータ・機能を定義
-
-### 認証フロー
-
-**複数ミドルウェア**:
-
-- `jwt_auth_middleware`: JWT の基本検証
-- `role_aware_auth_middleware`: DB から詳細な役割情報を読み込む
-- `admin_only_middleware`: 管理者専用エンドポイント
-- `optional_auth_middleware`: 認証任意のパブリックエンドポイント
-
-**トークン管理**:
-
-- アクセストークン: 15 分（短命）
-- リフレッシュトークン: 7 日間、自動更新あり
-- パスワードリセットトークン: 1 時間・使い切り
-
-### サービス層のパターン
-
-サービスは **動的な動作切替** を実装：
-
-```rust
-impl TaskService {
-    pub async fn list_tasks_dynamic(&self, user: &AuthenticatedUser, filter: Option<TaskFilterDto>) -> AppResult<TaskResponse> {
-        let permission_result = user.can_perform_action("tasks", "read", None);
-        match permission_result {
-            PermissionResult::Allowed { privilege, scope } => {
-                self.execute_task_query(user, filter, privilege, scope).await
-            }
-            // パーミッション結果に基づき異なる処理を実行
-        }
-    }
-}
-```
+* dead\_code で検知される要素への対応：
+  * **公開API（pub）** → 実装での活用を検討
+  * **内部実装（非pub）** → 使用されていなければ削除
+  * **テスト用ユーティリティ** → そのまま維持
 
 ---
 
-## データベーススキーマパターン
+## 🚀 実装完了後の期待される状態
 
-**マルチテナンシー対応**:
-
-- スキーマベースの分離（`DATABASE_SCHEMA`で設定可能）
-- ユーザー単位のデータアクセス
-- サブスクリプション履歴の追跡
-
-**主要テーブル**:
-
-- `users`: 基本ユーザーデータ + サブスクリプション階層
-- `roles`: パーミッション定義
-- `subscription_history`: プラン変更の監査記録
-- `tasks`: ユーザー所有のタスク
-- トークン関連: `refresh_tokens`, `password_reset_tokens`
+1. **`cargo clippy`で警告ゼロ**（dead_code警告を含む）
+2. **`make ci-check`ですべてのテストがグリーン**
+3. **APIドキュメントと実装が一致**
+4. **テストが実装の実際の動作を検証**
+5. **プロダクションコードがクリーンで保守しやすい**
 
 ---
 
-## 設定システム
-
-**統合設定ファイル**（`src/config.rs`）:
-
-- 環境変数に基づく設定読み込み
-- サーバー・DB・JWT・メール・セキュリティの個別設定
-- 開発／本番のモード検出
-
-**主要環境変数**:
-
-```bash
-DATABASE_URL=postgres://postgres:password@localhost:5432/taskdb
-SERVER_ADDR=0.0.0.0:3000
-DATABASE_SCHEMA=custom_schema  # スキーマ分離（任意）
-RUST_LOG=info
-```
-
----
-
-## 動的パーミッションシステムの設計
-
-本システムの核は、**ユーザー文脈に応じて API 動作を切り替えること**です。
-
-### パーミッションモデル
-
-```rust
-pub struct Permission {
-    pub resource: String,      // "tasks", "users", "reports" など
-    pub action: String,        // "read", "write", "delete", "admin"
-    pub scope: PermissionScope,
-}
-
-pub enum PermissionScope {
-    Own,           // 自分のデータ
-    Team,          // チーム単位
-    Organization,  // 組織全体
-    Global,        // 全体アクセス
-}
-
-pub struct Privilege {
-    pub name: String,
-    pub subscription_tier: SubscriptionTier,
-    pub quota: Option<PermissionQuota>,
-}
-```
-
-### サブスクリプション階層
-
-- **Free**: 自分の範囲、最大 100 件、基本機能
-- **Pro**: チーム範囲、最大 1 万件、高度な検索やエクスポート可
-- **Enterprise**: 全体範囲、無制限、すべての機能利用可
-
-### 実装パターン（サービス層の動作切替）
-
-```rust
-match (scope, privilege.subscription_tier) {
-    (PermissionScope::Own, SubscriptionTier::Free) => {
-        self.list_tasks_for_user_limited(user_id, privilege.quota).await
-    }
-    (PermissionScope::Team, SubscriptionTier::Pro) => {
-        self.list_tasks_for_team_with_features(user_id, &privilege.features, filter).await
-    }
-    (PermissionScope::Global, SubscriptionTier::Enterprise) => {
-        self.list_all_tasks_unlimited(filter).await
-    }
-    _ if user.is_admin() => {
-        self.list_all_tasks_unlimited(filter).await
-    }
-    _ => {
-        self.list_tasks_for_user(user_id).await.map(TaskResponse::Limited)
-    }
-}
-```
-
----
-
-## テスト戦略
-
-**テスト構成**:
-
-- 単体テスト: `src/*/mod.rs`（高速・独立）
-- 統合テスト: `tests/integration/`（`testcontainers`使用）
-- テスト用共通ユーティリティ: `tests/common/`
-
-**DB テスト**:
-
-- PostgreSQL + `testcontainers`
-- 並列実行のためのスキーマ分離
-- 各テストで自動マイグレーション実行
-
-**テスト実行コマンド**:
-
-```bash
-cargo test --lib                           # 単体テストのみ（高速）
-cargo test integration::tasks::crud_tests  # 特定統合テスト
-cargo test --test integration -- --test-threads 1  # 直列実行
-```
-
----
-
-## 実装上の重要事項
-
-- **エラーハンドリング**: `AppError` による HTTP ステータスマッピング
-
-- **バリデーション**: `validator` クレート + カスタムロジック
-
-- **セキュリティ機能**:
-
-  - Argon2 パスワードハッシュ＋自動リハッシュ
-  - CORS 設定、セキュリティヘッダ
-  - レートリミット対応準備済み
-
-- **バッチ操作**: 全 CRUD が最大 100 件のバッチ対応
-
-- **フィルタリングとページネーション**: 動的パーミッション考慮の上で柔軟に対応
-
----
-
-このコードベースを扱う際は、**API 変更が動的パーミッションに与える影響**を常に意識し、**異なるユーザーコンテキストごとに十分なテストカバレッジ**を確保してください。

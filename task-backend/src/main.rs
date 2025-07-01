@@ -16,15 +16,13 @@ mod service;
 mod utils;
 
 use crate::api::handlers::{
-    analytics_handler::analytics_router_with_state,
-    auth_handler::auth_router_with_state,
+    admin_handler::admin_router, analytics_handler::analytics_router_with_state,
+    auth_handler::auth_router_with_state, gdpr_handler::gdpr_router_with_state,
     organization_handler::organization_router_with_state,
-    permission_handler::permission_router_with_state,
-    role_handler::role_router_with_state,
-    security_handler::security_router,
-    subscription_handler::subscription_router_with_state,
-    task_handler::{admin_task_router, task_router_with_state},
-    team_handler::team_router_with_state,
+    organization_hierarchy_handler::organization_hierarchy_router,
+    permission_handler::permission_router_with_state, role_handler::role_router_with_state,
+    security_handler::security_router, subscription_handler::subscription_router_with_state,
+    task_handler::task_router_with_state, team_handler::team_router_with_state,
     user_handler::user_router_with_state,
 };
 use crate::api::AppState;
@@ -34,9 +32,13 @@ use crate::middleware::auth::{
     cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
 };
 use crate::repository::{
+    activity_log_repository::ActivityLogRepository,
+    login_attempt_repository::LoginAttemptRepository,
     organization_repository::OrganizationRepository,
     password_reset_token_repository::PasswordResetTokenRepository,
     refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
+    security_incident_repository::SecurityIncidentRepository,
+    subscription_history_repository::SubscriptionHistoryRepository,
     team_repository::TeamRepository, user_repository::UserRepository,
 };
 use crate::service::{
@@ -140,6 +142,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let email_verification_token_repo = Arc::new(crate::repository::email_verification_token_repository::EmailVerificationTokenRepository::new(db_pool.clone()));
     let _organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
     let _team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
+    let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db_pool.clone()));
+
+    // Security repositories
+    let activity_log_repo = Arc::new(ActivityLogRepository::new(db_pool.clone()));
+    let security_incident_repo = Arc::new(SecurityIncidentRepository::new(db_pool.clone()));
+    let login_attempt_repo = Arc::new(LoginAttemptRepository::new(db_pool.clone()));
 
     tracing::info!("📚 Repositories created.");
 
@@ -150,6 +158,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         refresh_token_repo.clone(),
         password_reset_token_repo.clone(),
         email_verification_token_repo.clone(),
+        activity_log_repo.clone(),
+        login_attempt_repo.clone(),
         password_manager.clone(),
         jwt_manager.clone(),
         email_service.clone(),
@@ -158,7 +168,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let user_service = Arc::new(UserService::new(user_repo.clone()));
 
-    let role_service = Arc::new(RoleService::new(role_repo.clone(), user_repo.clone()));
+    let role_service = Arc::new(RoleService::new(
+        Arc::new(db_pool.clone()),
+        role_repo.clone(),
+        user_repo.clone(),
+    ));
 
     let task_service = if let Some(schema) = &app_config.database.schema {
         Arc::new(TaskService::with_schema(db_pool.clone(), schema.clone()))
@@ -172,6 +186,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
     let team_service = Arc::new(TeamService::new(
+        Arc::new(db_pool.clone()),
         TeamRepository::new(db_pool.clone()),
         UserRepository::new(db_pool.clone()),
         email_service.clone(),
@@ -183,10 +198,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         UserRepository::new(db_pool.clone()),
     ));
 
+    let team_invitation_service = Arc::new(
+        crate::service::team_invitation_service::TeamInvitationService::new(
+            crate::repository::team_invitation_repository::TeamInvitationRepository::new(
+                db_pool.clone(),
+            ),
+            TeamRepository::new(db_pool.clone()),
+            UserRepository::new(db_pool.clone()),
+        ),
+    );
+
     // Security services creation
     let security_service = Arc::new(SecurityService::new(
         refresh_token_repo.clone(),
         password_reset_token_repo.clone(),
+        activity_log_repo.clone(),
+        security_incident_repo.clone(),
+        login_attempt_repo.clone(),
     ));
 
     tracing::info!("🎯 Business services created.");
@@ -195,7 +223,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let auth_middleware_config = AuthMiddlewareConfig {
         jwt_manager: jwt_manager.clone(),
         user_repository: user_repo.clone(),
-        role_repository: role_repo.clone(),
         access_token_cookie_name: "access_token".to_string(),
         skip_auth_paths: vec![
             "/auth/signup".to_string(),
@@ -203,6 +230,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/auth/refresh".to_string(),
             "/auth/forgot-password".to_string(),
             "/auth/reset-password".to_string(),
+            "/auth/verify-email".to_string(),
+            "/auth/resend-verification".to_string(),
             "/health".to_string(),
             "/".to_string(),
         ],
@@ -218,11 +247,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         role_service,
         task_service,
         team_service,
+        team_invitation_service,
         organization_service,
         subscription_service,
+        subscription_history_repo,
         security_service,
-        email_service,
         jwt_manager.clone(),
+        Arc::new(db_pool.clone()),
         &app_config,
     );
 
@@ -237,7 +268,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let permission_router = permission_router_with_state(app_state.clone());
     let analytics_router = analytics_router_with_state(app_state.clone());
     let security_router = security_router(app_state.clone());
-    let admin_router = admin_task_router(app_state.clone());
+    let admin_router = admin_router(app_state.clone());
+    let hierarchy_router = organization_hierarchy_router().with_state(app_state.clone());
+    let gdpr_router = gdpr_router_with_state(app_state.clone());
 
     // メインアプリケーションルーターの構築
     let app_router = Router::new()
@@ -252,6 +285,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(analytics_router)
         .merge(security_router)
         .merge(admin_router)
+        .merge(hierarchy_router)
+        .merge(gdpr_router)
         .route(
             "/",
             axum::routing::get(|| async { "Task Backend API v1.0" }),
@@ -278,6 +313,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • Permission Management: /permissions/*");
     tracing::info!("   • Analytics: /analytics/*");
     tracing::info!("   • Admin Management: /admin/*");
+    tracing::info!(
+        "   • Organization Hierarchy: /organizations/*/hierarchy, /organizations/*/departments/*"
+    );
+    tracing::info!("   • GDPR Compliance: /gdpr/*, /admin/gdpr/*");
     tracing::info!("   • Health Check: /health");
 
     // サーバーの起動

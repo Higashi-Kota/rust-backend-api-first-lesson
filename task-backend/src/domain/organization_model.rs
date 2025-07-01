@@ -2,8 +2,66 @@
 
 use crate::domain::subscription_tier::SubscriptionTier;
 use chrono::{DateTime, Utc};
+use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+// SeaORM Entity Model for organizations table
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Serialize, Deserialize)]
+#[sea_orm(table_name = "organizations")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub owner_id: Uuid,
+    pub subscription_tier: String,
+    pub max_teams: i32,
+    pub max_members: i32,
+    pub settings_json: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "crate::domain::user_model::Entity",
+        from = "Column::OwnerId",
+        to = "crate::domain::user_model::Column::Id"
+    )]
+    Owner,
+    #[sea_orm(has_many = "super::organization_department_model::Entity")]
+    OrganizationDepartments,
+    #[sea_orm(has_many = "super::organization_analytics_model::Entity")]
+    OrganizationAnalytics,
+    #[sea_orm(
+        has_many = "crate::domain::team_model::Entity",
+        from = "Column::Id",
+        to = "crate::domain::team_model::Column::OrganizationId"
+    )]
+    Teams,
+}
+
+impl Related<crate::domain::user_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Owner.def()
+    }
+}
+
+impl Related<super::organization_department_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::OrganizationDepartments.def()
+    }
+}
+
+impl Related<super::organization_analytics_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::OrganizationAnalytics.def()
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {}
 
 /// 組織情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,22 +117,7 @@ pub enum OrganizationRole {
     Member, // 一般メンバー
 }
 
-#[allow(dead_code)]
 impl OrganizationRole {
-    /// 役割レベルを数値で取得（高いほど権限が強い）
-    pub fn level(&self) -> u8 {
-        match self {
-            OrganizationRole::Owner => 3,
-            OrganizationRole::Admin => 2,
-            OrganizationRole::Member => 1,
-        }
-    }
-
-    /// 指定された役割以上の権限を持つかチェック
-    pub fn is_at_least(&self, other: &OrganizationRole) -> bool {
-        self.level() >= other.level()
-    }
-
     /// 管理権限を持つかチェック
     pub fn can_manage(&self) -> bool {
         matches!(self, OrganizationRole::Owner | OrganizationRole::Admin)
@@ -122,7 +165,6 @@ impl std::str::FromStr for OrganizationRole {
     }
 }
 
-#[allow(dead_code)]
 impl Organization {
     /// 新しい組織を作成
     pub fn new(
@@ -198,7 +240,6 @@ impl Organization {
     }
 }
 
-#[allow(dead_code)]
 impl OrganizationMember {
     /// 新しい組織メンバーを作成
     pub fn new(
@@ -241,13 +282,6 @@ impl OrganizationMember {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_organization_role_levels() {
-        assert_eq!(OrganizationRole::Owner.level(), 3);
-        assert_eq!(OrganizationRole::Admin.level(), 2);
-        assert_eq!(OrganizationRole::Member.level(), 1);
-    }
 
     #[test]
     fn test_organization_role_permissions() {

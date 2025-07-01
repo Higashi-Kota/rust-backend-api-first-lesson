@@ -21,7 +21,7 @@ impl PasswordResetTokenRepository {
         Self { db, schema: None }
     }
 
-    #[allow(dead_code)] // テスト環境でのスキーマ分離に使用
+    #[allow(dead_code)]
     pub fn with_schema(db: DbConn, schema: String) -> Self {
         Self {
             db,
@@ -182,6 +182,22 @@ impl PasswordResetTokenRepository {
             .filter(password_reset_token_model::Column::CreatedAt.gt(since))
             .order_by(password_reset_token_model::Column::CreatedAt, Order::Desc)
             .all(&self.db)
+            .await
+    }
+
+    /// 特定のユーザーの最近のリセット要求数を取得
+    pub async fn count_recent_requests_by_user(
+        &self,
+        user_id: Uuid,
+        minutes: i64,
+    ) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        let since = Utc::now() - chrono::Duration::minutes(minutes);
+
+        PasswordResetTokenEntity::find()
+            .filter(password_reset_token_model::Column::UserId.eq(user_id))
+            .filter(password_reset_token_model::Column::CreatedAt.gt(since))
+            .count(&self.db)
             .await
     }
 }

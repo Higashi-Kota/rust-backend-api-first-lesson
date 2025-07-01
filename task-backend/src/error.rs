@@ -6,7 +6,9 @@ use axum::{
     Json,
 };
 use sea_orm::DbErr;
+use serde::Serialize;
 use serde_json::json;
+use std::collections::HashMap;
 use thiserror::Error;
 use validator::ValidationErrors;
 
@@ -31,7 +33,6 @@ pub enum AppError {
     ValidationFailure(#[from] ValidationErrors),
 
     #[error("Bad request: {0}")]
-    #[allow(dead_code)]
     BadRequest(String),
 
     #[error("Unauthorized: {0}")]
@@ -50,7 +51,7 @@ pub enum AppError {
 // axum でエラーをHTTPレスポンスに変換するための実装
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_json) = match self {
+        let (status, error_response) = match self {
             AppError::DbErr(db_err) => {
                 eprintln!("Database error: {:?}", db_err); // サーバーログには詳細を出す
 
@@ -61,100 +62,216 @@ impl IntoResponse for AppError {
                 };
 
                 // クライアントへのエラーメッセージをより具体的に
-                let message = match db_err {
-                    sea_orm::DbErr::RecordNotFound(_) => {
-                        "The requested resource was not found".to_string()
-                    }
-                    _ => "A database error occurred".to_string(),
+                let (message, details) = match &db_err {
+                    sea_orm::DbErr::RecordNotFound(entity) => (
+                        "The requested resource was not found".to_string(),
+                        Some(json!({ "entity": entity })),
+                    ),
+                    sea_orm::DbErr::Exec(_msg) => (
+                        "A database operation failed".to_string(),
+                        Some(json!({ "operation": "exec", "hint": "Check database connection" })),
+                    ),
+                    sea_orm::DbErr::Query(_msg) => (
+                        "A database query failed".to_string(),
+                        Some(json!({ "operation": "query", "hint": "Check query syntax" })),
+                    ),
+                    _ => ("A database error occurred".to_string(), None),
                 };
 
                 (
                     status,
-                    json!({
-                        "error": message,
-                        "error_type": "database_error"
-                    }),
+                    ErrorResponse {
+                        success: false,
+                        error: message.clone(),
+                        message,
+                        details,
+                        validation_errors: None,
+                        errors: None,
+                        error_type: "database_error".to_string(),
+                    },
                 )
             }
             AppError::NotFound(message) => (
                 StatusCode::NOT_FOUND,
-                json!({
-                    "error": message,
-                    "error_type": "not_found"
-                }),
+                ErrorResponse {
+                    success: false,
+                    error: message.clone(),
+                    message,
+                    details: None,
+                    validation_errors: None,
+                    errors: None,
+                    error_type: "not_found".to_string(),
+                },
             ),
             AppError::ValidationError(message) => (
                 StatusCode::BAD_REQUEST,
-                json!({
-                    "error": message,
-                    "error_type": "validation_error"
-                }),
+                ErrorResponse {
+                    success: false,
+                    error: message.clone(),
+                    message,
+                    details: None,
+                    validation_errors: None,
+                    errors: None,
+                    error_type: "validation_error".to_string(),
+                },
             ),
-            AppError::ValidationErrors(errors) => (
-                StatusCode::BAD_REQUEST,
-                json!({
-                    "errors": errors.iter().map(|e| json!({"message": e})).collect::<Vec<_>>(),
-                    "error_type": "validation_errors"
-                }),
-            ),
+            AppError::ValidationErrors(errors) => {
+                let mut field_errors = HashMap::new();
+                for error in &errors {
+                    if let Some((field, message)) = error.split_once(": ") {
+                        field_errors
+                            .entry(field.to_string())
+                            .or_insert_with(Vec::new)
+                            .push(message.to_string());
+                    }
+                }
+                let errors_array: Vec<serde_json::Value> =
+                    errors.iter().map(|e| json!({"message": e})).collect();
+                (
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse {
+                        success: false,
+                        error: "Validation failed".to_string(),
+                        message: "Validation failed".to_string(),
+                        details: None,
+                        validation_errors: Some(field_errors),
+                        errors: Some(errors_array),
+                        error_type: "validation_errors".to_string(),
+                    },
+                )
+            }
             AppError::UuidError(err) => (
                 StatusCode::BAD_REQUEST,
-                json!({
-                    "error": format!("Invalid UUID: {}", err),
-                    "error_type": "invalid_uuid"
-                }),
+                ErrorResponse {
+                    success: false,
+                    error: format!("Invalid UUID: {}", err),
+                    message: format!("Invalid UUID: {}", err),
+                    details: None,
+                    validation_errors: None,
+                    errors: None,
+                    error_type: "invalid_uuid".to_string(),
+                },
             ),
-            AppError::ValidationFailure(errors) => (
-                StatusCode::BAD_REQUEST,
-                json!({
-                    "error": "Validation failed",
-                    "details": errors.field_errors(),
-                    "error_type": "validation_failure"
-                }),
-            ),
+            AppError::ValidationFailure(errors) => {
+                let field_errors: HashMap<String, Vec<String>> = errors
+                    .field_errors()
+                    .into_iter()
+                    .map(|(field, errors)| {
+                        let messages = errors
+                            .iter()
+                            .map(|e| {
+                                e.message
+                                    .as_ref()
+                                    .map_or_else(|| "Invalid value".to_string(), |m| m.to_string())
+                            })
+                            .collect();
+                        (field.to_string(), messages)
+                    })
+                    .collect();
+                let errors_array: Vec<serde_json::Value> = field_errors
+                    .iter()
+                    .flat_map(|(field, messages)| {
+                        messages
+                            .iter()
+                            .map(move |msg| json!({"message": format!("{}: {}", field, msg)}))
+                    })
+                    .collect();
+                (
+                    StatusCode::BAD_REQUEST,
+                    ErrorResponse {
+                        success: false,
+                        error: "Validation failed".to_string(),
+                        message: "Validation failed".to_string(),
+                        details: None,
+                        validation_errors: Some(field_errors),
+                        errors: Some(errors_array),
+                        error_type: "validation_errors".to_string(),
+                    },
+                )
+            }
             AppError::BadRequest(message) => (
                 StatusCode::BAD_REQUEST,
-                json!({
-                    "error": message,
-                    "error_type": "bad_request"
-                }),
+                ErrorResponse {
+                    success: false,
+                    error: message.clone(),
+                    message,
+                    details: None,
+                    validation_errors: None,
+                    errors: None,
+                    error_type: "bad_request".to_string(),
+                },
             ),
             AppError::Unauthorized(message) => (
                 StatusCode::UNAUTHORIZED,
-                json!({
-                    "error": message,
-                    "error_type": "unauthorized"
-                }),
+                ErrorResponse {
+                    success: false,
+                    error: message.clone(),
+                    message,
+                    details: None,
+                    validation_errors: None,
+                    errors: None,
+                    error_type: "unauthorized".to_string(),
+                },
             ),
             AppError::Forbidden(message) => (
                 StatusCode::FORBIDDEN,
-                json!({
-                    "error": message,
-                    "error_type": "forbidden"
-                }),
+                ErrorResponse {
+                    success: false,
+                    error: message.clone(),
+                    message,
+                    details: None,
+                    validation_errors: None,
+                    errors: None,
+                    error_type: "forbidden".to_string(),
+                },
             ),
             AppError::Conflict(message) => (
                 StatusCode::CONFLICT,
-                json!({
-                    "error": message,
-                    "error_type": "conflict"
-                }),
+                ErrorResponse {
+                    success: false,
+                    error: message.clone(),
+                    message,
+                    details: None,
+                    validation_errors: None,
+                    errors: None,
+                    error_type: "conflict".to_string(),
+                },
             ),
             AppError::InternalServerError(message) => {
                 eprintln!("Internal server error: {}", message);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    json!({
-                        "error": "An internal server error occurred",
-                        "error_type": "internal_server_error"
-                    }),
+                    ErrorResponse {
+                        success: false,
+                        error: "An internal server error occurred".to_string(),
+                        message: "An internal server error occurred".to_string(),
+                        details: None,
+                        validation_errors: None,
+                        errors: None,
+                        error_type: "internal_server_error".to_string(),
+                    },
                 )
             }
         };
 
-        (status, Json(error_json)).into_response()
+        (status, Json(error_response)).into_response()
     }
 }
 
 // Result 型のエイリアス
 pub type AppResult<T> = Result<T, AppError>;
+
+/// 統一的なエラーレスポンス構造
+#[derive(Debug, Clone, Serialize)]
+pub struct ErrorResponse {
+    pub success: bool,
+    pub error: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub validation_errors: Option<HashMap<String, Vec<String>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub errors: Option<Vec<serde_json::Value>>,
+    pub error_type: String,
+}

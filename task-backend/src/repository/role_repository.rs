@@ -1,8 +1,10 @@
 // task-backend/src/repository/role_repository.rs
 use crate::domain::role_model::{self, Entity as Role, RoleWithPermissions};
+use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, Set,
 };
 use std::sync::Arc;
 use tracing::{error, info, warn};
@@ -262,8 +264,20 @@ impl RoleRepository {
             ));
         }
 
-        // TODO: このロールを使用しているユーザーがいるかチェック
-        // 実際の運用では外部キー制約エラーをハンドリング
+        // このロールを使用しているユーザーがいるかチェック
+        let users_with_role = self.count_users_with_role(id).await?;
+        if users_with_role > 0 {
+            warn!(
+                role_id = %id,
+                role_name = %role.name,
+                users_count = users_with_role,
+                "Cannot delete role: still in use by users"
+            );
+            return Err(AppError::ValidationError(format!(
+                "Cannot delete role '{}': {} users are still assigned to this role",
+                role.name, users_with_role
+            )));
+        }
 
         Role::delete_by_id(id)
             .exec(self.db.as_ref())
@@ -275,6 +289,66 @@ impl RoleRepository {
 
         info!(role_id = %id, role_name = %role.name, "Successfully deleted role");
         Ok(())
+    }
+
+    /// 指定したロールを使用しているユーザー数を取得
+    pub async fn count_users_with_role(&self, role_id: Uuid) -> AppResult<u64> {
+        use crate::domain::user_model::{Column as UserColumn, Entity as User};
+
+        let count = User::find()
+            .filter(UserColumn::RoleId.eq(role_id))
+            .count(self.db.as_ref())
+            .await
+            .map_err(|e| {
+                error!(error = %e, role_id = %role_id, "Failed to count users with role");
+                AppError::InternalServerError("Failed to count users with role".to_string())
+            })?;
+
+        Ok(count)
+    }
+
+    /// サブスクリプション階層を指定してロールを取得
+    pub async fn find_by_id_with_subscription(
+        &self,
+        id: Uuid,
+        subscription_tier: SubscriptionTier,
+    ) -> AppResult<Option<RoleWithPermissions>> {
+        let role = Role::find_by_id(id)
+            .one(self.db.as_ref())
+            .await
+            .map_err(|e| {
+                error!(error = %e, role_id = %id, "Failed to fetch role by ID with subscription");
+                AppError::InternalServerError("Failed to fetch role".to_string())
+            })?;
+
+        match role {
+            Some(role_model) => {
+                match RoleWithPermissions::from_model_with_subscription(
+                    role_model,
+                    subscription_tier,
+                ) {
+                    Ok(role_with_perms) => {
+                        info!(
+                            role_id = %id,
+                            role_name = %role_with_perms.name,
+                            subscription_tier = %subscription_tier,
+                            "Successfully fetched role with subscription tier"
+                        );
+                        Ok(Some(role_with_perms))
+                    }
+                    Err(e) => {
+                        error!(error = %e, role_id = %id, "Invalid role data in database");
+                        Err(AppError::InternalServerError(
+                            "Invalid role data".to_string(),
+                        ))
+                    }
+                }
+            }
+            None => {
+                info!(role_id = %id, "Role not found");
+                Ok(None)
+            }
+        }
     }
 }
 

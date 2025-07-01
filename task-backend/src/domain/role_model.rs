@@ -76,9 +76,9 @@ impl RoleName {
         matches!(self, RoleName::Admin)
     }
 
-    /// 一般ユーザー権限があるかチェック
+    /// 一般ユーザー権限があるかチェック（管理者も含む）
     pub fn is_member(&self) -> bool {
-        matches!(self, RoleName::Member)
+        matches!(self, RoleName::Member | RoleName::Admin)
     }
 
     /// 権限レベルを数値で取得（高いほど強い権限）
@@ -137,7 +137,6 @@ impl RoleWithPermissions {
     }
 
     /// Modelから変換（サブスクリプション階層指定）
-    #[allow(dead_code)]
     pub fn from_model_with_subscription(
         model: Model,
         subscription_tier: SubscriptionTier,
@@ -168,7 +167,6 @@ impl RoleWithPermissions {
     }
 
     /// 指定されたユーザーIDにアクセス権限があるかチェック（内部実装）
-    #[allow(dead_code)]
     pub fn can_access_user(&self, requesting_user_id: Uuid, target_user_id: Uuid) -> bool {
         if !self.is_active {
             return false;
@@ -192,64 +190,7 @@ impl RoleWithPermissions {
         }
     }
 
-    /// リソースの削除権限があるかチェック（内部実装）
-    #[allow(dead_code)]
-    pub fn can_delete_resource(
-        &self,
-        resource_type: &str,
-        owner_id: Option<Uuid>,
-        requesting_user_id: Uuid,
-    ) -> bool {
-        if !self.is_active {
-            return false;
-        }
-        match resource_type {
-            "user" => self.is_admin(),
-            "role" => self.is_admin(),
-            "task" => {
-                if let Some(owner) = owner_id {
-                    owner == requesting_user_id || self.is_admin()
-                } else {
-                    self.is_admin()
-                }
-            }
-            _ => false,
-        }
-    }
-
-    /// リソースの編集権限があるかチェック（新機能）
-    #[allow(dead_code)]
-    pub fn can_update_resource(
-        &self,
-        resource_type: &str,
-        owner_id: Option<Uuid>,
-        requesting_user_id: Uuid,
-    ) -> bool {
-        if !self.is_active {
-            return false;
-        }
-        match resource_type {
-            "user" => {
-                if let Some(owner) = owner_id {
-                    owner == requesting_user_id || self.is_admin()
-                } else {
-                    self.is_admin()
-                }
-            }
-            "role" => self.is_admin(),
-            "task" => {
-                if let Some(owner) = owner_id {
-                    owner == requesting_user_id || self.is_admin()
-                } else {
-                    self.is_admin()
-                }
-            }
-            _ => false,
-        }
-    }
-
     /// リソースの表示権限があるかチェック（新機能）
-    #[allow(dead_code)]
     pub fn can_view_resource(
         &self,
         resource_type: &str,
@@ -275,7 +216,7 @@ impl RoleWithPermissions {
         }
     }
 
-    /// 動的権限チェック（CLAUDE.md設計の実装）
+    /// 動的権限チェック
     pub fn can_perform_action(
         &self,
         resource: &str,
@@ -450,7 +391,7 @@ mod tests {
     #[test]
     fn test_role_checks() {
         assert!(RoleName::Admin.is_admin());
-        assert!(!RoleName::Admin.is_member());
+        assert!(RoleName::Admin.is_member());
         assert!(!RoleName::Member.is_admin());
         assert!(RoleName::Member.is_member());
     }
@@ -521,9 +462,9 @@ mod tests {
             Some(PermissionQuota::limited(1000, 50)),
         );
 
-        assert!(privilege.is_available_for(SubscriptionTier::Pro));
-        assert!(privilege.is_available_for(SubscriptionTier::Enterprise));
-        assert!(!privilege.is_available_for(SubscriptionTier::Free));
+        assert!(privilege.is_available_for_tier(&SubscriptionTier::Pro));
+        assert!(privilege.is_available_for_tier(&SubscriptionTier::Enterprise));
+        assert!(!privilege.is_available_for_tier(&SubscriptionTier::Free));
     }
 
     #[test]

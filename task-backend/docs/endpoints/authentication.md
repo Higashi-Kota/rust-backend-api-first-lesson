@@ -14,8 +14,8 @@
 curl -X POST http://localhost:3000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "higashi-kota-8",
-    "email": "higashi.kota+8@gri.jp",
+    "username": "higashi-kota-14",
+    "email": "higashi.kota+14@gri.jp",
     "password": "SecurePass342!"
   }' | jq
 ```
@@ -88,11 +88,40 @@ curl -X POST http://localhost:3000/auth/reset-password \
 curl -X GET http://localhost:3000/auth/status
 ```
 
+### 7. メール認証 (POST /auth/verify-email)
+
+メール認証トークンを使用してメールアドレスを認証します。
+
+**リクエスト例:**
+
+```bash
+curl -X POST http://localhost:3000/auth/verify-email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "token": "email_verification_token_here"
+  }'
+```
+
+### 8. メール認証再送 (POST /auth/resend-verification)
+
+メール認証用のメールを再送信します。
+
+**リクエスト例:**
+
+```bash
+curl -X POST http://localhost:3000/auth/resend-verification \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com"
+  }'
+```
+
 ## 認証必要エンドポイント
 
 以下のエンドポイントには有効な JWT アクセストークンが必要です。
 
-### 7. 現在のユーザー情報取得 (GET /auth/me)
+### 9. 現在のユーザー情報取得 (GET /auth/me)
 
 認証済みユーザーの詳細情報を取得します。
 
@@ -103,7 +132,7 @@ curl -X GET http://localhost:3000/auth/me \
   -H "Authorization: Bearer <access_token>"
 ```
 
-### 8. パスワード変更 (PUT /auth/change-password)
+### 10. パスワード変更 (PUT /auth/change-password)
 
 現在のユーザーのパスワードを変更します。
 
@@ -120,7 +149,7 @@ curl -X PUT http://localhost:3000/auth/change-password \
   }'
 ```
 
-### 9. ログアウト (POST /auth/signout)
+### 11. ログアウト (POST /auth/signout)
 
 現在のセッションを終了します。
 
@@ -131,7 +160,7 @@ curl -X POST http://localhost:3000/auth/signout \
   -H "Authorization: Bearer <access_token>"
 ```
 
-### 10. 全デバイスからログアウト (POST /auth/signout-all)
+### 12. 全デバイスからログアウト (POST /auth/signout-all)
 
 ユーザーのすべてのアクティブセッションを終了します。
 
@@ -142,7 +171,7 @@ curl -X POST http://localhost:3000/auth/signout-all \
   -H "Authorization: Bearer <access_token>"
 ```
 
-### 11. アカウント削除 (DELETE /auth/account)
+### 13. アカウント削除 (DELETE /auth/account)
 
 ユーザーアカウントを完全に削除します。
 
@@ -178,5 +207,7 @@ curl -X DELETE http://localhost:3000/auth/account \
 - **アクセストークン**: 15 分で自動期限切れ
 - **リフレッシュトークン**: 7 日間、自動更新対応
 - **パスワードリセットトークン**: 1 時間・使い切り
+- **メール認証トークン**: 24 時間・使い切り
 - **パスワードハッシュ**: Argon2 + 自動リハッシュ対応
 - **認証方式**: Authorization ヘッダー または httpOnly クッキー
+- **メール認証**: オプション（開発環境では無効化可能）
