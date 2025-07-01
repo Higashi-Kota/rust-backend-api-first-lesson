@@ -59,15 +59,20 @@ impl EmailConfig {
     pub fn from_env() -> Result<Self, crate::error::AppError> {
         use std::env;
 
-        // 環境を判定
-        let environment = env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string());
-        let development_mode = environment == "development";
-
         // プロバイダーを決定
         let provider = match env::var("EMAIL_PROVIDER").as_deref() {
             Ok("mailgun") => EmailProvider::Mailgun,
             Ok("mailhog") => EmailProvider::MailHog,
-            Ok("development") | Err(_) => EmailProvider::Development,
+            Ok("development") => EmailProvider::Development,
+            Err(_) => {
+                // EMAIL_PROVIDERが未設定の場合は環境に基づいて決定
+                let environment = env::var("RUST_ENV").unwrap_or_else(|_| "development".to_string());
+                if environment == "development" {
+                    EmailProvider::Development
+                } else {
+                    EmailProvider::MailHog
+                }
+            },
             Ok(other) => {
                 return Err(crate::error::AppError::InternalServerError(format!(
                     "Unknown email provider: {}",
@@ -75,6 +80,9 @@ impl EmailConfig {
                 )))
             }
         };
+
+        // development_modeはproviderがDevelopmentの場合のみtrueに
+        let development_mode = matches!(provider, EmailProvider::Development);
 
         // メール設定を構築
         let config = Self {
@@ -102,10 +110,6 @@ impl EmailConfig {
 
     /// 設定の検証
     pub fn validate(&self) -> Result<(), crate::error::AppError> {
-        if self.development_mode {
-            return Ok(()); // 開発モードでは検証をスキップ
-        }
-
         match &self.provider {
             EmailProvider::Development => Ok(()),
             EmailProvider::MailHog => {
@@ -200,12 +204,6 @@ impl EmailService {
                 "Invalid email address: {}",
                 message.to_email
             )));
-        }
-
-        if self.config.development_mode {
-            // 開発モードではログ出力のみ
-            self.log_email(&message);
-            return Ok(());
         }
 
         // プロバイダーに応じたメール送信
