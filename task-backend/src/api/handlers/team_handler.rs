@@ -45,6 +45,12 @@ pub async fn create_team_handler(
     // バリデーション
     payload.validate().map_err(handle_validation_error)?;
 
+    // PermissionServiceを使用してチーム作成権限をチェック
+    app_state
+        .permission_service
+        .check_resource_access(user.user_id(), "team", None, "create")
+        .await?;
+
     // Pro以上のサブスクリプション階層を持つユーザーのみ複数チームを作成可能
     // ただし、チームを所有していないユーザーは最初のチームを作成可能
     let existing_owned_teams = app_state
@@ -129,6 +135,12 @@ pub async fn update_team_handler(
     // バリデーション
     payload.validate().map_err(handle_validation_error)?;
 
+    // PermissionServiceを使用してチーム管理権限をチェック
+    app_state
+        .permission_service
+        .check_team_management_permission(user.user_id(), team_id)
+        .await?;
+
     let team_response = app_state
         .team_service
         .update_team(team_id, payload, user.user_id())
@@ -146,6 +158,12 @@ pub async fn delete_team_handler(
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
 ) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+    // PermissionServiceを使用してチーム管理権限をチェック
+    app_state
+        .permission_service
+        .check_team_management_permission(user.user_id(), team_id)
+        .await?;
+
     app_state
         .team_service
         .delete_team(team_id, user.user_id())
@@ -169,6 +187,12 @@ pub async fn invite_team_member_handler(
 ) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
     // バリデーション
     payload.validate().map_err(handle_validation_error)?;
+
+    // PermissionServiceを使用してチーム管理権限をチェック
+    app_state
+        .permission_service
+        .check_team_management_permission(user.user_id(), team_id)
+        .await?;
 
     let member_response = app_state
         .team_service

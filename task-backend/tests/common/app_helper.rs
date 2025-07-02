@@ -16,9 +16,9 @@ use task_backend::{
         team_repository::TeamRepository, user_repository::UserRepository,
     },
     service::{
-        auth_service::AuthService, role_service::RoleService,
-        subscription_service::SubscriptionService, task_service::TaskService,
-        team_service::TeamService, user_service::UserService,
+        auth_service::AuthService, permission_service::PermissionService,
+        role_service::RoleService, subscription_service::SubscriptionService,
+        task_service::TaskService, team_service::TeamService, user_service::UserService,
     },
     utils::{
         email::{EmailConfig, EmailService},
@@ -36,19 +36,23 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     let schema_name = db.schema_name.clone();
 
     // リポジトリの作成
-    let user_repo = Arc::new(UserRepository::with_schema(
-        db.connection.clone(),
-        schema_name.clone(),
-    ));
+    let user_repo = Arc::new(UserRepository::new(db.connection.clone()));
     let role_repo = Arc::new(RoleRepository::new(Arc::new(db.connection.clone())));
-    let refresh_token_repo = Arc::new(RefreshTokenRepository::with_schema(
-        db.connection.clone(),
-        schema_name.clone(),
-    ));
+    let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db.connection.clone()));
     let password_reset_token_repo =
         Arc::new(PasswordResetTokenRepository::new(db.connection.clone()));
     let email_verification_token_repo =
         Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
+    let user_settings_repo = Arc::new(
+        task_backend::repository::user_settings_repository::UserSettingsRepository::new(
+            db.connection.clone(),
+        ),
+    );
+    let bulk_operation_history_repo = Arc::new(
+        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+            db.connection.clone(),
+        ),
+    );
 
     // 統合設定を作成
     let mut app_config = AppConfig::for_testing();
@@ -91,7 +95,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         role_repo.clone(),
         refresh_token_repo,
         password_reset_token_repo,
-        email_verification_token_repo,
+        email_verification_token_repo.clone(),
         activity_log_repo.clone(),
         login_attempt_repo.clone(),
         password_manager,
@@ -99,7 +103,12 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         email_service.clone(),
         Arc::new(db.connection.clone()),
     ));
-    let user_service = Arc::new(UserService::new(user_repo.clone()));
+    let user_service = Arc::new(UserService::new(
+        user_repo.clone(),
+        user_settings_repo.clone(),
+        bulk_operation_history_repo.clone(),
+        email_verification_token_repo.clone(),
+    ));
 
     // 統一されたAppStateの作成
 
@@ -108,10 +117,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         role_repo.clone(),
         user_repo.clone(),
     ));
-    let task_service = Arc::new(TaskService::with_schema(
-        db.connection.clone(),
-        schema_name.clone(),
-    ));
+    let task_service = Arc::new(TaskService::new(db.connection.clone()));
     let subscription_service = Arc::new(SubscriptionService::new(
         db.connection.clone(),
         email_service.clone(),
@@ -172,6 +178,29 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
 
     let subscription_history_repo =
         Arc::new(SubscriptionHistoryRepository::new(db.connection.clone()));
+    let daily_activity_summary_repo = Arc::new(
+        task_backend::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
+            db.connection.clone(),
+        ),
+    );
+    let feature_usage_metrics_repo = Arc::new(
+        task_backend::repository::feature_usage_metrics_repository::FeatureUsageMetricsRepository::new(
+            db.connection.clone(),
+        ),
+    );
+
+    // Create PermissionService
+    let permission_service = Arc::new(PermissionService::new(
+        role_repo.clone(),
+        user_repo.clone(),
+        Arc::new(TeamRepository::new(db.connection.clone())),
+    ));
+
+    let bulk_operation_history_repo = Arc::new(
+        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+            db.connection.clone(),
+        ),
+    );
 
     let app_state = AppState::with_config(
         auth_service,
@@ -183,6 +212,10 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         organization_service,
         subscription_service,
         subscription_history_repo,
+        bulk_operation_history_repo,
+        daily_activity_summary_repo,
+        feature_usage_metrics_repo,
+        permission_service,
         security_service,
         jwt_manager,
         Arc::new(db.connection.clone()),
@@ -193,7 +226,8 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     let app = Router::new()
         .merge(auth_handler::auth_router(app_state.clone()))
         .merge(user_handler::user_router(app_state.clone()))
-        .merge(task_backend::api::handlers::security_handler::security_router(app_state));
+        .merge(task_backend::api::handlers::security_handler::security_router(app_state.clone()))
+        .merge(task_backend::api::handlers::analytics_handler::analytics_router(app_state));
 
     (app, schema_name, db)
 }
@@ -205,19 +239,23 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
     let schema_name = db.schema_name.clone();
 
     // リポジトリの作成
-    let user_repo = Arc::new(UserRepository::with_schema(
-        db.connection.clone(),
-        schema_name.clone(),
-    ));
+    let user_repo = Arc::new(UserRepository::new(db.connection.clone()));
     let role_repo = Arc::new(RoleRepository::new(Arc::new(db.connection.clone())));
-    let refresh_token_repo = Arc::new(RefreshTokenRepository::with_schema(
-        db.connection.clone(),
-        schema_name.clone(),
-    ));
+    let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db.connection.clone()));
     let password_reset_token_repo =
         Arc::new(PasswordResetTokenRepository::new(db.connection.clone()));
     let email_verification_token_repo =
         Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
+    let user_settings_repo = Arc::new(
+        task_backend::repository::user_settings_repository::UserSettingsRepository::new(
+            db.connection.clone(),
+        ),
+    );
+    let bulk_operation_history_repo = Arc::new(
+        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+            db.connection.clone(),
+        ),
+    );
 
     // 統合設定を作成
     let mut app_config = AppConfig::for_testing();
@@ -260,7 +298,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         role_repo.clone(),
         refresh_token_repo.clone(),
         password_reset_token_repo.clone(),
-        email_verification_token_repo,
+        email_verification_token_repo.clone(),
         activity_log_repo.clone(),
         login_attempt_repo.clone(),
         password_manager,
@@ -268,16 +306,18 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         email_service.clone(),
         Arc::new(db.connection.clone()),
     ));
-    let user_service = Arc::new(UserService::new(user_repo.clone()));
+    let user_service = Arc::new(UserService::new(
+        user_repo.clone(),
+        user_settings_repo.clone(),
+        bulk_operation_history_repo.clone(),
+        email_verification_token_repo.clone(),
+    ));
     let role_service = Arc::new(RoleService::new(
         Arc::new(db.connection.clone()),
         role_repo.clone(),
         user_repo.clone(),
     ));
-    let task_service = Arc::new(TaskService::with_schema(
-        db.connection.clone(),
-        schema_name.clone(),
-    ));
+    let task_service = Arc::new(TaskService::new(db.connection.clone()));
     let subscription_service = Arc::new(SubscriptionService::new(
         db.connection.clone(),
         email_service.clone(),
@@ -328,6 +368,28 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
 
     let subscription_history_repo =
         Arc::new(SubscriptionHistoryRepository::new(db.connection.clone()));
+    let daily_activity_summary_repo = Arc::new(
+        task_backend::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
+            db.connection.clone(),
+        ),
+    );
+    let feature_usage_metrics_repo = Arc::new(
+        task_backend::repository::feature_usage_metrics_repository::FeatureUsageMetricsRepository::new(
+            db.connection.clone(),
+        ),
+    );
+    let bulk_operation_history_repo = Arc::new(
+        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+            db.connection.clone(),
+        ),
+    );
+
+    // Create PermissionService
+    let permission_service = Arc::new(PermissionService::new(
+        role_repo.clone(),
+        user_repo.clone(),
+        Arc::new(TeamRepository::new(db.connection.clone())),
+    ));
 
     // 統一されたAppStateの作成
     let app_state = AppState::with_config(
@@ -340,6 +402,10 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         organization_service,
         subscription_service,
         subscription_history_repo,
+        bulk_operation_history_repo,
+        daily_activity_summary_repo,
+        feature_usage_metrics_repo,
+        permission_service,
         security_service,
         jwt_manager.clone(),
         Arc::new(db.connection.clone()),
@@ -412,7 +478,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
 
 /// テストアプリケーションのセットアップ（AppStateも返す）
 #[allow(dead_code)]
-pub async fn setup_test_app() -> (Router, AppState) {
+pub async fn setup_test_app() -> (Router, Arc<AppState>) {
     let (app, _schema_name, db) = setup_full_app().await;
     let mut app_config = AppConfig::for_testing();
 
@@ -427,6 +493,16 @@ pub async fn setup_test_app() -> (Router, AppState) {
         Arc::new(PasswordResetTokenRepository::new(db.connection.clone()));
     let email_verification_token_repo =
         Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
+    let user_settings_repo = Arc::new(
+        task_backend::repository::user_settings_repository::UserSettingsRepository::new(
+            db.connection.clone(),
+        ),
+    );
+    let bulk_operation_history_repo = Arc::new(
+        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+            db.connection.clone(),
+        ),
+    );
 
     let password_manager = Arc::new(
         PasswordManager::new(
@@ -460,7 +536,7 @@ pub async fn setup_test_app() -> (Router, AppState) {
         role_repo.clone(),
         refresh_token_repo,
         password_reset_token_repo,
-        email_verification_token_repo,
+        email_verification_token_repo.clone(),
         activity_log_repo.clone(),
         login_attempt_repo.clone(),
         password_manager,
@@ -469,7 +545,12 @@ pub async fn setup_test_app() -> (Router, AppState) {
         Arc::new(db.connection.clone()),
     ));
 
-    let user_service = Arc::new(UserService::new(user_repo.clone()));
+    let user_service = Arc::new(UserService::new(
+        user_repo.clone(),
+        user_settings_repo.clone(),
+        bulk_operation_history_repo.clone(),
+        email_verification_token_repo.clone(),
+    ));
     let role_service = Arc::new(RoleService::new(
         Arc::new(db.connection.clone()),
         role_repo.clone(),
@@ -524,6 +605,29 @@ pub async fn setup_test_app() -> (Router, AppState) {
 
     let subscription_history_repo =
         Arc::new(SubscriptionHistoryRepository::new(db.connection.clone()));
+    let daily_activity_summary_repo = Arc::new(
+        task_backend::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
+            db.connection.clone(),
+        ),
+    );
+    let feature_usage_metrics_repo = Arc::new(
+        task_backend::repository::feature_usage_metrics_repository::FeatureUsageMetricsRepository::new(
+            db.connection.clone(),
+        ),
+    );
+
+    // Create PermissionService
+    let permission_service = Arc::new(PermissionService::new(
+        role_repo.clone(),
+        user_repo.clone(),
+        Arc::new(TeamRepository::new(db.connection.clone())),
+    ));
+
+    let bulk_operation_history_repo = Arc::new(
+        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+            db.connection.clone(),
+        ),
+    );
 
     let app_state = AppState::with_config(
         auth_service,
@@ -535,11 +639,15 @@ pub async fn setup_test_app() -> (Router, AppState) {
         organization_service,
         subscription_service,
         subscription_history_repo,
+        bulk_operation_history_repo,
+        daily_activity_summary_repo,
+        feature_usage_metrics_repo,
+        permission_service,
         security_service,
         jwt_manager,
         Arc::new(db.connection.clone()),
         &app_config,
     );
 
-    (app, app_state)
+    (app, Arc::new(app_state))
 }

@@ -6,7 +6,10 @@ use crate::api::dto::common::{ApiResponse, PaginatedResponse, PaginationQuery};
 use crate::api::dto::subscription_history_dto::*;
 use crate::api::dto::task_dto::*;
 use crate::api::dto::team_invitation_dto::*;
-use crate::api::dto::user_dto::UserWithRoleResponse;
+use crate::api::dto::user_dto::{
+    UpdateUserSettingsRequest, UserSettingsDto, UserWithRoleResponse, UsersByLanguageResponse,
+    UsersWithNotificationResponse,
+};
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
@@ -16,7 +19,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::info;
@@ -841,7 +844,7 @@ pub async fn admin_list_organizations(
 
     // 組織一覧を取得（管理者なので全組織を取得）
     let (organizations, total_count) = organization_service
-        .get_all_organizations_paginated(search_query)
+        .get_organizations_paginated(search_query, user.user_id())
         .await?;
 
     // サブスクリプション階層別の統計を計算
@@ -1092,6 +1095,426 @@ pub async fn change_user_subscription(
     )))
 }
 
+// === データクリーンアップ・メンテナンスAPI ===
+
+/// バルク操作履歴一覧取得クエリ
+#[derive(Debug, Deserialize)]
+pub struct BulkOperationListQuery {
+    #[serde(default = "default_page")]
+    pub page: i32,
+    #[serde(default = "default_per_page")]
+    pub per_page: i32,
+    pub start_date: Option<DateTime<Utc>>,
+    pub end_date: Option<DateTime<Utc>>,
+}
+
+/// バルク操作履歴レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BulkOperationHistoryResponse {
+    pub id: Uuid,
+    pub operation_type: String,
+    pub performed_by: Uuid,
+    pub performed_by_username: Option<String>,
+    pub affected_count: i32,
+    pub status: String,
+    pub error_details: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
+/// クリーンアップ結果レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CleanupResultResponse {
+    pub operation_type: String,
+    pub deleted_count: u64,
+    pub before_date: Option<DateTime<Utc>>,
+    pub performed_at: DateTime<Utc>,
+}
+
+/// 機能使用メトリクスレスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserFeatureMetricsResponse {
+    pub user_id: Uuid,
+    pub action_counts: HashMap<String, i64>,
+    pub start_date: DateTime<Utc>,
+    pub end_date: DateTime<Utc>,
+}
+
+/// 管理者向けバルク操作履歴一覧取得
+pub async fn admin_list_bulk_operations(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(query): Query<BulkOperationListQuery>,
+) -> AppResult<Json<ApiResponse<PaginatedResponse<BulkOperationHistoryResponse>>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        "Admin listing bulk operation history"
+    );
+
+    // 日付範囲が指定されている場合は範囲検索、そうでなければ最新の履歴を取得
+    let operations = if let (Some(start_date), Some(end_date)) = (query.start_date, query.end_date)
+    {
+        app_state
+            .bulk_operation_history_repo
+            .get_by_date_range(start_date, end_date)
+            .await?
+    } else {
+        // デフォルトで最新100件を取得
+        app_state
+            .bulk_operation_history_repo
+            .get_recent(100)
+            .await?
+    };
+
+    // ユーザー情報を取得してレスポンスを構築
+    let mut responses = Vec::new();
+    for op in operations {
+        let username =
+            if let Ok(user) = app_state.user_service.get_user_by_id(op.performed_by).await {
+                Some(user.username)
+            } else {
+                None
+            };
+
+        responses.push(BulkOperationHistoryResponse {
+            id: op.id,
+            operation_type: op.operation_type,
+            performed_by: op.performed_by,
+            performed_by_username: username,
+            affected_count: op.affected_count,
+            status: op.status,
+            error_details: op.error_details,
+            created_at: op.created_at,
+            completed_at: op.completed_at,
+        });
+    }
+
+    // ページネーション適用
+    let page = query.page;
+    let per_page = query.per_page;
+    let total_count = responses.len() as i64;
+    let offset = ((page - 1) * per_page) as usize;
+    let limit = per_page as usize;
+
+    let paginated_responses: Vec<BulkOperationHistoryResponse> =
+        responses.into_iter().skip(offset).take(limit).collect();
+
+    let response = PaginatedResponse::new(paginated_responses, page, per_page, total_count);
+
+    Ok(Json(ApiResponse::success(
+        "Bulk operation history retrieved successfully",
+        response,
+    )))
+}
+
+/// 管理者向け特定ユーザーのバルク操作履歴取得
+pub async fn admin_get_user_bulk_operations(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<Vec<BulkOperationHistoryResponse>>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let limit = params
+        .get("limit")
+        .and_then(|l| l.parse::<u64>().ok())
+        .unwrap_or(50)
+        .clamp(1, 200);
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        limit = %limit,
+        "Admin getting user bulk operation history"
+    );
+
+    let operations = app_state
+        .bulk_operation_history_repo
+        .get_by_user(user_id, limit)
+        .await?;
+
+    // レスポンスを構築
+    let responses: Vec<BulkOperationHistoryResponse> = operations
+        .into_iter()
+        .map(|op| BulkOperationHistoryResponse {
+            id: op.id,
+            operation_type: op.operation_type,
+            performed_by: op.performed_by,
+            performed_by_username: None, // 既にユーザーが特定されているので不要
+            affected_count: op.affected_count,
+            status: op.status,
+            error_details: op.error_details,
+            created_at: op.created_at,
+            completed_at: op.completed_at,
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        "User bulk operation history retrieved successfully",
+        responses,
+    )))
+}
+
+/// 管理者向け古いバルク操作履歴の削除
+pub async fn admin_cleanup_bulk_operations(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<CleanupResultResponse>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let days = params
+        .get("days")
+        .and_then(|d| d.parse::<i64>().ok())
+        .unwrap_or(90);
+
+    if days < 30 {
+        return Err(AppError::ValidationError(
+            "Cannot delete bulk operation history less than 30 days old".to_string(),
+        ));
+    }
+
+    let before_date = Utc::now() - chrono::Duration::days(days);
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        before_date = %before_date,
+        "Admin cleaning up old bulk operation history"
+    );
+
+    let deleted_count = app_state
+        .bulk_operation_history_repo
+        .delete_old_histories(before_date)
+        .await?;
+
+    let response = CleanupResultResponse {
+        operation_type: "bulk_operation_history_cleanup".to_string(),
+        deleted_count,
+        before_date: Some(before_date),
+        performed_at: Utc::now(),
+    };
+
+    Ok(Json(ApiResponse::success(
+        format!("Deleted {} bulk operation history records", deleted_count),
+        response,
+    )))
+}
+
+/// 管理者向け古い日次アクティビティサマリーの削除
+pub async fn admin_cleanup_daily_summaries(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<CleanupResultResponse>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let days = params
+        .get("days")
+        .and_then(|d| d.parse::<i64>().ok())
+        .unwrap_or(365);
+
+    if days < 90 {
+        return Err(AppError::ValidationError(
+            "Cannot delete daily summaries less than 90 days old".to_string(),
+        ));
+    }
+
+    let before_date = (Utc::now() - chrono::Duration::days(days)).date_naive();
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        before_date = %before_date,
+        "Admin cleaning up old daily activity summaries"
+    );
+
+    let deleted_count = app_state
+        .daily_activity_summary_repo
+        .delete_old_summaries(before_date)
+        .await?;
+
+    let response = CleanupResultResponse {
+        operation_type: "daily_activity_summary_cleanup".to_string(),
+        deleted_count,
+        before_date: Some(before_date.and_hms_opt(0, 0, 0).unwrap().and_utc()),
+        performed_at: Utc::now(),
+    };
+
+    Ok(Json(ApiResponse::success(
+        format!("Deleted {} daily activity summary records", deleted_count),
+        response,
+    )))
+}
+
+/// 管理者向けユーザーの機能使用メトリクス取得
+pub async fn admin_get_user_feature_metrics(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<UserFeatureMetricsResponse>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let user_id = params
+        .get("user_id")
+        .and_then(|id| Uuid::parse_str(id).ok())
+        .ok_or_else(|| AppError::BadRequest("Valid user_id parameter is required".to_string()))?;
+
+    let days = params
+        .get("days")
+        .and_then(|d| d.parse::<i64>().ok())
+        .unwrap_or(30);
+
+    let end_date = Utc::now();
+    let start_date = end_date - chrono::Duration::days(days);
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        start_date = %start_date,
+        end_date = %end_date,
+        "Admin getting user feature metrics"
+    );
+
+    let action_counts = app_state
+        .feature_usage_metrics_repo
+        .get_user_action_counts(user_id, start_date, end_date)
+        .await?;
+
+    let response = UserFeatureMetricsResponse {
+        user_id,
+        action_counts,
+        start_date,
+        end_date,
+    };
+
+    Ok(Json(ApiResponse::success(
+        "User feature metrics retrieved successfully",
+        response,
+    )))
+}
+
+/// 管理者向け古い機能使用メトリクスの削除
+pub async fn admin_cleanup_feature_metrics(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<CleanupResultResponse>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let days = params
+        .get("days")
+        .and_then(|d| d.parse::<i64>().ok())
+        .unwrap_or(180);
+
+    if days < 30 {
+        return Err(AppError::ValidationError(
+            "Cannot delete feature metrics less than 30 days old".to_string(),
+        ));
+    }
+
+    let before_date = Utc::now() - chrono::Duration::days(days);
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        before_date = %before_date,
+        "Admin cleaning up old feature usage metrics"
+    );
+
+    let deleted_count = app_state
+        .feature_usage_metrics_repo
+        .delete_old_metrics(before_date)
+        .await?;
+
+    let response = CleanupResultResponse {
+        operation_type: "feature_usage_metrics_cleanup".to_string(),
+        deleted_count,
+        before_date: Some(before_date),
+        performed_at: Utc::now(),
+    };
+
+    Ok(Json(ApiResponse::success(
+        format!("Deleted {} feature usage metric records", deleted_count),
+        response,
+    )))
+}
+
+/// 管理者向け機能使用状況のカウント取得
+pub async fn admin_get_feature_usage_counts(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    if !user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let days = params
+        .get("days")
+        .and_then(|d| d.parse::<u32>().ok())
+        .unwrap_or(30);
+
+    let start_date = Utc::now() - Duration::days(days as i64);
+    let end_date = Utc::now();
+
+    let counts = app_state
+        .feature_usage_metrics_repo
+        .get_feature_usage_counts(start_date, end_date)
+        .await?;
+
+    let mut sorted_counts: Vec<_> = counts.into_iter().collect();
+    sorted_counts.sort_by(|a, b| b.1.cmp(&a.1));
+
+    Ok(Json(ApiResponse::success(
+        "Feature usage counts retrieved successfully",
+        serde_json::json!({
+            "period_days": days,
+            "start_date": start_date.to_rfc3339(),
+            "end_date": end_date.to_rfc3339(),
+            "feature_counts": sorted_counts
+                .into_iter()
+                .map(|(name, count)| serde_json::json!({
+                    "feature_name": name,
+                    "usage_count": count
+                }))
+                .collect::<Vec<_>>()
+        }),
+    )))
+}
+
 /// Admin専用ルーター（統廃合済み）
 pub fn admin_router(app_state: crate::api::AppState) -> axum::Router {
     use axum::routing::{delete, get, post, put};
@@ -1162,6 +1585,43 @@ pub fn admin_router(app_state: crate::api::AppState) -> axum::Router {
         .route(
             "/admin/subscription/history/{id}",
             delete(delete_subscription_history_by_id_handler),
+        )
+        // ユーザー設定管理
+        .route(
+            "/admin/users/{user_id}/settings",
+            get(admin_get_user_settings)
+                .put(admin_update_user_settings)
+                .delete(admin_delete_user_settings),
+        )
+        .route(
+            "/admin/users/settings/by-language",
+            get(admin_get_users_by_language),
+        )
+        .route(
+            "/admin/users/settings/with-notification",
+            get(admin_get_users_with_notification),
+        )
+        // データクリーンアップ・メンテナンスAPI
+        .route(
+            "/admin/cleanup/bulk-operations",
+            get(admin_list_bulk_operations).delete(admin_cleanup_bulk_operations),
+        )
+        .route(
+            "/admin/cleanup/bulk-operations/user/{user_id}",
+            get(admin_get_user_bulk_operations),
+        )
+        .route(
+            "/admin/cleanup/daily-summaries",
+            delete(admin_cleanup_daily_summaries),
+        )
+        .route(
+            "/admin/cleanup/feature-metrics",
+            get(admin_get_user_feature_metrics).delete(admin_cleanup_feature_metrics),
+        )
+        // Feature usage analytics
+        .route(
+            "/admin/analytics/feature-usage-counts",
+            get(admin_get_feature_usage_counts),
         )
         // 管理者専用ミドルウェアは、main.rsで適用されるので、ここでは適用しない
         .with_state(app_state)
@@ -1686,4 +2146,191 @@ pub struct DeleteHistoryResponse {
     pub user_id: Uuid,
     pub deleted_count: u64,
     pub deleted_at: DateTime<Utc>,
+}
+
+// === ユーザー設定管理API ===
+
+/// 管理者向けユーザー設定取得
+pub async fn admin_get_user_settings(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<UserSettingsDto>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        "Admin getting user settings"
+    );
+
+    // UserServiceを通じてuser_settings_repoにアクセス
+    let settings = app_state
+        .user_service
+        .get_user_settings(user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User settings not found".to_string()))?;
+
+    Ok(Json(ApiResponse::success(
+        "User settings retrieved successfully",
+        UserSettingsDto::from(settings),
+    )))
+}
+
+/// 管理者向けユーザー設定更新
+pub async fn admin_update_user_settings(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+    Json(request): Json<UpdateUserSettingsRequest>,
+) -> AppResult<Json<ApiResponse<UserSettingsDto>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    request.validate()?;
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        "Admin updating user settings"
+    );
+
+    let input = crate::domain::user_settings_model::UserSettingsInput {
+        language: request.language,
+        timezone: request.timezone,
+        notifications_enabled: request.notifications_enabled,
+        email_notifications: request
+            .email_notifications
+            .and_then(|v| serde_json::from_value(v).ok()),
+        ui_preferences: request
+            .ui_preferences
+            .and_then(|v| serde_json::from_value(v).ok()),
+    };
+
+    let settings = app_state
+        .user_service
+        .update_user_settings(user_id, input)
+        .await?;
+
+    Ok(Json(ApiResponse::success(
+        "User settings updated successfully",
+        UserSettingsDto::from(settings),
+    )))
+}
+
+/// 管理者向け言語別ユーザー一覧取得
+pub async fn admin_get_users_by_language(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<UsersByLanguageResponse>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let language = params
+        .get("language")
+        .ok_or_else(|| AppError::BadRequest("Language parameter is required".to_string()))?;
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        language = %language,
+        "Admin getting users by language"
+    );
+
+    let user_ids = app_state
+        .user_service
+        .get_users_by_language(language)
+        .await?;
+
+    let response = UsersByLanguageResponse {
+        language: language.clone(),
+        user_count: user_ids.len(),
+        user_ids,
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Users retrieved successfully",
+        response,
+    )))
+}
+
+/// 管理者向け通知有効ユーザー一覧取得
+pub async fn admin_get_users_with_notification(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<UsersWithNotificationResponse>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let notification_type = params.get("notification_type").ok_or_else(|| {
+        AppError::BadRequest("Notification type parameter is required".to_string())
+    })?;
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        notification_type = %notification_type,
+        "Admin getting users with notification enabled"
+    );
+
+    let user_ids = app_state
+        .user_service
+        .get_users_with_notification_enabled(notification_type)
+        .await?;
+
+    let response = UsersWithNotificationResponse {
+        notification_type: notification_type.clone(),
+        user_count: user_ids.len(),
+        user_ids,
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Users retrieved successfully",
+        response,
+    )))
+}
+
+/// 管理者向けユーザー設定削除
+pub async fn admin_delete_user_settings(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<StatusCode> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        "Admin deleting user settings"
+    );
+
+    let deleted = app_state.user_service.delete_user_settings(user_id).await?;
+
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AppError::NotFound("User settings not found".to_string()))
+    }
 }

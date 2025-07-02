@@ -236,6 +236,22 @@ impl SubscriptionHistoryRepository {
 
         Ok(result.rows_affected)
     }
+
+    /// 特定期間内のコンバージョン数（無料から有料への変更）をカウント
+    pub async fn count_conversions_in_period(
+        &self,
+        start_date: chrono::DateTime<chrono::Utc>,
+        end_date: chrono::DateTime<chrono::Utc>,
+    ) -> AppResult<u64> {
+        let histories = Entity::find()
+            .filter(Column::ChangedAt.between(start_date, end_date))
+            .filter(Column::PreviousTier.eq("free"))
+            .filter(Column::NewTier.ne("free"))
+            .count(&self.db)
+            .await?;
+
+        Ok(histories)
+    }
 }
 
 /// ユーザーのサブスクリプション統計情報

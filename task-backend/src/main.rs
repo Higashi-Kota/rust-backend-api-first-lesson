@@ -43,9 +43,9 @@ use crate::repository::{
 };
 use crate::service::{
     auth_service::AuthService, organization_service::OrganizationService,
-    role_service::RoleService, security_service::SecurityService,
-    subscription_service::SubscriptionService, task_service::TaskService,
-    team_service::TeamService, user_service::UserService,
+    permission_service::PermissionService, role_service::RoleService,
+    security_service::SecurityService, subscription_service::SubscriptionService,
+    task_service::TaskService, team_service::TeamService, user_service::UserService,
 };
 use crate::utils::{email::EmailService, jwt::JwtManager, password::PasswordManager};
 use axum::{middleware as axum_middleware, Router};
@@ -141,8 +141,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let password_reset_token_repo = Arc::new(PasswordResetTokenRepository::new(db_pool.clone()));
     let email_verification_token_repo = Arc::new(crate::repository::email_verification_token_repository::EmailVerificationTokenRepository::new(db_pool.clone()));
     let _organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
-    let _team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
+    let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
     let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db_pool.clone()));
+    let daily_activity_summary_repo = Arc::new(
+        crate::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
+            db_pool.clone(),
+        ),
+    );
+    let feature_usage_metrics_repo = Arc::new(
+        crate::repository::feature_usage_metrics_repository::FeatureUsageMetricsRepository::new(
+            db_pool.clone(),
+        ),
+    );
+    let user_settings_repo = Arc::new(
+        crate::repository::user_settings_repository::UserSettingsRepository::new(db_pool.clone()),
+    );
+    let bulk_operation_history_repo = Arc::new(
+        crate::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+            db_pool.clone(),
+        ),
+    );
 
     // Security repositories
     let activity_log_repo = Arc::new(ActivityLogRepository::new(db_pool.clone()));
@@ -166,7 +184,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(db_pool.clone()),
     ));
 
-    let user_service = Arc::new(UserService::new(user_repo.clone()));
+    let user_service = Arc::new(UserService::new(
+        user_repo.clone(),
+        user_settings_repo.clone(),
+        bulk_operation_history_repo.clone(),
+        email_verification_token_repo.clone(),
+    ));
 
     let role_service = Arc::new(RoleService::new(
         Arc::new(db_pool.clone()),
@@ -174,11 +197,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user_repo.clone(),
     ));
 
-    let task_service = if let Some(schema) = &app_config.database.schema {
-        Arc::new(TaskService::with_schema(db_pool.clone(), schema.clone()))
-    } else {
-        Arc::new(TaskService::new(db_pool.clone()))
-    };
+    let task_service = Arc::new(TaskService::new(db_pool.clone()));
 
     let subscription_service = Arc::new(SubscriptionService::new(
         db_pool.clone(),
@@ -217,6 +236,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         login_attempt_repo.clone(),
     ));
 
+    // Permission service creation
+    let permission_service = Arc::new(PermissionService::new(
+        role_repo.clone(),
+        user_repo.clone(),
+        team_repo.clone(),
+    ));
+
     tracing::info!("🎯 Business services created.");
 
     // 認証ミドルウェア設定
@@ -251,6 +277,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         organization_service,
         subscription_service,
         subscription_history_repo,
+        bulk_operation_history_repo,
+        daily_activity_summary_repo,
+        feature_usage_metrics_repo,
+        permission_service,
         security_service,
         jwt_manager.clone(),
         Arc::new(db_pool.clone()),

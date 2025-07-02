@@ -1,190 +1,142 @@
 ## 実現トピック
 
-### 📊 統合テストの拡充と機能重複の解消ならびに実装がモック実装になっている箇所の正規実装
+### 🔍 統合テストの品質改善
 
-#### 🎯 目的
-1. **モック実装の正規実装化**
-   - ハードコードされた値の動的計算への置き換え
-   - プレースホルダー実装の完成
-   - 未実装機能の実装
+#### 目的
+既存の統合テストを横断的に精査し、AAA（Arrange-Act-Assert）パターンに従った実効性のあるテストに改善する。特に実データによる検証、副作用の確認、時間依存テストの適切な実装に重点を置く。
 
-2. **統合テストカバレッジの向上**
-   - 既存APIの網羅的なテスト
-   - エッジケースとエラーパスの検証
-   - 権限チェックの完全性確認
+#### Phase 1: 未実装テストの作成
 
-3. **機能重複の解消**
-   - 類似機能の統合
-   - セマンティックな整理
-   - APIエンドポイントの最適化
+**1. GDPRコンプライアンステストの実装**
+- `tests/integration/gdpr/` フォルダを新規作成
+- 実装対象：
+  - `mod.rs` - モジュール定義
+  - `data_export_tests.rs` - ユーザーデータエクスポート機能
+  - `data_deletion_tests.rs` - ユーザーデータ削除（忘れられる権利）
+  - `consent_management_tests.rs` - 同意管理機能
+  - `admin_gdpr_tests.rs` - 管理者向けGDPR機能
+- CI設定の更新（`.github/workflows/ci.yml`に`integration::gdpr`を追加）
 
-#### 📋 実装計画
+**2. 組織設定テストの実装**
+- `tests/integration/organization/organization_settings_tests.rs`
+  - 組織設定の更新（名前、説明、設定JSON）
+  - 権限チェック（組織管理者のみ更新可能）
+  - バリデーション（必須項目、文字数制限）
+  - 監査ログの記録確認
 
-##### Phase 1: モック実装の正規実装化【優先度: 高】
+**3. 組織サブスクリプションテストの実装**
+- `tests/integration/organization/organization_subscription_tests.rs`
+  - サブスクリプションプランの変更
+  - アップグレード/ダウングレードの制約
+  - 課金関連の権限チェック
+  - プラン変更履歴の記録
 
-1. **Analytics Handler の実装**
-   - `src/api/handlers/analytics_handler.rs`
-     - Line 98: `user_growth_rate` を実際のデータから計算
-     - Lines 222-303: システム統計を実データベースから取得
-     - Lines 1039-1136: モックデータ生成を実際のデータ集計に置き換え
-   
-   **必要なDB設計**:
-   ```sql
-   -- 機能使用状況追跡テーブル
-   CREATE TABLE feature_usage_metrics (
-     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-     user_id UUID REFERENCES users(id),
-     feature_name VARCHAR(100) NOT NULL,
-     action_type VARCHAR(50) NOT NULL,
-     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-     metadata JSONB
-   );
-   
-   -- 日次活動サマリーテーブル
-   CREATE TABLE daily_activity_summaries (
-     date DATE NOT NULL,
-     total_users INTEGER NOT NULL DEFAULT 0,
-     active_users INTEGER NOT NULL DEFAULT 0,
-     new_users INTEGER NOT NULL DEFAULT 0,
-     tasks_created INTEGER NOT NULL DEFAULT 0,
-     tasks_completed INTEGER NOT NULL DEFAULT 0,
-     PRIMARY KEY (date)
-   );
-   ```
+**4. チーム招待テストの実装**
+- `tests/integration/team/team_invitation_tests.rs`
+  - 招待の作成・送信
+  - 招待の承認・拒否
+  - 招待の有効期限
+  - 重複招待の防止
+  - 招待権限の確認
 
-2. **User Service の実装**
-   - `src/service/user_service.rs`
-     - Lines 222-250: `get_user_stats_for_analytics()` の実装
-     - Lines 563-573: UpdateRole 一括操作の実装
-     - Lines 371-389: メールトークン検証の完全実装
-     - Lines 418-443: ユーザー設定の永続化
-   
-   **必要なDB設計**:
-   ```sql
-   -- ユーザー設定テーブル
-   CREATE TABLE user_settings (
-     user_id UUID PRIMARY KEY REFERENCES users(id),
-     language VARCHAR(10) NOT NULL DEFAULT 'ja',
-     timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Tokyo',
-     notifications_enabled BOOLEAN NOT NULL DEFAULT true,
-     email_notifications JSONB NOT NULL DEFAULT '{}',
-     ui_preferences JSONB NOT NULL DEFAULT '{}',
-     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-   );
-   ```
+#### Phase 2: 実データ検証の改善
 
-3. **Security Service の実装**
-   - `src/service/security_service.rs`
-     - Lines 55-56: トークン年齢を実際のデータから計算
-     - Lines 68-70: リクエスト数を実際にカウント
+**1. Cleanup操作テストの改善**
+- 対象: `tests/integration/admin/cleanup_operations_tests.rs`
+- 改善内容：
+  - 実際の古いデータを作成してから削除をテスト
+  - タイムスタンプを操作して時間経過をシミュレート
+  - 削除対象と保持対象のデータを明確に分離
+  - 削除後のデータベース状態を検証
 
-##### Phase 2: 統合テストの追加【優先度: 高】
+**2. Analytics関連テストの値検証強化**
+- 対象ファイル：
+  - `analytics/user_analytics_tests.rs`
+  - `analytics/behavior_analytics_tests.rs`
+  - `analytics/admin_analytics_test.rs`
+- 改善内容：
+  - 事前に特定の行動データを作成
+  - 集計結果の数値が正確であることを検証
+  - 比較データの妥当性を確認
+  - 時系列データの整合性チェック
 
-1. **欠落している統合テストの実装**
-   ```
-   tests/integration/
-   ├── organization/
-   │   ├── organization_settings_tests.rs    # 新規作成
-   │   └── organization_subscription_tests.rs # 新規作成
-   ├── gdpr/                                  # 新規フォルダ
-   │   ├── mod.rs
-   │   ├── data_export_tests.rs
-   │   ├── data_deletion_tests.rs
-   │   ├── consent_management_tests.rs
-   │   └── admin_gdpr_tests.rs
-   ├── analytics/
-   │   └── behavior_analytics_tests.rs       # 新規作成
-   ├── team/
-   │   └── team_invitation_tests.rs          # 新規作成
-   └── user/
-       └── bulk_operations_tests.rs           # 新規作成
-   ```
+**3. Feature Usage Metricsテストの充実**
+- 対象: `admin/feature_usage_analytics_test.rs`
+- 改善内容：
+  - 実際の機能使用履歴を作成
+  - 集計期間による結果の違いを検証
+  - ゼロ件の場合と複数件の場合の両方をテスト
 
-   **注意**: 新規フォルダ（gdpr/）を作成する場合は、`.github/workflows/ci.yml`のテストマトリックスに`integration::gdpr`を追加する必要があります。
+#### Phase 3: 副作用検証の追加
 
-2. **各APIエンドポイントの必須テストパターン**
-   ```rust
-   // 組織設定APIのテスト例
-   #[tokio::test]
-   async fn test_update_organization_settings_success() { }
-   
-   #[tokio::test]
-   async fn test_update_organization_settings_validation_error() { }
-   
-   #[tokio::test]
-   async fn test_update_organization_settings_unauthorized() { }
-   
-   #[tokio::test]
-   async fn test_update_organization_settings_forbidden() { }
-   
-   #[tokio::test]
-   async fn test_update_organization_settings_not_found() { }
-   ```
+**1. 権限変更の伝播確認**
+- 対象ファイル：
+  - `roles/role_management_tests.rs`
+  - `permission/permission_check_test.rs`
+- 追加検証：
+  - ロール変更後の権限反映タイミング
+  - キャッシュの無効化確認
+  - 関連するセッションの更新
 
-3. **既存テストの整理**
-   - `security/gdpr_compliance_test.rs`を新規`gdpr/`ディレクトリへ移動
-   - 重複する`auth/password_reset_test.rs`と`auth/password_reset_tests.rs`を統合
-   - テストファイル名を`*_tests.rs`（複数形）に統一
+**2. 組織階層変更の影響確認**
+- 対象: `organization_hierarchy/organization_hierarchy_tests.rs`
+- 追加検証：
+  - 部門移動時の権限継承
+  - 階層変更時の通知
+  - 循環参照の防止
 
-##### Phase 3: 機能重複の解消【優先度: 中】
+**3. 一括操作の履歴記録**
+- 対象: `analytics/user_analytics_tests.rs` の bulk operation
+- 追加検証：
+  - `bulk_operation_histories` テーブルへの記録
+  - 操作ログの詳細度
+  - エラー時のロールバック
 
-1. **UserService の統合**
-   - `list_users_with_roles_paginated()` と `get_all_users_with_roles_paginated()` を統合
-   - 共通のページネーションロジックを抽出
+#### Phase 4: エラーハンドリングの網羅性向上
 
-2. **OrganizationService の統合**
-   - `get_organizations()` と `get_organizations_paginated()` を統合
-   - 統一されたクエリビルダーの実装
+**1. 境界値テストの追加**
+- 全APIエンドポイントに対して：
+  - 最大値を超えるデータ
+  - 空配列・null値の扱い
+  - 特殊文字を含むデータ
+  - 巨大なJSONペイロード
 
-3. **権限チェックの集約**
-   - 分散している権限チェックロジックを `PermissionService` に集約
-   - 共通の権限検証ミドルウェアの実装
+**2. 同時実行・競合状態のテスト**
+- 追加対象：
+  - タスクの同時更新
+  - チームメンバーの同時追加/削除
+  - 組織設定の同時変更
+- 楽観的ロックの動作確認
 
-##### Phase 4: DB最適化とインデックス追加【優先度: 中】
+**3. 依存リソース不在時の動作**
+- 削除されたユーザーのタスクアクセス
+- 解散したチームのメンバー一覧
+- 無効化された組織のデータ
 
-1. **検索パフォーマンス改善**
-   ```sql
-   -- 組織名検索用インデックス
-   CREATE INDEX idx_organizations_name_search ON organizations USING gin(name gin_trgm_ops);
-   
-   -- ユーザー検索用インデックス
-   CREATE INDEX idx_users_email_search ON users(email);
-   CREATE INDEX idx_users_username_search ON users(username);
-   
-   -- 機能使用状況の集計用インデックス
-   CREATE INDEX idx_feature_usage_metrics_date ON feature_usage_metrics(created_at);
-   CREATE INDEX idx_feature_usage_metrics_user_feature ON feature_usage_metrics(user_id, feature_name);
-   ```
+#### Phase 5: テストヘルパーの改善
 
-2. **一括操作履歴テーブル**
-   ```sql
-   CREATE TABLE bulk_operation_histories (
-     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-     operation_type VARCHAR(50) NOT NULL,
-     performed_by UUID REFERENCES users(id),
-     affected_count INTEGER NOT NULL,
-     status VARCHAR(20) NOT NULL,
-     error_details JSONB,
-     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-     completed_at TIMESTAMPTZ
-   );
-   ```
+**1. 時間操作ユーティリティの追加**
+- `tests/common/time_helper.rs` を作成
+- 任意の過去・未来のタイムスタンプでデータ作成
+- テスト用の時間進行シミュレーション
 
-#### 🏁 完了基準
-1. **dead_codeアノテーションがテスト用途以外でゼロ**
-2. **すべてのモック実装が実データに基づく実装に置き換わっている**
-3. **すべての公開APIに統合テストが存在**
-4. **各APIに最低5パターンのテスト**（正常系、バリデーション、認証、権限、リソース不在）
-5. **機能重複が解消され、シンプルなAPI構造**
-6. **必要なDBテーブルとインデックスが作成されている**
-7. **CI/CDパイプラインですべてのテストが通過**
+**2. データビルダーパターンの導入**
+- 各エンティティ用のテストデータビルダー
+- 関連データの自動生成
+- 大量データの効率的な作成
 
-#### 📈 メトリクス
-- モック実装の残存数: 0
-- テストカバレッジ: 80%以上
-- 統合テスト数: 各API × 5パターン以上
-- API応答時間: 200ms以下（95パーセンタイル）
+**3. アサーションヘルパーの充実**
+- データベース状態の検証ヘルパー
+- 複雑なJSONレスポンスの検証
+- 副作用の包括的チェック
+
+#### 完了基準
+- すべての統合テストがAAAパターンに準拠
+- 実データによる動的な検証の実装
+- 副作用（DB更新、ログ、通知）の検証
+- エラーケースの網羅（各API最低5パターン）
+- テスト実行時間の計測と最適化（並列実行可能）
+- カバレッジレポートでの改善確認
 
 ## 🧩 実装ガイドライン
 
@@ -230,6 +182,11 @@
   * 必要に応じてマイグレーションによるDB設計も考慮
 * **未使用コード・シグネチャ・構造体は削除**
   * ただし、テストで使用されているコードは、実装で適切に活用する
+* **例外: テスト用ヘルパー関数**
+  * テスト用については `#[allow(dead_code)]` を許可
+    * `AppConfig::for_testing`
+    * `setup_test_app`
+    * `TestDatabase::_container`
 
 ### 4. **プロダクションコードの品質基準**
 
@@ -266,11 +223,122 @@
 
 ### 統合テスト（Integration Test）
 
-* APIレベルでの**E2Eフロー確認**
+#### **基本要件**
 
+* APIレベルでの**E2Eフロー確認**
   * リクエスト／レスポンス構造の妥当性
   * DB書き込み・読み出しの整合性
   * エラーハンドリングの検証
+
+#### **AAA（Arrange-Act-Assert）パターンによる実装**
+
+バックエンド統合テストでは、AAAパターンを採用し、各テストを以下の3つのフェーズで構成する：
+
+```rust
+#[tokio::test]
+async fn test_example_feature() {
+    // Arrange（準備）: テストの前提条件を設定
+    let (app, _schema, _db) = setup_full_app().await;
+    let user = create_and_authenticate_user(&app).await;
+    let initial_data = create_test_data();
+    
+    // Act（実行）: テスト対象の操作を実行
+    let response = app.oneshot(
+        create_request("POST", "/api/endpoint", &user.token, &initial_data)
+    ).await.unwrap();
+    
+    // Assert（検証）: 期待される結果を確認
+    assert_eq!(response.status(), StatusCode::OK);
+    verify_database_state(&db, &expected_state).await;
+    verify_side_effects(&app).await;
+}
+```
+
+#### **テスト設計の必須要素**
+
+1. **Arrange（準備）フェーズ**
+   - 実際のデータを作成（モックやハードコードされた値を避ける）
+   - 必要な前提条件をすべて満たす
+   - テスト環境の初期状態を明確に定義
+
+2. **Act（実行）フェーズ**
+   - 実際のユーザー操作を再現
+   - 1つのテストにつき1つの主要なアクションに焦点を当てる
+   - APIエンドポイントへの実際のHTTPリクエストを実行
+
+3. **Assert（検証）フェーズ**
+   - レスポンスのステータスコードと本文を検証
+   - データベースの状態変更を確認
+   - 副作用（ログ、通知、関連データの更新）を検証
+   - エラーケースではエラーメッセージの内容も確認
+
+#### **統合テストのベストプラクティス**
+
+1. **独立性の確保**
+   ```rust
+   // 各テストは独立したスキーマで実行され、他のテストに影響しない
+   let (app, schema_name, db) = setup_full_app().await;
+   // テスト終了時に自動的にクリーンアップ
+   ```
+
+2. **実データによる検証**
+   ```rust
+   // ❌ 避けるべき例
+   assert_eq!(response["deleted_count"], 0); // 常に0を期待
+   
+   // ✅ 推奨される例
+   // 実際にデータを作成
+   create_test_records(&db, 5).await;
+   // 削除操作を実行
+   let response = delete_old_records(&app).await;
+   // 実際の削除数を検証
+   assert_eq!(response["deleted_count"], 5);
+   ```
+
+3. **時間依存テストの扱い**
+   ```rust
+   // 時間を操作可能にする
+   let old_data = create_data_with_timestamp(
+       Utc::now() - Duration::days(91)
+   ).await;
+   let recent_data = create_data_with_timestamp(
+       Utc::now() - Duration::days(30)
+   ).await;
+   
+   // 90日以上古いデータの削除をテスト
+   let result = cleanup_old_data(&app, 90).await;
+   assert_eq!(result.deleted_count, 1);
+   ```
+
+4. **エラーパスの網羅**
+   ```rust
+   // 各APIエンドポイントに対して最低限以下のケースをテスト
+   test_endpoint_success()           // 正常系
+   test_endpoint_validation_error()  // バリデーションエラー
+   test_endpoint_unauthorized()      // 認証エラー
+   test_endpoint_forbidden()         // 認可エラー
+   test_endpoint_not_found()         // リソース不在
+   ```
+
+#### **アンチパターンと回避策**
+
+| アンチパターン | 問題点 | 改善策 |
+|--------------|--------|--------|
+| 構造のみの検証 | `assert!(response["data"].is_object())` | 実際の値も検証: `assert_eq!(response["data"]["count"], 10)` |
+| 固定値への依存 | モックが常に同じ値を返す | 実データを作成して動的に検証 |
+| 副作用の未検証 | APIレスポンスのみ確認 | DB状態、ログ、関連データも確認 |
+| テスト間の依存 | 実行順序により結果が変わる | 各テストで必要なデータを準備 |
+
+#### **テスト完全性チェックリスト**
+
+統合テスト実装時の確認事項：
+- [ ] 実際のユーザーシナリオを再現しているか
+- [ ] データは動的に作成されているか（ハードコード値を避ける）
+- [ ] レスポンスの値まで検証しているか（構造だけでなく）
+- [ ] データベースの変更を確認しているか
+- [ ] エラーケースを網羅しているか（最低5パターン）
+- [ ] テストが独立して実行可能か
+- [ ] クリーンアップが適切に行われるか
 
 ---
 

@@ -113,60 +113,44 @@ impl OrganizationService {
         )))
     }
 
-    /// 組織一覧を取得
-    pub async fn get_organizations(
+    /// 組織一覧をページネーション付きで取得
+    pub async fn get_organizations_paginated(
         &self,
         query: OrganizationSearchQuery,
         user_id: Uuid,
-    ) -> AppResult<Vec<OrganizationListResponse>> {
-        let organizations = if let Some(owner_id) = query.owner_id {
-            // 特定ユーザーが所有する組織一覧
+    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
+        self.get_organizations_internal(query, Some(user_id)).await
+    }
+
+    /// 組織一覧取得の内部実装（共通ロジック）
+    async fn get_organizations_internal(
+        &self,
+        query: OrganizationSearchQuery,
+        user_id: Option<Uuid>,
+    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
+        let page = query.page.unwrap_or(1) as i32;
+        let page_size = query.page_size.unwrap_or(20) as i32;
+        let page_size = std::cmp::min(page_size, 100); // 最大100件に制限
+
+        // 組織を取得
+        let all_organizations = if user_id.is_none() {
+            // 管理者用: 全組織を取得
+            self.organization_repository
+                .find_all_organizations()
+                .await?
+        } else if let Some(owner_id) = query.owner_id {
+            // 特定ユーザーが所有する組織
             self.organization_repository
                 .find_by_owner_id(owner_id)
                 .await?
         } else {
-            // ユーザーが参加している組織一覧
+            // ユーザーが参加している組織
             self.organization_repository
-                .find_organizations_by_member(user_id)
+                .find_organizations_by_member(user_id.unwrap())
                 .await?
         };
 
-        let mut organization_responses = Vec::new();
-        for organization in organizations {
-            let member_count = self
-                .organization_repository
-                .count_members(organization.id)
-                .await? as u32;
-            let team_count = self
-                .team_repository
-                .count_teams_by_organization(organization.id)
-                .await? as u32;
-
-            let mut org_response = OrganizationListResponse::from(organization);
-            org_response.current_member_count = member_count;
-            org_response.current_team_count = team_count;
-            organization_responses.push(org_response);
-        }
-
-        Ok(organization_responses)
-    }
-
-    /// 組織一覧をページネーション付きで取得（管理者用）
-    pub async fn get_all_organizations_paginated(
-        &self,
-        query: OrganizationSearchQuery,
-    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
-        let page = query.page.unwrap_or(1) as i32;
-        let page_size = query.page_size.unwrap_or(20) as i32;
-        let page_size = std::cmp::min(page_size, 100); // 最大10件に制限
-
-        // 管理者用: 全組織を取得
-        let all_organizations = self
-            .organization_repository
-            .find_all_organizations()
-            .await?;
-
-        // サブスクリプション階層でフィルタリング
+        // サブスクリプション階層でフィルタリング（指定されている場合）
         let filtered_organizations = if let Some(tier) = query.subscription_tier {
             all_organizations
                 .into_iter()
@@ -187,59 +171,7 @@ impl OrganizationService {
             .take(limit)
             .collect::<Vec<_>>();
 
-        let mut organization_responses = Vec::new();
-        for organization in organizations {
-            let member_count = self
-                .organization_repository
-                .count_members(organization.id)
-                .await? as u32;
-            let team_count = self
-                .team_repository
-                .count_teams_by_organization(organization.id)
-                .await? as u32;
-
-            let mut org_response = OrganizationListResponse::from(organization);
-            org_response.current_member_count = member_count;
-            org_response.current_team_count = team_count;
-            organization_responses.push(org_response);
-        }
-
-        Ok((organization_responses, total_count))
-    }
-
-    /// 組織一覧をページネーション付きで取得
-    pub async fn get_organizations_paginated(
-        &self,
-        query: OrganizationSearchQuery,
-        user_id: Uuid,
-    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
-        let page = query.page.unwrap_or(1) as i32;
-        let page_size = query.page_size.unwrap_or(20) as i32;
-        let page_size = std::cmp::min(page_size, 100); // 最大100件に制限
-
-        // 現在の実装では、全件取得してからページネーションしているが、
-        // リポジトリ層が実装されたらデータベースレベルでページネーションを適用する
-        let all_organizations = if let Some(owner_id) = query.owner_id {
-            self.organization_repository
-                .find_by_owner_id(owner_id)
-                .await?
-        } else {
-            self.organization_repository
-                .find_organizations_by_member(user_id)
-                .await?
-        };
-
-        let total_count = all_organizations.len();
-        let offset = ((page - 1) * page_size) as usize;
-        let limit = page_size as usize;
-
-        // ページネーション適用
-        let organizations = all_organizations
-            .into_iter()
-            .skip(offset)
-            .take(limit)
-            .collect::<Vec<_>>();
-
+        // レスポンスの構築
         let mut organization_responses = Vec::new();
         for organization in organizations {
             let member_count = self

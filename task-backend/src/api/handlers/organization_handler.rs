@@ -59,9 +59,9 @@ pub async fn get_organizations_handler(
     user: AuthenticatedUser,
     Query(query): Query<OrganizationSearchQuery>,
 ) -> AppResult<Json<ApiResponse<Vec<OrganizationListResponse>>>> {
-    let organizations = app_state
+    let (organizations, _) = app_state
         .organization_service
-        .get_organizations(query, user.user_id())
+        .get_organizations_paginated(query, user.user_id())
         .await?;
 
     Ok(Json(ApiResponse::success(
@@ -80,6 +80,12 @@ pub async fn update_organization_handler(
     // バリデーション
     payload.validate()?;
 
+    // 組織管理権限チェック（PermissionServiceを使用）
+    app_state
+        .permission_service
+        .check_organization_management_permission(user.user_id(), organization_id)
+        .await?;
+
     let organization_response = app_state
         .organization_service
         .update_organization(organization_id, payload, user.user_id())
@@ -97,6 +103,12 @@ pub async fn delete_organization_handler(
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
 ) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+    // 組織管理権限チェック（PermissionServiceを使用）
+    app_state
+        .permission_service
+        .check_organization_management_permission(user.user_id(), organization_id)
+        .await?;
+
     app_state
         .organization_service
         .delete_organization(organization_id, user.user_id())
@@ -182,6 +194,12 @@ pub async fn update_organization_settings_handler(
     Path(organization_id): Path<Uuid>,
     Json(payload): Json<UpdateOrganizationSettingsRequest>,
 ) -> AppResult<Json<serde_json::Value>> {
+    // 組織管理権限チェック（PermissionServiceを使用）
+    app_state
+        .permission_service
+        .check_organization_management_permission(user.user_id(), organization_id)
+        .await?;
+
     let organization_response = app_state
         .organization_service
         .update_organization_settings(organization_id, payload, user.user_id())

@@ -43,6 +43,15 @@ mod m20250630_000001_create_activity_logs_table;
 mod m20250630_000002_create_security_incidents_table;
 mod m20250630_000003_create_login_attempts_table;
 
+// 分析・設定関連マイグレーション
+mod m20250702_000001_create_feature_usage_metrics_table;
+mod m20250702_000002_create_daily_activity_summaries_table;
+mod m20250702_000003_create_user_settings_table;
+mod m20250702_000004_create_bulk_operation_histories_table;
+
+// パフォーマンス最適化マイグレーション
+mod m20250702_100001_add_performance_indexes;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -85,6 +94,13 @@ impl MigratorTrait for Migrator {
             Box::new(m20250630_000001_create_activity_logs_table::Migration),
             Box::new(m20250630_000002_create_security_incidents_table::Migration),
             Box::new(m20250630_000003_create_login_attempts_table::Migration),
+            // 13. 分析・設定システム
+            Box::new(m20250702_000001_create_feature_usage_metrics_table::Migration),
+            Box::new(m20250702_000002_create_daily_activity_summaries_table::Migration),
+            Box::new(m20250702_000003_create_user_settings_table::Migration),
+            Box::new(m20250702_000004_create_bulk_operation_histories_table::Migration),
+            // 14. パフォーマンス最適化
+            Box::new(m20250702_100001_add_performance_indexes::Migration),
         ]
     }
 }

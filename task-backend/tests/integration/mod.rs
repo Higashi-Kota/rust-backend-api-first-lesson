@@ -1,5 +1,6 @@
 // tests/integration/mod.rs
 
+pub mod admin;
 pub mod analytics;
 pub mod auth;
 pub mod organization;

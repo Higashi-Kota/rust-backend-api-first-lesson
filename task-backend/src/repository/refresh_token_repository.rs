@@ -21,14 +21,6 @@ impl RefreshTokenRepository {
         Self { db, schema: None }
     }
 
-    #[allow(dead_code)]
-    pub fn with_schema(db: DbConn, schema: String) -> Self {
-        Self {
-            db,
-            schema: Some(schema),
-        }
-    }
-
     // スキーマを設定するヘルパーメソッド
     async fn prepare_connection(&self) -> Result<(), DbErr> {
         if let Some(schema) = &self.schema {
@@ -280,6 +272,42 @@ impl RefreshTokenRepository {
             revoked_count,
             affected_users: affected_users.len() as u64,
         })
+    }
+
+    /// 最古のアクティブトークンの年齢（日数）を取得
+    pub async fn get_oldest_active_token_age_days(&self) -> Result<Option<i64>, DbErr> {
+        self.prepare_connection().await?;
+        let now = Utc::now();
+
+        let oldest_token = RefreshTokenEntity::find()
+            .filter(
+                Condition::all()
+                    .add(refresh_token_model::Column::IsRevoked.eq(false))
+                    .add(refresh_token_model::Column::ExpiresAt.gt(now)),
+            )
+            .order_by(refresh_token_model::Column::CreatedAt, Order::Asc)
+            .one(&self.db)
+            .await?;
+
+        Ok(oldest_token.map(|token| (now - token.created_at).num_days()))
+    }
+
+    /// 最新のアクティブトークンの年齢（時間）を取得
+    pub async fn get_newest_active_token_age_hours(&self) -> Result<Option<i64>, DbErr> {
+        self.prepare_connection().await?;
+        let now = Utc::now();
+
+        let newest_token = RefreshTokenEntity::find()
+            .filter(
+                Condition::all()
+                    .add(refresh_token_model::Column::IsRevoked.eq(false))
+                    .add(refresh_token_model::Column::ExpiresAt.gt(now)),
+            )
+            .order_by(refresh_token_model::Column::CreatedAt, Order::Desc)
+            .one(&self.db)
+            .await?;
+
+        Ok(newest_token.map(|token| (now - token.created_at).num_hours()))
     }
 }
 

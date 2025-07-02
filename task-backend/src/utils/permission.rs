@@ -54,6 +54,7 @@ impl PermissionChecker {
             "user" => Self::is_admin(role),
             "role" => Self::is_admin(role),
             "task" => true, // 全ロールでタスク作成可能
+            "team" => true, // 全ロールでチーム作成可能
             _ => false,
         }
     }
@@ -87,6 +88,14 @@ impl PermissionChecker {
                     Self::is_admin(role)
                 }
             }
+            "team" => {
+                // チームオーナーは編集可能、管理者は全チーム編集可能
+                if let Some(owner) = owner_id {
+                    owner == requesting_user_id || Self::is_admin(role)
+                } else {
+                    Self::is_admin(role)
+                }
+            }
             _ => false,
         }
     }
@@ -107,6 +116,14 @@ impl PermissionChecker {
             "role" => Self::is_admin(role),
             "task" => {
                 // 自分のタスクは削除可能、管理者は全タスク削除可能
+                if let Some(owner) = owner_id {
+                    owner == requesting_user_id || Self::is_admin(role)
+                } else {
+                    Self::is_admin(role)
+                }
+            }
+            "team" => {
+                // チームオーナーは削除可能、管理者は全チーム削除可能
                 if let Some(owner) = owner_id {
                     owner == requesting_user_id || Self::is_admin(role)
                 } else {
@@ -139,6 +156,15 @@ impl PermissionChecker {
                 // 自分のタスクは表示可能、管理者は全タスク表示可能
                 if let Some(owner) = owner_id {
                     owner == requesting_user_id || Self::is_admin(role)
+                } else {
+                    Self::is_admin(role)
+                }
+            }
+            "team" => {
+                // チームメンバーは表示可能、管理者は全チーム表示可能
+                // TODO: チームメンバーかどうかの確認が必要
+                if let Some(_owner) = owner_id {
+                    true // 一時的に全ユーザーがチームを表示可能
                 } else {
                     Self::is_admin(role)
                 }

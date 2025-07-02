@@ -17,7 +17,7 @@ use crate::common;
 // サービステスト用のセットアップヘルパー関数
 async fn setup_test_service() -> (common::db::TestDatabase, TaskService) {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::with_schema(db.connection.clone(), db.schema_name.clone());
+    let service = TaskService::new(db.connection.clone());
     (db, service)
 }
 

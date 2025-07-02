@@ -4,10 +4,10 @@ use crate::api::dto::user_dto::{
     AccountStatusUpdateResponse, BulkOperationResponse, BulkUserOperationsRequest,
     EmailVerificationHistoryResponse, EmailVerificationResponse, ProfileUpdateResponse,
     ResendVerificationEmailRequest, SubscriptionAnalyticsResponse, SubscriptionQuery,
-    UpdateAccountStatusRequest, UpdateEmailRequest, UpdateProfileRequest, UpdateUsernameRequest,
-    UserAdditionalInfo, UserAnalyticsResponse, UserListResponse, UserPermissionsResponse,
-    UserProfileResponse, UserSearchQuery, UserSettingsResponse, UserStatsResponse, UserSummary,
-    VerifyEmailRequest,
+    UpdateAccountStatusRequest, UpdateEmailRequest, UpdateProfileRequest,
+    UpdateUserSettingsRequest, UpdateUsernameRequest, UserAdditionalInfo, UserAnalyticsResponse,
+    UserListResponse, UserPermissionsResponse, UserProfileResponse, UserSearchQuery,
+    UserSettingsResponse, UserStatsResponse, UserSummary, VerifyEmailRequest,
 };
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
@@ -16,8 +16,8 @@ use crate::middleware::auth::AuthenticatedUserWithRole;
 use crate::utils::permission::PermissionChecker;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
-    http::request::Parts,
-    routing::{get, patch, post},
+    http::{request::Parts, StatusCode},
+    routing::{delete, get, patch, post},
     Router,
 };
 use tracing::{info, warn};
@@ -61,6 +61,14 @@ pub async fn get_profile_handler(
         .await?;
 
     info!(user_id = %user.claims.user_id, "User profile retrieved");
+
+    // 機能使用状況を追跡
+    crate::track_feature!(
+        app_state.clone(),
+        user.claims.user_id,
+        "User Profile",
+        "view"
+    );
 
     Ok(Json(UserProfileResponse { user: user_profile }))
 }
@@ -381,16 +389,98 @@ pub async fn resend_verification_email_handler(
 pub async fn get_user_settings_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<UserSettingsResponse>> {
+) -> AppResult<Json<ApiResponse<UserSettingsResponse>>> {
     // 実際の設定をデータベースから取得
     let user_settings = app_state
         .user_service
-        .get_user_settings(user.claims.user_id)
+        .get_user_settings_legacy(user.claims.user_id)
         .await?;
 
     info!(user_id = %user.claims.user_id, "User settings retrieved");
 
-    Ok(Json(user_settings))
+    Ok(Json(ApiResponse::success(
+        "User settings retrieved successfully",
+        user_settings,
+    )))
+}
+
+/// ユーザー設定更新
+pub async fn update_user_settings_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<UpdateUserSettingsRequest>,
+) -> AppResult<Json<ApiResponse<()>>> {
+    // タイムゾーンのバリデーション
+    if let Some(ref tz) = payload.timezone {
+        // 基本的なタイムゾーン検証（より詳細な検証も可能）
+        let valid_timezones = [
+            "UTC",
+            "Asia/Tokyo",
+            "America/New_York",
+            "Europe/London",
+            "America/Los_Angeles",
+            "Europe/Paris",
+            "Asia/Shanghai",
+            "America/Chicago",
+            "Asia/Singapore",
+            "Australia/Sydney",
+        ];
+
+        if !valid_timezones.contains(&tz.as_str()) && !tz.starts_with("UTC") {
+            return Err(AppError::ValidationError(format!(
+                "Invalid timezone: {}",
+                tz
+            )));
+        }
+    }
+
+    // DTOをドメインモデルに変換
+    let input = crate::domain::user_settings_model::UserSettingsInput {
+        language: payload.language,
+        timezone: payload.timezone,
+        notifications_enabled: payload.notifications_enabled,
+        email_notifications: payload
+            .email_notifications
+            .and_then(|v| serde_json::from_value(v).ok()),
+        ui_preferences: payload
+            .ui_preferences
+            .and_then(|v| serde_json::from_value(v).ok()),
+    };
+
+    // 設定を更新
+    app_state
+        .user_service
+        .update_user_settings(user.claims.user_id, input)
+        .await?;
+
+    info!(user_id = %user.claims.user_id, "User settings updated");
+
+    Ok(Json(ApiResponse::success(
+        "User settings updated successfully",
+        (),
+    )))
+}
+
+/// ユーザー設定削除（デフォルトに戻す）
+pub async fn delete_user_settings_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<(StatusCode, Json<ApiResponse<()>>)> {
+    // 設定をデフォルトに戻す
+    app_state
+        .user_service
+        .reset_user_settings_to_default(user.claims.user_id)
+        .await?;
+
+    info!(user_id = %user.claims.user_id, "User settings reset to default");
+
+    Ok((
+        StatusCode::NO_CONTENT,
+        Json(ApiResponse::success(
+            "User settings reset to default successfully",
+            (),
+        )),
+    ))
 }
 
 /// アカウント状態更新（管理者用）
@@ -495,24 +585,18 @@ pub async fn advanced_search_users_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<Json<UserListResponse>> {
-    // can_list_usersを使用して、管理者またはProプラン以上のユーザーのアクセスを許可
-    if let Some(role) = admin_user.role() {
-        if !PermissionChecker::can_list_users(role) {
-            warn!(
-                user_id = %admin_user.user_id(),
-                role = ?admin_user.role().map(|r| &r.name),
-                "Access denied: Admin or Pro subscription required for user search"
-            );
-            return Err(AppError::Forbidden(
-                "Admin or Pro subscription required".to_string(),
-            ));
-        }
-    } else if !admin_user.is_admin() {
+    // ユーザー一覧表示権限チェック（PermissionServiceを使用）
+    if let Err(e) = app_state
+        .permission_service
+        .check_list_users_permission(admin_user.user_id())
+        .await
+    {
         warn!(
             user_id = %admin_user.user_id(),
-            "Access denied: Admin permission required for advanced user search"
+            role = ?admin_user.role().map(|r| &r.name),
+            "Access denied: Permission required for advanced user search"
         );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
+        return Err(e);
     }
 
     let query_with_defaults = query.with_defaults();
@@ -573,15 +657,11 @@ pub async fn get_user_analytics_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<UserAnalyticsResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for user analytics"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
+    // 管理者権限チェック（PermissionServiceを使用）
+    app_state
+        .permission_service
+        .check_admin_permission(admin_user.user_id())
+        .await?;
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -611,14 +691,18 @@ pub async fn get_users_by_role_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<Json<UserListResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
+    // ユーザー一覧表示権限チェック（PermissionServiceを使用）
+    if let Err(e) = app_state
+        .permission_service
+        .check_list_users_permission(admin_user.user_id())
+        .await
+    {
         warn!(
             user_id = %admin_user.user_id(),
             role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for role-based user search"
+            "Access denied: Permission required for role-based user search"
         );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
+        return Err(e);
     }
 
     let query_with_defaults = query.with_defaults();
@@ -681,15 +765,11 @@ pub async fn get_users_by_subscription_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<SubscriptionQuery>,
 ) -> AppResult<Json<SubscriptionAnalyticsResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for subscription analytics"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
+    // 管理者権限チェック（PermissionServiceを使用）
+    app_state
+        .permission_service
+        .check_admin_permission(admin_user.user_id())
+        .await?;
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -721,15 +801,11 @@ pub async fn bulk_user_operations_handler(
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<BulkUserOperationsRequest>,
 ) -> AppResult<Json<BulkOperationResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for bulk operations"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
+    // 管理者権限チェック（PermissionServiceを使用）
+    app_state
+        .permission_service
+        .check_admin_permission(admin_user.user_id())
+        .await?;
 
     // バリデーション
     payload.validate().map_err(|validation_errors| {
@@ -768,6 +844,7 @@ pub async fn bulk_user_operations_handler(
             &payload.user_ids,
             payload.parameters.as_ref(),
             payload.notify_users.unwrap_or(false),
+            admin_user.user_id(),
         )
         .await?;
 
@@ -794,14 +871,18 @@ pub async fn list_users_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<Json<UserListResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
+    // ユーザー一覧表示権限チェック（PermissionServiceを使用）
+    if let Err(e) = app_state
+        .permission_service
+        .check_list_users_permission(admin_user.user_id())
+        .await
+    {
         warn!(
             user_id = %admin_user.user_id(),
             role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for user list"
+            "Access denied: Permission required for user list"
         );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
+        return Err(e);
     }
 
     // バリデーション
@@ -907,17 +988,19 @@ pub async fn get_user_by_id_handler(
     UuidPath(user_id): UuidPath,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<UserProfileResponse>> {
-    // UserClaimsの権限チェックメソッドを活用
-    if !admin_user.claims.can_access_user(user_id) {
+    // ユーザーアクセス権限チェック（PermissionServiceを使用）
+    if let Err(e) = app_state
+        .permission_service
+        .check_user_access(admin_user.user_id(), user_id)
+        .await
+    {
         warn!(
             user_id = %admin_user.user_id(),
             role = ?admin_user.role().map(|r| &r.name),
             target_user_id = %user_id,
             "Access denied: Cannot access user profile"
         );
-        return Err(AppError::Forbidden(
-            "Cannot access user profile".to_string(),
-        ));
+        return Err(e);
     }
 
     info!(
@@ -1041,6 +1124,8 @@ pub fn user_router(app_state: AppState) -> Router {
         .route("/users/profile", patch(update_profile_handler))
         .route("/users/stats", get(get_user_stats_handler))
         .route("/users/settings", get(get_user_settings_handler))
+        .route("/users/settings", patch(update_user_settings_handler))
+        .route("/users/settings", delete(delete_user_settings_handler))
         // メール認証
         .route("/users/verify-email", post(verify_email_handler))
         .route(

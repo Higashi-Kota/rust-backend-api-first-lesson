@@ -1,7 +1,10 @@
 // src/domain/mod.rs
 pub mod activity_log_model;
+pub mod bulk_operation_history_model;
+pub mod daily_activity_summary_model;
 pub mod department_member_model;
 pub mod email_verification_token_model;
+pub mod feature_usage_metrics_model;
 pub mod login_attempt_model;
 pub mod organization_analytics_model;
 pub mod organization_department_model;
@@ -20,3 +23,4 @@ pub mod team_invitation_model;
 pub mod team_member_model;
 pub mod team_model;
 pub mod user_model;
+pub mod user_settings_model;

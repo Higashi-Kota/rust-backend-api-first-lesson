@@ -119,7 +119,7 @@ pub enum RestrictionType {
 }
 
 /// ユーザー設定レスポンス
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSettingsResponse {
     pub user_id: Uuid,
     pub preferences: UserPreferences,
@@ -558,6 +558,90 @@ pub struct BulkOperationResult {
     pub failed: usize,
     pub errors: Vec<String>,
     pub results: Option<serde_json::Value>,
+}
+
+// --- ユーザー設定関連DTO ---
+
+/// ユーザー設定レスポンス（管理者API用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSettingsDto {
+    pub user_id: Uuid,
+    pub language: String,
+    pub timezone: String,
+    pub notifications_enabled: bool,
+    pub email_notifications: serde_json::Value,
+    pub ui_preferences: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<crate::domain::user_settings_model::Model> for UserSettingsDto {
+    fn from(settings: crate::domain::user_settings_model::Model) -> Self {
+        let email_notifications = serde_json::to_value(settings.get_email_notifications())
+            .unwrap_or(serde_json::json!({}));
+        let ui_preferences =
+            serde_json::to_value(settings.get_ui_preferences()).unwrap_or(serde_json::json!({}));
+
+        UserSettingsDto {
+            user_id: settings.user_id,
+            language: settings.language,
+            timezone: settings.timezone,
+            notifications_enabled: settings.notifications_enabled,
+            email_notifications,
+            ui_preferences,
+            created_at: settings.created_at,
+            updated_at: settings.updated_at,
+        }
+    }
+}
+
+impl From<UserSettingsResponse> for UserSettingsDto {
+    fn from(settings: UserSettingsResponse) -> Self {
+        UserSettingsDto {
+            user_id: settings.user_id,
+            language: settings.preferences.language,
+            timezone: settings.preferences.timezone,
+            notifications_enabled: settings.notifications.email_notifications,
+            email_notifications: serde_json::json!({
+                "security_alerts": settings.notifications.security_alerts,
+                "task_reminders": settings.notifications.task_reminders,
+                "newsletter": settings.notifications.newsletter,
+            }),
+            ui_preferences: serde_json::json!({
+                "theme": settings.preferences.theme,
+                "date_format": settings.preferences.date_format,
+                "time_format": settings.preferences.time_format,
+            }),
+            created_at: chrono::Utc::now(), // これらは実際にはDBから取得すべき
+            updated_at: chrono::Utc::now(),
+        }
+    }
+}
+
+/// ユーザー設定更新リクエスト
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct UpdateUserSettingsRequest {
+    pub language: Option<String>,
+    pub timezone: Option<String>,
+    pub notifications_enabled: Option<bool>,
+    pub email_notifications: Option<serde_json::Value>,
+    pub ui_preferences: Option<serde_json::Value>,
+}
+
+/// 言語別ユーザー統計
+#[derive(Debug, Clone, Serialize)]
+pub struct UsersByLanguageResponse {
+    pub language: String,
+    pub user_count: usize,
+    pub user_ids: Vec<Uuid>,
+}
+
+/// 通知有効ユーザーレスポンス
+#[derive(Debug, Clone, Serialize)]
+pub struct UsersWithNotificationResponse {
+    pub notification_type: String,
+    pub user_count: usize,
+    pub user_ids: Vec<Uuid>,
 }
 
 // --- テスト用ヘルパー ---

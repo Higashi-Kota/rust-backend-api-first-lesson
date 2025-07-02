@@ -11,7 +11,7 @@ use crate::common;
 // リポジトリテスト用のセットアップヘルパー関数
 async fn setup_test_repository() -> (common::db::TestDatabase, TaskRepository) {
     let db = common::db::TestDatabase::new().await;
-    let repo = TaskRepository::with_schema(db.connection.clone(), db.schema_name.clone());
+    let repo = TaskRepository::new(db.connection.clone());
     (db, repo)
 }
 

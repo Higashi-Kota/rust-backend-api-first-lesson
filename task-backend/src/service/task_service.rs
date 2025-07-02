@@ -25,13 +25,6 @@ impl TaskService {
         }
     }
 
-    // スキーマを指定するコンストラクタを追加
-    pub fn with_schema(db_pool: DbPool, schema: String) -> Self {
-        Self {
-            repo: Arc::new(TaskRepository::with_schema(db_pool, schema)),
-        }
-    }
-
     // --- CRUD ---
     pub async fn create_task(&self, payload: CreateTaskDto) -> AppResult<TaskDto> {
         // 基本的な書き込み権限の例（実際の使用はハンドラーで行う）
