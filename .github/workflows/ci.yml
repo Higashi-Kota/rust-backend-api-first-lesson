@@ -40,7 +40,6 @@ jobs:
         with:
           cache-all-crates: true
           cache-on-failure: true
-          shared-key: "v1-rust"
 
       - name: Install system dependencies
         run: |
@@ -115,7 +114,6 @@ jobs:
         with:
           cache-all-crates: true
           cache-on-failure: true
-          shared-key: "v1-rust"
 
       - name: Install system dependencies
         run: |
