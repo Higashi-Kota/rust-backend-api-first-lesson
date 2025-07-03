@@ -1,0 +1,13 @@
+[build]
+# 並列ジョブ数の最適化（CPU数に応じて調整）
+jobs = 8
+
+[registries.crates-io]
+# クレートのダウンロード並列数
+protocol = "sparse"
+
+[profile.ci-check]
+# CI用の軽量チェックプロファイル
+inherits = "dev"
+debug = 0
+incremental = false

@@ -8,7 +8,10 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
+  RUST_BACKTRACE: short
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
 
 jobs:
   unit-tests:
@@ -32,16 +35,11 @@ jobs:
           fi
           cargo check --workspace --locked
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-workspace-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-workspace-
+          cache-all-crates: true
+          cache-on-failure: true
 
       - name: Install system dependencies
         run: |
@@ -55,23 +53,21 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Run unit tests
-        run: cargo test --lib --verbose --locked
+        run: cargo test --profile ci-check --lib --verbose --locked
 
-      - name: Build release
-        run: cargo build --workspace --release --locked
+      - name: Build with CI profile
+        run: cargo build --profile ci-check --workspace --locked
 
       - name: Check workspace structure
         run: |
           echo "Workspace members:"
           cargo metadata --format-version 1 | jq -r '.workspace_members[]'
           echo "Built binaries:"
-          ls -la target/release/
+          ls -la target/ci-check/ || ls -la target/debug/
 
   integration-tests:
     name: Integration Tests (${{ matrix.group }})
     runs-on: ubuntu-latest
-
-    needs: [unit-tests]
 
     strategy:
       fail-fast: false
@@ -113,16 +109,11 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo registry
-        uses: actions/cache@v4
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-integration-
+          cache-all-crates: true
+          cache-on-failure: true
 
       - name: Install system dependencies
         run: |
@@ -139,7 +130,7 @@ jobs:
           DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
           SERVER_ADDR: 0.0.0.0:3000
           RUST_LOG: debug
-        run: cargo test --test main ${{ matrix.group }} --verbose --locked
+        run: cargo test --profile ci-check --test main ${{ matrix.group }} --verbose --locked
 
   security:
     name: Security Audit
@@ -152,7 +143,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
 
       - name: Run security audit
         run: cargo audit
@@ -199,6 +192,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          provenance: false
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
