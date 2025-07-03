@@ -5,6 +5,7 @@ use crate::domain::organization_model::{Organization, OrganizationMember, Organi
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::repository::organization_repository::OrganizationRepository;
+use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
 use uuid::Uuid;
@@ -13,6 +14,7 @@ pub struct OrganizationService {
     organization_repository: OrganizationRepository,
     team_repository: TeamRepository,
     user_repository: UserRepository,
+    subscription_history_repository: SubscriptionHistoryRepository,
 }
 
 impl OrganizationService {
@@ -20,11 +22,13 @@ impl OrganizationService {
         organization_repository: OrganizationRepository,
         team_repository: TeamRepository,
         user_repository: UserRepository,
+        subscription_history_repository: SubscriptionHistoryRepository,
     ) -> Self {
         Self {
             organization_repository,
             team_repository,
             user_repository,
+            subscription_history_repository,
         }
     }
 
@@ -331,12 +335,68 @@ impl OrganizationService {
             ));
         }
 
+        // 現在の階層を記録
+        let previous_tier = organization.subscription_tier.as_str().to_string();
+
+        // ダウングレード時の制約チェック
+        if new_tier.level() < organization.subscription_tier.level() {
+            // 現在のチーム数を確認
+            let current_team_count = self
+                .team_repository
+                .count_teams_by_organization(organization_id)
+                .await? as u32;
+
+            // 現在のメンバー数を確認
+            let current_member_count = self
+                .organization_repository
+                .count_members(organization_id)
+                .await? as u32;
+
+            // 新しいプランの制限を取得
+            let (new_max_teams, new_max_members) = match new_tier {
+                SubscriptionTier::Free => (3, 10),
+                SubscriptionTier::Pro => (20, 100),
+                SubscriptionTier::Enterprise => (100, 1000),
+            };
+
+            // チーム数が制限を超えているかチェック
+            if current_team_count > new_max_teams {
+                return Err(AppError::BadRequest(format!(
+                    "Cannot downgrade: Current team count ({}) exceeds {} plan limit ({})",
+                    current_team_count,
+                    new_tier.as_str(),
+                    new_max_teams
+                )));
+            }
+
+            // メンバー数が制限を超えているかチェック
+            if current_member_count > new_max_members {
+                return Err(AppError::BadRequest(format!(
+                    "Cannot downgrade: Current member count ({}) exceeds {} plan limit ({})",
+                    current_member_count,
+                    new_tier.as_str(),
+                    new_max_members
+                )));
+            }
+        }
+
         // サブスクリプション階層を更新
         organization.update_subscription_tier(new_tier);
 
         let updated_organization = self
             .organization_repository
             .update_organization(&organization)
+            .await?;
+
+        // サブスクリプション履歴を記録（組織オーナーの履歴として）
+        self.subscription_history_repository
+            .create(
+                organization.owner_id,
+                Some(previous_tier),
+                new_tier.as_str().to_string(),
+                Some(user_id),
+                Some("Organization subscription change".to_string()),
+            )
             .await?;
 
         let members = self

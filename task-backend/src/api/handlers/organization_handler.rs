@@ -307,6 +307,52 @@ pub async fn update_organization_subscription_handler(
     )))
 }
 
+/// 組織のサブスクリプション履歴を取得
+pub async fn get_organization_subscription_history_handler(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Path(organization_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<Vec<serde_json::Value>>>> {
+    // 組織へのアクセス権限をチェック
+    app_state
+        .permission_service
+        .check_organization_management_permission(user.user_id(), organization_id)
+        .await?;
+
+    // 組織を取得してオーナーIDを確認
+    let organization = app_state
+        .organization_service
+        .get_organization_by_id(organization_id, user.user_id())
+        .await?;
+
+    // オーナーのサブスクリプション履歴を取得
+    let history = app_state
+        .subscription_history_repo
+        .find_by_user_id(organization.owner_id)
+        .await?;
+
+    // レスポンス形式に変換
+    let history_response: Vec<serde_json::Value> = history
+        .into_iter()
+        .map(|h| {
+            json!({
+                "id": h.id,
+                "user_id": h.user_id,
+                "old_tier": h.previous_tier,
+                "new_tier": h.new_tier,
+                "changed_at": h.changed_at,
+                "changed_by": h.changed_by,
+                "reason": h.reason,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        "Subscription history retrieved successfully",
+        history_response,
+    )))
+}
+
 /// 組織ルーターを構築
 pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::Router {
     use axum::{
@@ -342,6 +388,10 @@ pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::
         .route(
             "/organizations/{id}/subscription",
             put(update_organization_subscription_handler),
+        )
+        .route(
+            "/organizations/{id}/subscription/history",
+            get(get_organization_subscription_history_handler),
         )
         .route(
             "/organizations/{id}/members",

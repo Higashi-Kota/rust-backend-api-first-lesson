@@ -140,7 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db_pool.clone()));
     let password_reset_token_repo = Arc::new(PasswordResetTokenRepository::new(db_pool.clone()));
     let email_verification_token_repo = Arc::new(crate::repository::email_verification_token_repository::EmailVerificationTokenRepository::new(db_pool.clone()));
-    let _organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
+    let organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
     let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
     let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db_pool.clone()));
     let daily_activity_summary_repo = Arc::new(
@@ -215,6 +215,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         OrganizationRepository::new(db_pool.clone()),
         TeamRepository::new(db_pool.clone()),
         UserRepository::new(db_pool.clone()),
+        SubscriptionHistoryRepository::new(db_pool.clone()),
     ));
 
     let team_invitation_service = Arc::new(
@@ -241,6 +242,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         role_repo.clone(),
         user_repo.clone(),
         team_repo.clone(),
+        organization_repo.clone(),
     ));
 
     tracing::info!("🎯 Business services created.");

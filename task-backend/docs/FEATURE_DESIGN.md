@@ -8,9 +8,13 @@
 - [サブスクリプション管理](#サブスクリプション管理)
 - [タスク管理機能](#タスク管理機能)
 - [ユーザー管理機能](#ユーザー管理機能)
+- [組織・チーム管理](#組織チーム管理)
+- [チーム招待システム](#チーム招待システム)
+- [GDPR コンプライアンス](#gdpr-コンプライアンス)
+- [分析・メトリクス](#分析メトリクス)
+- [セキュリティ機能](#セキュリティ機能)
 - [API エンドポイント](#api-エンドポイント)
 - [データベース設計](#データベース設計)
-- [セキュリティ機能](#セキュリティ機能)
 
 ---
 
@@ -25,7 +29,12 @@ Task Backend Systemは、**動的権限システム**と**サブスクリプシ�
 - 🌐 動的スコープ権限 (Own/Team/Organization/Global)
 - 📊 特権・クォータ管理
 - 🔄 リアルタイム権限切り替え
-- 🛡️ セキュリティ強化
+- 🛡️ 高度なセキュリティ機能（監査ログ、セッション分析）
+- 🏢 階層型組織構造（部門管理、権限継承）
+- 📧 チーム招待システム
+- 🔒 GDPR完全準拠（データエクスポート、削除権、同意管理）
+- 📈 包括的な分析・メトリクス機能
+- ⚙️ ユーザー設定と一括操作
 
 ---
 
@@ -263,28 +272,44 @@ pub enum TaskResponse {
 - **一括更新**: 複数フィールド同時更新
 
 ### アカウント機能
-- **メール認証**: 認証トークン管理
+- **メール認証**: 認証トークン管理、履歴追跡
 - **パスワード変更**: 強度チェック
 - **アカウント削除**: 関連データ完全削除
 - **ログイン履歴**: 最終ログイン時刻記録
+
+### ユーザー設定管理
+- **言語設定**: 多言語対応
+- **タイムゾーン**: ユーザー固有のタイムゾーン
+- **通知設定**: メール通知のカスタマイズ
+- **UI設定**: インターフェースのパーソナライズ
 
 ### 管理者機能
 - **ユーザー一覧**: 検索・フィルタ・ページネーション
 - **アカウント状態変更**: 有効化/無効化
 - **ユーザー詳細取得**: 管理者専用情報表示
+- **一括操作**: 複数ユーザーの同時処理
+  - アクティベート/非アクティベート
+  - メール認証
+  - パスワードリセット
+  - サブスクリプション更新
+  - 一括削除
 
 ---
 
-## 🏢 組織・チーム管理（階層構造）
+## 🏢 組織・チーム管理
 
 ### エンティティ関係図
 ```
 Organizations (組織)
+├── Organization Settings (組織設定)
 ├── Organization Members (組織メンバー)
+├── Departments (部門) ← NEW
+│   ├── Department Members (部門メンバー)
+│   └── Sub-departments (子部門)
 ├── Teams (チーム)
-│   └── Team Members (チームメンバー)
-└── Users (ユーザー) + Roles (ロール)
-    └── Tasks (タスク)
+│   ├── Team Members (チームメンバー)
+│   └── Team Invitations (チーム招待)
+└── Permission Matrix (権限マトリックス) ← NEW
 ```
 
 ### 階層構造と権限
@@ -312,6 +337,157 @@ Organizations (組織)
 - **Pro**: 10メンバー
 - **Enterprise**: 100メンバー
 
+### 組織設定
+```rust
+pub struct OrganizationSettings {
+    pub allow_public_teams: bool,              // 公開チームの許可
+    pub require_approval_for_new_members: bool, // 新メンバー承認必須
+    pub enable_single_sign_on: bool,           // SSO有効化
+    pub default_team_subscription_tier: SubscriptionTier, // デフォルト階層
+}
+```
+
+### 階層型部門管理
+- **部門階層**: 無制限の階層深度をサポート
+- **権限継承**: 親部門から子部門への権限継承
+- **部門別分析**: 部門ごとのパフォーマンス分析
+- **コンプライアンス設定**: 部門固有のコンプライアンス要件
+
+### 権限マトリックス
+- **エンティティベース権限**: 組織・チーム・部門単位での権限設定
+- **アクション権限**: Create, Read, Update, Delete, Manage
+- **権限継承ルール**: 上位階層からの権限継承と上書き
+- **効果的権限分析**: 実際に適用される権限の可視化
+
+---
+
+## 🎫 チーム招待システム
+
+### 招待フロー
+```mermaid
+sequenceDiagram
+    participant O as Owner/Admin
+    participant S as System
+    participant E as Email Service
+    participant I as Invitee
+    
+    O->>S: Create Invitation
+    S->>E: Send Invitation Email
+    E->>I: Deliver Email
+    I->>S: Accept/Decline
+    S->>S: Update Status
+    S->>O: Notify Result
+```
+
+### 招待機能
+- **単一招待**: 個別のメールアドレスへの招待
+- **一括招待**: 複数メンバーの同時招待
+- **招待期限**: 7日間の有効期限
+- **再送信**: 期限切れ前の再送信機能
+- **キャンセル**: 送信済み招待のキャンセル
+
+### 招待ステータス
+- `Pending`: 承認待ち
+- `Accepted`: 承認済み
+- `Declined`: 拒否
+- `Expired`: 期限切れ
+- `Cancelled`: キャンセル済み
+
+---
+
+## 🔒 GDPR コンプライアンス
+
+### データ主体の権利
+1. **アクセス権**: 個人データへのアクセス
+2. **訂正権**: 不正確なデータの修正
+3. **削除権（忘れられる権利）**: データの完全削除
+4. **データポータビリティ権**: データのエクスポート
+5. **処理制限権**: データ処理の制限
+6. **異議申立権**: データ処理への異議
+
+### 同意管理
+```rust
+pub enum ConsentType {
+    Marketing,      // マーケティング目的
+    Analytics,      // 分析目的
+    ThirdParty,     // 第三者共有
+}
+
+pub struct UserConsent {
+    pub consent_type: ConsentType,
+    pub granted: bool,
+    pub granted_at: Option<DateTime<Utc>>,
+    pub ip_address: Option<String>,
+}
+```
+
+### データエクスポート機能
+- **対象データ**:
+  - ユーザープロフィール
+  - タスク情報
+  - チーム・組織メンバーシップ
+  - アクティビティログ
+  - サブスクリプション履歴
+- **フォーマット**: JSON形式
+- **セキュリティ**: 本人確認後のみ実行
+
+### データ削除機能
+- **カスケード削除**: 関連データの完全削除
+- **削除対象**:
+  - ユーザーアカウント
+  - 所有タスク
+  - 所有チーム
+  - メンバーシップ
+  - アクティビティログ
+  - トークン情報
+- **削除記録**: 削除操作の監査証跡
+
+---
+
+## 📊 分析・メトリクス
+
+### システム分析
+```rust
+pub struct SystemAnalytics {
+    pub total_users: u64,
+    pub active_users_24h: u64,
+    pub total_tasks: u64,
+    pub database_size_mb: f64,
+    pub uptime_percentage: f64,
+    pub performance_metrics: PerformanceMetrics,
+}
+```
+
+### ユーザー行動分析
+- **アクティビティ追跡**: すべてのユーザーアクションを記録
+- **セッション分析**: ログイン時間、滞在時間、アクション数
+- **生産性スコア**: タスク完了率、平均完了時間
+- **エンゲージメント**: 機能使用頻度、ログイン頻度
+
+### 機能使用状況分析
+```rust
+pub struct FeatureUsageMetrics {
+    pub feature_name: String,
+    pub usage_count: u64,
+    pub unique_users: u64,
+    pub avg_time_spent_ms: f64,
+    pub adoption_rate: f64,
+    pub proficiency_levels: HashMap<String, u32>,
+}
+```
+
+### サブスクリプション分析
+- **コンバージョン率**: Free→Pro→Enterprise
+- **チャーン率**: 解約率の追跡
+- **MRR（月間経常収益）**: 収益予測
+- **利用率**: プラン別機能利用状況
+
+### 日次サマリー
+- **自動集計**: 毎日の活動を自動集計
+- **成長率計算**: 前日比、前週比、前月比
+- **トレンド分析**: 長期的な傾向の把握
+- **異常検知**: 通常と異なるパターンの検出
+
 ---
 
 ## 🔗 API エンドポイント
@@ -324,6 +500,8 @@ POST   /auth/signout          # ログアウト
 POST   /auth/refresh          # トークン更新
 POST   /auth/forgot-password  # パスワードリセット要求
 POST   /auth/reset-password   # パスワードリセット実行
+GET    /auth/verify-email     # メール認証
+POST   /auth/resend-verification # 認証メール再送信
 ```
 
 ### タスク管理
@@ -359,17 +537,23 @@ GET    /users/profile         # プロフィール取得
 PATCH  /users/profile         # プロフィール更新
 PATCH  /users/profile/username # ユーザー名更新
 PATCH  /users/profile/email   # メール更新
+DELETE /users/profile         # アカウント削除
 
-# アカウント
-GET    /users/stats           # ユーザー統計
+# 設定
 GET    /users/settings        # 設定取得
-POST   /users/verify-email    # メール認証
-POST   /users/resend-verification # 認証メール再送
+PATCH  /users/settings        # 設定更新
+
+# 統計・分析
+GET    /users/stats           # ユーザー統計
+GET    /users/permissions     # ユーザー権限一覧
+GET    /users/invitations     # 受信した招待一覧
 
 # 管理者専用
 GET    /admin/users           # ユーザー一覧
 GET    /admin/users/{id}      # ユーザー詳細
 PATCH  /admin/users/{id}/status # アカウント状態変更
+POST   /admin/users/bulk      # 一括操作
+DELETE /admin/users/{id}      # ユーザー削除（管理者）
 ```
 
 ### サブスクリプション
@@ -378,10 +562,14 @@ GET    /subscriptions/current # 現在のサブスクリプション
 POST   /subscriptions/upgrade # アップグレード
 POST   /subscriptions/downgrade # ダウングレード
 GET    /subscriptions/history # 変更履歴
+GET    /subscriptions/analytics # サブスクリプション分析
 
 # 管理者専用
+GET    /admin/subscriptions   # 全サブスクリプション一覧
 GET    /admin/subscriptions/stats # サブスクリプション統計
+GET    /admin/subscriptions/analytics # 詳細分析
 PATCH  /admin/users/{id}/subscription # 管理者変更
+DELETE /admin/users/{id}/subscription/history # 履歴削除
 ```
 
 ### 組織・チーム管理
@@ -392,6 +580,31 @@ POST   /organizations         # 組織作成
 GET    /organizations/{id}    # 組織詳細
 PATCH  /organizations/{id}    # 組織更新
 DELETE /organizations/{id}    # 組織削除
+GET    /organizations/{id}/capacity # 容量チェック
+GET    /organizations/{id}/stats # 組織統計
+
+# 組織設定
+PATCH  /organizations/{id}/settings # 設定更新
+PUT    /organizations/{id}/subscription # サブスクリプション更新
+GET    /organizations/{id}/subscription/history # 変更履歴
+
+# 組織階層
+GET    /organizations/{id}/hierarchy # 階層構造取得
+GET    /organizations/{id}/departments # 部門一覧
+POST   /organizations/{id}/departments # 部門作成
+PATCH  /organizations/{id}/departments/{dept_id} # 部門更新
+DELETE /organizations/{id}/departments/{dept_id} # 部門削除
+POST   /organizations/{id}/departments/{dept_id}/members # 部門メンバー追加
+DELETE /organizations/{id}/departments/{dept_id}/members/{user_id} # 部門メンバー削除
+
+# 権限マトリックス
+GET    /organizations/{id}/permission-matrix # 権限マトリックス取得
+PUT    /organizations/{id}/permission-matrix # 権限マトリックス更新
+GET    /organizations/{id}/effective-permissions # 有効権限分析
+
+# 組織分析
+GET    /organizations/{id}/analytics # 組織分析
+POST   /organizations/{id}/data-export # データエクスポート
 
 # チーム管理
 GET    /teams                 # チーム一覧
@@ -399,12 +612,96 @@ POST   /teams                 # チーム作成
 GET    /teams/{id}            # チーム詳細
 PATCH  /teams/{id}            # チーム更新
 DELETE /teams/{id}            # チーム削除
+GET    /teams/{id}/stats      # チーム統計
+
+# チーム招待
+GET    /teams/{id}/invitations # 招待一覧
+POST   /teams/{id}/invitations/single # 単一招待
+POST   /teams/{id}/invitations/bulk # 一括招待
+POST   /teams/{id}/invitations/{inv_id}/accept # 承認
+POST   /teams/{id}/invitations/{inv_id}/decline # 拒否
+DELETE /teams/{id}/invitations/{inv_id}/cancel # キャンセル
+POST   /teams/{id}/invitations/{inv_id}/resend # 再送信
+GET    /teams/{id}/invitations/statistics # 招待統計
 
 # メンバーシップ管理
+GET    /organizations/{id}/members # 組織メンバー一覧
 POST   /organizations/{id}/members # 組織メンバー追加
-DELETE /organizations/{id}/members/{user_id} # 組織メンバー削除
+GET    /organizations/{id}/members/{member_id} # メンバー詳細
+PATCH  /organizations/{id}/members/{member_id}/role # 役割更新
+DELETE /organizations/{id}/members/{member_id} # 組織メンバー削除
+GET    /teams/{id}/members    # チームメンバー一覧
 POST   /teams/{id}/members    # チームメンバー追加
+PATCH  /teams/{id}/members/{user_id}/role # 役割更新
 DELETE /teams/{id}/members/{user_id} # チームメンバー削除
+```
+
+### GDPR コンプライアンス
+```
+# ユーザーデータ管理
+POST   /gdpr/users/{user_id}/export # データエクスポート
+DELETE /gdpr/users/{user_id}/delete # データ削除
+GET    /gdpr/users/{user_id}/status # コンプライアンス状態
+
+# 同意管理
+GET    /gdpr/users/{user_id}/consents # 同意一覧
+POST   /gdpr/users/{user_id}/consents # 同意更新（一括）
+PATCH  /gdpr/users/{user_id}/consents/single # 単一同意更新
+GET    /gdpr/users/{user_id}/consents/history # 同意履歴
+
+# 管理者専用
+POST   /admin/gdpr/users/{user_id}/export # 管理者によるエクスポート
+DELETE /admin/gdpr/users/{user_id}/delete # 管理者による削除
+```
+
+### 分析・レポート
+```
+# システム分析
+GET    /admin/analytics/system # システム全体分析
+GET    /admin/analytics/system/stats # 詳細統計
+POST   /admin/analytics/daily-summary/update # 日次サマリー更新
+
+# ユーザー分析
+GET    /analytics/activity    # アクティビティ分析
+GET    /analytics/tasks       # タスク統計
+GET    /analytics/behavior    # 行動分析
+GET    /admin/analytics/users/{id}/activity # ユーザー活動（管理者）
+
+# 機能使用状況
+POST   /analytics/track-feature # 機能使用追跡
+GET    /admin/analytics/features/usage # 使用統計
+
+# エクスポート
+POST   /exports/advanced      # 高度なデータエクスポート
+```
+
+### セキュリティ
+```
+# トークン管理
+GET    /admin/security/token-stats # トークン統計
+GET    /admin/security/refresh-tokens # リフレッシュトークン監視
+POST   /admin/security/cleanup-tokens # 期限切れトークン削除
+GET    /admin/security/password-resets # パスワードリセット監視
+POST   /admin/security/revoke-all-tokens # 全トークン無効化
+
+# セッション・監査
+GET    /admin/security/session-analytics # セッション分析
+POST   /admin/security/audit-report # 監査レポート生成
+
+# 権限管理
+GET    /permissions/check     # 権限チェック
+GET    /permissions/resources # リソース権限一覧
+```
+
+### 管理者ツール
+```
+# 招待管理
+POST   /admin/invitations/cleanup # 期限切れ招待削除
+
+# システム管理
+GET    /admin/system/health   # ヘルスチェック
+GET    /admin/system/metrics  # システムメトリクス
+POST   /admin/system/maintenance # メンテナンスモード
 ```
 
 ---
@@ -486,6 +783,118 @@ CREATE TABLE teams (
 );
 ```
 
+#### user_settings テーブル
+```sql
+CREATE TABLE user_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    language VARCHAR DEFAULT 'en',
+    timezone VARCHAR DEFAULT 'UTC',
+    email_notifications JSONB DEFAULT '{}',
+    ui_preferences JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+#### user_consents テーブル
+```sql
+CREATE TABLE user_consents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    consent_type VARCHAR NOT NULL,
+    granted BOOLEAN NOT NULL DEFAULT false,
+    granted_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    ip_address VARCHAR,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(user_id, consent_type)
+);
+```
+
+#### activity_logs テーブル
+```sql
+CREATE TABLE activity_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    action VARCHAR NOT NULL,
+    resource_type VARCHAR NOT NULL,
+    resource_id UUID,
+    ip_address VARCHAR,
+    user_agent TEXT,
+    success BOOLEAN NOT NULL DEFAULT true,
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+#### security_incidents テーブル
+```sql
+CREATE TABLE security_incidents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    incident_type VARCHAR NOT NULL,
+    severity VARCHAR NOT NULL,
+    description TEXT NOT NULL,
+    affected_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    ip_address VARCHAR,
+    resolved BOOLEAN DEFAULT false,
+    resolved_at TIMESTAMPTZ,
+    resolved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    resolution_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+```
+
+#### feature_usage_metrics テーブル
+```sql
+CREATE TABLE feature_usage_metrics (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    feature_name VARCHAR NOT NULL,
+    usage_count INTEGER DEFAULT 0,
+    total_time_spent_ms BIGINT DEFAULT 0,
+    last_used_at TIMESTAMPTZ,
+    proficiency_level INTEGER DEFAULT 1,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(user_id, feature_name)
+);
+```
+
+#### organization_departments テーブル
+```sql
+CREATE TABLE organization_departments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    parent_department_id UUID REFERENCES organization_departments(id) ON DELETE CASCADE,
+    name VARCHAR NOT NULL,
+    description TEXT,
+    budget DECIMAL(15,2),
+    compliance_settings JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(organization_id, name)
+);
+```
+
+#### permission_matrices テーブル
+```sql
+CREATE TABLE permission_matrices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    entity_type VARCHAR NOT NULL,
+    entity_id UUID NOT NULL,
+    role VARCHAR NOT NULL,
+    permissions JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    UNIQUE(organization_id, entity_type, entity_id, role)
+);
+```
+
 ### 外部キー制約設計
 
 #### CASCADE削除（親削除→子削除）
@@ -510,6 +919,61 @@ CREATE TABLE teams (
 - **短命アクセストークン**: 15分有効
 - **トークンローテーション**: リフレッシュ時に新トークン発行
 - **自動無効化**: パスワード変更時の全トークン無効化
+- **トークン監視**: 使用状況の追跡と分析
+
+### 高度なセキュリティ機能
+
+#### アクティビティログ
+```rust
+pub struct ActivityLog {
+    pub user_id: Uuid,
+    pub action: String,
+    pub resource_type: String,
+    pub resource_id: Option<Uuid>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub success: bool,
+    pub error_message: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+```
+
+#### ログイン試行追跡
+- **失敗回数制限**: 5回失敗でアカウントロック
+- **IPアドレス追跡**: 不審なアクセスパターン検出
+- **地理的分析**: 異常なログイン場所の検出
+
+#### セキュリティインシデント管理
+```rust
+pub enum IncidentSeverity {
+    Low,      // 軽微な問題
+    Medium,   // 中程度の脅威
+    High,     // 重大な脅威
+    Critical, // 緊急対応必要
+}
+
+pub struct SecurityIncident {
+    pub incident_type: String,
+    pub severity: IncidentSeverity,
+    pub description: String,
+    pub affected_user_id: Option<Uuid>,
+    pub ip_address: Option<String>,
+    pub resolved: bool,
+    pub resolution_notes: Option<String>,
+}
+```
+
+#### セッション分析
+- **アクティブセッション監視**: リアルタイムセッション追跡
+- **異常セッション検出**: 通常と異なるパターンの検出
+- **地理的分散**: セッションの地理的分布
+- **デバイス分析**: 使用デバイスの追跡
+
+#### 監査機能
+- **包括的な監査ログ**: すべての重要操作を記録
+- **監査レポート生成**: コンプライアンス用レポート
+- **改ざん防止**: 監査ログの不変性保証
+- **定期監査**: 自動監査スケジューリング
 
 ### API セキュリティ
 - **CORS設定**: 適切なオリジン制限

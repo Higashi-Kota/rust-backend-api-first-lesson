@@ -52,6 +52,12 @@ mod m20250702_000004_create_bulk_operation_histories_table;
 // パフォーマンス最適化マイグレーション
 mod m20250702_100001_add_performance_indexes;
 
+// GDPR関連マイグレーション
+mod m20250702_113002_create_user_consents_table;
+
+// 外部キー制約修正マイグレーション
+mod m20250703_013738_fix_teams_owner_cascade;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -101,6 +107,10 @@ impl MigratorTrait for Migrator {
             Box::new(m20250702_000004_create_bulk_operation_histories_table::Migration),
             // 14. パフォーマンス最適化
             Box::new(m20250702_100001_add_performance_indexes::Migration),
+            // 15. GDPR関連テーブル
+            Box::new(m20250702_113002_create_user_consents_table::Migration),
+            // 16. 外部キー制約修正
+            Box::new(m20250703_013738_fix_teams_owner_cascade::Migration),
         ]
     }
 }

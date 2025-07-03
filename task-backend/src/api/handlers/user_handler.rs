@@ -10,6 +10,7 @@ use crate::api::dto::user_dto::{
     UserSettingsResponse, UserStatsResponse, UserSummary, VerifyEmailRequest,
 };
 use crate::api::AppState;
+use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
@@ -1112,6 +1113,73 @@ async fn user_health_check_handler() -> &'static str {
     "User service OK"
 }
 
+/// ユーザーのサブスクリプションをアップグレード
+pub async fn upgrade_user_subscription_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Path(user_id): Path<Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    // 権限チェック：自分自身または管理者のみ
+    if user.user_id() != user_id && !user.is_admin() {
+        return Err(AppError::Forbidden(
+            "You can only upgrade your own subscription".to_string(),
+        ));
+    }
+
+    // Extract new_tier from payload
+    let new_tier_str = payload
+        .get("new_tier")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::ValidationError("new_tier is required".to_string()))?;
+
+    let new_tier = SubscriptionTier::from_str(new_tier_str).ok_or_else(|| {
+        AppError::ValidationError(format!("Invalid subscription tier: {}", new_tier_str))
+    })?;
+
+    // Get current user info
+    let current_user = app_state.user_service.get_user_profile(user_id).await?;
+
+    let current_tier = SubscriptionTier::from_str(&current_user.subscription_tier)
+        .ok_or_else(|| AppError::BadRequest("Invalid current subscription tier".to_string()))?;
+
+    // Check if it's actually an upgrade
+    if new_tier.level() <= current_tier.level() {
+        return Err(AppError::BadRequest(
+            "Cannot upgrade to the same or lower tier".to_string(),
+        ));
+    }
+
+    // Execute subscription change
+    let reason = payload
+        .get("reason")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let (updated_user, _history) = app_state
+        .subscription_service
+        .change_subscription_tier(
+            user_id,
+            new_tier.as_str().to_string(),
+            Some(user.user_id()),
+            reason,
+        )
+        .await?;
+
+    // Create the response in the expected format
+    let response = serde_json::json!({
+        "user_id": updated_user.id,
+        "previous_tier": current_tier.as_str(),
+        "new_tier": new_tier.as_str(),
+        "upgraded_at": chrono::Utc::now(),
+    });
+
+    Ok(Json(ApiResponse::success(
+        "Subscription upgraded successfully",
+        response,
+    )))
+}
+
 // --- ルーター ---
 
 /// ユーザールーターを作成
@@ -1139,6 +1207,11 @@ pub fn user_router(app_state: AppState) -> Router {
         // ユーティリティ
         .route("/users/update-last-login", post(update_last_login_handler))
         .route("/users/permissions", get(check_user_permissions_handler))
+        // サブスクリプション
+        .route(
+            "/users/{id}/subscription/upgrade",
+            post(upgrade_user_subscription_handler),
+        )
         // 管理者用エンドポイント - Phase 1.1 高度なユーザー管理 API
         .route("/admin/users", get(list_users_handler))
         .route(

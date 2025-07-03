@@ -10,6 +10,7 @@ use task_backend::{
     config::AppConfig,
     repository::{
         email_verification_token_repository::EmailVerificationTokenRepository,
+        organization_repository::OrganizationRepository,
         password_reset_token_repository::PasswordResetTokenRepository,
         refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
         subscription_history_repository::SubscriptionHistoryRepository,
@@ -131,11 +132,10 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
 
     let organization_service = Arc::new(
         task_backend::service::organization_service::OrganizationService::new(
-            task_backend::repository::organization_repository::OrganizationRepository::new(
-                db.connection.clone(),
-            ),
+            OrganizationRepository::new(db.connection.clone()),
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
             task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
+            task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
     );
 
@@ -194,6 +194,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         role_repo.clone(),
         user_repo.clone(),
         Arc::new(TeamRepository::new(db.connection.clone())),
+        Arc::new(OrganizationRepository::new(db.connection.clone())),
     ));
 
     let bulk_operation_history_repo = Arc::new(
@@ -336,6 +337,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
             ),
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
             task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
+            task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
     );
 
@@ -389,6 +391,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         role_repo.clone(),
         user_repo.clone(),
         Arc::new(TeamRepository::new(db.connection.clone())),
+        Arc::new(OrganizationRepository::new(db.connection.clone())),
     ));
 
     // 統一されたAppStateの作成
@@ -575,6 +578,7 @@ pub async fn setup_test_app() -> (Router, Arc<AppState>) {
             ),
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
             task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
+            task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
     );
 
@@ -621,6 +625,7 @@ pub async fn setup_test_app() -> (Router, Arc<AppState>) {
         role_repo.clone(),
         user_repo.clone(),
         Arc::new(TeamRepository::new(db.connection.clone())),
+        Arc::new(OrganizationRepository::new(db.connection.clone())),
     ));
 
     let bulk_operation_history_repo = Arc::new(

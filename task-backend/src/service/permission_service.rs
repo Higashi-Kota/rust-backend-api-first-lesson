@@ -5,6 +5,7 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::AppResult;
 // use crate::repository::permission_repository::PermissionRepository; // TODO: Implement when PermissionRepository is created
 use crate::error::AppError;
+use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::role_repository::RoleRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
@@ -18,6 +19,7 @@ pub struct PermissionService {
     role_repository: Arc<RoleRepository>,
     user_repository: Arc<UserRepository>,
     team_repository: Arc<TeamRepository>,
+    organization_repository: Arc<OrganizationRepository>,
 }
 
 impl PermissionService {
@@ -26,12 +28,14 @@ impl PermissionService {
         role_repository: Arc<RoleRepository>,
         user_repository: Arc<UserRepository>,
         team_repository: Arc<TeamRepository>,
+        organization_repository: Arc<OrganizationRepository>,
     ) -> Self {
         Self {
             // permission_repository,
             role_repository,
             user_repository,
             team_repository,
+            organization_repository,
         }
     }
 
@@ -99,7 +103,7 @@ impl PermissionService {
     pub async fn check_organization_management_permission(
         &self,
         user_id: Uuid,
-        _organization_id: Uuid,
+        organization_id: Uuid,
     ) -> AppResult<()> {
         // 管理者は全組織を管理可能
         if let Ok(role) = self.get_user_role(user_id).await {
@@ -109,8 +113,27 @@ impl PermissionService {
         }
 
         // 組織のオーナーか確認
-        // TODO: 組織リポジトリを使用して実際のオーナーシップを確認
-        // 現在は簡易実装
+        let organization = self
+            .organization_repository
+            .find_by_id(organization_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
+
+        if organization.owner_id == user_id {
+            return Ok(());
+        }
+
+        // 組織の管理者か確認
+        if let Ok(Some(member)) = self
+            .organization_repository
+            .find_member_by_user_and_organization(user_id, organization_id)
+            .await
+        {
+            if member.role.can_manage() {
+                return Ok(());
+            }
+        }
+
         Err(AppError::Forbidden(
             "Organization management permission required".to_string(),
         ))

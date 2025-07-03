@@ -22,5 +22,6 @@ pub mod task_status;
 pub mod team_invitation_model;
 pub mod team_member_model;
 pub mod team_model;
+pub mod user_consent_model;
 pub mod user_model;
 pub mod user_settings_model;

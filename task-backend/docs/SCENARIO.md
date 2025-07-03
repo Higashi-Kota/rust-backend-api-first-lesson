@@ -177,7 +177,59 @@ graph TD
 
 ## シナリオ4: チーム・組織管理
 
-### 4.1 チーム作成・参加フロー
+### 4.0 組織階層による管理
+
+組織は複数のチームを統括し、階層的な権限管理を実現します。
+
+```mermaid
+graph TD
+    A[組織] --> B[組織オーナー]
+    A --> C[組織管理者]
+    A --> D[組織メンバー]
+    
+    A --> E[チーム1]
+    A --> F[チーム2]
+    A --> G[部門]
+    
+    G --> H[部門チーム]
+    
+    B --> B1[組織全体の管理権限]
+    B --> B2[サブスクリプション変更]
+    B --> B3[組織設定変更]
+    
+    C --> C1[メンバー管理]
+    C --> C2[チーム作成・管理]
+    C --> C3[部門管理]
+    
+    D --> D1[所属チームへのアクセス]
+    D --> D2[組織リソースの利用]
+```
+
+### 4.1 組織作成フロー
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant API as API Server
+    participant DB as Database
+    
+    User->>API: POST /organizations（組織作成）
+    Note over User,API: {name, description, subscription_tier}
+    
+    API->>DB: サブスクリプション階層確認
+    DB-->>API: プラン制限確認
+    
+    API->>DB: 組織作成
+    DB-->>API: 組織ID生成
+    
+    API->>DB: ユーザーを組織オーナーに設定
+    DB-->>API: メンバーシップ作成
+    
+    API-->>User: 組織作成完了
+    Note over User,API: 組織詳細 + 設定
+```
+
+### 4.2 チーム作成・参加フロー
 
 ```mermaid
 sequenceDiagram
@@ -200,7 +252,34 @@ sequenceDiagram
     Note over Owner,Member: チーム内でのタスク共有開始
 ```
 
-### 4.2 チーム内での権限管理
+### 4.3 チーム招待システム
+
+新しいチーム招待システムにより、メールベースの招待管理が可能です。
+
+```mermaid
+sequenceDiagram
+    participant Owner as チームオーナー
+    participant API as API Server
+    participant Email as メールサービス
+    participant Invitee as 招待者
+    
+    Owner->>API: POST /teams/{id}/invitations/single
+    Note over Owner,API: {email, message}
+    
+    API->>API: 招待トークン生成
+    API->>Email: 招待メール送信
+    Email-->>Invitee: 招待リンク付きメール
+    
+    Invitee->>API: GET /users/invitations
+    API-->>Invitee: 保留中の招待一覧
+    
+    Invitee->>API: POST /teams/{team_id}/invitations/{id}/accept
+    API-->>Invitee: チーム参加完了
+    
+    API-->>Owner: メンバー参加通知
+```
+
+### 4.4 チーム内での権限管理
 
 ```mermaid
 graph TD
@@ -223,9 +302,84 @@ graph TD
     E --> E1[タスク表示のみ]
 ```
 
-## シナリオ5: サブスクリプション変更フロー
+## シナリオ5: GDPR準拠のデータ管理
 
-### 5.1 アップグレードシナリオ
+### 5.1 ユーザーデータエクスポート
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant API as API Server
+    participant GDPR as GDPRサービス
+    participant DB as Database
+    
+    User->>API: POST /gdpr/users/{id}/export
+    API->>GDPR: データ収集開始
+    
+    GDPR->>DB: ユーザーデータ取得
+    GDPR->>DB: タスクデータ取得
+    GDPR->>DB: チーム情報取得
+    GDPR->>DB: アクティビティログ取得
+    
+    GDPR-->>API: 統合データ
+    API-->>User: JSONファイルダウンロード
+```
+
+### 5.2 ユーザー同意管理
+
+```mermaid
+graph TD
+    A[同意タイプ] --> B[マーケティング]
+    A --> C[分析]
+    A --> D[サードパーティ共有]
+    
+    B --> B1[メール通知]
+    B --> B2[プロモーション]
+    
+    C --> C1[使用統計]
+    C --> C2[行動分析]
+    
+    D --> D1[パートナー連携]
+    D --> D2[外部サービス]
+```
+
+## シナリオ6: サブスクリプション変更フロー
+
+### 6.1 組織サブスクリプション管理
+
+組織単位でのサブスクリプション管理が可能になりました。
+
+```mermaid
+sequenceDiagram
+    participant Owner as 組織オーナー
+    participant API as API Server
+    participant Sub as サブスクリプションサービス
+    participant DB as Database
+    
+    Owner->>API: PATCH /organizations/{id}/subscription
+    Note over Owner,API: {subscription_tier: "enterprise"}
+    
+    API->>Sub: 現在のリソース使用量確認
+    Sub->>DB: チーム数・メンバー数カウント
+    DB-->>Sub: 使用量データ
+    
+    alt アップグレード
+        Sub-->>API: 制限チェックOK
+        API->>DB: サブスクリプション更新
+        API->>DB: 履歴記録
+        API-->>Owner: アップグレード完了
+    else ダウングレード
+        Sub-->>API: リソース制限確認
+        alt 制限超過
+            API-->>Owner: エラー（リソース削減必要）
+        else 制限内
+            API->>DB: サブスクリプション更新
+            API-->>Owner: ダウングレード完了
+        end
+    end
+```
+
+### 6.2 アップグレードシナリオ
 
 ```mermaid
 stateDiagram-v2
@@ -257,7 +411,7 @@ stateDiagram-v2
     }
 ```
 
-### 5.2 ダウングレード時の制限処理
+### 6.3 ダウングレード時の制限処理
 
 ```mermaid
 sequenceDiagram
@@ -281,9 +435,52 @@ sequenceDiagram
     end
 ```
 
-## シナリオ6: 認証・セキュリティフロー
+## シナリオ7: 高度な分析・メトリクス
 
-### 6.1 トークン管理
+### 7.1 ユーザー行動分析（Pro以上）
+
+```mermaid
+graph TD
+    A[行動分析] --> B[ログインパターン]
+    A --> C[タスク作成パターン]
+    A --> D[完了パターン]
+    A --> E[機能使用状況]
+    
+    B --> B1[最もアクティブな時間]
+    B --> B2[セッション継続時間]
+    
+    C --> C1[好みの作成時刻]
+    C --> C2[バッチ作成傾向]
+    
+    D --> D1[完了率]
+    D --> D2[先延ばし指標]
+    
+    E --> E1[最も使用される機能]
+    E --> E2[未使用機能]
+```
+
+### 7.2 組織分析（Enterprise）
+
+```mermaid
+sequenceDiagram
+    participant Admin as 組織管理者
+    participant API as API Server
+    participant Analytics as 分析サービス
+    
+    Admin->>API: GET /organizations/{id}/analytics
+    API->>Analytics: 組織データ収集
+    
+    Analytics->>Analytics: 部門別分析
+    Analytics->>Analytics: チーム効率計算
+    Analytics->>Analytics: タスク完了率集計
+    
+    Analytics-->>API: 分析結果
+    API-->>Admin: 包括的レポート
+```
+
+## シナリオ8: 認証・セキュリティフロー
+
+### 8.1 トークン管理
 
 ```mermaid
 graph TD
@@ -305,7 +502,7 @@ graph TD
     K --> H
 ```
 
-### 6.2 パスワードリセットフロー
+### 8.2 パスワードリセットフロー
 
 ```mermaid
 sequenceDiagram
@@ -335,9 +532,31 @@ sequenceDiagram
     API-->>User: パスワード変更完了
 ```
 
-## シナリオ7: エラーハンドリング
+### 8.3 セキュリティ監査（管理者）
 
-### 7.1 権限不足エラー
+```mermaid
+graph TD
+    A[セキュリティ監査] --> B[トークン統計]
+    A --> C[疑わしいアクティビティ]
+    A --> D[ログイン失敗分析]
+    A --> E[地理的分析]
+    
+    B --> B1[アクティブトークン数]
+    B --> B2[期限切れトークン]
+    
+    C --> C1[複数デバイスログイン]
+    C --> C2[異常なリクエストパターン]
+    
+    D --> D1[ブルートフォース検出]
+    D --> D2[アカウントロック推奨]
+    
+    E --> E1[国別アクセス]
+    E --> E2[疑わしい地域からのアクセス]
+```
+
+## シナリオ9: エラーハンドリング
+
+### 9.1 権限不足エラー
 
 ```mermaid
 graph TD
@@ -356,7 +575,7 @@ graph TD
     H --> J[適切なスコープ説明]
 ```
 
-### 7.2 サブスクリプション制限エラー
+### 9.2 サブスクリプション制限エラー
 
 ```mermaid
 graph TD
@@ -376,9 +595,9 @@ graph TD
     H --> J[Enterpriseプランへのアップグレード提案]
 ```
 
-## シナリオ8: 管理者権限による特別フロー
+## シナリオ10: 管理者権限による特別フロー
 
-### 8.1 管理者による強制変更
+### 10.1 管理者による強制変更
 
 ```mermaid
 sequenceDiagram
@@ -401,6 +620,31 @@ sequenceDiagram
     Note over Admin,User: 監査ログ記録
 ```
 
+## シナリオ11: バルク操作と一括処理
+
+### 11.1 管理者向けバルク操作
+
+```mermaid
+sequenceDiagram
+    participant Admin as 管理者
+    participant API as API Server
+    participant Batch as バッチ処理
+    participant DB as Database
+    
+    Admin->>API: POST /admin/users/bulk-operations
+    Note over Admin,API: {operation: "export_activity", filters}
+    
+    API->>Batch: バッチジョブ作成
+    Batch->>DB: フィルタ条件でユーザー抽出
+    
+    loop 各ユーザー
+        Batch->>DB: データ収集
+    end
+    
+    Batch-->>API: CSVファイル生成
+    API-->>Admin: ダウンロードリンク
+```
+
 ## まとめ
 
 このシステムは、**ユーザーの成長に合わせて段階的に機能を開放する**設計となっています：
@@ -409,6 +653,17 @@ sequenceDiagram
 2. **Free Tier**：個人利用に十分な基本機能
 3. **Pro Tier**：チーム協働と高度な機能
 4. **Enterprise Tier**：組織全体の管理と無制限利用
+
+### 新機能の統合
+
+最新のアップデートにより、以下の機能が追加されました：
+
+- **GDPR準拠**：データエクスポート、削除権、同意管理
+- **組織階層管理**：部門構造、権限継承、階層的管理
+- **チーム招待システム**：メールベースの招待、一括招待、統計分析
+- **高度な分析**：行動パターン分析、組織効率メトリクス
+- **セキュリティ強化**：トークン監視、セッション分析、監査レポート
+- **サブスクリプション管理**：組織単位の管理、ダウングレード制約、履歴追跡
 
 各段階で同一APIが異なる応答を返すことで、ユーザーは段階的な機能拡張を体験でき、開発者はエンドポイントの一貫性を保てます。
 
