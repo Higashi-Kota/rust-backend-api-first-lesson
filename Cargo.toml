@@ -125,6 +125,25 @@ map_unwrap_or = "warn"
 [profile.dev]
 # Faster compilation for development
 debug = 1
+opt-level = 0
+incremental = true
+codegen-units = 256
+
+[profile.dev.package."*"]
+# Dependencies are optimized for better runtime performance
+opt-level = 3
+
+[profile.test]
+# Faster test compilation
+opt-level = 0
+debug = 1
+incremental = true
+
+[profile.ci]
+# CI専用プロファイル - ビルド時間とパフォーマンスのバランス
+inherits = "release"
+lto = "thin"
+codegen-units = 16
 
 [profile.release]
 # Optimize for size and performance in release builds

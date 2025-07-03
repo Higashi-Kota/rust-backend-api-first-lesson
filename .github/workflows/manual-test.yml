@@ -1,0 +1,187 @@
+name: Manual Test Execution
+
+on:
+  workflow_dispatch:
+    inputs:
+      test-type:
+        description: 'Type of test to run'
+        required: true
+        type: choice
+        options:
+          - all
+          - unit
+          - integration-all
+          - integration-specific
+          - check-only
+          - build-only
+      integration-group:
+        description: 'Specific integration test group (if integration-specific selected)'
+        required: false
+        type: choice
+        options:
+          - integration::admin
+          - integration::analytics
+          - integration::auth
+          - integration::gdpr
+          - integration::organization
+          - integration::organization_hierarchy
+          - integration::permission
+          - integration::roles
+          - integration::security
+          - integration::subscription
+          - integration::tasks
+          - integration::team
+          - integration::user
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
+
+jobs:
+  determine-jobs:
+    name: Determine Jobs to Run
+    runs-on: ubuntu-latest
+    outputs:
+      run-check: ${{ steps.determine.outputs.run-check }}
+      run-unit: ${{ steps.determine.outputs.run-unit }}
+      run-integration: ${{ steps.determine.outputs.run-integration }}
+      run-build: ${{ steps.determine.outputs.run-build }}
+      integration-groups: ${{ steps.determine.outputs.integration-groups }}
+    steps:
+      - id: determine
+        run: |
+          case "${{ inputs.test-type }}" in
+            all)
+              echo "run-check=true" >> $GITHUB_OUTPUT
+              echo "run-unit=true" >> $GITHUB_OUTPUT
+              echo "run-integration=true" >> $GITHUB_OUTPUT
+              echo "run-build=true" >> $GITHUB_OUTPUT
+              echo 'integration-groups=["integration::admin", "integration::analytics", "integration::auth", "integration::gdpr", "integration::organization", "integration::organization_hierarchy", "integration::permission", "integration::roles", "integration::security", "integration::subscription", "integration::tasks", "integration::team", "integration::user"]' >> $GITHUB_OUTPUT
+              ;;
+            unit)
+              echo "run-check=true" >> $GITHUB_OUTPUT
+              echo "run-unit=true" >> $GITHUB_OUTPUT
+              echo "run-integration=false" >> $GITHUB_OUTPUT
+              echo "run-build=false" >> $GITHUB_OUTPUT
+              ;;
+            integration-all)
+              echo "run-check=false" >> $GITHUB_OUTPUT
+              echo "run-unit=false" >> $GITHUB_OUTPUT
+              echo "run-integration=true" >> $GITHUB_OUTPUT
+              echo "run-build=false" >> $GITHUB_OUTPUT
+              echo 'integration-groups=["integration::admin", "integration::analytics", "integration::auth", "integration::gdpr", "integration::organization", "integration::organization_hierarchy", "integration::permission", "integration::roles", "integration::security", "integration::subscription", "integration::tasks", "integration::team", "integration::user"]' >> $GITHUB_OUTPUT
+              ;;
+            integration-specific)
+              echo "run-check=false" >> $GITHUB_OUTPUT
+              echo "run-unit=false" >> $GITHUB_OUTPUT
+              echo "run-integration=true" >> $GITHUB_OUTPUT
+              echo "run-build=false" >> $GITHUB_OUTPUT
+              echo 'integration-groups=["${{ inputs.integration-group }}"]' >> $GITHUB_OUTPUT
+              ;;
+            check-only)
+              echo "run-check=true" >> $GITHUB_OUTPUT
+              echo "run-unit=false" >> $GITHUB_OUTPUT
+              echo "run-integration=false" >> $GITHUB_OUTPUT
+              echo "run-build=false" >> $GITHUB_OUTPUT
+              ;;
+            build-only)
+              echo "run-check=false" >> $GITHUB_OUTPUT
+              echo "run-unit=false" >> $GITHUB_OUTPUT
+              echo "run-integration=false" >> $GITHUB_OUTPUT
+              echo "run-build=true" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+  check-and-lint:
+    name: Check and Lint
+    needs: determine-jobs
+    if: needs.determine-jobs.outputs.run-check == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          shared-key: "manual-check"
+      - run: |
+          sudo apt-get update && sudo apt-get install -y libpq-dev lld
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  unit-tests:
+    name: Unit Tests
+    needs: [determine-jobs, check-and-lint]
+    if: needs.determine-jobs.outputs.run-unit == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          shared-key: "manual-unit"
+      - run: |
+          sudo apt-get update && sudo apt-get install -y libpq-dev lld
+          cargo test --lib --verbose --locked
+
+  integration-tests:
+    name: Integration Test (${{ matrix.group }})
+    needs: determine-jobs
+    if: needs.determine-jobs.outputs.run-integration == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        group: ${{ fromJson(needs.determine-jobs.outputs.integration-groups) }}
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_USER: test_user
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          shared-key: "manual-integration-${{ matrix.group }}"
+      - run: |
+          sudo apt-get update && sudo apt-get install -y libpq-dev lld
+      - run: cargo run --package migration -- up
+        env:
+          DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
+      - run: cargo test --test main ${{ matrix.group }} --verbose --locked
+        env:
+          DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
+          SERVER_ADDR: 0.0.0.0:3000
+          RUST_LOG: debug
+
+  build:
+    name: Build
+    needs: determine-jobs
+    if: needs.determine-jobs.outputs.run-build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          shared-key: "manual-build"
+      - run: |
+          sudo apt-get update && sudo apt-get install -y libpq-dev lld
+          cargo build --profile ci --workspace --locked
+          ls -la target/ci/
