@@ -29,9 +29,15 @@ make migrate-down             # 最後のマイグレーションをロールバ
 
 # 開発ワークフロー
 make ci-check                 # CIチェックをローカルで実行（fmt + clippy + test）
+make ci-check-fast            # 高速CIチェック（CIプロファイル使用）
 cargo watch -x "run --package task-backend"  # 変更時に自動再起動
 cargo test --package task-backend --lib      # 単体テストのみ（高速）
 cargo test integration::tasks::crud_tests    # 特定の統合テストを実行
+make test-integration GROUP=integration::auth # 特定グループの統合テスト実行
+
+# ビルド最適化
+make build-ci                 # CI用最適化ビルド（thin LTO）
+make build-dev                # 開発用高速ビルド
 ```
 
 ### Docker 操作

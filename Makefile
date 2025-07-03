@@ -22,6 +22,10 @@ help:
 	@echo "  dev-setup        - Setup development environment"
 	@echo "  dev              - Run development environment with MailHog"
 	@echo "  ci-check         - Run CI checks locally"
+	@echo "  ci-check-fast    - Run CI checks with optimized profile"
+	@echo "  build-ci         - Build with CI profile"
+	@echo "  build-dev        - Fast development build"
+	@echo "  test-integration - Run specific integration test group (GROUP=...)"
 
 # Build the entire workspace
 build:
@@ -34,6 +38,14 @@ build-app:
 # Build only the migration
 build-migration:
 	cargo build --release --package migration
+
+# Build with CI profile (optimized for CI/CD)
+build-ci:
+	cargo build --profile ci --workspace
+
+# Fast development build
+build-dev:
+	cargo build --workspace
 
 # Run tests for the entire workspace
 test:
@@ -129,6 +141,12 @@ ci-check:
 	$(MAKE) clippy
 	$(MAKE) test
 
+# Run CI checks with optimized profile
+ci-check-fast:
+	cargo fmt --all -- --check
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
+	cargo test --profile ci --workspace --verbose
+
 # Workspace-specific commands
 workspace-info:
 	@echo "Workspace members:"
@@ -162,3 +180,12 @@ docs:
 # Profile build
 profile:
 	cargo build --workspace --release --timings
+
+# Run specific integration test group
+test-integration:
+	@echo "Usage: make test-integration GROUP=integration::auth"
+	@if [ -z "$(GROUP)" ]; then \
+		echo "Error: GROUP parameter is required"; \
+		exit 1; \
+	fi
+	cargo test --test main $(GROUP) --verbose
