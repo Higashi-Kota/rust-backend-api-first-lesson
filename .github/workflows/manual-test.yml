@@ -37,7 +37,6 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   CARGO_INCREMENTAL: 0
-  RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
 
 jobs:
   determine-jobs:

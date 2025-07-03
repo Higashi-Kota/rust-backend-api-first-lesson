@@ -127,11 +127,6 @@ map_unwrap_or = "warn"
 debug = 1
 opt-level = 0
 incremental = true
-codegen-units = 256
-
-[profile.dev.package."*"]
-# Dependencies are optimized for better runtime performance
-opt-level = 3
 
 [profile.test]
 # Faster test compilation
