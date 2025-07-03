@@ -21,14 +21,6 @@ impl PasswordResetTokenRepository {
         Self { db, schema: None }
     }
 
-    #[allow(dead_code)]
-    pub fn with_schema(db: DbConn, schema: String) -> Self {
-        Self {
-            db,
-            schema: Some(schema),
-        }
-    }
-
     // スキーマを設定するヘルパーメソッド
     async fn prepare_connection(&self) -> Result<(), DbErr> {
         if let Some(schema) = &self.schema {
@@ -199,6 +191,56 @@ impl PasswordResetTokenRepository {
             .filter(password_reset_token_model::Column::CreatedAt.gt(since))
             .count(&self.db)
             .await
+    }
+
+    /// 今日のパスワードリセット要求数を取得
+    pub async fn count_requests_today(&self) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        let today = Utc::now()
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_local_timezone(Utc)
+            .unwrap();
+
+        PasswordResetTokenEntity::find()
+            .filter(password_reset_token_model::Column::CreatedAt.gte(today))
+            .count(&self.db)
+            .await
+    }
+
+    /// 今週のパスワードリセット要求数を取得
+    pub async fn count_requests_this_week(&self) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        let this_week = Utc::now() - chrono::Duration::days(7);
+
+        PasswordResetTokenEntity::find()
+            .filter(password_reset_token_model::Column::CreatedAt.gte(this_week))
+            .count(&self.db)
+            .await
+    }
+
+    /// 使用されたトークンの平均使用時間（分）を計算
+    pub async fn get_average_usage_time_minutes(&self) -> Result<Option<f64>, DbErr> {
+        self.prepare_connection().await?;
+
+        // 使用されたトークンを取得
+        let used_tokens = PasswordResetTokenEntity::find()
+            .filter(password_reset_token_model::Column::IsUsed.eq(true))
+            .all(&self.db)
+            .await?;
+
+        if used_tokens.is_empty() {
+            return Ok(None);
+        }
+
+        // 各トークンの使用時間を計算（作成時刻から更新時刻までの差）
+        let total_minutes: f64 = used_tokens
+            .iter()
+            .map(|token| (token.updated_at - token.created_at).num_minutes() as f64)
+            .sum();
+
+        Ok(Some(total_minutes / used_tokens.len() as f64))
     }
 }
 

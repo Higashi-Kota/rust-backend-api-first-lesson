@@ -18,29 +18,42 @@ curl -X POST http://localhost:3000/organizations \
   -d '{
     "name": "株式会社サンプル",
     "description": "サンプル企業の組織アカウント",
-    "domain": "sample-corp.com",
-    "is_public": false
+    "subscription_tier": "pro"
   }'
 ```
 
 **レスポンス例 (201 Created):**
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440001",
-  "name": "株式会社サンプル",
-  "description": "サンプル企業の組織アカウント",
-  "domain": "sample-corp.com",
-  "is_public": false,
-  "owner_id": "550e8400-e29b-41d4-a716-446655440000",
-  "member_count": 1,
-  "team_count": 0,
-  "settings": {
-    "allow_public_join": false,
-    "require_domain_verification": true,
-    "default_member_role": "member"
-  },
-  "created_at": "2025-06-12T10:00:00Z",
-  "updated_at": "2025-06-12T10:00:00Z"
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "name": "株式会社サンプル",
+    "description": "サンプル企業の組織アカウント",
+    "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+    "subscription_tier": "pro",
+    "max_teams": 20,
+    "max_members": 100,
+    "settings": {
+      "allow_public_teams": false,
+      "require_approval_for_new_members": true,
+      "enable_single_sign_on": false,
+      "default_team_subscription_tier": "pro"
+    },
+    "members": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440100",
+        "user_id": "550e8400-e29b-41d4-a716-446655440000",
+        "username": "owner@example.com",
+        "email": "owner@example.com",
+        "role": "Owner",
+        "joined_at": "2025-06-12T10:00:00Z"
+      }
+    ],
+    "current_teams": 0,
+    "created_at": "2025-06-12T10:00:00Z",
+    "updated_at": "2025-06-12T10:00:00Z"
+  }
 }
 ```
 
@@ -334,17 +347,187 @@ curl -X GET http://localhost:3000/organizations/stats \
 
 組織機能の利用制限はサブスクリプション階層によって決まります：
 
-- **Free**: 組織機能利用不可
-- **Pro**: 組織機能利用不可
-- **Enterprise**: 無制限の組織作成とメンバー数
+- **Free**: 最大3チーム、最大10メンバー
+- **Pro**: 最大20チーム、最大100メンバー
+- **Enterprise**: 最大100チーム、最大1000メンバー
+
+### 6. 組織設定更新 (PATCH /organizations/{id}/settings)
+
+組織の詳細設定を更新します。オーナーまたは管理者権限が必要です。
+
+**リクエスト例:**
+```bash
+curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/settings \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "allow_public_teams": true,
+    "require_approval_for_new_members": false,
+    "enable_single_sign_on": true,
+    "default_team_subscription_tier": "pro"
+  }'
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "name": "株式会社サンプル",
+    "description": "サンプル企業の組織アカウント",
+    "owner_id": "550e8400-e29b-41d4-a716-446655440000",
+    "subscription_tier": "pro",
+    "settings": {
+      "allow_public_teams": true,
+      "require_approval_for_new_members": false,
+      "enable_single_sign_on": true,
+      "default_team_subscription_tier": "pro"
+    },
+    "updated_at": "2025-06-12T15:30:00Z"
+  }
+}
+```
+
+### 7. 組織サブスクリプション更新 (PATCH /organizations/{id}/subscription)
+
+組織のサブスクリプション階層を変更します。オーナー権限が必要です。
+
+**リクエスト例:**
+```bash
+curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/subscription \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscription_tier": "enterprise"
+  }'
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "name": "株式会社サンプル",
+    "subscription_tier": "enterprise",
+    "max_teams": 100,
+    "max_members": 1000,
+    "previous_tier": "pro",
+    "upgraded_at": "2025-06-12T16:00:00Z"
+  }
+}
+```
+
+**ダウングレード時の制約:**
+- 現在のチーム数が新しいプランの上限を超えている場合はエラー
+- 現在のメンバー数が新しいプランの上限を超えている場合はエラー
+
+### 8. 組織サブスクリプション履歴 (GET /organizations/{id}/subscription/history)
+
+組織のサブスクリプション変更履歴を取得します。
+
+**リクエスト例:**
+```bash
+curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/subscription/history \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440100",
+      "user_id": "550e8400-e29b-41d4-a716-446655440000",
+      "old_tier": "free",
+      "new_tier": "pro",
+      "changed_at": "2025-06-12T10:00:00Z",
+      "changed_by": "550e8400-e29b-41d4-a716-446655440000",
+      "reason": "Initial organization creation"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440101",
+      "user_id": "550e8400-e29b-41d4-a716-446655440000",
+      "old_tier": "pro",
+      "new_tier": "enterprise",
+      "changed_at": "2025-06-12T16:00:00Z",
+      "changed_by": "550e8400-e29b-41d4-a716-446655440000",
+      "reason": "Upgraded for increased capacity"
+    }
+  ]
+}
+```
+
+### 9. 組織容量確認 (GET /organizations/{id}/capacity)
+
+組織の現在の使用状況と制限を確認します。
+
+**リクエスト例:**
+```bash
+curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/capacity \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "subscription_tier": "enterprise",
+    "teams": {
+      "current": 15,
+      "max": 100,
+      "percentage_used": 15.0
+    },
+    "members": {
+      "current": 85,
+      "max": 1000,
+      "percentage_used": 8.5
+    },
+    "storage": {
+      "current_gb": 45.2,
+      "max_gb": 500,
+      "percentage_used": 9.04
+    },
+    "can_add_teams": true,
+    "can_add_members": true
+  }
+}
+```
+
+## 組織階層構造
+
+### 部門管理
+
+組織は部門（Department）を持つことができ、階層的な権限管理が可能です。
+
+### 10. 部門作成 (POST /organizations/{id}/departments)
+
+**リクエスト例:**
+```bash
+curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/departments \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "開発部門",
+    "description": "ソフトウェア開発を担当する部門",
+    "parent_department_id": null
+  }'
+```
+
+### 11. 部門メンバー管理
+
+部門へのメンバー割り当てと権限の継承が可能です。
 
 ## 使用例
 
 ### 組織作成から運用開始までの完整な流れ
 
 ```bash
-# アクセストークンを取得済みと仮定（Enterprise階層ユーザー）
-ACCESS_TOKEN="your_enterprise_access_token_here"
+# アクセストークンを取得済みと仮定
+ACCESS_TOKEN="your_access_token_here"
 
 # 1. 新しい組織を作成
 ORG_RESPONSE=$(curl -s -X POST http://localhost:3000/organizations \
@@ -353,8 +536,7 @@ ORG_RESPONSE=$(curl -s -X POST http://localhost:3000/organizations \
   -d '{
     "name": "テックスタートアップ",
     "description": "革新的なテクノロジースタートアップ",
-    "domain": "techstartup.com",
-    "is_public": false
+    "subscription_tier": "pro"
   }')
 
 ORG_ID=$(echo $ORG_RESPONSE | jq -r '.id')
@@ -364,9 +546,10 @@ curl -s -X PATCH http://localhost:3000/organizations/$ORG_ID/settings \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "allow_public_join": false,
-    "require_domain_verification": true,
-    "default_member_role": "member"
+    "allow_public_teams": false,
+    "require_approval_for_new_members": true,
+    "enable_single_sign_on": false,
+    "default_team_subscription_tier": "pro"
   }'
 
 # 3. 管理者を招待
@@ -432,7 +615,8 @@ curl -s -X GET http://localhost:3000/organizations/stats \
 
 ## 注意事項
 
-1. **Enterprise限定**: 組織機能はEnterpriseサブスクリプションでのみ利用可能です
-2. **ドメイン検証**: `require_domain_verification`が有効な場合、招待されるメンバーのメールドメインが組織ドメインと一致する必要があります
+1. **サブスクリプション階層**: 組織の機能はサブスクリプション階層によって制限されます
+2. **ダウングレード制約**: サブスクリプションをダウングレードする際は、現在のリソース使用量が新しいプランの制限内である必要があります
 3. **組織削除**: 組織を削除すると、関連するチームとタスクもすべて削除されます
-4. **階層構造**: 組織 > チーム > ユーザー という階層構造でデータアクセス権限が管理されます
+4. **階層構造**: 組織 > 部門 > チーム > ユーザー という階層構造でデータアクセス権限が管理されます
+5. **権限継承**: 部門の権限は下位の部門とチームに継承されます

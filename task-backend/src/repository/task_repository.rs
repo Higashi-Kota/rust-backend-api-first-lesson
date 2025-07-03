@@ -19,13 +19,6 @@ impl TaskRepository {
         Self { db, schema: None }
     }
 
-    pub fn with_schema(db: DbConn, schema: String) -> Self {
-        Self {
-            db,
-            schema: Some(schema),
-        }
-    }
-
     // スキーマを設定する前に、各操作の前に呼び出すヘルパーメソッド
     async fn prepare_connection(&self) -> Result<(), DbErr> {
         if let Some(schema) = &self.schema {

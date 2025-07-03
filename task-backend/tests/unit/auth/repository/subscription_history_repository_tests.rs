@@ -20,7 +20,7 @@ async fn setup_test_repository() -> (
 ) {
     let db = common::db::TestDatabase::new().await;
     let repo = SubscriptionHistoryRepository::new(db.connection.clone());
-    let user_repo = UserRepository::with_schema(db.connection.clone(), db.schema_name.clone());
+    let user_repo = UserRepository::new(db.connection.clone());
     (db, repo, user_repo)
 }
 

@@ -1,7 +1,9 @@
 // tests/integration/mod.rs
 
+pub mod admin;
 pub mod analytics;
 pub mod auth;
+pub mod gdpr;
 pub mod organization;
 pub mod organization_hierarchy;
 pub mod permission;

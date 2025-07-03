@@ -2,9 +2,16 @@
 use crate::api::dto::user_dto::{
     BulkOperationResult, BulkUserOperation, RoleUserStats, SubscriptionAnalytics,
 };
+use crate::domain::bulk_operation_history_model::{
+    BulkOperationError, BulkOperationErrorDetails, BulkOperationType,
+};
 use crate::domain::user_model::{SafeUser, SafeUserWithRole};
+use crate::domain::user_settings_model;
 use crate::error::{AppError, AppResult};
+use crate::repository::bulk_operation_history_repository::BulkOperationHistoryRepository;
+use crate::repository::email_verification_token_repository::EmailVerificationTokenRepository;
 use crate::repository::user_repository::UserRepository;
+use crate::repository::user_settings_repository::UserSettingsRepository;
 use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -12,11 +19,24 @@ use uuid::Uuid;
 /// ユーザー管理サービス
 pub struct UserService {
     user_repo: Arc<UserRepository>,
+    user_settings_repo: Arc<UserSettingsRepository>,
+    bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
+    email_verification_token_repo: Arc<EmailVerificationTokenRepository>,
 }
 
 impl UserService {
-    pub fn new(user_repo: Arc<UserRepository>) -> Self {
-        Self { user_repo }
+    pub fn new(
+        user_repo: Arc<UserRepository>,
+        user_settings_repo: Arc<UserSettingsRepository>,
+        bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
+        email_verification_token_repo: Arc<EmailVerificationTokenRepository>,
+    ) -> Self {
+        Self {
+            user_repo,
+            user_settings_repo,
+            bulk_operation_history_repo,
+            email_verification_token_repo,
+        }
     }
 
     /// ユーザー情報取得
@@ -368,24 +388,44 @@ impl UserService {
 
     /// メール認証トークンの検証
     pub async fn verify_email_token(&self, user_id: Uuid, token: &str) -> AppResult<SafeUser> {
-        // トークンの検証ロジックを実装
-        // 実際の実装では、パスワードリセットトークンモデルやメール認証トークンテーブルを使用する
-        // ここでは簡単な実装として、トークン長の検証のみ行う
-        if token.len() < 32 {
-            return Err(AppError::ValidationError(
-                "Invalid token format".to_string(),
-            ));
+        // メール認証を実行
+        use crate::domain::email_verification_token_model::TokenValidationError;
+
+        let result = self
+            .email_verification_token_repo
+            .execute_email_verification(token)
+            .await?;
+
+        match result {
+            Ok(verification_result) => {
+                // ユーザーIDが一致するか確認
+                if verification_result.user_id != user_id {
+                    return Err(AppError::ValidationError(
+                        "Token does not match user".to_string(),
+                    ));
+                }
+
+                // ユーザーを取得
+                let user = self
+                    .user_repo
+                    .find_by_id(user_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+                info!(user_id = %user_id, "Email verification completed successfully");
+                Ok(user.into())
+            }
+            Err(TokenValidationError::NotFound) => {
+                Err(AppError::ValidationError("Invalid token".to_string()))
+            }
+            Err(TokenValidationError::Expired) => {
+                Err(AppError::ValidationError("Token has expired".to_string()))
+            }
+            Err(TokenValidationError::AlreadyUsed) => Err(AppError::ValidationError(
+                "Token has already been used".to_string(),
+            )),
+            Err(TokenValidationError::ValidationFailed(msg)) => Err(AppError::ValidationError(msg)),
         }
-
-        // 実際の実装では、データベースでトークンを検索し、有効性をチェック
-        let user = self
-            .user_repo
-            .find_by_id(user_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
-
-        info!(user_id = %user_id, "Email verification token verified");
-        Ok(user.into())
     }
 
     /// メール認証の再送信
@@ -410,35 +450,107 @@ impl UserService {
         Ok(())
     }
 
-    /// ユーザー設定の取得
-    pub async fn get_user_settings(
+    /// ユーザー設定の取得（旧DTO用）
+    pub async fn get_user_settings_legacy(
         &self,
         user_id: Uuid,
     ) -> AppResult<crate::api::dto::user_dto::UserSettingsResponse> {
-        use crate::api::dto::user_dto::{
-            NotificationSettings, SecuritySettings, UserPreferences, UserSettingsResponse,
-        };
+        use crate::api::dto::user_dto::{SecuritySettings, UserPreferences, UserSettingsResponse};
 
         // ユーザーの存在確認
-        let user = self
+        let _user = self
             .user_repo
             .find_by_id(user_id)
             .await?
             .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
-        // 実際の実装では、ユーザー設定テーブルから設定を取得
-        // ここではデフォルト設定を返す
-        let preferences = UserPreferences::default();
-        let security = SecuritySettings::default();
-        let notifications = NotificationSettings::default();
+        // ユーザー設定を取得（存在しない場合はデフォルト作成）
+        let settings = self.user_settings_repo.get_or_create(user_id).await?;
 
-        info!(user_id = %user_id, "User settings retrieved");
+        // ドメインモデルからDTOへ変換（getter メソッドを使用）
+        let domain_preferences = settings.get_ui_preferences();
+        let preferences = UserPreferences {
+            language: settings.language.clone(),
+            timezone: settings.timezone.clone(),
+            theme: domain_preferences.theme,
+            date_format: "YYYY-MM-DD".to_string(), // TODO: domain_preferences に追加
+            time_format: "24h".to_string(),        // TODO: domain_preferences に追加
+        };
+
+        // セキュリティ設定はハードコード（将来的にはデータベースに保存）
+        let security = SecuritySettings::default();
+
+        let domain_notifications = settings.get_email_notifications();
+        // ドメインモデルからDTOへ変換
+        let notifications = crate::api::dto::user_dto::NotificationSettings {
+            email_notifications: true, // 汎用的な通知設定
+            security_alerts: domain_notifications.security_alerts,
+            task_reminders: domain_notifications.task_updates,
+            newsletter: domain_notifications.newsletter,
+        };
+
+        info!(user_id = %user_id, "User settings retrieved from database");
         Ok(UserSettingsResponse {
-            user_id: user.id,
+            user_id,
             preferences,
             security,
             notifications,
         })
+    }
+
+    /// ユーザー設定の取得（新しいDTO用）
+    pub async fn get_user_settings(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<Option<user_settings_model::Model>> {
+        self.user_settings_repo.get_by_user_id(user_id).await
+    }
+
+    /// ユーザー設定の更新
+    pub async fn update_user_settings(
+        &self,
+        user_id: Uuid,
+        input: user_settings_model::UserSettingsInput,
+    ) -> AppResult<user_settings_model::Model> {
+        self.user_settings_repo.update(user_id, input).await
+    }
+
+    /// 言語別ユーザー取得
+    pub async fn get_users_by_language(&self, language: &str) -> AppResult<Vec<Uuid>> {
+        self.user_settings_repo
+            .get_users_by_language(language)
+            .await
+    }
+
+    /// 通知有効ユーザー取得
+    pub async fn get_users_with_notification_enabled(
+        &self,
+        notification_type: &str,
+    ) -> AppResult<Vec<Uuid>> {
+        self.user_settings_repo
+            .get_users_with_notification_enabled(notification_type)
+            .await
+    }
+
+    /// ユーザー設定の削除
+    pub async fn delete_user_settings(&self, user_id: Uuid) -> AppResult<bool> {
+        self.user_settings_repo.delete(user_id).await
+    }
+
+    /// ユーザー設定をデフォルトに戻す
+    pub async fn reset_user_settings_to_default(&self, user_id: Uuid) -> AppResult<()> {
+        // ユーザーの存在確認
+        let _user = self
+            .user_repo
+            .find_by_id(user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+        // 設定を削除（次回取得時にデフォルトが作成される）
+        self.user_settings_repo.delete(user_id).await?;
+
+        info!(user_id = %user_id, "User settings reset to default");
+        Ok(())
     }
 
     /// 拡張一括ユーザー操作（新しいenum-based操作対応）
@@ -448,9 +560,10 @@ impl UserService {
         user_ids: &[Uuid],
         parameters: Option<&serde_json::Value>,
         notify_users: bool,
+        performed_by: Uuid,
     ) -> AppResult<BulkOperationResult> {
         let mut successful = 0;
-        let mut failed = 0;
+        let mut failed: usize = 0;
         let mut errors = Vec::new();
         let mut results = Vec::new();
 
@@ -560,16 +673,64 @@ impl UserService {
                     }
                 }
                 BulkUserOperation::UpdateRole => {
-                    // Role update functionality would go here
-                    // For now, return a placeholder response
-                    failed += 1;
-                    let error_msg = format!("User {}: Role update not implemented yet", user_id);
-                    errors.push(error_msg.clone());
-                    serde_json::json!({
-                        "user_id": user_id,
-                        "success": false,
-                        "message": error_msg
-                    })
+                    if let Some(params) = parameters {
+                        if let Some(role_id) = params.get("role_id").and_then(|v| v.as_str()) {
+                            if let Ok(role_uuid) = Uuid::parse_str(role_id) {
+                                match self.user_repo.update_user_role(user_id, role_uuid).await {
+                                    Ok(_) => {
+                                        successful += 1;
+                                        serde_json::json!({
+                                            "user_id": user_id,
+                                            "success": true,
+                                            "message": "Role updated successfully"
+                                        })
+                                    }
+                                    Err(e) => {
+                                        failed += 1;
+                                        let error_msg = format!(
+                                            "User {}: Failed to update role - {}",
+                                            user_id, e
+                                        );
+                                        errors.push(error_msg.clone());
+                                        serde_json::json!({
+                                            "user_id": user_id,
+                                            "success": false,
+                                            "message": error_msg
+                                        })
+                                    }
+                                }
+                            } else {
+                                failed += 1;
+                                let error_msg = format!("User {}: Invalid role_id format", user_id);
+                                errors.push(error_msg.clone());
+                                serde_json::json!({
+                                    "user_id": user_id,
+                                    "success": false,
+                                    "message": error_msg
+                                })
+                            }
+                        } else {
+                            failed += 1;
+                            let error_msg =
+                                format!("User {}: role_id parameter is required", user_id);
+                            errors.push(error_msg.clone());
+                            serde_json::json!({
+                                "user_id": user_id,
+                                "success": false,
+                                "message": error_msg
+                            })
+                        }
+                    } else {
+                        failed += 1;
+                        let error_msg =
+                            format!("User {}: parameters are required for role update", user_id);
+                        errors.push(error_msg.clone());
+                        serde_json::json!({
+                            "user_id": user_id,
+                            "success": false,
+                            "message": error_msg
+                        })
+                    }
                 }
                 BulkUserOperation::SendNotification => {
                     // Notification sending would go here
@@ -651,6 +812,64 @@ impl UserService {
             failed = failed,
             "Bulk operation completed"
         );
+
+        // 一括操作履歴の記録
+        let operation_type = match operation {
+            BulkUserOperation::Activate => BulkOperationType::ActivateUsers,
+            BulkUserOperation::Deactivate => BulkOperationType::DeactivateUsers,
+            BulkUserOperation::UpdateRole => BulkOperationType::UpdateRole,
+            BulkUserOperation::BulkDelete => BulkOperationType::DeleteUsers,
+            _ => {
+                // その他の操作は汎用的な UpdateRole として記録
+                BulkOperationType::UpdateRole
+            }
+        };
+
+        let history = self
+            .bulk_operation_history_repo
+            .create(operation_type, performed_by, user_ids.len() as i32)
+            .await?;
+
+        // 操作を開始
+        let history = self
+            .bulk_operation_history_repo
+            .start_operation(history.id)
+            .await?;
+
+        // 操作結果に基づいて履歴を更新
+        if failed == 0 {
+            self.bulk_operation_history_repo
+                .complete_operation(history.id)
+                .await?;
+        } else if successful > 0 {
+            let error_details = BulkOperationErrorDetails {
+                errors: errors
+                    .iter()
+                    .map(|e| BulkOperationError {
+                        entity_id: e.split(": ").next().unwrap_or("unknown").to_string(),
+                        error_message: e.split(": ").skip(1).collect::<Vec<_>>().join(": "),
+                    })
+                    .collect(),
+                total_errors: failed,
+            };
+            self.bulk_operation_history_repo
+                .partially_complete_operation(history.id, error_details)
+                .await?;
+        } else {
+            let error_details = Some(BulkOperationErrorDetails {
+                errors: errors
+                    .iter()
+                    .map(|e| BulkOperationError {
+                        entity_id: e.split(": ").next().unwrap_or("unknown").to_string(),
+                        error_message: e.split(": ").skip(1).collect::<Vec<_>>().join(": "),
+                    })
+                    .collect(),
+                total_errors: failed,
+            });
+            self.bulk_operation_history_repo
+                .fail_operation(history.id, error_details)
+                .await?;
+        }
 
         Ok(BulkOperationResult {
             successful,

@@ -77,8 +77,11 @@ jobs:
       fail-fast: false
       matrix:
         group:
+          - integration::admin
           - integration::analytics
           - integration::auth
+          - integration::gdpr
+          - integration::organization
           - integration::organization_hierarchy
           - integration::permission
           - integration::roles

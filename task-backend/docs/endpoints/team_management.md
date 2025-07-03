@@ -148,9 +148,9 @@ curl -X DELETE http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001 
 
 ## チームメンバー管理
 
-### 6. チームメンバー招待 (POST /teams/{id}/members)
+### 6. チームメンバー追加 (POST /teams/{id}/members)
 
-チームに新しいメンバーを招待します。オーナーまたは管理者権限が必要です。
+既存のユーザーをチームに追加します。オーナーまたは管理者権限が必要です。
 
 **リクエスト例:**
 ```bash
@@ -163,21 +163,10 @@ curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/me
   }'
 ```
 
-**または、メールアドレスで招待:**
-```bash
-curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/members \
-  -H "Authorization: Bearer <access_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "newmember@example.com",
-    "role": "member"
-  }'
-```
-
 **レスポンス例 (201 Created):**
 ```json
 {
-  "message": "Member invited successfully",
+  "message": "Member added successfully",
   "member": {
     "id": "550e8400-e29b-41d4-a716-446655440005",
     "username": "newmember",
@@ -218,6 +207,241 @@ curl -X DELETE http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/
 ```
 
 **成功レスポンス:** 204 No Content
+
+## チーム招待システム
+
+### 9. 単一メンバー招待 (POST /teams/{id}/invitations/single)
+
+メールアドレスを使って新しいメンバーをチームに招待します。
+
+**リクエスト例:**
+```bash
+curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/single \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "newmember@example.com",
+    "message": "プロジェクトに参加してください！"
+  }'
+```
+
+**レスポンス例 (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440006",
+    "team_id": "550e8400-e29b-41d4-a716-446655440001",
+    "email": "newmember@example.com",
+    "status": "pending",
+    "expires_at": "2025-06-19T15:00:00Z",
+    "created_at": "2025-06-12T15:00:00Z"
+  }
+}
+```
+
+### 10. 一括メンバー招待 (POST /teams/{id}/invitations/bulk)
+
+複数のメンバーを一度に招待します。
+
+**リクエスト例:**
+```bash
+curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/bulk \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "invitations": [
+      {
+        "email": "developer1@example.com",
+        "message": "開発チームへようこそ！"
+      },
+      {
+        "email": "developer2@example.com",
+        "message": "プロジェクトに参加してください"
+      }
+    ]
+  }'
+```
+
+**レスポンス例 (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "sent": 2,
+    "failed": 0,
+    "invitations": [
+      {
+        "email": "developer1@example.com",
+        "status": "sent",
+        "invitation_id": "550e8400-e29b-41d4-a716-446655440007"
+      },
+      {
+        "email": "developer2@example.com",
+        "status": "sent",
+        "invitation_id": "550e8400-e29b-41d4-a716-446655440008"
+      }
+    ]
+  }
+}
+```
+
+### 11. 招待一覧取得 (GET /teams/{id}/invitations)
+
+チームの招待状況を確認します。
+
+**リクエスト例:**
+```bash
+curl -X GET http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440006",
+      "email": "newmember@example.com",
+      "status": "pending",
+      "invited_by": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "username": "team_owner"
+      },
+      "created_at": "2025-06-12T15:00:00Z",
+      "expires_at": "2025-06-19T15:00:00Z"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440007",
+      "email": "developer1@example.com",
+      "status": "accepted",
+      "accepted_at": "2025-06-13T10:00:00Z",
+      "invited_by": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "username": "team_owner"
+      },
+      "created_at": "2025-06-12T16:00:00Z"
+    }
+  ]
+}
+```
+
+### 12. 招待承認 (POST /teams/{team_id}/invitations/{invitation_id}/accept)
+
+受信した招待を承認します。
+
+**リクエスト例:**
+```bash
+curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/accept \
+  -H "Authorization: Bearer <invitee_access_token>"
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Invitation accepted successfully",
+    "team": {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "開発チーム",
+      "role": "member"
+    }
+  }
+}
+```
+
+### 13. 招待拒否 (POST /teams/{team_id}/invitations/{invitation_id}/decline)
+
+受信した招待を拒否します。
+
+**リクエスト例:**
+```bash
+curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/decline \
+  -H "Authorization: Bearer <invitee_access_token>"
+```
+
+### 14. 招待キャンセル (DELETE /teams/{team_id}/invitations/{invitation_id}/cancel)
+
+送信した招待をキャンセルします。
+
+**リクエスト例:**
+```bash
+curl -X DELETE http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/cancel \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### 15. 招待再送信 (POST /teams/{team_id}/invitations/{invitation_id}/resend)
+
+期限切れになっていない招待を再送信します。
+
+**リクエスト例:**
+```bash
+curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/resend \
+  -H "Authorization: Bearer <access_token>"
+```
+
+### 16. 招待統計取得 (GET /teams/{id}/invitations/statistics)
+
+チームの招待に関する統計情報を取得します。
+
+**リクエスト例:**
+```bash
+curl -X GET http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/statistics \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "total_sent": 15,
+    "pending": 3,
+    "accepted": 10,
+    "declined": 1,
+    "expired": 1,
+    "acceptance_rate": 66.67,
+    "avg_response_time_hours": 24.5
+  }
+}
+```
+
+### 17. ユーザーの招待一覧 (GET /users/invitations)
+
+ユーザーが受信したチーム招待の一覧を取得します。
+
+**リクエスト例:**
+```bash
+curl -X GET http://localhost:3000/users/invitations \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440009",
+      "team": {
+        "id": "550e8400-e29b-41d4-a716-446655440002",
+        "name": "QAチーム",
+        "description": "品質保証チーム"
+      },
+      "invited_by": {
+        "id": "550e8400-e29b-41d4-a716-446655440003",
+        "username": "qa_lead"
+      },
+      "message": "QAチームに参加しませんか？",
+      "status": "pending",
+      "created_at": "2025-06-14T10:00:00Z",
+      "expires_at": "2025-06-21T10:00:00Z"
+    }
+  ]
+}
+```
 
 ## 統計・分析
 

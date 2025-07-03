@@ -43,6 +43,19 @@ impl SecurityService {
     pub async fn get_refresh_token_stats(&self) -> AppResult<RefreshTokenStats> {
         let stats = self.refresh_token_repo.get_token_stats().await?;
 
+        // 最古・最新のトークン年齢を実際に計算
+        let oldest_token_age_days = self
+            .refresh_token_repo
+            .get_oldest_active_token_age_days()
+            .await?
+            .unwrap_or(0);
+
+        let newest_token_age_hours = self
+            .refresh_token_repo
+            .get_newest_active_token_age_hours()
+            .await?
+            .unwrap_or(0);
+
         Ok(RefreshTokenStats {
             total_active: stats.active_tokens,
             total_expired: stats.expired_tokens,
@@ -52,8 +65,8 @@ impl SecurityService {
             } else {
                 0.0
             },
-            oldest_token_age_days: 7,  // 簡易計算
-            newest_token_age_hours: 2, // 簡易計算
+            oldest_token_age_days,
+            newest_token_age_hours,
         })
     }
 
@@ -61,13 +74,22 @@ impl SecurityService {
     pub async fn get_password_reset_stats(&self) -> AppResult<PasswordResetTokenStats> {
         let stats = self.password_reset_repo.get_token_stats().await?;
 
+        // 実際のデータから計算
+        let requests_today = self.password_reset_repo.count_requests_today().await?;
+        let requests_this_week = self.password_reset_repo.count_requests_this_week().await?;
+        let average_usage_time_minutes = self
+            .password_reset_repo
+            .get_average_usage_time_minutes()
+            .await?
+            .unwrap_or(0.0);
+
         Ok(PasswordResetTokenStats {
             total_active: stats.active_tokens,
             total_used: stats.used_tokens,
             total_expired: stats.expired_tokens,
-            requests_today: 5,                // 簡易計算
-            requests_this_week: 25,           // 簡易計算
-            average_usage_time_minutes: 15.5, // 簡易計算
+            requests_today,
+            requests_this_week,
+            average_usage_time_minutes,
         })
     }
 

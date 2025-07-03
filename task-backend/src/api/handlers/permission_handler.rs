@@ -9,6 +9,7 @@ use crate::domain::permission::{
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::utils::permission::PermissionType;
 use axum::{
     extract::{Json, Path, Query, State},
     routing::{get, post},
@@ -418,22 +419,20 @@ pub async fn get_feature_access_handler(
 
 /// 管理者機能アクセス情報を取得
 pub async fn get_admin_features_handler(
-    State(_app_state): State<AppState>,
+    State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<AdminFeaturesResponse>> {
     use crate::middleware::auth::{
         check_create_permission, check_delete_permission, check_resource_access_permission,
         check_view_permission,
     };
+    use crate::utils::permission::PermissionType;
 
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            "Access denied: Admin permission required for admin features"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
+    // 管理者権限チェック（check_permission_typeを使用）
+    app_state
+        .permission_service
+        .check_permission_type(admin_user.user_id(), PermissionType::IsAdmin, None)
+        .await?;
 
     // 権限チェック関数の使用例
     let _can_create = check_create_permission(&admin_user, "admin_features").is_ok();
@@ -1248,18 +1247,15 @@ pub async fn get_user_effective_permissions_handler(
 
 /// システム権限監査（管理者のみ）
 pub async fn get_system_permission_audit_handler(
-    State(_app_state): State<AppState>,
+    State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<SystemPermissionAuditQuery>,
 ) -> AppResult<Json<SystemPermissionAuditResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            "Access denied: Admin permission required for system audit"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
+    // 管理者権限チェック（check_permission_typeを使用）
+    app_state
+        .permission_service
+        .check_permission_type(admin_user.user_id(), PermissionType::IsAdmin, None)
+        .await?;
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -1700,6 +1696,125 @@ fn get_required_tier_for_action(resource: &str, action: &str) -> Option<Subscrip
     }
 }
 
+/// 複数権限の同時チェック（check_multiple_permissionsを使用）
+pub async fn check_complex_operation_permissions_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<ComplexOperationRequest>,
+) -> AppResult<Json<ApiResponse<ComplexOperationPermissionResponse>>> {
+    use crate::utils::permission::{PermissionType, ResourceContext};
+
+    // バリデーション
+    payload.validate().map_err(|validation_errors| {
+        warn!("Complex operation validation failed: {}", validation_errors);
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!(
+        user_id = %user.claims.user_id,
+        operation = %payload.operation,
+        "Checking complex operation permissions"
+    );
+
+    // 複数の権限チェックを構築
+    let checks = vec![
+        // 管理者権限チェック
+        (PermissionType::IsAdmin, None),
+        // メンバー権限チェック
+        (PermissionType::IsMember, None),
+        // リソース作成権限チェック
+        (
+            PermissionType::CanCreateResource,
+            Some(ResourceContext {
+                resource_type: payload.resource_type.clone(),
+                owner_id: None,
+                target_user_id: None,
+                requesting_user_id: user.claims.user_id,
+            }),
+        ),
+        // リソース削除権限チェック
+        (
+            PermissionType::CanDeleteResource,
+            Some(ResourceContext {
+                resource_type: payload.resource_type.clone(),
+                owner_id: payload.resource_id,
+                target_user_id: None,
+                requesting_user_id: user.claims.user_id,
+            }),
+        ),
+    ];
+
+    // check_multiple_permissionsを使用して一括チェック
+    let results = app_state
+        .permission_service
+        .check_multiple_permissions(user.claims.user_id, checks)
+        .await?;
+
+    // 結果を解析
+    let permission_results = vec![
+        PermissionCheckDetail {
+            permission_type: "IsAdmin".to_string(),
+            allowed: results[0],
+            description: "Administrator permission".to_string(),
+        },
+        PermissionCheckDetail {
+            permission_type: "IsMember".to_string(),
+            allowed: results[1],
+            description: "Member permission".to_string(),
+        },
+        PermissionCheckDetail {
+            permission_type: "CanCreateResource".to_string(),
+            allowed: results[2],
+            description: format!("Create {} permission", payload.resource_type),
+        },
+        PermissionCheckDetail {
+            permission_type: "CanDeleteResource".to_string(),
+            allowed: results[3],
+            description: format!("Delete {} permission", payload.resource_type),
+        },
+    ];
+
+    // 操作が許可されるか判定（必要な権限に基づいて）
+    let operation_allowed = match payload.operation.as_str() {
+        "create_and_delete" => results[2] && results[3], // 作成と削除の両方が必要
+        "admin_only" => results[0],                      // 管理者権限のみ必要
+        "member_create" => results[1] && results[2],     // メンバーかつ作成権限が必要
+        _ => results[1],                                 // デフォルトはメンバー権限のみ
+    };
+
+    let response = ComplexOperationPermissionResponse {
+        user_id: user.claims.user_id,
+        operation: payload.operation,
+        operation_allowed,
+        permission_details: permission_results,
+        checked_at: chrono::Utc::now(),
+    };
+
+    info!(
+        user_id = %user.claims.user_id,
+        operation_allowed = %response.operation_allowed,
+        "Complex operation permission check completed"
+    );
+
+    Ok(Json(ApiResponse::success(
+        "Complex operation permission check completed",
+        response,
+    )))
+}
+
 // --- Health Check ---
 
 /// 権限サービスのヘルスチェック
@@ -1749,6 +1864,11 @@ pub fn permission_router(app_state: AppState) -> Router {
         .route(
             "/features/privilege-check",
             post(check_privilege_feature_handler),
+        )
+        // 複数権限チェック
+        .route(
+            "/permissions/complex-operation",
+            post(check_complex_operation_permissions_handler),
         )
         // ヘルスチェック
         .route("/permissions/health", get(permission_health_check_handler))

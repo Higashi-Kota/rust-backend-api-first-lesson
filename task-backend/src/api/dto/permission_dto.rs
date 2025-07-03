@@ -652,3 +652,43 @@ mod tests {
         assert_eq!(summary.success_rate, 50.0);
     }
 }
+
+// --- Complex Operation DTOs ---
+
+/// 複雑な操作の権限チェックリクエスト
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct ComplexOperationRequest {
+    #[validate(length(
+        min = 1,
+        max = 50,
+        message = "Operation must be between 1 and 50 characters"
+    ))]
+    pub operation: String,
+
+    #[validate(length(
+        min = 1,
+        max = 50,
+        message = "Resource type must be between 1 and 50 characters"
+    ))]
+    pub resource_type: String,
+
+    pub resource_id: Option<Uuid>,
+}
+
+/// 複雑な操作の権限チェック結果
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ComplexOperationPermissionResponse {
+    pub user_id: Uuid,
+    pub operation: String,
+    pub operation_allowed: bool,
+    pub permission_details: Vec<PermissionCheckDetail>,
+    pub checked_at: DateTime<Utc>,
+}
+
+/// 権限チェックの詳細
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PermissionCheckDetail {
+    pub permission_type: String,
+    pub allowed: bool,
+    pub description: String,
+}

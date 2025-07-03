@@ -5,6 +5,7 @@ use crate::domain::organization_model::{Organization, OrganizationMember, Organi
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::repository::organization_repository::OrganizationRepository;
+use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
 use uuid::Uuid;
@@ -13,6 +14,7 @@ pub struct OrganizationService {
     organization_repository: OrganizationRepository,
     team_repository: TeamRepository,
     user_repository: UserRepository,
+    subscription_history_repository: SubscriptionHistoryRepository,
 }
 
 impl OrganizationService {
@@ -20,11 +22,13 @@ impl OrganizationService {
         organization_repository: OrganizationRepository,
         team_repository: TeamRepository,
         user_repository: UserRepository,
+        subscription_history_repository: SubscriptionHistoryRepository,
     ) -> Self {
         Self {
             organization_repository,
             team_repository,
             user_repository,
+            subscription_history_repository,
         }
     }
 
@@ -113,60 +117,44 @@ impl OrganizationService {
         )))
     }
 
-    /// 組織一覧を取得
-    pub async fn get_organizations(
+    /// 組織一覧をページネーション付きで取得
+    pub async fn get_organizations_paginated(
         &self,
         query: OrganizationSearchQuery,
         user_id: Uuid,
-    ) -> AppResult<Vec<OrganizationListResponse>> {
-        let organizations = if let Some(owner_id) = query.owner_id {
-            // 特定ユーザーが所有する組織一覧
+    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
+        self.get_organizations_internal(query, Some(user_id)).await
+    }
+
+    /// 組織一覧取得の内部実装（共通ロジック）
+    async fn get_organizations_internal(
+        &self,
+        query: OrganizationSearchQuery,
+        user_id: Option<Uuid>,
+    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
+        let page = query.page.unwrap_or(1) as i32;
+        let page_size = query.page_size.unwrap_or(20) as i32;
+        let page_size = std::cmp::min(page_size, 100); // 最大100件に制限
+
+        // 組織を取得
+        let all_organizations = if user_id.is_none() {
+            // 管理者用: 全組織を取得
+            self.organization_repository
+                .find_all_organizations()
+                .await?
+        } else if let Some(owner_id) = query.owner_id {
+            // 特定ユーザーが所有する組織
             self.organization_repository
                 .find_by_owner_id(owner_id)
                 .await?
         } else {
-            // ユーザーが参加している組織一覧
+            // ユーザーが参加している組織
             self.organization_repository
-                .find_organizations_by_member(user_id)
+                .find_organizations_by_member(user_id.unwrap())
                 .await?
         };
 
-        let mut organization_responses = Vec::new();
-        for organization in organizations {
-            let member_count = self
-                .organization_repository
-                .count_members(organization.id)
-                .await? as u32;
-            let team_count = self
-                .team_repository
-                .count_teams_by_organization(organization.id)
-                .await? as u32;
-
-            let mut org_response = OrganizationListResponse::from(organization);
-            org_response.current_member_count = member_count;
-            org_response.current_team_count = team_count;
-            organization_responses.push(org_response);
-        }
-
-        Ok(organization_responses)
-    }
-
-    /// 組織一覧をページネーション付きで取得（管理者用）
-    pub async fn get_all_organizations_paginated(
-        &self,
-        query: OrganizationSearchQuery,
-    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
-        let page = query.page.unwrap_or(1) as i32;
-        let page_size = query.page_size.unwrap_or(20) as i32;
-        let page_size = std::cmp::min(page_size, 100); // 最大10件に制限
-
-        // 管理者用: 全組織を取得
-        let all_organizations = self
-            .organization_repository
-            .find_all_organizations()
-            .await?;
-
-        // サブスクリプション階層でフィルタリング
+        // サブスクリプション階層でフィルタリング（指定されている場合）
         let filtered_organizations = if let Some(tier) = query.subscription_tier {
             all_organizations
                 .into_iter()
@@ -187,59 +175,7 @@ impl OrganizationService {
             .take(limit)
             .collect::<Vec<_>>();
 
-        let mut organization_responses = Vec::new();
-        for organization in organizations {
-            let member_count = self
-                .organization_repository
-                .count_members(organization.id)
-                .await? as u32;
-            let team_count = self
-                .team_repository
-                .count_teams_by_organization(organization.id)
-                .await? as u32;
-
-            let mut org_response = OrganizationListResponse::from(organization);
-            org_response.current_member_count = member_count;
-            org_response.current_team_count = team_count;
-            organization_responses.push(org_response);
-        }
-
-        Ok((organization_responses, total_count))
-    }
-
-    /// 組織一覧をページネーション付きで取得
-    pub async fn get_organizations_paginated(
-        &self,
-        query: OrganizationSearchQuery,
-        user_id: Uuid,
-    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
-        let page = query.page.unwrap_or(1) as i32;
-        let page_size = query.page_size.unwrap_or(20) as i32;
-        let page_size = std::cmp::min(page_size, 100); // 最大100件に制限
-
-        // 現在の実装では、全件取得してからページネーションしているが、
-        // リポジトリ層が実装されたらデータベースレベルでページネーションを適用する
-        let all_organizations = if let Some(owner_id) = query.owner_id {
-            self.organization_repository
-                .find_by_owner_id(owner_id)
-                .await?
-        } else {
-            self.organization_repository
-                .find_organizations_by_member(user_id)
-                .await?
-        };
-
-        let total_count = all_organizations.len();
-        let offset = ((page - 1) * page_size) as usize;
-        let limit = page_size as usize;
-
-        // ページネーション適用
-        let organizations = all_organizations
-            .into_iter()
-            .skip(offset)
-            .take(limit)
-            .collect::<Vec<_>>();
-
+        // レスポンスの構築
         let mut organization_responses = Vec::new();
         for organization in organizations {
             let member_count = self
@@ -399,12 +335,68 @@ impl OrganizationService {
             ));
         }
 
+        // 現在の階層を記録
+        let previous_tier = organization.subscription_tier.as_str().to_string();
+
+        // ダウングレード時の制約チェック
+        if new_tier.level() < organization.subscription_tier.level() {
+            // 現在のチーム数を確認
+            let current_team_count = self
+                .team_repository
+                .count_teams_by_organization(organization_id)
+                .await? as u32;
+
+            // 現在のメンバー数を確認
+            let current_member_count = self
+                .organization_repository
+                .count_members(organization_id)
+                .await? as u32;
+
+            // 新しいプランの制限を取得
+            let (new_max_teams, new_max_members) = match new_tier {
+                SubscriptionTier::Free => (3, 10),
+                SubscriptionTier::Pro => (20, 100),
+                SubscriptionTier::Enterprise => (100, 1000),
+            };
+
+            // チーム数が制限を超えているかチェック
+            if current_team_count > new_max_teams {
+                return Err(AppError::BadRequest(format!(
+                    "Cannot downgrade: Current team count ({}) exceeds {} plan limit ({})",
+                    current_team_count,
+                    new_tier.as_str(),
+                    new_max_teams
+                )));
+            }
+
+            // メンバー数が制限を超えているかチェック
+            if current_member_count > new_max_members {
+                return Err(AppError::BadRequest(format!(
+                    "Cannot downgrade: Current member count ({}) exceeds {} plan limit ({})",
+                    current_member_count,
+                    new_tier.as_str(),
+                    new_max_members
+                )));
+            }
+        }
+
         // サブスクリプション階層を更新
         organization.update_subscription_tier(new_tier);
 
         let updated_organization = self
             .organization_repository
             .update_organization(&organization)
+            .await?;
+
+        // サブスクリプション履歴を記録（組織オーナーの履歴として）
+        self.subscription_history_repository
+            .create(
+                organization.owner_id,
+                Some(previous_tier),
+                new_tier.as_str().to_string(),
+                Some(user_id),
+                Some("Organization subscription change".to_string()),
+            )
             .await?;
 
         let members = self

@@ -1,8 +1,10 @@
 // src/service/mod.rs
 pub mod auth_service;
+pub mod feature_tracking_service;
 pub mod gdpr_service;
 pub mod organization_hierarchy_service;
 pub mod organization_service;
+pub mod permission_service;
 pub mod role_service;
 pub mod security_service;
 pub mod subscription_service;

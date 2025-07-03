@@ -1,8 +1,14 @@
 // task-backend/src/api/mod.rs
 use crate::config::AppConfig;
-use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
+use crate::repository::{
+    bulk_operation_history_repository::BulkOperationHistoryRepository,
+    daily_activity_summary_repository::DailyActivitySummaryRepository,
+    feature_usage_metrics_repository::FeatureUsageMetricsRepository,
+    subscription_history_repository::SubscriptionHistoryRepository,
+};
 use crate::service::{
-    auth_service::AuthService, organization_service::OrganizationService,
+    auth_service::AuthService, feature_tracking_service::FeatureTrackingService,
+    organization_service::OrganizationService, permission_service::PermissionService,
     role_service::RoleService, security_service::SecurityService,
     subscription_service::SubscriptionService, task_service::TaskService,
     team_invitation_service::TeamInvitationService, team_service::TeamService,
@@ -27,6 +33,11 @@ pub struct AppState {
     pub organization_service: Arc<OrganizationService>,
     pub subscription_service: Arc<SubscriptionService>,
     pub subscription_history_repo: Arc<SubscriptionHistoryRepository>,
+    pub bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
+    pub daily_activity_summary_repo: Arc<DailyActivitySummaryRepository>,
+    pub feature_usage_metrics_repo: Arc<FeatureUsageMetricsRepository>,
+    pub feature_tracking_service: Arc<FeatureTrackingService>,
+    pub permission_service: Arc<PermissionService>,
     pub security_service: Arc<SecurityService>,
     pub jwt_manager: Arc<JwtManager>,
     pub db: Arc<DatabaseConnection>,
@@ -103,6 +114,10 @@ impl AppState {
         organization_service: Arc<OrganizationService>,
         subscription_service: Arc<SubscriptionService>,
         subscription_history_repo: Arc<SubscriptionHistoryRepository>,
+        bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
+        daily_activity_summary_repo: Arc<DailyActivitySummaryRepository>,
+        feature_usage_metrics_repo: Arc<FeatureUsageMetricsRepository>,
+        permission_service: Arc<PermissionService>,
         security_service: Arc<SecurityService>,
         jwt_manager: Arc<JwtManager>,
         db_pool: Arc<DatabaseConnection>,
@@ -118,6 +133,13 @@ impl AppState {
             organization_service,
             subscription_service,
             subscription_history_repo,
+            bulk_operation_history_repo,
+            daily_activity_summary_repo,
+            feature_usage_metrics_repo: feature_usage_metrics_repo.clone(),
+            feature_tracking_service: Arc::new(FeatureTrackingService::new(
+                feature_usage_metrics_repo,
+            )),
+            permission_service,
             security_service,
             jwt_manager,
             db: db_pool.clone(),

@@ -1,8 +1,11 @@
 // task-backend/src/api/dto/gdpr_dto.rs
 
+use crate::domain::user_consent_model::ConsentType;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
+use validator::Validate;
 
 /// GDPR data export request
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,4 +122,62 @@ pub struct ComplianceStatusResponse {
     pub last_data_export: Option<DateTime<Utc>>,
     pub deletion_requested: bool,
     pub deletion_scheduled_for: Option<DateTime<Utc>>,
+}
+
+/// Consent update request
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct ConsentUpdateRequest {
+    pub consents: HashMap<ConsentType, bool>,
+    #[validate(length(max = 500, message = "Reason cannot exceed 500 characters"))]
+    pub reason: Option<String>,
+}
+
+/// Single consent update request
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct SingleConsentUpdateRequest {
+    pub consent_type: ConsentType,
+    pub is_granted: bool,
+    #[validate(length(max = 500, message = "Reason cannot exceed 500 characters"))]
+    pub reason: Option<String>,
+}
+
+/// Consent status response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsentStatusResponse {
+    pub user_id: Uuid,
+    pub consents: Vec<ConsentStatus>,
+    pub last_updated: DateTime<Utc>,
+}
+
+/// Individual consent status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsentStatus {
+    pub consent_type: ConsentType,
+    pub is_granted: bool,
+    pub granted_at: Option<DateTime<Utc>>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub last_updated: DateTime<Utc>,
+    pub display_name: String,
+    pub description: String,
+    pub is_required: bool,
+}
+
+/// Consent history response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsentHistoryResponse {
+    pub user_id: Uuid,
+    pub history: Vec<ConsentHistoryEntry>,
+    pub total_count: u64,
+}
+
+/// Consent history entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsentHistoryEntry {
+    pub id: Uuid,
+    pub consent_type: ConsentType,
+    pub action: String, // "granted" or "revoked"
+    pub is_granted: bool,
+    pub timestamp: DateTime<Utc>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
 }

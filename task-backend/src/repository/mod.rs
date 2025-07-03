@@ -1,7 +1,10 @@
 // src/repository/mod.rs
 pub mod activity_log_repository;
+pub mod bulk_operation_history_repository;
+pub mod daily_activity_summary_repository;
 pub mod department_member_repository;
 pub mod email_verification_token_repository;
+pub mod feature_usage_metrics_repository;
 pub mod login_attempt_repository;
 pub mod organization_analytics_repository;
 pub mod organization_department_repository;
@@ -16,3 +19,4 @@ pub mod task_repository;
 pub mod team_invitation_repository;
 pub mod team_repository;
 pub mod user_repository;
+pub mod user_settings_repository;

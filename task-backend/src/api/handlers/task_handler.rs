@@ -59,7 +59,12 @@ pub async fn create_task_handler(
     user: AuthenticatedUser,
     Json(payload): Json<CreateTaskDto>,
 ) -> AppResult<impl IntoResponse> {
-    // 権限チェックのための準備（実際のハンドラーでは権限はミドルウェアで確認済み）
+    // PermissionServiceを使用してタスク作成権限をチェック
+    app_state
+        .permission_service
+        .check_resource_access(user.user_id(), "task", None, "create")
+        .await?;
+
     // バリデーション強化
     let mut validation_errors = Vec::new();
 
@@ -108,6 +113,14 @@ pub async fn create_task_handler(
         "Task created successfully"
     );
 
+    // 機能使用状況を追跡
+    crate::track_feature!(
+        app_state.clone(),
+        user.claims.user_id,
+        "Task Management",
+        "create"
+    );
+
     Ok((StatusCode::CREATED, Json(task_dto)))
 }
 
@@ -116,13 +129,13 @@ pub async fn get_task_handler(
     user: AuthenticatedUser,
     UuidPath(id): UuidPath,
 ) -> AppResult<Json<TaskDto>> {
-    // 権限確認（実際のハンドラーでは権限はミドルウェアで確認済み）
     info!(
         user_id = %user.claims.user_id,
         task_id = %id,
         "Getting task"
     );
 
+    // get_task_for_user already checks if the user owns the task
     let task_dto = app_state
         .task_service
         .get_task_for_user(user.claims.user_id, id)
@@ -186,6 +199,8 @@ pub async fn update_task_handler(
     UuidPath(id): UuidPath,
     Json(payload): Json<UpdateTaskDto>,
 ) -> AppResult<Json<TaskDto>> {
+    // The task service will check ownership
+
     // バリデーション強化
     let mut validation_errors = Vec::new();
 
@@ -252,7 +267,7 @@ pub async fn delete_task_handler(
     user: AuthenticatedUser,
     UuidPath(id): UuidPath,
 ) -> AppResult<StatusCode> {
-    // 権限確認（実際のハンドラーでは権限はミドルウェアで確認済み）
+    // The task service will check ownership
 
     info!(
         user_id = %user.claims.user_id,

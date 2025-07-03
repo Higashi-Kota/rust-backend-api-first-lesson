@@ -2,6 +2,7 @@
 
 pub mod email;
 pub mod error_helper;
+pub mod feature_tracking;
 pub mod jwt;
 pub mod password;
 pub mod permission;
