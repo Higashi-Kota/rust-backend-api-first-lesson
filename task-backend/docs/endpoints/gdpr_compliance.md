@@ -1,20 +1,20 @@
-# GDPR Compliance API
+# GDPR準拠API
 
-## Overview
+## 概要
 
-GDPR (General Data Protection Regulation) compliance endpoints provide functionality for data subject rights, including data export, deletion, and consent management.
+GDPR（一般データ保護規則）準拠エンドポイントは、データ主体の権利に関する機能を提供し、データエクスポート、削除、同意管理を含みます。
 
-## Endpoints
+## エンドポイント
 
-### 1. Export User Data
+### 1. ユーザーデータのエクスポート
 
-Export all personal data for a specific user.
+特定のユーザーの全個人データをエクスポートします。
 
-**Endpoint:** `POST /gdpr/users/{user_id}/export`
+**エンドポイント:** `POST /gdpr/users/{user_id}/export`
 
-**Authentication:** Required (User can only export their own data)
+**認証:** 必須（ユーザーは自分のデータのみエクスポート可能）
 
-**Request Body:**
+**リクエストボディ:**
 ```json
 {
   "include_tasks": true,
@@ -24,7 +24,7 @@ Export all personal data for a specific user.
 }
 ```
 
-**Response:**
+**レスポンス:**
 ```json
 {
   "success": true,
@@ -46,29 +46,29 @@ Export all personal data for a specific user.
 }
 ```
 
-**Status Codes:**
-- `200 OK`: Data exported successfully
-- `401 Unauthorized`: Not authenticated
-- `403 Forbidden`: Cannot export other user's data
-- `404 Not Found`: User not found
+**ステータスコード:**
+- `200 OK`: データエクスポート成功
+- `401 Unauthorized`: 認証されていません
+- `403 Forbidden`: 他のユーザーのデータはエクスポートできません
+- `404 Not Found`: ユーザーが見つかりません
 
-### 2. Delete User Data
+### 2. ユーザーデータの削除
 
-Permanently delete all user data (right to erasure).
+全ユーザーデータを完全に削除します（削除権）。
 
-**Endpoint:** `DELETE /gdpr/users/{user_id}/delete`
+**エンドポイント:** `DELETE /gdpr/users/{user_id}/delete`
 
-**Authentication:** Required (User can only delete their own data)
+**認証:** 必須（ユーザーは自分のデータのみ削除可能）
 
-**Request Body:**
+**リクエストボディ:**
 ```json
 {
   "confirm_deletion": true,
-  "reason": "User requested account deletion"
+  "reason": "ユーザーがアカウント削除を要求"
 }
 ```
 
-**Response:**
+**レスポンス:**
 ```json
 {
   "success": true,
@@ -87,22 +87,22 @@ Permanently delete all user data (right to erasure).
 }
 ```
 
-**Status Codes:**
-- `200 OK`: Data deleted successfully
-- `400 Bad Request`: Deletion not confirmed
-- `401 Unauthorized`: Not authenticated
-- `403 Forbidden`: Cannot delete other user's data
-- `404 Not Found`: User not found
+**ステータスコード:**
+- `200 OK`: データ削除成功
+- `400 Bad Request`: 削除が確認されていません
+- `401 Unauthorized`: 認証されていません
+- `403 Forbidden`: 他のユーザーのデータは削除できません
+- `404 Not Found`: ユーザーが見つかりません
 
-### 3. Get Compliance Status
+### 3. コンプライアンス状況の取得
 
-Check GDPR compliance status for a user.
+ユーザーのGDPRコンプライアンス状況を確認します。
 
-**Endpoint:** `GET /gdpr/users/{user_id}/status`
+**エンドポイント:** `GET /gdpr/users/{user_id}/status`
 
-**Authentication:** Required
+**認証:** 必須
 
-**Response:**
+**レスポンス:**
 ```json
 {
   "success": true,
@@ -136,15 +136,15 @@ Check GDPR compliance status for a user.
 }
 ```
 
-### 4. Get User Consents
+### 4. ユーザー同意の取得
 
-Retrieve all consent records for a user.
+ユーザーの全同意記録を取得します。
 
-**Endpoint:** `GET /gdpr/users/{user_id}/consents`
+**エンドポイント:** `GET /gdpr/users/{user_id}/consents`
 
-**Authentication:** Required
+**認証:** 必須
 
-**Response:**
+**レスポンス:**
 ```json
 {
   "success": true,
@@ -171,15 +171,15 @@ Retrieve all consent records for a user.
 }
 ```
 
-### 5. Update User Consents
+### 5. ユーザー同意の更新
 
-Update multiple consent preferences at once.
+複数の同意設定を一度に更新します。
 
-**Endpoint:** `POST /gdpr/users/{user_id}/consents`
+**エンドポイント:** `POST /gdpr/users/{user_id}/consents`
 
-**Authentication:** Required
+**認証:** 必須
 
-**Request Body:**
+**リクエストボディ:**
 ```json
 {
   "consents": [
@@ -199,7 +199,7 @@ Update multiple consent preferences at once.
 }
 ```
 
-**Response:**
+**レスポンス:**
 ```json
 {
   "success": true,
@@ -225,15 +225,15 @@ Update multiple consent preferences at once.
 }
 ```
 
-### 6. Update Single Consent
+### 6. 単一同意の更新
 
-Update a single consent preference.
+単一の同意設定を更新します。
 
-**Endpoint:** `PATCH /gdpr/users/{user_id}/consents/single`
+**エンドポイント:** `PATCH /gdpr/users/{user_id}/consents/single`
 
-**Authentication:** Required
+**認証:** 必須
 
-**Request Body:**
+**リクエストボディ:**
 ```json
 {
   "consent_type": "marketing",
@@ -241,7 +241,7 @@ Update a single consent preference.
 }
 ```
 
-**Response:**
+**レスポンス:**
 ```json
 {
   "success": true,
@@ -255,20 +255,20 @@ Update a single consent preference.
 }
 ```
 
-### 7. Get Consent History
+### 7. 同意履歴の取得
 
-Retrieve the history of consent changes for a user.
+ユーザーの同意変更履歴を取得します。
 
-**Endpoint:** `GET /gdpr/users/{user_id}/consents/history`
+**エンドポイント:** `GET /gdpr/users/{user_id}/consents/history`
 
-**Authentication:** Required
+**認証:** 必須
 
-**Query Parameters:**
-- `consent_type` (optional): Filter by consent type
-- `from_date` (optional): Start date for history
-- `to_date` (optional): End date for history
+**クエリパラメータ:**
+- `consent_type` (オプション): 同意タイプでフィルタ
+- `from_date` (オプション): 履歴の開始日
+- `to_date` (オプション): 履歴の終了日
 
-**Response:**
+**レスポンス:**
 ```json
 {
   "success": true,
@@ -291,97 +291,97 @@ Retrieve the history of consent changes for a user.
 }
 ```
 
-## Admin Endpoints
+## 管理者エンドポイント
 
-### 8. Admin Export User Data
+### 8. 管理者ユーザーデータエクスポート
 
-Administrators can export any user's data.
+管理者は任意のユーザーのデータをエクスポートできます。
 
-**Endpoint:** `POST /admin/gdpr/users/{user_id}/export`
+**エンドポイント:** `POST /admin/gdpr/users/{user_id}/export`
 
-**Authentication:** Required (Admin only)
+**認証:** 必須（管理者のみ）
 
-**Request Body:** Same as user export endpoint
+**リクエストボディ:** ユーザーエクスポートエンドポイントと同じ
 
-**Response:** Same as user export endpoint
+**レスポンス:** ユーザーエクスポートエンドポイントと同じ
 
-**Status Codes:**
-- `200 OK`: Data exported successfully
-- `401 Unauthorized`: Not authenticated
-- `403 Forbidden`: Not an admin
-- `404 Not Found`: User not found
+**ステータスコード:**
+- `200 OK`: データエクスポート成功
+- `401 Unauthorized`: 認証されていません
+- `403 Forbidden`: 管理者ではありません
+- `404 Not Found`: ユーザーが見つかりません
 
-### 9. Admin Delete User Data
+### 9. 管理者ユーザーデータ削除
 
-Administrators can delete any user's data.
+管理者は任意のユーザーのデータを削除できます。
 
-**Endpoint:** `DELETE /admin/gdpr/users/{user_id}/delete`
+**エンドポイント:** `DELETE /admin/gdpr/users/{user_id}/delete`
 
-**Authentication:** Required (Admin only)
+**認証:** 必須（管理者のみ）
 
-**Request Body:**
+**リクエストボディ:**
 ```json
 {
   "confirm_deletion": true,
-  "reason": "Administrative action - user violation",
+  "reason": "管理措置 - ユーザー違反",
   "notify_user": true
 }
 ```
 
-**Response:** Same as user delete endpoint
+**レスポンス:** ユーザー削除エンドポイントと同じ
 
-**Status Codes:**
-- `200 OK`: Data deleted successfully
-- `400 Bad Request`: Deletion not confirmed
-- `401 Unauthorized`: Not authenticated
-- `403 Forbidden`: Not an admin
-- `404 Not Found`: User not found
+**ステータスコード:**
+- `200 OK`: データ削除成功
+- `400 Bad Request`: 削除が確認されていません
+- `401 Unauthorized`: 認証されていません
+- `403 Forbidden`: 管理者ではありません
+- `404 Not Found`: ユーザーが見つかりません
 
-## Consent Types
+## 同意タイプ
 
-The system supports the following consent types:
+システムは以下の同意タイプをサポートします：
 
-1. **marketing**: Consent for marketing communications
-2. **analytics**: Consent for analytics and performance tracking
-3. **third_party**: Consent for sharing data with third parties
+1. **marketing**: マーケティング通信への同意
+2. **analytics**: 分析およびパフォーマンス追跡への同意
+3. **third_party**: 第三者とのデータ共有への同意
 
-## Data Categories
+## データカテゴリ
 
-When exporting data, the following categories are included:
+データエクスポート時に、以下のカテゴリが含まれます：
 
-1. **Personal Information**: Name, email, username
-2. **Account Data**: Role, subscription, settings
-3. **Usage Data**: Tasks, teams, activity logs
-4. **Preferences**: User settings, UI preferences
-5. **Communications**: Consent records, notifications
+1. **個人情報**: 氏名、メールアドレス、ユーザー名
+2. **アカウントデータ**: 役割、サブスクリプション、設定
+3. **使用データ**: タスク、チーム、活動ログ
+4. **設定**: ユーザー設定、UI設定
+5. **通信**: 同意記録、通知
 
-## Compliance Features
+## コンプライアンス機能
 
-- **Data Minimization**: Only necessary data is collected
-- **Purpose Limitation**: Data is used only for stated purposes
-- **Storage Limitation**: Data retention policies are enforced
-- **Accuracy**: Users can update their information
-- **Security**: Data is encrypted and protected
-- **Accountability**: All actions are logged for audit
+- **データ最小化**: 必要なデータのみを収集
+- **目的制限**: データは述べられた目的のみに使用
+- **保存制限**: データ保持ポリシーが実施
+- **正確性**: ユーザーは情報を更新可能
+- **セキュリティ**: データは暗号化され保護
+- **説明責任**: 全アクションが監査のためログ記録
 
-## Error Responses
+## エラーレスポンス
 
-All endpoints follow the standard error response format:
+全エンドポイントは標準エラーレスポンス形式に従います：
 
 ```json
 {
   "success": false,
   "error": {
     "code": "ERROR_CODE",
-    "message": "Human-readable error message",
+    "message": "人間が読めるエラーメッセージ",
     "details": {}
   }
 }
 ```
 
-Common error codes:
-- `UNAUTHORIZED`: User not authenticated
-- `FORBIDDEN`: Insufficient permissions
-- `NOT_FOUND`: Resource not found
-- `VALIDATION_ERROR`: Invalid request data
-- `INTERNAL_ERROR`: Server error
+一般的なエラーコード:
+- `UNAUTHORIZED`: ユーザーが認証されていません
+- `FORBIDDEN`: 権限が不十分です
+- `NOT_FOUND`: リソースが見つかりません
+- `VALIDATION_ERROR`: 無効なリクエストデータ
+- `INTERNAL_ERROR`: サーバーエラー
