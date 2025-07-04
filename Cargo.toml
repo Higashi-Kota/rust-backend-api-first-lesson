@@ -18,7 +18,7 @@ categories = ["web-programming", "database"]
 # Workspace-wide dependencies that can be inherited by members
 [workspace.dependencies]
 # Web framework and async runtime
-axum = { version = "0.8", features = ["macros", "json"] }
+axum = { version = "0.8", features = ["macros", "json", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
 hyper = "1.2"
@@ -95,6 +95,15 @@ axum-extra = { version = "0.10", features = ["cookie"] }
 
 # Pattern matching and lazy statics
 regex = "1.10"
+
+# File upload and storage
+aws-config = "1.5"
+aws-sdk-s3 = "1.57"
+mime = "0.3"
+
+# Image processing
+image = { version = "0.25", features = ["webp", "jpeg", "png", "gif"] }
+webp = "0.3"
 
 # Workspace-wide lints and settings
 [workspace.lints.rust]

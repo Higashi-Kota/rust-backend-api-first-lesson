@@ -2,6 +2,7 @@
 pub mod admin_organization_dto;
 pub mod admin_role_dto;
 pub mod analytics_dto;
+pub mod attachment_dto;
 pub mod auth_dto;
 pub mod common;
 pub mod gdpr_dto;

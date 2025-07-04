@@ -58,6 +58,11 @@ mod m20250702_113002_create_user_consents_table;
 // 外部キー制約修正マイグレーション
 mod m20250703_013738_fix_teams_owner_cascade;
 
+// ファイルアップロード関連マイグレーション
+mod m20250703_150000_create_task_attachments_table;
+mod m20250704_180000_create_attachment_share_links;
+mod m20250704_180001_create_share_link_access_logs;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -111,6 +116,11 @@ impl MigratorTrait for Migrator {
             Box::new(m20250702_113002_create_user_consents_table::Migration),
             // 16. 外部キー制約修正
             Box::new(m20250703_013738_fix_teams_owner_cascade::Migration),
+            // 17. ファイルアップロードシステム
+            Box::new(m20250703_150000_create_task_attachments_table::Migration),
+            // 18. 外部共有リンクシステム
+            Box::new(m20250704_180000_create_attachment_share_links::Migration),
+            Box::new(m20250704_180001_create_share_link_access_logs::Migration),
         ]
     }
 }

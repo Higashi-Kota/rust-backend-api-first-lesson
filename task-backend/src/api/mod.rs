@@ -7,12 +7,12 @@ use crate::repository::{
     subscription_history_repository::SubscriptionHistoryRepository,
 };
 use crate::service::{
-    auth_service::AuthService, feature_tracking_service::FeatureTrackingService,
-    organization_service::OrganizationService, permission_service::PermissionService,
-    role_service::RoleService, security_service::SecurityService,
-    subscription_service::SubscriptionService, task_service::TaskService,
-    team_invitation_service::TeamInvitationService, team_service::TeamService,
-    user_service::UserService,
+    attachment_service::AttachmentService, auth_service::AuthService,
+    feature_tracking_service::FeatureTrackingService, organization_service::OrganizationService,
+    permission_service::PermissionService, role_service::RoleService,
+    security_service::SecurityService, subscription_service::SubscriptionService,
+    task_service::TaskService, team_invitation_service::TeamInvitationService,
+    team_service::TeamService, user_service::UserService,
 };
 use crate::utils::jwt::JwtManager;
 use sea_orm::DatabaseConnection;
@@ -39,11 +39,13 @@ pub struct AppState {
     pub feature_tracking_service: Arc<FeatureTrackingService>,
     pub permission_service: Arc<PermissionService>,
     pub security_service: Arc<SecurityService>,
+    pub attachment_service: Arc<AttachmentService>,
     pub jwt_manager: Arc<JwtManager>,
     pub db: Arc<DatabaseConnection>,
     pub db_pool: Arc<DatabaseConnection>,
     pub cookie_config: CookieConfig,
     pub security_headers: SecurityHeaders,
+    pub server_addr: String,
 }
 
 /// Cookie設定
@@ -119,6 +121,7 @@ impl AppState {
         feature_usage_metrics_repo: Arc<FeatureUsageMetricsRepository>,
         permission_service: Arc<PermissionService>,
         security_service: Arc<SecurityService>,
+        attachment_service: Arc<AttachmentService>,
         jwt_manager: Arc<JwtManager>,
         db_pool: Arc<DatabaseConnection>,
         app_config: &AppConfig,
@@ -141,11 +144,13 @@ impl AppState {
             )),
             permission_service,
             security_service,
+            attachment_service,
             jwt_manager,
             db: db_pool.clone(),
             db_pool,
             cookie_config: CookieConfig::from_app_config(app_config),
             security_headers: SecurityHeaders::default(),
+            server_addr: app_config.server.addr.clone(),
         }
     }
 }

@@ -1,5 +1,7 @@
 // src/repository/mod.rs
 pub mod activity_log_repository;
+pub mod attachment_repository;
+pub mod attachment_share_link_repository;
 pub mod bulk_operation_history_repository;
 pub mod daily_activity_summary_repository;
 pub mod department_member_repository;

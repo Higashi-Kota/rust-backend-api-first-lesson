@@ -1,15 +1,34 @@
 # rust-backend-api-first-lesson
 
-## 開発コマンド
+## 開発環境セットアップ
 
-### クイックスタート
+### 1. 環境変数の設定
 
 ```bash
-# 開発環境の起動
+# プロジェクトルートに .env ファイルを作成
+cp .env.example .env
+
+# 必要に応じて編集
+vim .env
+```
+
+**重要**: 
+- 環境変数は プロジェクトルートの `.env` に設定してください
+
+**環境変数の形式に関する注意**:
+- スペースを含む値は必ずダブルクォートで囲んでください
+  - 正しい例: `FROM_NAME="Task Backend Service"`
+  - 間違い例: `FROM_NAME=Task Backend Service`
+- この形式エラーにより、.envファイルの読み込みが失敗し、すべての環境変数が利用できなくなる場合があります
+
+### 2. クイックスタート
+
+```bash
+# 開発環境の起動（PostgreSQL, MailHog, MinIO を含む）
 make dev
 
 # ステップごとの手順
-docker-compose up postgres -d
+docker-compose up postgres mailhog minio minio-mc -d
 make migrate
 make run
 ```

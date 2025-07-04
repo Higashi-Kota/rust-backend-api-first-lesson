@@ -72,6 +72,15 @@ axum-extra = { workspace = true }
 regex = { workspace = true }
 once_cell = { workspace = true }
 
+# File upload and storage - using workspace dependencies
+aws-config = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+mime = { workspace = true }
+
+# Image processing - using workspace dependencies
+image = { workspace = true }
+webp = { workspace = true }
+
 [dev-dependencies]
 # Development and testing dependencies - using workspace dependencies
 testcontainers = { workspace = true }
