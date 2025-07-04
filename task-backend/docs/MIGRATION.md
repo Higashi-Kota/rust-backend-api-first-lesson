@@ -46,6 +46,8 @@ export DATABASE_URL="postgresql://user:password@host:port/database?sslmode=requi
 export STAGING_DATABASE_URL="postgresql://user:password@staging-host:port/database?sslmode=require"
 ```
 
+**注**: 開発環境では、プロジェクトルートの `.env` ファイルから `DATABASE_URL` が自動的に読み込まれます。
+
 ### 2. バックアップの作成
 
 ```bash

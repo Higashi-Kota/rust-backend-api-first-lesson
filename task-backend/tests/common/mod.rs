@@ -2,6 +2,7 @@
 pub mod app_helper;
 pub mod auth_helper;
 pub mod db;
+pub mod mock_storage;
 pub mod test_data;
 
 use chrono::Utc;

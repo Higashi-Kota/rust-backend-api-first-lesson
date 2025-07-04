@@ -148,3 +148,64 @@ pub fn create_invalid_task_empty_title() -> CreateTaskDto {
         due_date: Some(Utc::now()),
     }
 }
+
+// === テスト用ヘルパー関数 ===
+
+use axum::{body, http::Request, Router};
+use serde_json::Value;
+use task_backend::api::dto::task_dto::TaskDto;
+use tower::ServiceExt;
+
+/// テストユーザー用のタスクを作成
+pub async fn create_test_task_for_user(
+    app: &Router,
+    user: &crate::common::auth_helper::TestUser,
+) -> TaskDto {
+    let task_data = create_test_task();
+    let body_content = serde_json::to_string(&task_data).unwrap();
+
+    let req = Request::builder()
+        .uri("/tasks")
+        .method("POST")
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", user.access_token))
+        .body(axum::body::Body::from(body_content))
+        .unwrap();
+
+    let res = app.clone().oneshot(req).await.unwrap();
+    let status = res.status();
+    let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
+
+    if !status.is_success() {
+        let body_str = String::from_utf8_lossy(&body);
+        panic!(
+            "Failed to create task. Status: {}, Body: {}",
+            status, body_str
+        );
+    }
+
+    let response: Value = serde_json::from_slice(&body).unwrap_or_else(|e| {
+        let body_str = String::from_utf8_lossy(&body);
+        panic!("Failed to parse JSON response: {}, Body: {}", e, body_str);
+    });
+
+    // The task creation endpoint returns the task directly, not wrapped
+    let task_dto: TaskDto = if response.is_object() && response.get("id").is_some() {
+        // Direct task response
+        serde_json::from_value(response.clone())
+            .unwrap_or_else(|e| panic!("Failed to parse task DTO: {}. Value: {}", e, response))
+    } else if let Some(data) = response.get("data") {
+        // Wrapped response format (for compatibility)
+        if let Some(task) = data.get("task") {
+            serde_json::from_value(task.clone())
+                .unwrap_or_else(|e| panic!("Failed to parse task DTO: {}. Value: {}", e, task))
+        } else {
+            serde_json::from_value(data.clone())
+                .unwrap_or_else(|e| panic!("Failed to parse task DTO: {}. Value: {}", e, data))
+        }
+    } else {
+        panic!("Unexpected response format. Full response: {}", response);
+    };
+
+    task_dto
+}

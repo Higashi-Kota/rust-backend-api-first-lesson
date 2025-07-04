@@ -126,13 +126,14 @@ dev-setup:
 		echo ".env file already exists"; \
 	fi
 
-# Run development environment with MailHog
+# Run development environment with MailHog and MinIO
 dev:
-	docker-compose up postgres mailhog -d
-	@echo "Waiting for PostgreSQL to be ready..."
-	@sleep 5
+	docker-compose up postgres mailhog minio minio-mc -d
+	@echo "Waiting for services to be ready..."
+	@sleep 10
 	$(MAKE) migrate
 	@echo "📧 MailHog Web UI: http://localhost:8025"
+	@echo "🗄️  MinIO Console: http://localhost:9001"
 	$(MAKE) run
 
 # Run CI checks locally

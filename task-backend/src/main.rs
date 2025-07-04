@@ -17,8 +17,8 @@ mod utils;
 
 use crate::api::handlers::{
     admin_handler::admin_router, analytics_handler::analytics_router_with_state,
-    auth_handler::auth_router_with_state, gdpr_handler::gdpr_router_with_state,
-    organization_handler::organization_router_with_state,
+    attachment_handler::attachment_routes, auth_handler::auth_router_with_state,
+    gdpr_handler::gdpr_router_with_state, organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
     permission_handler::permission_router_with_state, role_handler::role_router_with_state,
     security_handler::security_router, subscription_handler::subscription_router_with_state,
@@ -42,10 +42,17 @@ use crate::repository::{
     team_repository::TeamRepository, user_repository::UserRepository,
 };
 use crate::service::{
-    auth_service::AuthService, organization_service::OrganizationService,
-    permission_service::PermissionService, role_service::RoleService,
-    security_service::SecurityService, subscription_service::SubscriptionService,
-    task_service::TaskService, team_service::TeamService, user_service::UserService,
+    attachment_service::AttachmentService,
+    auth_service::AuthService,
+    organization_service::OrganizationService,
+    permission_service::PermissionService,
+    role_service::RoleService,
+    security_service::SecurityService,
+    storage_service::{self, StorageConfig},
+    subscription_service::SubscriptionService,
+    task_service::TaskService,
+    team_service::TeamService,
+    user_service::UserService,
 };
 use crate::utils::{email::EmailService, jwt::JwtManager, password::PasswordManager};
 use axum::{middleware as axum_middleware, Router};
@@ -199,6 +206,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let task_service = Arc::new(TaskService::new(db_pool.clone()));
 
+    // ストレージサービスの初期化（必須）
+    tracing::info!("📦 Initializing storage service...");
+    let storage_config = StorageConfig::from_env().expect(
+        "Failed to load storage configuration. Please set STORAGE_* environment variables.",
+    );
+    let storage_service = storage_service::create_storage_service(storage_config)
+        .await
+        .expect("Failed to initialize storage service");
+    tracing::info!("✅ Storage service initialized successfully");
+
+    // 添付ファイルサービスの初期化
+    let attachment_service = Arc::new(AttachmentService::new(
+        db_pool.clone(),
+        storage_service.clone(),
+    ));
+
     let subscription_service = Arc::new(SubscriptionService::new(
         db_pool.clone(),
         email_service.clone(),
@@ -262,6 +285,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/auth/resend-verification".to_string(),
             "/health".to_string(),
             "/".to_string(),
+            "/share".to_string(), // 共有リンクのプレフィックス（認証不要）
         ],
         admin_only_paths: vec!["/admin".to_string(), "/api/admin".to_string()],
         require_verified_email: !app_config.is_development(), // 開発環境では false
@@ -284,6 +308,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         feature_usage_metrics_repo,
         permission_service,
         security_service,
+        attachment_service,
         jwt_manager.clone(),
         Arc::new(db_pool.clone()),
         &app_config,
@@ -319,6 +344,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(admin_router)
         .merge(hierarchy_router)
         .merge(gdpr_router)
+        .merge(attachment_routes().with_state(app_state.clone()))
         .route(
             "/",
             axum::routing::get(|| async { "Task Backend API v1.0" }),
@@ -339,6 +365,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • User Management: /users/*");
     tracing::info!("   • Role Management: /roles/*");
     tracing::info!("   • Task Management: /tasks/*");
+    tracing::info!("   • File Attachments: /tasks/*/attachments, /attachments/*");
+    tracing::info!(
+        "   • Share Links: /attachments/*/share-links, /share-links/*, /share/* (public)"
+    );
     tracing::info!("   • Team Management: /teams/*");
     tracing::info!("   • Organization Management: /organizations/*");
     tracing::info!("   • Subscription Management: /subscriptions/*");

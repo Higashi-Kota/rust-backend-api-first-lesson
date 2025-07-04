@@ -174,6 +174,7 @@ pub async fn jwt_auth_middleware(
 
     // 認証をスキップするパスかチェック
     if should_skip_auth(&path, &config.skip_auth_paths) {
+        info!("Skipping auth for path: {}", path);
         return Ok(next.run(request).await);
     }
 

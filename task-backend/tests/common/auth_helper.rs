@@ -293,3 +293,8 @@ pub fn create_request(method: &str, uri: &str, body: Option<String>) -> Request<
         None => request_builder.body(Body::empty()).unwrap(),
     }
 }
+
+/// 通常のユーザーを作成して認証（TestUserの簡易エイリアス）
+pub async fn create_and_authenticate_user(app: &Router) -> TestUser {
+    create_and_authenticate_member(app).await
+}
