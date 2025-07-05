@@ -79,6 +79,7 @@ jobs:
           - integration::gdpr
           - integration::organization
           - integration::organization_hierarchy
+          - integration::payment
           - integration::permission
           - integration::roles
           - integration::security
