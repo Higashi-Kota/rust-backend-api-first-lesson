@@ -21,7 +21,7 @@ make dev
 ```
 ✅ PostgreSQL起動完了
 ✅ マイグレーション適用完了  
-✅ サーバー起動完了（localhost:3000）
+✅ サーバー起動完了（localhost:5000）
 ```
 
 ---
@@ -30,15 +30,15 @@ make dev
 
 ```bash
 # 別ターミナルで動作確認
-curl http://localhost:3000/health
+curl http://localhost:5000/health
 # 結果: OK
 
 # 既存のタスクAPI確認
-curl http://localhost:3000/tasks | jq
+curl http://localhost:5000/tasks | jq
 # 結果: [] (空配列)
 
 # テストデータ作成
-curl -X POST http://localhost:3000/tasks \
+curl -X POST http://localhost:5000/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "title": "重要なタスク",
@@ -46,7 +46,7 @@ curl -X POST http://localhost:3000/tasks \
     "status": "todo"
   }' | jq
 
-curl -X POST http://localhost:3000/tasks \
+curl -X POST http://localhost:5000/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "title": "普通のタスク", 
@@ -216,13 +216,13 @@ make test
 make run
 
 # 検索API動作確認
-curl "http://localhost:3000/tasks/search?q=重要" | jq
+curl "http://localhost:5000/tasks/search?q=重要" | jq
 # 結果: 重要を含むタスク一覧
 
-curl "http://localhost:3000/tasks/search?status=todo" | jq  
+curl "http://localhost:5000/tasks/search?status=todo" | jq  
 # 結果: todoステータスのタスク一覧
 
-curl "http://localhost:3000/tasks/search?q=プロジェクト&status=todo&limit=5" | jq
+curl "http://localhost:5000/tasks/search?q=プロジェクト&status=todo&limit=5" | jq
 # 結果: 複合検索結果
 ```
 
@@ -238,7 +238,7 @@ make docker-build
 make docker-run
 
 # コンテナでのAPI確認
-curl "http://localhost:3000/tasks/search?q=重要" | jq
+curl "http://localhost:5000/tasks/search?q=重要" | jq
 ```
 
 ---
@@ -269,11 +269,11 @@ pub async fn search_tasks_handler(
 #### 9.2 エッジケーステスト
 ```bash
 # 短すぎるキーワード
-curl "http://localhost:3000/tasks/search?q=a" | jq
+curl "http://localhost:5000/tasks/search?q=a" | jq
 # 結果: バリデーションエラー
 
 # 存在しないステータス
-curl "http://localhost:3000/tasks/search?status=nonexistent" | jq
+curl "http://localhost:5000/tasks/search?status=nonexistent" | jq
 # 結果: 空配列
 ```
 

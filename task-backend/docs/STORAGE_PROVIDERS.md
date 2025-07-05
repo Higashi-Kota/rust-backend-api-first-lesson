@@ -233,17 +233,17 @@ STORAGE_SECRET_KEY=your-dev-secret-key
 make dev
 
 # ファイルアップロードテスト
-TOKEN=$(curl -s -X POST http://localhost:3000/auth/signin \
+TOKEN=$(curl -s -X POST http://localhost:5000/auth/signin \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"password123"}' \
   | jq -r '.data.access_token')
 
-TASK_ID=$(curl -s -X GET http://localhost:3000/tasks \
+TASK_ID=$(curl -s -X GET http://localhost:5000/tasks \
   -H "Authorization: Bearer $TOKEN" \
   | jq -r '.data.tasks[0].id')
 
 # テストファイルアップロード
-curl -X POST "http://localhost:3000/tasks/$TASK_ID/attachments" \
+curl -X POST "http://localhost:5000/tasks/$TASK_ID/attachments" \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@test-file.pdf"
 
@@ -442,7 +442,7 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "5000:5000"
     environment:
       - STORAGE_PROVIDER=minio
       - STORAGE_ENDPOINT=http://minio:9000

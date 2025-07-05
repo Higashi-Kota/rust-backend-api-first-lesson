@@ -6,6 +6,7 @@ pub mod auth_handler;
 pub mod gdpr_handler;
 pub mod organization_handler;
 pub mod organization_hierarchy_handler;
+pub mod payment_handler;
 pub mod permission_handler;
 pub mod role_handler;
 pub mod security_handler;

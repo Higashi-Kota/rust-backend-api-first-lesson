@@ -241,7 +241,7 @@ async fn test_welcome_email_sending() {
 make dev  # PostgreSQL + MailHog + アプリ起動
 
 # 2. ユーザー登録によるウェルカムメールテスト
-curl -X POST http://localhost:3000/auth/signup \
+curl -X POST http://localhost:5000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",

@@ -20,13 +20,13 @@ use crate::api::handlers::{
     attachment_handler::attachment_routes, auth_handler::auth_router_with_state,
     gdpr_handler::gdpr_router_with_state, organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
-    permission_handler::permission_router_with_state, role_handler::role_router_with_state,
-    security_handler::security_router, subscription_handler::subscription_router_with_state,
-    task_handler::task_router_with_state, team_handler::team_router_with_state,
-    user_handler::user_router_with_state,
+    payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
+    role_handler::role_router_with_state, security_handler::security_router,
+    subscription_handler::subscription_router_with_state, task_handler::task_router_with_state,
+    team_handler::team_router_with_state, user_handler::user_router_with_state,
 };
 use crate::api::AppState;
-use crate::config::{AppConfig, Config};
+use crate::config::AppConfig;
 use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schema_exists};
 use crate::middleware::auth::{
     cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
@@ -45,6 +45,7 @@ use crate::service::{
     attachment_service::AttachmentService,
     auth_service::AuthService,
     organization_service::OrganizationService,
+    payment_service::PaymentService,
     permission_service::PermissionService,
     role_service::RoleService,
     security_service::SecurityService,
@@ -54,11 +55,18 @@ use crate::service::{
     team_service::TeamService,
     user_service::UserService,
 };
-use crate::utils::{email::EmailService, jwt::JwtManager, password::PasswordManager};
+use crate::utils::{
+    email::{EmailConfig, EmailService},
+    jwt::{JwtConfig, JwtManager},
+    password::{Argon2Config, PasswordManager, PasswordPolicy},
+};
 use axum::{middleware as axum_middleware, Router};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // .envファイルを読み込む
+    dotenvy::dotenv().ok();
+
     // トレーシングの設定
     tracing_subscriber::registry()
         .with(
@@ -74,50 +82,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 統合設定を読み込む
     let app_config = AppConfig::from_env().expect("Failed to load unified configuration");
     tracing::info!("📋 Unified configuration loaded");
-    tracing::info!("   • Environment: {}", app_config.server.environment);
-    tracing::info!("   • Server: {}", app_config.server.addr);
+    tracing::info!("   • Environment: {}", app_config.environment);
+    tracing::info!("   • Server: {}:{}", app_config.host, app_config.port);
     tracing::info!("   • Database: configured");
     tracing::info!("   • JWT: configured");
     tracing::info!(
         "   • Email: configured (dev mode: {})",
-        app_config.email.development_mode
+        std::env::var("EMAIL_DEVELOPMENT_MODE").unwrap_or_else(|_| "false".to_string())
     );
     tracing::info!(
         "   • Security: cookie_secure={}",
         app_config.security.cookie_secure
     );
 
-    // 後方互換性のために既存のConfig構造体も作成
-    let legacy_config = Config::from_app_config(&app_config);
-
     // データベース接続を作成
-    let db_pool = if let Some(schema) = &app_config.database.schema {
+    let db_pool = if let Ok(schema) = std::env::var("DATABASE_SCHEMA") {
         tracing::info!("🗃️  Using schema: {}", schema);
 
         // まず基本接続を作成
-        let base_pool = create_db_pool(&legacy_config)
+        let base_pool = create_db_pool(&app_config)
             .await
             .expect("Failed to create base database connection");
 
         // スキーマの存在を確認し、なければ作成
-        let schema_exists = schema_exists(&base_pool, schema)
+        let schema_exists = schema_exists(&base_pool, &schema)
             .await
             .expect("Failed to check schema existence");
 
         if !schema_exists {
             tracing::info!("📝 Schema does not exist, creating it: {}", schema);
-            create_schema(&base_pool, schema)
+            create_schema(&base_pool, &schema)
                 .await
                 .expect("Failed to create schema");
         }
 
         // スキーマを指定して接続プールを作成
-        create_db_pool_with_schema(&legacy_config, schema)
+        create_db_pool_with_schema(&app_config, &schema)
             .await
             .expect("Failed to create database pool with schema")
     } else {
         // 通常の接続プールを作成（スキーマ指定なし）
-        create_db_pool(&legacy_config)
+        create_db_pool(&app_config)
             .await
             .expect("Failed to create database pool")
     };
@@ -125,19 +130,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("✅ Database pool created successfully.");
 
     // 統合設定からユーティリティサービスを初期化
-    let jwt_manager = Arc::new(
-        JwtManager::new(app_config.jwt.clone()).expect("Failed to initialize JWT manager"),
-    );
+    let jwt_config = JwtConfig::from_env().expect("Failed to load JWT configuration");
+    let jwt_manager =
+        Arc::new(JwtManager::new(jwt_config).expect("Failed to initialize JWT manager"));
+    let argon2_config = Argon2Config::from_env();
+    let password_policy = PasswordPolicy::from_env();
     let password_manager = Arc::new(
-        PasswordManager::new(
-            app_config.password.argon2.clone(),
-            app_config.password.policy.clone(),
-        )
-        .expect("Failed to initialize password manager"),
+        PasswordManager::new(argon2_config, password_policy)
+            .expect("Failed to initialize password manager"),
     );
-    let email_service = Arc::new(
-        EmailService::new(app_config.email.clone()).expect("Failed to initialize email service"),
-    );
+    let email_config = EmailConfig::from_env().expect("Failed to load email configuration");
+    let email_service =
+        Arc::new(EmailService::new(email_config).expect("Failed to initialize email service"));
 
     tracing::info!("🔧 Utility services initialized.");
 
@@ -227,6 +231,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         email_service.clone(),
     ));
 
+    let payment_service = Arc::new(PaymentService::new(
+        db_pool.clone(),
+        subscription_service.clone(),
+    ));
+
     let team_service = Arc::new(TeamService::new(
         Arc::new(db_pool.clone()),
         TeamRepository::new(db_pool.clone()),
@@ -286,6 +295,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/health".to_string(),
             "/".to_string(),
             "/share".to_string(), // 共有リンクのプレフィックス（認証不要）
+            "/webhooks/stripe".to_string(), // Stripe Webhook（認証不要）
         ],
         admin_only_paths: vec!["/admin".to_string(), "/api/admin".to_string()],
         require_verified_email: !app_config.is_development(), // 開発環境では false
@@ -302,6 +312,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         team_invitation_service,
         organization_service,
         subscription_service,
+        payment_service,
         subscription_history_repo,
         bulk_operation_history_repo,
         daily_activity_summary_repo,
@@ -322,6 +333,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let team_router = team_router_with_state(app_state.clone());
     let organization_router = organization_router_with_state(app_state.clone());
     let subscription_router = subscription_router_with_state(app_state.clone());
+    let payment_router = payment_router_with_state(app_state.clone());
     let permission_router = permission_router_with_state(app_state.clone());
     let analytics_router = analytics_router_with_state(app_state.clone());
     let security_router = security_router(app_state.clone());
@@ -338,6 +350,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(team_router)
         .merge(organization_router)
         .merge(subscription_router)
+        .merge(payment_router)
         .merge(permission_router)
         .merge(analytics_router)
         .merge(security_router)
@@ -372,6 +385,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • Team Management: /teams/*");
     tracing::info!("   • Organization Management: /organizations/*");
     tracing::info!("   • Subscription Management: /subscriptions/*");
+    tracing::info!("   • Payment Processing: /payments/*, /webhooks/stripe");
     tracing::info!("   • Permission Management: /permissions/*");
     tracing::info!("   • Analytics: /analytics/*");
     tracing::info!("   • Admin Management: /admin/*");
@@ -382,13 +396,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • Health Check: /health");
 
     // サーバーの起動
-    tracing::info!("🌐 Server listening on {}", app_config.server.addr);
-    tracing::info!(
-        "📚 API Documentation: http://{}/docs",
-        app_config.server.addr
-    );
+    let server_addr = format!("{}:{}", app_config.host, app_config.port);
+    tracing::info!("🌐 Server listening on {}", server_addr);
+    tracing::info!("📚 API Documentation: http://{}/docs", server_addr);
 
-    let listener = TcpListener::bind(&app_config.server.addr).await?;
+    let listener = TcpListener::bind(&server_addr).await?;
 
     tracing::info!("🎉 Task Backend server started successfully!");
 

@@ -14,7 +14,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/security/token-stats \
+curl -X GET http://localhost:5000/admin/security/token-stats \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -46,7 +46,7 @@ curl -X GET http://localhost:3000/admin/security/token-stats \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/admin/security/refresh-tokens?limit=50&include_suspicious=true" \
+curl -X GET "http://localhost:5000/admin/security/refresh-tokens?limit=50&include_suspicious=true" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -84,7 +84,7 @@ curl -X GET "http://localhost:3000/admin/security/refresh-tokens?limit=50&includ
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/security/cleanup-tokens \
+curl -X POST http://localhost:5000/admin/security/cleanup-tokens \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -117,7 +117,7 @@ curl -X POST http://localhost:3000/admin/security/cleanup-tokens \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/admin/security/password-resets?days=7&include_failed=true" \
+curl -X GET "http://localhost:5000/admin/security/password-resets?days=7&include_failed=true" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -157,7 +157,7 @@ curl -X GET "http://localhost:3000/admin/security/password-resets?days=7&include
 **リクエスト例:**
 ```bash
 # 特定ユーザーのトークンを全て取り消し
-curl -X POST http://localhost:3000/admin/security/revoke-all-tokens \
+curl -X POST http://localhost:5000/admin/security/revoke-all-tokens \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -167,7 +167,7 @@ curl -X POST http://localhost:3000/admin/security/revoke-all-tokens \
   }'
 
 # 全ユーザーのトークンを取り消し（緊急時）
-curl -X POST http://localhost:3000/admin/security/revoke-all-tokens \
+curl -X POST http://localhost:5000/admin/security/revoke-all-tokens \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -183,7 +183,7 @@ curl -X POST http://localhost:3000/admin/security/revoke-all-tokens \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/admin/security/session-analytics?period=7d&include_geo=true" \
+curl -X GET "http://localhost:5000/admin/security/session-analytics?period=7d&include_geo=true" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -233,7 +233,7 @@ curl -X GET "http://localhost:3000/admin/security/session-analytics?period=7d&in
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/security/audit-report \
+curl -X POST http://localhost:5000/admin/security/audit-report \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -288,7 +288,7 @@ curl -X POST http://localhost:3000/admin/security/audit-report \
 
 ```bash
 # 定期的なトークンクリーンアップの自動化設定
-curl -X POST http://localhost:3000/admin/security/cleanup-tokens \
+curl -X POST http://localhost:5000/admin/security/cleanup-tokens \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -343,19 +343,19 @@ curl -X POST http://localhost:3000/admin/security/cleanup-tokens \
 SECURITY_TOKEN="security_admin_token_here"
 
 # 1. システム全体のトークン状況を確認
-curl -s -X GET http://localhost:3000/admin/security/token-stats \
+curl -s -X GET http://localhost:5000/admin/security/token-stats \
   -H "Authorization: Bearer $SECURITY_TOKEN"
 
 # 2. 疑わしいリフレッシュトークンを調査
-curl -s -X GET "http://localhost:3000/admin/security/refresh-tokens?include_suspicious=true" \
+curl -s -X GET "http://localhost:5000/admin/security/refresh-tokens?include_suspicious=true" \
   -H "Authorization: Bearer $SECURITY_TOKEN"
 
 # 3. パスワードリセットの異常を確認
-curl -s -X GET "http://localhost:3000/admin/security/password-resets?days=1" \
+curl -s -X GET "http://localhost:5000/admin/security/password-resets?days=1" \
   -H "Authorization: Bearer $SECURITY_TOKEN"
 
 # 4. 必要に応じてトークンクリーンアップを実行
-curl -s -X POST http://localhost:3000/admin/security/cleanup-tokens \
+curl -s -X POST http://localhost:5000/admin/security/cleanup-tokens \
   -H "Authorization: Bearer $SECURITY_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -365,7 +365,7 @@ curl -s -X POST http://localhost:3000/admin/security/cleanup-tokens \
   }'
 
 # 5. 週次セキュリティ監査レポート生成
-curl -s -X POST http://localhost:3000/admin/security/audit-report \
+curl -s -X POST http://localhost:5000/admin/security/audit-report \
   -H "Authorization: Bearer $SECURITY_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

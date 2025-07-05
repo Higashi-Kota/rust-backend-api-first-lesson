@@ -10,7 +10,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/subscriptions/current \
+curl -X GET http://localhost:5000/subscriptions/current \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -54,7 +54,7 @@ curl -X GET http://localhost:3000/subscriptions/current \
 **リクエスト例:**
 ```bash
 # FreeからProへアップグレード
-curl -X POST http://localhost:3000/subscriptions/upgrade \
+curl -X POST http://localhost:5000/subscriptions/upgrade \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -64,7 +64,7 @@ curl -X POST http://localhost:3000/subscriptions/upgrade \
   }'
 
 # ProからEnterpriseへアップグレード
-curl -X POST http://localhost:3000/subscriptions/upgrade \
+curl -X POST http://localhost:5000/subscriptions/upgrade \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -93,7 +93,7 @@ curl -X POST http://localhost:3000/subscriptions/upgrade \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/subscriptions/downgrade \
+curl -X POST http://localhost:5000/subscriptions/downgrade \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -126,7 +126,7 @@ curl -X POST http://localhost:3000/subscriptions/downgrade \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/subscriptions/history?limit=10&offset=0" \
+curl -X GET "http://localhost:5000/subscriptions/history?limit=10&offset=0" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -182,7 +182,7 @@ curl -X GET "http://localhost:3000/subscriptions/history?limit=10&offset=0" \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/subscriptions/stats \
+curl -X GET http://localhost:5000/admin/subscriptions/stats \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -227,7 +227,7 @@ curl -X GET http://localhost:3000/admin/subscriptions/stats \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-446655440000/subscription \
+curl -X PATCH http://localhost:5000/admin/users/550e8400-e29b-41d4-a716-446655440000/subscription \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -289,17 +289,17 @@ curl -X PATCH http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-44665544
 
 ```bash
 # Free階層ユーザーの動的タスク取得（制限付き）
-curl -X GET http://localhost:3000/tasks/dynamic \
+curl -X GET http://localhost:5000/tasks/dynamic \
   -H "Authorization: Bearer <free_user_token>"
 # → 最大100件、基本機能のみ
 
 # Pro階層ユーザーの動的タスク取得（拡張機能）
-curl -X GET http://localhost:3000/tasks/dynamic \
+curl -X GET http://localhost:5000/tasks/dynamic \
   -H "Authorization: Bearer <pro_user_token>"
 # → 最大10,000件、高度なフィルタリング可能
 
 # Enterprise階層ユーザーの動的タスク取得（無制限）
-curl -X GET http://localhost:3000/tasks/dynamic \
+curl -X GET http://localhost:5000/tasks/dynamic \
   -H "Authorization: Bearer <enterprise_user_token>"
 # → 無制限、すべての機能利用可能
 ```
@@ -313,11 +313,11 @@ curl -X GET http://localhost:3000/tasks/dynamic \
 ACCESS_TOKEN="your_access_token_here"
 
 # 1. 現在のサブスクリプション状況を確認
-curl -s -X GET http://localhost:3000/subscriptions/current \
+curl -s -X GET http://localhost:5000/subscriptions/current \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 2. Proプランにアップグレード
-UPGRADE_RESPONSE=$(curl -s -X POST http://localhost:3000/subscriptions/upgrade \
+UPGRADE_RESPONSE=$(curl -s -X POST http://localhost:5000/subscriptions/upgrade \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -327,15 +327,15 @@ UPGRADE_RESPONSE=$(curl -s -X POST http://localhost:3000/subscriptions/upgrade \
   }')
 
 # 3. アップグレード後の状況確認
-curl -s -X GET http://localhost:3000/subscriptions/current \
+curl -s -X GET http://localhost:5000/subscriptions/current \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 4. サブスクリプション履歴を確認
-curl -s -X GET http://localhost:3000/subscriptions/history \
+curl -s -X GET http://localhost:5000/subscriptions/history \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 5. 動的パーミッション機能をテスト
-curl -s -X GET http://localhost:3000/tasks/dynamic \
+curl -s -X GET http://localhost:5000/tasks/dynamic \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

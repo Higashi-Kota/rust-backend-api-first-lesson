@@ -142,21 +142,19 @@ async fn test_list_teams() {
     // ユーザー登録とログイン
     let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
 
-    // 複数のチームを作成
-    for i in 1..=3 {
-        let team_name = format!("Test Team {} - {}", i, Uuid::new_v4());
-        let team_data = create_test_team_data(&team_name);
+    // Freeティアでは1チームしか作成できないので、1つだけ作成
+    let team_name = format!("Test Team - {}", Uuid::new_v4());
+    let team_data = create_test_team_data(&team_name);
 
-        let req = auth_helper::create_authenticated_request(
-            "POST",
-            "/teams",
-            &user.access_token,
-            Some(serde_json::to_string(&team_data).unwrap()),
-        );
+    let req = auth_helper::create_authenticated_request(
+        "POST",
+        "/teams",
+        &user.access_token,
+        Some(serde_json::to_string(&team_data).unwrap()),
+    );
 
-        let res = app.clone().oneshot(req).await.unwrap();
-        assert_eq!(res.status(), StatusCode::CREATED);
-    }
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
 
     // チーム一覧取得
     let list_req =
@@ -174,7 +172,7 @@ async fn test_list_teams() {
     assert_eq!(list_response["message"], "Teams retrieved successfully");
 
     let teams = list_response["data"].as_array().unwrap();
-    assert!(teams.len() >= 3); // 少なくとも3つのチームが作成されている
+    assert_eq!(teams.len(), 1); // Freeティアでは1チームのみ
 }
 
 #[tokio::test]
@@ -320,21 +318,19 @@ async fn test_get_team_stats() {
     // ユーザー登録とログイン
     let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
 
-    // いくつかのチームを作成
-    for i in 1..=2 {
-        let team_name = format!("Stats Test Team {} - {}", i, Uuid::new_v4());
-        let team_data = create_test_team_data(&team_name);
+    // Freeティアでは1チームしか作成できないので、1つだけ作成
+    let team_name = format!("Stats Test Team - {}", Uuid::new_v4());
+    let team_data = create_test_team_data(&team_name);
 
-        let req = auth_helper::create_authenticated_request(
-            "POST",
-            "/teams",
-            &user.access_token,
-            Some(serde_json::to_string(&team_data).unwrap()),
-        );
+    let req = auth_helper::create_authenticated_request(
+        "POST",
+        "/teams",
+        &user.access_token,
+        Some(serde_json::to_string(&team_data).unwrap()),
+    );
 
-        let res = app.clone().oneshot(req).await.unwrap();
-        assert_eq!(res.status(), StatusCode::CREATED);
-    }
+    let res = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
 
     // チーム統計取得
     let stats_req =
@@ -355,6 +351,6 @@ async fn test_get_team_stats() {
     );
 
     let stats = &stats_response["data"];
-    assert!(stats["total_teams"].as_i64().unwrap() >= 2);
+    assert_eq!(stats["total_teams"].as_i64().unwrap(), 1);
     assert!(stats["total_members"].as_i64().unwrap() >= 0);
 }

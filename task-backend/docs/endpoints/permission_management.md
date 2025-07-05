@@ -10,7 +10,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/permissions/check \
+curl -X POST http://localhost:5000/permissions/check \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -66,7 +66,7 @@ curl -X POST http://localhost:3000/permissions/check \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/permissions/validate \
+curl -X POST http://localhost:5000/permissions/validate \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -144,11 +144,11 @@ curl -X POST http://localhost:3000/permissions/validate \
 **リクエスト例:**
 ```bash
 # 自分の権限情報を取得
-curl -X GET http://localhost:3000/permissions/user/me \
+curl -X GET http://localhost:5000/permissions/user/me \
   -H "Authorization: Bearer <access_token>"
 
 # 特定ユーザーの権限情報を取得（管理者権限必要）
-curl -X GET http://localhost:3000/permissions/user/550e8400-e29b-41d4-a716-446655440001 \
+curl -X GET http://localhost:5000/permissions/user/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -214,7 +214,7 @@ curl -X GET http://localhost:3000/permissions/user/550e8400-e29b-41d4-a716-44665
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/permissions/resources \
+curl -X GET http://localhost:5000/permissions/resources \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -293,7 +293,7 @@ curl -X GET http://localhost:3000/permissions/resources \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/permissions/resources/tasks/actions/admin/check?target_id=550e8400-e29b-41d4-a716-446655440001" \
+curl -X GET "http://localhost:5000/permissions/resources/tasks/actions/admin/check?target_id=550e8400-e29b-41d4-a716-446655440001" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -303,7 +303,7 @@ curl -X GET "http://localhost:3000/permissions/resources/tasks/actions/admin/che
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/permissions/bulk-check \
+curl -X POST http://localhost:5000/permissions/bulk-check \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -335,7 +335,7 @@ curl -X POST http://localhost:3000/permissions/bulk-check \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/permissions/user/me/effective \
+curl -X GET http://localhost:5000/permissions/user/me/effective \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -347,7 +347,7 @@ curl -X GET http://localhost:3000/permissions/user/me/effective \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/features/available \
+curl -X GET http://localhost:5000/features/available \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -400,7 +400,7 @@ curl -X GET http://localhost:3000/features/available \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/features/admin \
+curl -X GET http://localhost:5000/features/admin \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -410,7 +410,7 @@ curl -X GET http://localhost:3000/features/admin \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/features/analytics \
+curl -X GET http://localhost:5000/features/analytics \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -422,7 +422,7 @@ curl -X GET http://localhost:3000/features/analytics \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/permissions/audit \
+curl -X GET http://localhost:5000/admin/permissions/audit \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -468,7 +468,7 @@ curl -X GET http://localhost:3000/admin/permissions/audit \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/permissions/health
+curl -X GET http://localhost:5000/permissions/health
 ```
 
 ## 使用例
@@ -480,15 +480,15 @@ curl -X GET http://localhost:3000/permissions/health
 ACCESS_TOKEN="your_access_token_here"
 
 # 1. 現在のユーザーの権限情報を確認
-curl -s -X GET http://localhost:3000/permissions/user/me \
+curl -s -X GET http://localhost:5000/permissions/user/me \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 2. 利用可能な機能を確認
-curl -s -X GET http://localhost:3000/features/available \
+curl -s -X GET http://localhost:5000/features/available \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 3. 特定のアクションが可能かチェック
-curl -s -X POST http://localhost:3000/permissions/check \
+curl -s -X POST http://localhost:5000/permissions/check \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -497,7 +497,7 @@ curl -s -X POST http://localhost:3000/permissions/check \
   }'
 
 # 4. 複数の権限を一括チェック
-curl -s -X POST http://localhost:3000/permissions/validate \
+curl -s -X POST http://localhost:5000/permissions/validate \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -509,7 +509,7 @@ curl -s -X POST http://localhost:3000/permissions/validate \
   }'
 
 # 5. 権限に基づいて動的にタスクを取得
-curl -s -X GET http://localhost:3000/tasks/dynamic \
+curl -s -X GET http://localhost:5000/tasks/dynamic \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

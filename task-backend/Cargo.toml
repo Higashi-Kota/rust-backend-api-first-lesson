@@ -62,6 +62,7 @@ reqwest = { workspace = true }
 # Additional security and utilities - using workspace dependencies
 base64 = { workspace = true }
 hex = { workspace = true }
+hmac = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 
@@ -80,6 +81,9 @@ mime = { workspace = true }
 # Image processing - using workspace dependencies
 image = { workspace = true }
 webp = { workspace = true }
+
+# Payment processing - using workspace dependencies
+async-stripe = { workspace = true }
 
 [dev-dependencies]
 # Development and testing dependencies - using workspace dependencies

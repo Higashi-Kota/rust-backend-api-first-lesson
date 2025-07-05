@@ -176,7 +176,7 @@ impl TaskService {
 
 ```bash
 DATABASE_URL=postgres://postgres:password@localhost:5432/taskdb
-SERVER_ADDR=0.0.0.0:3000
+SERVER_ADDR=0.0.0.0:5000
 DATABASE_SCHEMA=custom_schema  # スキーマ分離（任意）
 RUST_LOG=info
 ```

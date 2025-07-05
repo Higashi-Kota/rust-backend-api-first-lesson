@@ -81,6 +81,7 @@ lettre = { version = "0.11", default-features = false, features = [
 # Additional security and utilities
 base64 = "0.22"
 hex = "0.4"
+hmac = "0.12"
 sha2 = "0.10"
 time = { version = "0.3", features = ["macros", "serde"] }
 
@@ -104,6 +105,9 @@ mime = "0.3"
 # Image processing
 image = { version = "0.25", features = ["webp", "jpeg", "png", "gif"] }
 webp = "0.3"
+
+# Payment processing
+async-stripe = { version = "0.39", features = ["runtime-tokio-hyper", "webhook-events", "checkout", "billing"] }
 
 # Workspace-wide lints and settings
 [workspace.lints.rust]

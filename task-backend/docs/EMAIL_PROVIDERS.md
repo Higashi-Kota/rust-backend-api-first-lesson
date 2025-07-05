@@ -183,7 +183,7 @@ MAILGUN_DOMAIN=test.yourdomain.com
 make dev
 
 # ユーザー登録（メール送信）
-curl -X POST http://localhost:3000/auth/signup \
+curl -X POST http://localhost:5000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -202,7 +202,7 @@ open http://localhost:8025
 EMAIL_PROVIDER=mailgun make run
 
 # ユーザー登録（実際のメール送信）
-curl -X POST http://localhost:3000/auth/signup \
+curl -X POST http://localhost:5000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -264,7 +264,7 @@ services:
   app:
     build: .
     ports:
-      - "3000:3000"
+      - "5000:5000"
     environment:
       - EMAIL_DEVELOPMENT_MODE=false
       - EMAIL_PROVIDER=mailhog

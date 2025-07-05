@@ -52,42 +52,40 @@ async fn create_comprehensive_user_data(
         task_ids.push(Uuid::parse_str(id_str).unwrap());
     }
 
-    // Create teams
+    // Create team (only 1 for Free tier)
     let mut team_ids = Vec::new();
-    for i in 0..3 {
-        let team_data = json!({
-            "name": format!("Team to be removed from {}", i),
-            "description": format!("User will be removed from this team {}", i)
-        });
+    let team_data = json!({
+        "name": "Team to be removed from",
+        "description": "User will be removed from this team"
+    });
 
-        let req = auth_helper::create_authenticated_request(
-            "POST",
-            "/teams",
-            &user.access_token,
-            Some(serde_json::to_string(&team_data).unwrap()),
+    let req = auth_helper::create_authenticated_request(
+        "POST",
+        "/teams",
+        &user.access_token,
+        Some(serde_json::to_string(&team_data).unwrap()),
+    );
+    let res = app.clone().oneshot(req).await.unwrap();
+    let status = res.status();
+    let body = axum::body::to_bytes(res.into_body(), usize::MAX)
+        .await
+        .unwrap();
+
+    if status != StatusCode::CREATED {
+        let body_str = String::from_utf8_lossy(&body);
+        panic!(
+            "Team creation failed. Status: {:?}, Body: {}",
+            status, body_str
         );
-        let res = app.clone().oneshot(req).await.unwrap();
-        let status = res.status();
-        let body = axum::body::to_bytes(res.into_body(), usize::MAX)
-            .await
-            .unwrap();
-
-        if status != StatusCode::CREATED {
-            let body_str = String::from_utf8_lossy(&body);
-            panic!(
-                "Team creation failed. Status: {:?}, Body: {}",
-                status, body_str
-            );
-        }
-
-        let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        // Try to get ID from data field first, then directly from response
-        let id_str = response["data"]["id"]
-            .as_str()
-            .or_else(|| response["id"].as_str())
-            .unwrap_or_else(|| panic!("Team creation failed, no id in response: {:?}", response));
-        team_ids.push(Uuid::parse_str(id_str).unwrap());
     }
+
+    let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    // Try to get ID from data field first, then directly from response
+    let id_str = response["data"]["id"]
+        .as_str()
+        .or_else(|| response["id"].as_str())
+        .unwrap_or_else(|| panic!("Team creation failed, no id in response: {:?}", response));
+    team_ids.push(Uuid::parse_str(id_str).unwrap());
 
     // Upgrade subscription to create history
     let upgrade_request = json!({ "new_tier": "Pro" });

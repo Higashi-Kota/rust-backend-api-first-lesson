@@ -10,7 +10,7 @@ APIの基本情報とバージョン情報を取得します。
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/
+curl -X GET http://localhost:5000/
 ```
 
 **レスポンス例 (200 OK):**
@@ -48,7 +48,7 @@ curl -X GET http://localhost:3000/
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/health
+curl -X GET http://localhost:5000/health
 ```
 
 **レスポンス例 (200 OK):**
@@ -133,7 +133,7 @@ curl -X GET http://localhost:3000/health
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/auth/status
+curl -X GET http://localhost:5000/auth/status
 ```
 
 **レスポンス例 (200 OK):**
@@ -180,7 +180,7 @@ curl -X GET http://localhost:3000/auth/status
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/users/health
+curl -X GET http://localhost:5000/users/health
 ```
 
 **レスポンス例 (200 OK):**
@@ -213,7 +213,7 @@ curl -X GET http://localhost:3000/users/health
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/permissions/health
+curl -X GET http://localhost:5000/permissions/health
 ```
 
 **レスポンス例 (200 OK):**
@@ -254,7 +254,7 @@ API の技術仕様と制限事項の情報を取得します。
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/api/info
+curl -X GET http://localhost:5000/api/info
 ```
 
 **レスポンス例 (200 OK):**
@@ -305,7 +305,7 @@ curl -X GET http://localhost:3000/api/info
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/public/stats
+curl -X GET http://localhost:5000/public/stats
 ```
 
 **レスポンス例 (200 OK):**
@@ -345,22 +345,22 @@ curl -X GET http://localhost:3000/public/stats
 
 ```bash
 # 1. API基本情報を取得
-curl -s -X GET http://localhost:3000/ | jq '.version, .uptime_seconds'
+curl -s -X GET http://localhost:5000/ | jq '.version, .uptime_seconds'
 
 # 2. システム全体のヘルスチェック
-HEALTH_STATUS=$(curl -s -X GET http://localhost:3000/health)
+HEALTH_STATUS=$(curl -s -X GET http://localhost:5000/health)
 echo $HEALTH_STATUS | jq '.status'
 
 # 3. 各サービスの個別ヘルスチェック
-curl -s -X GET http://localhost:3000/auth/status | jq '.authentication_service'
-curl -s -X GET http://localhost:3000/users/health | jq '.status'
-curl -s -X GET http://localhost:3000/permissions/health | jq '.status'
+curl -s -X GET http://localhost:5000/auth/status | jq '.authentication_service'
+curl -s -X GET http://localhost:5000/users/health | jq '.status'
+curl -s -X GET http://localhost:5000/permissions/health | jq '.status'
 
 # 4. パブリック統計情報を取得
-curl -s -X GET http://localhost:3000/public/stats | jq '.system_overview'
+curl -s -X GET http://localhost:5000/public/stats | jq '.system_overview'
 
 # 5. API制限情報を確認
-curl -s -X GET http://localhost:3000/api/info | jq '.rate_limits'
+curl -s -X GET http://localhost:5000/api/info | jq '.rate_limits'
 ```
 
 ### システム状態の監視スクリプト例
@@ -387,14 +387,14 @@ check_health() {
 }
 
 echo "=== System Health Check ==="
-check_health "Main API" "http://localhost:3000/health"
-check_health "Authentication" "http://localhost:3000/auth/status"
-check_health "User Service" "http://localhost:3000/users/health"
-check_health "Permission Service" "http://localhost:3000/permissions/health"
+check_health "Main API" "http://localhost:5000/health"
+check_health "Authentication" "http://localhost:5000/auth/status"
+check_health "User Service" "http://localhost:5000/users/health"
+check_health "Permission Service" "http://localhost:5000/permissions/health"
 
 echo ""
 echo "=== System Statistics ==="
-curl -s http://localhost:3000/public/stats | jq '{
+curl -s http://localhost:5000/public/stats | jq '{
   total_users: .system_overview.total_registered_users,
   uptime: .system_overview.uptime_percentage_30d,
   response_time: .performance_metrics.average_api_response_time_ms

@@ -149,7 +149,7 @@ Content-Type: application/json
       "attachment_id": "550e8400-e29b-41d4-a716-446655440000",
       "description": "Client presentation materials",
       "share_token": "AbCdEfGhIjKlMnOpQrStUvWxYz123456",
-      "share_url": "http://localhost:3000/share/AbCdEfGhIjKlMnOpQrStUvWxYz123456",
+      "share_url": "http://localhost:5000/share/AbCdEfGhIjKlMnOpQrStUvWxYz123456",
       "expires_at": "2024-01-04T00:00:00Z",
       "max_access_count": 10,
       "current_access_count": 0,
@@ -260,15 +260,13 @@ docker run -d \
 ### Step 2: MinIOクライアント（mc）のインストール
 
 ```bash
-# Linuxの場合
+# Linux用インストール
 wget https://dl.min.io/client/mc/release/linux-amd64/mc
 chmod +x mc
 sudo mv mc /usr/local/bin/
 
-# macOSの場合
-brew install minio/stable/mc
-
-# Windowsの場合はMinIOのサイトからダウンロード
+# インストール確認
+mc --version
 ```
 
 ### Step 3: バケットの作成
@@ -333,7 +331,7 @@ make dev
 
 ```bash
 # Step 1: アカウント作成
-curl -X POST http://localhost:3000/auth/signup \
+curl -X POST http://localhost:5000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -342,7 +340,7 @@ curl -X POST http://localhost:3000/auth/signup \
   }'
 
 # Step 2: サインイン（トークン取得）
-TOKEN=$(curl -s -X POST http://localhost:3000/auth/signin \
+TOKEN=$(curl -s -X POST http://localhost:5000/auth/signin \
   -H "Content-Type: application/json" \
   -d '{
     "identifier": "test@example.com",
@@ -350,7 +348,7 @@ TOKEN=$(curl -s -X POST http://localhost:3000/auth/signin \
   }' | jq -r '.tokens.access_token')
 
 # Step 3: タスク作成
-TASK_RESPONSE=$(curl -s -X POST http://localhost:3000/tasks \
+TASK_RESPONSE=$(curl -s -X POST http://localhost:5000/tasks \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -366,7 +364,7 @@ TASK_ID=$(echo $TASK_RESPONSE | jq -r '.id')
 echo -e "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde" > test-image.png
 
 # Step 5: ファイルアップロード
-curl -X POST "http://localhost:3000/tasks/$TASK_ID/attachments" \
+curl -X POST "http://localhost:5000/tasks/$TASK_ID/attachments" \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@test-image.png"
 ```
@@ -395,7 +393,7 @@ curl -X POST "http://localhost:3000/tasks/$TASK_ID/attachments" \
 #### アタッチメント一覧取得
 
 ```bash
-curl -X GET "http://localhost:3000/tasks/$TASK_ID/attachments?page=1&per_page=20" \
+curl -X GET "http://localhost:5000/tasks/$TASK_ID/attachments?page=1&per_page=20" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -426,12 +424,12 @@ curl -X GET "http://localhost:3000/tasks/$TASK_ID/attachments?page=1&per_page=20
 
 ```bash
 # アタッチメントIDを取得
-ATTACHMENT_ID=$(curl -s -X GET "http://localhost:3000/tasks/$TASK_ID/attachments" \
+ATTACHMENT_ID=$(curl -s -X GET "http://localhost:5000/tasks/$TASK_ID/attachments" \
   -H "Authorization: Bearer $TOKEN" \
   | jq -r '.data.attachments[0].id')
 
 # ファイルをダウンロード
-curl -X GET "http://localhost:3000/attachments/$ATTACHMENT_ID" \
+curl -X GET "http://localhost:5000/attachments/$ATTACHMENT_ID" \
   -H "Authorization: Bearer $TOKEN" \
   -o downloaded-file.png
 ```
@@ -440,7 +438,7 @@ curl -X GET "http://localhost:3000/attachments/$ATTACHMENT_ID" \
 
 ```bash
 # 署名付きURLを取得
-DOWNLOAD_URL=$(curl -s -X GET "http://localhost:3000/attachments/$ATTACHMENT_ID/download-url?expires_in_seconds=3600" \
+DOWNLOAD_URL=$(curl -s -X GET "http://localhost:5000/attachments/$ATTACHMENT_ID/download-url?expires_in_seconds=3600" \
   -H "Authorization: Bearer $TOKEN" \
   | jq -r '.data.download_url')
 
@@ -464,7 +462,7 @@ curl -o downloaded-file-direct.png "$DOWNLOAD_URL"
 #### ファイル削除
 
 ```bash
-curl -X DELETE "http://localhost:3000/attachments/$ATTACHMENT_ID" \
+curl -X DELETE "http://localhost:5000/attachments/$ATTACHMENT_ID" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -481,14 +479,14 @@ curl -X DELETE "http://localhost:3000/attachments/$ATTACHMENT_ID" \
 
 ```bash
 # Step 1: 新しいファイルをアップロード（共有用）
-UPLOAD_RESPONSE=$(curl -s -X POST "http://localhost:3000/tasks/$TASK_ID/attachments" \
+UPLOAD_RESPONSE=$(curl -s -X POST "http://localhost:5000/tasks/$TASK_ID/attachments" \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@test-image.png")
 
 ATTACHMENT_ID=$(echo $UPLOAD_RESPONSE | jq -r '.data.attachment.id')
 
 # Step 2: 共有リンクを作成（72時間有効、最大10回アクセス可能）
-SHARE_RESPONSE=$(curl -s -X POST "http://localhost:3000/attachments/$ATTACHMENT_ID/share-links" \
+SHARE_RESPONSE=$(curl -s -X POST "http://localhost:5000/attachments/$ATTACHMENT_ID/share-links" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -507,12 +505,12 @@ echo "Share URL: $SHARE_URL"
 curl -o shared-file.png "$SHARE_URL"
 
 # Step 4: 共有リンク一覧を確認
-curl -X GET "http://localhost:3000/attachments/$ATTACHMENT_ID/share-links" \
+curl -X GET "http://localhost:5000/attachments/$ATTACHMENT_ID/share-links" \
   -H "Authorization: Bearer $TOKEN"
 
 # Step 5: 共有リンクを無効化
 SHARE_LINK_ID=$(echo $SHARE_RESPONSE | jq -r '.data.share_link.id')
-curl -X DELETE "http://localhost:3000/share-links/$SHARE_LINK_ID" \
+curl -X DELETE "http://localhost:5000/share-links/$SHARE_LINK_ID" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -527,7 +525,7 @@ curl -X DELETE "http://localhost:3000/share-links/$SHARE_LINK_ID" \
       "attachment_id": "550e8400-e29b-41d4-a716-446655440000",
       "description": "Client presentation",
       "share_token": "AbCdEfGhIjKlMnOpQrStUvWxYz123456",
-      "share_url": "http://localhost:3000/share/AbCdEfGhIjKlMnOpQrStUvWxYz123456",
+      "share_url": "http://localhost:5000/share/AbCdEfGhIjKlMnOpQrStUvWxYz123456",
       "expires_at": "2025-01-07T00:00:00Z",
       "max_access_count": 10,
       "current_access_count": 0,

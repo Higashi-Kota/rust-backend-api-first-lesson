@@ -128,7 +128,7 @@ jobs:
       - name: Run integration tests for ${{ matrix.group }}
         env:
           DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
-          SERVER_ADDR: 0.0.0.0:3000
+          SERVER_ADDR: 0.0.0.0:5000
           RUST_LOG: debug
         run: cargo test --profile ci-check --test main ${{ matrix.group }} --verbose --locked
 

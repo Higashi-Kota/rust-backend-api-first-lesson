@@ -3,6 +3,7 @@
 use crate::api::dto::team_dto::*;
 use crate::domain::team_member_model::Model as TeamMemberModel;
 use crate::domain::team_model::{Model as TeamModel, TeamRole};
+use crate::middleware::subscription_guard::check_feature_limit;
 use crate::utils::email::EmailService;
 
 // Type aliases for domain models
@@ -50,14 +51,34 @@ impl TeamService {
             ));
         }
 
+        // ユーザーのサブスクリプションティアを取得
+        let user = self
+            .user_repository
+            .find_by_id(owner_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+        let user_tier =
+            SubscriptionTier::from_str(&user.subscription_tier).unwrap_or(SubscriptionTier::Free);
+
+        // 現在のチーム数を取得
+        let current_team_count = self
+            .team_repository
+            .count_user_owned_teams(owner_id)
+            .await?;
+
+        // チーム数制限チェック
+        check_feature_limit(&user_tier, current_team_count, "teams")?;
+
         info!(
             owner_id = %owner_id,
             team_name = %request.name,
+            current_teams = current_team_count,
+            user_tier = %user_tier.as_str(),
             "Starting team creation"
         );
 
-        // デフォルトのサブスクリプション階層
-        let subscription_tier = SubscriptionTier::Free;
+        // チームのサブスクリプション階層はオーナーと同じ
+        let subscription_tier = user_tier;
 
         let team = Team::new_team(
             request.name.clone(),
@@ -223,13 +244,20 @@ impl TeamService {
         // 招待権限チェック
         self.check_team_invite_permission(&team, inviter_id).await?;
 
+        // チームオーナーのサブスクリプションティアを取得
+        let owner = self
+            .user_repository
+            .find_by_id(team.owner_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Team owner not found".to_string()))?;
+        let owner_tier =
+            SubscriptionTier::from_str(&owner.subscription_tier).unwrap_or(SubscriptionTier::Free);
+
+        // 現在のメンバー数を取得
+        let current_member_count = self.team_repository.count_members(team_id).await?;
+
         // メンバー数制限チェック
-        let current_member_count = self.team_repository.count_members(team_id).await? as i32;
-        if !team.can_add_member(current_member_count) {
-            return Err(AppError::ValidationError(
-                "Team member limit exceeded".to_string(),
-            ));
-        }
+        check_feature_limit(&owner_tier, current_member_count, "team_members")?;
 
         // ユーザーIDを取得（emailまたはuser_idから）
         let user_id = if let Some(user_id) = request.user_id {
@@ -690,8 +718,8 @@ mod tests {
             SubscriptionTier::Free,
         );
         assert_eq!(free_team.max_members, 3);
-        assert!(free_team.can_add_member(2)); // 2 < 3
-        assert!(!free_team.can_add_member(3)); // 3 >= 3
+        assert!(2 < free_team.max_members); // 2 < 3
+        assert!(3 >= free_team.max_members); // 3 >= 3
 
         // Test Pro tier limits
         let pro_team = Team::new_team(
@@ -702,8 +730,8 @@ mod tests {
             SubscriptionTier::Pro,
         );
         assert_eq!(pro_team.max_members, 10);
-        assert!(pro_team.can_add_member(9)); // 9 < 10
-        assert!(!pro_team.can_add_member(10)); // 10 >= 10
+        assert!(9 < pro_team.max_members); // 9 < 10
+        assert!(10 >= pro_team.max_members); // 10 >= 10
 
         // Test Enterprise tier limits
         let enterprise_team = Team::new_team(
@@ -714,7 +742,7 @@ mod tests {
             SubscriptionTier::Enterprise,
         );
         assert_eq!(enterprise_team.max_members, 100);
-        assert!(enterprise_team.can_add_member(99)); // 99 < 100
-        assert!(!enterprise_team.can_add_member(100)); // 100 >= 100
+        assert!(99 < enterprise_team.max_members); // 99 < 100
+        assert!(100 >= enterprise_team.max_members); // 100 >= 100
     }
 }

@@ -46,6 +46,9 @@ pub enum AppError {
 
     #[error("Internal server error: {0}")]
     InternalServerError(String),
+
+    #[error("External service error: {0}")]
+    ExternalServiceError(String),
 }
 
 // axum でエラーをHTTPレスポンスに変換するための実装
@@ -249,6 +252,21 @@ impl IntoResponse for AppError {
                         validation_errors: None,
                         errors: None,
                         error_type: "internal_server_error".to_string(),
+                    },
+                )
+            }
+            AppError::ExternalServiceError(message) => {
+                eprintln!("External service error: {}", message);
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    ErrorResponse {
+                        success: false,
+                        error: "External service error".to_string(),
+                        message: message.clone(),
+                        details: None,
+                        validation_errors: None,
+                        errors: None,
+                        error_type: "external_service_error".to_string(),
                     },
                 )
             }

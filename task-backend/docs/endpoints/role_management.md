@@ -12,7 +12,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/roles \
+curl -X GET http://localhost:5000/admin/roles \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -68,7 +68,7 @@ curl -X GET http://localhost:3000/admin/roles \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/roles \
+curl -X POST http://localhost:5000/admin/roles \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -130,7 +130,7 @@ curl -X POST http://localhost:3000/admin/roles \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/roles/550e8400-e29b-41d4-a716-446655440001 \
+curl -X GET http://localhost:5000/admin/roles/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -140,7 +140,7 @@ curl -X GET http://localhost:3000/admin/roles/550e8400-e29b-41d4-a716-4466554400
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/admin/roles/550e8400-e29b-41d4-a716-446655440003 \
+curl -X PATCH http://localhost:5000/admin/roles/550e8400-e29b-41d4-a716-446655440003 \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -167,7 +167,7 @@ curl -X PATCH http://localhost:3000/admin/roles/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/admin/roles/550e8400-e29b-41d4-a716-446655440003 \
+curl -X DELETE http://localhost:5000/admin/roles/550e8400-e29b-41d4-a716-446655440003 \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -179,7 +179,7 @@ curl -X DELETE http://localhost:3000/admin/roles/550e8400-e29b-41d4-a716-4466554
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-446655440000/role \
+curl -X POST http://localhost:5000/admin/users/550e8400-e29b-41d4-a716-446655440000/role \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -237,7 +237,7 @@ curl -X POST http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-446655440
 ADMIN_TOKEN="admin_access_token_here"
 
 # 1. 新しいロール「プロジェクトマネージャー」を作成
-ROLE_RESPONSE=$(curl -s -X POST http://localhost:3000/admin/roles \
+ROLE_RESPONSE=$(curl -s -X POST http://localhost:5000/admin/roles \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -266,17 +266,17 @@ ROLE_RESPONSE=$(curl -s -X POST http://localhost:3000/admin/roles \
 ROLE_ID=$(echo $ROLE_RESPONSE | jq -r '.id')
 
 # 2. ユーザーにロールを割り当て
-curl -s -X POST http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-446655440000/role \
+curl -s -X POST http://localhost:5000/admin/users/550e8400-e29b-41d4-a716-446655440000/role \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"role_id\": \"$ROLE_ID\"}"
 
 # 3. ロール一覧で確認
-curl -s -X GET http://localhost:3000/admin/roles \
+curl -s -X GET http://localhost:5000/admin/roles \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 
 # 4. 特定ロールの詳細確認
-curl -s -X GET http://localhost:3000/admin/roles/$ROLE_ID \
+curl -s -X GET http://localhost:5000/admin/roles/$ROLE_ID \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 

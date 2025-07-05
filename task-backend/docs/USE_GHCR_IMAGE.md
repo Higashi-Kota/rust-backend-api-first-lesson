@@ -66,7 +66,7 @@ docker run --rm --network host \
 docker run -d --name task-backend-ghcr \
   --network host \
   -e DATABASE_URL=postgres://postgres:password@localhost:5432/taskdb \
-  -e SERVER_ADDR=0.0.0.0:3000 \
+  -e SERVER_ADDR=0.0.0.0:5000 \
   -e RUST_LOG=info \
   ghcr.io/higashi-kota/rust-backend-api-first-lesson:latest
 ```
@@ -79,10 +79,10 @@ docker run -d --name task-backend-ghcr \
 
 ```bash
 # ヘルスチェック
-curl http://localhost:3000/health
+curl http://localhost:5000/health
 
 # タスク作成
-curl -X POST http://localhost:3000/tasks \
+curl -X POST http://localhost:5000/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "title": "GHCR Test Task",
@@ -91,7 +91,7 @@ curl -X POST http://localhost:3000/tasks \
   }' | jq
 
 # タスク一覧取得
-curl http://localhost:3000/tasks | jq
+curl http://localhost:5000/tasks | jq
 ```
 
 ### コンテナの状態確認
@@ -125,10 +125,10 @@ services:
     image: ghcr.io/higashi-kota/rust-backend-api-first-lesson:latest
     
     ports:
-      - "3000:3000"
+      - "5000:5000"
     environment:
       - DATABASE_URL=postgres://postgres:password@postgres:5432/taskdb
-      - SERVER_ADDR=0.0.0.0:3000
+      - SERVER_ADDR=0.0.0.0:5000
       - RUST_LOG=info
     depends_on:
       postgres:

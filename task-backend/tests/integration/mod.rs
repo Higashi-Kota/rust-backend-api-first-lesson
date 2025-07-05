@@ -6,6 +6,7 @@ pub mod auth;
 pub mod gdpr;
 pub mod organization;
 pub mod organization_hierarchy;
+pub mod payment;
 pub mod permission;
 pub mod roles;
 pub mod security;

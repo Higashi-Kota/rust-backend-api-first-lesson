@@ -14,7 +14,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
+curl -X GET http://localhost:5000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -46,7 +46,7 @@ curl -X GET http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-4466554400
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/tasks \
+curl -X GET http://localhost:5000/admin/tasks \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -56,7 +56,7 @@ curl -X GET http://localhost:3000/admin/tasks \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/admin/tasks/paginated?page=1&page_size=50" \
+curl -X GET "http://localhost:5000/admin/tasks/paginated?page=1&page_size=50" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -66,7 +66,7 @@ curl -X GET "http://localhost:3000/admin/tasks/paginated?page=1&page_size=50" \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-446655440100/tasks \
+curl -X GET http://localhost:5000/admin/users/550e8400-e29b-41d4-a716-446655440100/tasks \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -78,7 +78,7 @@ curl -X GET http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-4466554401
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/tasks \
+curl -X POST http://localhost:5000/admin/tasks \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -95,7 +95,7 @@ curl -X POST http://localhost:3000/admin/tasks \
 
 **リクエスト例:**
 ```bash
-curl -X PUT http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
+curl -X PUT http://localhost:5000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -110,7 +110,7 @@ curl -X PUT http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-4466554400
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
+curl -X DELETE http://localhost:5000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -122,7 +122,7 @@ curl -X DELETE http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-4466554
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/tasks/bulk/create \
+curl -X POST http://localhost:5000/admin/tasks/bulk/create \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -161,7 +161,7 @@ curl -X POST http://localhost:3000/admin/tasks/bulk/create \
 
 **リクエスト例:**
 ```bash
-curl -X PUT http://localhost:3000/admin/tasks/bulk/update \
+curl -X PUT http://localhost:5000/admin/tasks/bulk/update \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -185,7 +185,7 @@ curl -X PUT http://localhost:3000/admin/tasks/bulk/update \
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/admin/tasks/bulk/delete \
+curl -X DELETE http://localhost:5000/admin/tasks/bulk/delete \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -204,7 +204,7 @@ curl -X DELETE http://localhost:3000/admin/tasks/bulk/delete \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/tasks/statistics \
+curl -X GET http://localhost:5000/admin/tasks/statistics \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -254,7 +254,7 @@ curl -X GET http://localhost:3000/admin/tasks/statistics \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/invitations/cleanup \
+curl -X POST http://localhost:5000/admin/invitations/cleanup \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -280,7 +280,7 @@ curl -X POST http://localhost:3000/admin/invitations/cleanup \
 
 **リクエスト例:**
 ```bash
-curl -X DELETE "http://localhost:3000/admin/invitations/cleanup/old?days=30" \
+curl -X DELETE "http://localhost:5000/admin/invitations/cleanup/old?days=30" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -354,16 +354,16 @@ curl -X DELETE "http://localhost:3000/admin/invitations/cleanup/old?days=30" \
 ADMIN_TOKEN="admin_access_token_here"
 
 # 1. システム全体のタスク統計を確認
-curl -s -X GET http://localhost:3000/admin/tasks/statistics \
+curl -s -X GET http://localhost:5000/admin/tasks/statistics \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 
 # 2. 問題のあるユーザーのタスクを確認
 USER_ID="550e8400-e29b-41d4-a716-446655440100"
-curl -s -X GET http://localhost:3000/admin/users/$USER_ID/tasks \
+curl -s -X GET http://localhost:5000/admin/users/$USER_ID/tasks \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 
 # 3. システムメンテナンス用タスクを一括作成
-curl -s -X POST http://localhost:3000/admin/tasks/bulk/create \
+curl -s -X POST http://localhost:5000/admin/tasks/bulk/create \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -382,7 +382,7 @@ curl -s -X POST http://localhost:3000/admin/tasks/bulk/create \
   }'
 
 # 4. 完了したタスクを一括削除
-curl -s -X DELETE http://localhost:3000/admin/tasks/bulk/delete \
+curl -s -X DELETE http://localhost:5000/admin/tasks/bulk/delete \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -390,11 +390,11 @@ curl -s -X DELETE http://localhost:3000/admin/tasks/bulk/delete \
   }'
 
 # 5. 期限切れ招待をクリーンアップ
-curl -s -X POST http://localhost:3000/admin/invitations/cleanup \
+curl -s -X POST http://localhost:5000/admin/invitations/cleanup \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 
 # 6. 古い招待データを削除
-curl -s -X DELETE "http://localhost:3000/admin/invitations/cleanup/old?days=60" \
+curl -s -X DELETE "http://localhost:5000/admin/invitations/cleanup/old?days=60" \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
@@ -402,7 +402,7 @@ curl -s -X DELETE "http://localhost:3000/admin/invitations/cleanup/old?days=60" 
 
 ```bash
 # 緊急時：特定ユーザーの全タスクを強制完了
-curl -s -X PUT http://localhost:3000/admin/tasks/bulk/update \
+curl -s -X PUT http://localhost:5000/admin/tasks/bulk/update \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -416,7 +416,7 @@ curl -s -X PUT http://localhost:3000/admin/tasks/bulk/update \
   }'
 
 # システム全体の統計を即座に取得
-curl -s -X GET http://localhost:3000/admin/tasks/statistics \
+curl -s -X GET http://localhost:5000/admin/tasks/statistics \
   -H "Authorization: Bearer $ADMIN_TOKEN" | jq
 ```
 

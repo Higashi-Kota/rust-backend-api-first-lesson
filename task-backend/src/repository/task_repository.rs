@@ -44,6 +44,15 @@ impl TaskRepository {
             .await
     }
 
+    pub async fn count_user_tasks(&self, user_id: Uuid) -> Result<usize, DbErr> {
+        self.prepare_connection().await?;
+        TaskEntity::find()
+            .filter(task_model::Column::UserId.eq(user_id))
+            .count(&self.db)
+            .await
+            .map(|count| count as usize)
+    }
+
     pub async fn find_all(&self) -> Result<Vec<task_model::Model>, DbErr> {
         self.prepare_connection().await?;
         TaskEntity::find()

@@ -3,7 +3,7 @@ pub use sea_orm_migration::prelude::*;
 
 // マイグレーションモジュール
 mod m20250511_073638_create_task_table;
-mod m20250512_000001_add_task_indexes; // 追加したインデックスマイグレーション
+mod m20250512_000001_add_task_indexes;
 
 // 認証関連マイグレーション
 mod m20250612_000001_create_users_table;
@@ -20,7 +20,7 @@ mod m20250613_000003_create_initial_admin;
 mod m20250616_000001_add_subscription_tier_to_users;
 mod m20250616_000002_create_subscription_histories_table;
 
-// チーム・組織関連マイグレーション - Phase 4
+// チーム・組織関連マイグレーション
 mod m20250616_000003_create_teams_table;
 mod m20250616_000004_create_organizations_table;
 mod m20250616_000005_create_team_members_table;
@@ -29,13 +29,13 @@ mod m20250616_000006_create_organization_members_table;
 // メール認証関連マイグレーション
 mod m20250621_140000_create_email_verification_tokens_table;
 
-// 組織階層管理関連マイグレーション - Phase 2.1
+// 組織階層管理関連マイグレーション
 mod m20250624_000001_create_organization_departments_table;
 mod m20250624_000002_create_permission_matrices_table;
 mod m20250624_000003_create_organization_analytics_table;
 mod m20250624_000004_create_department_members_table;
 
-// チーム招待・権限管理関連マイグレーション - Phase 2.2
+// チーム招待・権限管理関連マイグレーション
 mod m20250625_000001_create_team_invitations_table;
 
 // セキュリティ分析関連マイグレーション
@@ -63,6 +63,9 @@ mod m20250703_150000_create_task_attachments_table;
 mod m20250704_180000_create_attachment_share_links;
 mod m20250704_180001_create_share_link_access_logs;
 
+// Stripe決済関連マイグレーション
+mod m20250704_180002_add_stripe_support;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -87,19 +90,19 @@ impl MigratorTrait for Migrator {
             // 7. サブスクリプション階層システム
             Box::new(m20250616_000001_add_subscription_tier_to_users::Migration),
             Box::new(m20250616_000002_create_subscription_histories_table::Migration),
-            // 8. チーム・組織管理システム - Phase 4
+            // 8. チーム・組織管理システム
             Box::new(m20250616_000004_create_organizations_table::Migration),
             Box::new(m20250616_000006_create_organization_members_table::Migration),
             Box::new(m20250616_000003_create_teams_table::Migration),
             Box::new(m20250616_000005_create_team_members_table::Migration),
             // 9. メール認証システム
             Box::new(m20250621_140000_create_email_verification_tokens_table::Migration),
-            // 10. 組織階層管理システム - Phase 2.1
+            // 10. 組織階層管理システム
             Box::new(m20250624_000001_create_organization_departments_table::Migration),
             Box::new(m20250624_000002_create_permission_matrices_table::Migration),
             Box::new(m20250624_000003_create_organization_analytics_table::Migration),
             Box::new(m20250624_000004_create_department_members_table::Migration),
-            // 11. チーム招待・権限管理システム - Phase 2.2
+            // 11. チーム招待・権限管理システム
             Box::new(m20250625_000001_create_team_invitations_table::Migration),
             // 12. セキュリティ分析システム
             Box::new(m20250630_000001_create_activity_logs_table::Migration),
@@ -121,6 +124,8 @@ impl MigratorTrait for Migrator {
             // 18. 外部共有リンクシステム
             Box::new(m20250704_180000_create_attachment_share_links::Migration),
             Box::new(m20250704_180001_create_share_link_access_logs::Migration),
+            // 19. Stripe決済システム
+            Box::new(m20250704_180002_add_stripe_support::Migration),
         ]
     }
 }
