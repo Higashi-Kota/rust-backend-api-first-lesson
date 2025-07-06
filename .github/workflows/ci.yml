@@ -131,6 +131,11 @@ jobs:
           DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
           SERVER_ADDR: 0.0.0.0:5000
           RUST_LOG: debug
+          PAYMENT_DEVELOPMENT_MODE: false
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_PRO_PRICE_ID: ${{ secrets.STRIPE_PRO_PRICE_ID }}
+          STRIPE_ENTERPRISE_PRICE_ID: ${{ secrets.STRIPE_ENTERPRISE_PRICE_ID }}
         run: cargo test --profile ci-check --test main ${{ matrix.group }} --verbose --locked
 
   security:
