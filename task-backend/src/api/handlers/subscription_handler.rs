@@ -412,10 +412,21 @@ pub async fn get_admin_subscription_history_extended_handler(
     };
 
     // 階層変更統計を取得
-    let tier_stats = subscription_history_repo
+    let tier_stats_raw = subscription_history_repo
         .get_tier_change_stats()
         .await
         .unwrap_or_default();
+
+    // Convert tuples to objects
+    let tier_stats: Vec<_> = tier_stats_raw
+        .into_iter()
+        .map(|(tier, count)| {
+            json!({
+                "tier": tier,
+                "count": count
+            })
+        })
+        .collect();
 
     // 変更サマリーを計算
     let total_changes = histories.len();

@@ -52,7 +52,17 @@ impl Related<super::user_model::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {}
+#[async_trait::async_trait]
+impl ActiveModelBehavior for ActiveModel {
+    fn new() -> Self {
+        Self {
+            id: Set(Uuid::new_v4()),
+            changed_at: Set(Utc::now()),
+            created_at: Set(Utc::now()),
+            ..sea_orm::ActiveModelTrait::default()
+        }
+    }
+}
 
 /// サブスクリプション履歴のビジネスロジック
 impl Model {

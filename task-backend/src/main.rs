@@ -268,6 +268,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         activity_log_repo.clone(),
         security_incident_repo.clone(),
         login_attempt_repo.clone(),
+        user_repo.clone(),
     ));
 
     // Permission service creation

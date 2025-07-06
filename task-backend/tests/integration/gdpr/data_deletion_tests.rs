@@ -102,16 +102,16 @@ async fn create_comprehensive_user_data(
 
 #[tokio::test]
 async fn test_delete_user_data_requires_confirmation() {
-    // Arrange: Set up app and create user
+    // === Arrange: テスト用アプリとユーザーを設定 ===
     let (app, _schema, _db) = app_helper::setup_full_app().await;
     let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
 
     let deletion_request = json!({
-        "confirm_deletion": false,
+        "confirm_deletion": false,  // 確認フラグをfalseに設定
         "reason": "Testing deletion without confirmation"
     });
 
-    // Act: Try to delete without confirmation
+    // === Act: 確認なしで削除を試みる ===
     let req = auth_helper::create_authenticated_request(
         "DELETE",
         &format!("/gdpr/users/{}/delete", user.id),
@@ -119,37 +119,45 @@ async fn test_delete_user_data_requires_confirmation() {
         Some(serde_json::to_string(&deletion_request).unwrap()),
     );
     let res = app.clone().oneshot(req).await.unwrap();
-
-    // Assert: Should fail validation
-    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
-
+    let status = res.status();
     let body = axum::body::to_bytes(res.into_body(), usize::MAX)
         .await
         .unwrap();
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
+    // === Assert: バリデーションエラーを確認 ===
+    assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(response["success"], false);
+
     let error_message = response["error"]
         .as_str()
         .or_else(|| response["message"].as_str())
         .unwrap_or("");
-    assert!(error_message.contains("Deletion must be confirmed"));
+    assert!(
+        error_message.contains("Deletion must be confirmed"),
+        "Expected error message to contain 'Deletion must be confirmed', but got: {}",
+        error_message
+    );
 }
 
 #[tokio::test]
 async fn test_delete_user_data_complete() {
-    // Arrange: Set up app and create user with data
+    // === Arrange: テスト用データの准備 ===
+    // アプリ、スキーマ、データベースの設定
     let (app, _schema, db) = app_helper::setup_full_app().await;
     let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
     let user_id = user.id;
+
+    // ユーザーに関連する包括的なデータを作成
     let (task_ids, team_ids) = create_comprehensive_user_data(&app, &user).await;
 
+    // 削除リクエストの構築
     let deletion_request = json!({
-        "confirm_deletion": true,
+        "confirm_deletion": true,  // 確認フラグをtrueに設定
         "reason": "User requested complete data deletion"
     });
 
-    // Act: Delete all user data
+    // === Act: ユーザーデータの完全削除を実行 ===
     let req = auth_helper::create_authenticated_request(
         "DELETE",
         &format!("/gdpr/users/{}/delete", user_id),
@@ -157,21 +165,29 @@ async fn test_delete_user_data_complete() {
         Some(serde_json::to_string(&deletion_request).unwrap()),
     );
     let res = app.clone().oneshot(req).await.unwrap();
-
-    // Assert: Verify deletion response
-    assert_eq!(res.status(), StatusCode::OK);
-
+    let status = res.status();
     let body = axum::body::to_bytes(res.into_body(), usize::MAX)
         .await
         .unwrap();
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(response["success"].as_bool().unwrap());
+    // === Assert: 削除結果の検証 ===
+    // 1. HTTPレスポンスの検証
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        response["success"].as_bool().unwrap(),
+        "Deletion should succeed"
+    );
 
+    // 2. 削除レスポンスデータの検証
     let data = &response["data"];
     assert_eq!(data["user_id"], user_id.to_string());
-    assert!(data["deleted_at"].is_string());
+    assert!(
+        data["deleted_at"].is_string(),
+        "deleted_at timestamp should be present"
+    );
 
+    // 3. 削除されたレコード数の検証
     let deleted_records = &data["deleted_records"];
     assert_eq!(deleted_records["user_data"], true);
     assert_eq!(deleted_records["tasks_count"], task_ids.len());
@@ -180,26 +196,35 @@ async fn test_delete_user_data_complete() {
         deleted_records["subscription_history_count"]
             .as_u64()
             .unwrap()
-            >= 1
+            >= 1,
+        "At least one subscription history record should be deleted"
     );
 
-    // Verify user is actually deleted from database
+    // 4. データベースからの完全削除を検証
+    // ユーザーが削除されたことを確認
     let user_repo = UserRepository::new(db.connection.clone());
     let deleted_user = user_repo.find_by_id(user_id).await.unwrap();
-    assert!(deleted_user.is_none());
+    assert!(
+        deleted_user.is_none(),
+        "User should be deleted from database"
+    );
 
-    // Verify tasks are deleted
+    // タスクが削除されたことを確認
     let task_repo = TaskRepository::new(db.connection.clone());
     for task_id in task_ids {
         let task = task_repo.find_by_id(task_id).await.unwrap();
-        assert!(task.is_none());
+        assert!(task.is_none(), "Task {} should be deleted", task_id);
     }
 
-    // Verify user is removed from teams
+    // チームから削除されたことを確認
     let team_repo = TeamRepository::new(db.connection.clone());
     for team_id in team_ids {
         let members = team_repo.find_members_by_team_id(team_id).await.unwrap();
-        assert!(!members.iter().any(|m| m.user_id == user_id));
+        assert!(
+            !members.iter().any(|m| m.user_id == user_id),
+            "User should be removed from team {}",
+            team_id
+        );
     }
 }
 

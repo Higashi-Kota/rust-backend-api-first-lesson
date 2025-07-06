@@ -712,6 +712,7 @@ pub async fn bulk_update_status_handler(
                     title: None,
                     description: None,
                     status: Some(TaskStatus::from_str(new_status).unwrap_or(TaskStatus::Todo)),
+                    priority: None,
                     due_date: None,
                 };
 

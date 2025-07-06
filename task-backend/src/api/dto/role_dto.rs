@@ -101,6 +101,8 @@ pub struct RoleResponse {
     pub display_name: String,
     pub description: Option<String>,
     pub is_active: bool,
+    pub is_system_role: bool,
+    pub user_count: u64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub permissions: RolePermissionsResponse,
@@ -109,12 +111,15 @@ pub struct RoleResponse {
 impl From<RoleWithPermissions> for RoleResponse {
     fn from(role: RoleWithPermissions) -> Self {
         let permissions = RolePermissionsResponse::from(&role);
+        let is_system_role = matches!(role.name.as_str(), "admin" | "member" | "guest");
         Self {
             id: role.id,
             name: role.name.as_str().to_string(),
             display_name: role.display_name,
             description: role.description,
             is_active: role.is_active,
+            is_system_role,
+            user_count: 0, // This will be populated by the handler
             created_at: role.created_at,
             updated_at: role.updated_at,
             permissions,

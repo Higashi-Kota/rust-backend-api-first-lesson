@@ -17,9 +17,6 @@ pub struct ImageOptimizationConfig {
     pub webp_quality: f32,
     /// JPEG品質（0-100）
     pub jpeg_quality: u8,
-    /// EXIFデータを除去するか（将来の実装で使用予定）
-    #[allow(dead_code)]
-    pub strip_metadata: bool,
     /// 元のファイルを保持するか
     pub keep_original: bool,
 }
@@ -32,7 +29,6 @@ impl Default for ImageOptimizationConfig {
             max_height: 2048,
             webp_quality: 85.0,
             jpeg_quality: 85,
-            strip_metadata: true,
             keep_original: false,
         }
     }

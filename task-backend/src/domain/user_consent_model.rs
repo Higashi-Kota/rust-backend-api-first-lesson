@@ -101,32 +101,9 @@ impl Model {
         }
     }
 
-    /// Grant consent
-    #[allow(dead_code)]
-    pub fn grant(&mut self) {
-        self.is_granted = true;
-        self.granted_at = Some(Utc::now());
-        self.revoked_at = None;
-        self.updated_at = Utc::now();
-    }
-
-    /// Revoke consent
-    #[allow(dead_code)]
-    pub fn revoke(&mut self) {
-        self.is_granted = false;
-        self.revoked_at = Some(Utc::now());
-        self.updated_at = Utc::now();
-    }
-
     /// Get consent type enum
     pub fn get_consent_type(&self) -> Result<ConsentType, String> {
         self.consent_type.clone().try_into()
-    }
-
-    /// Set consent type
-    #[allow(dead_code)]
-    pub fn set_consent_type(&mut self, consent_type: ConsentType) {
-        self.consent_type = consent_type.into();
     }
 }
 
@@ -182,21 +159,42 @@ mod tests {
     }
 
     #[test]
-    fn test_consent_grant_revoke() {
-        let mut consent = Model::new(Uuid::new_v4(), ConsentType::Analytics, false, None, None);
+    fn test_consent_state_changes() {
+        // 拒否状態の同意を作成
+        let consent_denied = Model::new(Uuid::new_v4(), ConsentType::Analytics, false, None, None);
+        assert!(!consent_denied.is_granted);
+        assert!(consent_denied.granted_at.is_none());
+        assert!(consent_denied.revoked_at.is_some());
 
-        assert!(!consent.is_granted);
-        assert!(consent.granted_at.is_none());
-        assert!(consent.revoked_at.is_some());
+        // 承認状態の同意を作成
+        let consent_granted = Model::new(
+            Uuid::new_v4(),
+            ConsentType::Analytics,
+            true,
+            Some("192.168.1.1".to_string()),
+            Some("Mozilla/5.0".to_string()),
+        );
+        assert!(consent_granted.is_granted);
+        assert!(consent_granted.granted_at.is_some());
+        assert!(consent_granted.revoked_at.is_none());
 
-        consent.grant();
-        assert!(consent.is_granted);
-        assert!(consent.granted_at.is_some());
-        assert!(consent.revoked_at.is_none());
-
-        consent.revoke();
-        assert!(!consent.is_granted);
-        assert!(consent.revoked_at.is_some());
+        // 承認後に拒否された同意をシミュレート
+        // 新しいModelを作成して、拒否状態をテスト
+        let consent_revoked = Model {
+            id: Uuid::new_v4(),
+            user_id: Uuid::new_v4(),
+            consent_type: ConsentType::Analytics.into(),
+            is_granted: false,
+            granted_at: Some(Utc::now() - chrono::Duration::hours(1)), // 過去に承認
+            revoked_at: Some(Utc::now()),                              // 現在拒否
+            ip_address: Some("192.168.1.2".to_string()),
+            user_agent: Some("Mozilla/5.0".to_string()),
+            created_at: Utc::now() - chrono::Duration::hours(2),
+            updated_at: Utc::now(),
+        };
+        assert!(!consent_revoked.is_granted);
+        assert!(consent_revoked.granted_at.is_some());
+        assert!(consent_revoked.revoked_at.is_some());
     }
 
     #[test]

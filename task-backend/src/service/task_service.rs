@@ -14,6 +14,7 @@ use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::subscription_guard::check_feature_limit;
 use crate::repository::task_repository::TaskRepository;
 use crate::repository::user_repository::UserRepository;
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -540,6 +541,46 @@ impl TaskService {
             .await
             .map_err(|e| {
                 AppError::InternalServerError(format!("Failed to count completed tasks: {}", e))
+            })
+    }
+
+    // Analytics methods for admin handlers
+    pub async fn get_priority_distribution(&self) -> AppResult<Vec<(String, u64)>> {
+        self.repo.get_priority_distribution().await.map_err(|e| {
+            AppError::InternalServerError(format!("Failed to get priority distribution: {}", e))
+        })
+    }
+
+    pub async fn get_average_completion_days_by_priority(&self) -> AppResult<Vec<(String, f64)>> {
+        self.repo
+            .get_average_completion_days_by_priority()
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!(
+                    "Failed to get average completion days by priority: {}",
+                    e
+                ))
+            })
+    }
+
+    pub async fn get_weekly_trend_data(
+        &self,
+        weeks: u32,
+    ) -> AppResult<Vec<(DateTime<Utc>, u64, u64)>> {
+        self.repo.get_weekly_trend_data(weeks).await.map_err(|e| {
+            AppError::InternalServerError(format!("Failed to get weekly trend data: {}", e))
+        })
+    }
+
+    pub async fn get_user_average_completion_hours(&self, user_id: Uuid) -> AppResult<f64> {
+        self.repo
+            .get_user_average_completion_hours(user_id)
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!(
+                    "Failed to get user average completion hours: {}",
+                    e
+                ))
             })
     }
 

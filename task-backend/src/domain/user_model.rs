@@ -480,8 +480,9 @@ impl From<UserClaims> for SafeUserWithRole {
             email_verified: claims.email_verified,
             role,
             subscription_tier: claims.subscription_tier.to_string(),
-            last_login_at: None, // Claims don't contain login time
-            // For claims conversion, we'll use current time as placeholders
+            last_login_at: None, // JWTクレームにはログイン時刻は含まれない
+            // 注意: created_atとupdated_atはJWTクレームに含まれないため、現在時刻を設定
+            // 実際の値が必要な場合は、DBからユーザー情報を取得する必要がある
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -507,17 +508,20 @@ impl From<SafeUserWithRole> for SafeUser {
 
 impl From<UserClaims> for SafeUser {
     fn from(claims: UserClaims) -> Self {
+        // 注意: この変換は、JWTクレームから基本的なユーザー情報のみを取得します。
+        // role_id, created_at, updated_at, last_login_at などの完全な情報は含まれていません。
+        // 完全なユーザー情報が必要な場合は、UserRepositoryを使用してDBから取得してください。
         Self {
             id: claims.user_id,
             email: claims.email,
             username: claims.username,
             is_active: claims.is_active,
             email_verified: claims.email_verified,
-            role_id: Uuid::new_v4(), // Placeholder - should be fetched from DB
+            role_id: claims.role.as_ref().map_or_else(Uuid::nil, |r| r.id), // role情報がある場合はそれを使用、なければnil UUIDを返す
             subscription_tier: claims.subscription_tier.to_string(),
-            last_login_at: None, // Claims don't contain login time
-            // For claims conversion, we'll use current time as placeholders
-            // In a real scenario, you'd want to fetch from database
+            last_login_at: None, // JWTクレームにはログイン時刻は含まれない
+            // タイムスタンプは実際のDB値ではなく、現在時刻を使用
+            // 実際の値が必要な場合は、DBからユーザー情報を取得する必要がある
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }

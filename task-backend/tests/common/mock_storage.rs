@@ -44,12 +44,6 @@ impl StorageService for MockStorageService {
         Ok(())
     }
 
-    #[allow(dead_code)]
-    async fn exists(&self, key: &str) -> AppResult<bool> {
-        let storage = self.storage.lock().unwrap();
-        Ok(storage.contains_key(key))
-    }
-
     async fn generate_download_url(&self, key: &str, expires_in_seconds: u64) -> AppResult<String> {
         // モックストレージではダミーの署名付きURLを返す
         Ok(format!(
@@ -64,5 +58,10 @@ impl StorageService for MockStorageService {
             "http://mock-storage.local/upload/{}?X-Amz-Algorithm=AWS4-HMAC-SHA256&expires={}",
             key, expires_in_seconds
         ))
+    }
+
+    async fn exists(&self, key: &str) -> AppResult<bool> {
+        let storage = self.storage.lock().unwrap();
+        Ok(storage.contains_key(key))
     }
 }

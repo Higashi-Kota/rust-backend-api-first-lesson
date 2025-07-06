@@ -135,14 +135,3 @@ pub struct CreateAttachmentDto {
     pub mime_type: String,
     pub storage_key: String,
 }
-
-#[cfg(test)]
-impl AttachmentRepository {
-    #[allow(dead_code)]
-    pub fn with_schema(db: DbConn, schema: String) -> Self {
-        Self {
-            db,
-            schema: Some(schema),
-        }
-    }
-}

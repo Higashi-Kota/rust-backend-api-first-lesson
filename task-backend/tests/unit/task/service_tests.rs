@@ -6,7 +6,7 @@ use task_backend::domain::user_model::{ActiveModel as UserActiveModel, Entity as
 use task_backend::{
     api::dto::task_dto::{
         BatchCreateTaskDto, BatchDeleteTaskDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto,
-        CreateTaskDto, TaskFilterDto,
+        CreateTaskDto, TaskFilterDto, UpdateTaskDto,
     },
     service::task_service::TaskService,
 };
@@ -250,6 +250,7 @@ async fn test_filter_tasks_service() {
             title: "Filter Test Task 1".to_string(),
             description: Some("High priority".to_string()),
             status: Some(TaskStatus::Todo),
+            priority: None,
             due_date: None,
         })
         .await
@@ -260,6 +261,7 @@ async fn test_filter_tasks_service() {
             title: "Filter Test Task 2".to_string(),
             description: Some("Low priority".to_string()),
             status: Some(TaskStatus::InProgress),
+            priority: None,
             due_date: None,
         })
         .await
@@ -270,6 +272,7 @@ async fn test_filter_tasks_service() {
             title: "Another Filter Task".to_string(),
             description: Some("Medium priority".to_string()),
             status: Some(TaskStatus::Todo),
+            priority: None,
             due_date: None,
         })
         .await
@@ -326,6 +329,7 @@ async fn test_paginated_tasks_service() {
                 title: format!("Pagination Service Task {}", i),
                 description: Some("For pagination test".to_string()),
                 status: Some(TaskStatus::Todo),
+                priority: None,
                 due_date: None,
             })
             .await
@@ -360,151 +364,226 @@ async fn test_paginated_tasks_service() {
     }
 }
 
-#[test]
-fn test_task_statistics_concepts() {
-    // タスク統計の概念テスト（新しく追加したAPIで使用）
+#[tokio::test]
+async fn test_task_statistics_calculation() {
+    // Arrange: タスク統計の計算をテスト
+    let (_db, service) = setup_test_service().await;
 
-    // タスク統計の構造
-    struct TaskStatsConcept {
-        total_tasks: usize,
-        completed_tasks: usize,
-        pending_tasks: usize,
-        in_progress_tasks: usize,
-        completion_rate: f64,
+    // 異なるステータスのタスクを作成
+    let mut task_ids = Vec::new();
+
+    // 完了済みタスクを60個作成
+    for i in 0..60 {
+        let task = service
+            .create_task(CreateTaskDto {
+                title: format!("Completed Task {}", i),
+                description: None,
+                status: Some(TaskStatus::Completed),
+                priority: None,
+                due_date: None,
+            })
+            .await
+            .unwrap();
+        task_ids.push(task.id);
     }
 
-    let stats = TaskStatsConcept {
-        total_tasks: 100,
-        completed_tasks: 60,
-        pending_tasks: 25,
-        in_progress_tasks: 15,
-        completion_rate: 60.0,
-    };
+    // 保留中タスクを25個作成
+    for i in 0..25 {
+        let task = service
+            .create_task(CreateTaskDto {
+                title: format!("Pending Task {}", i),
+                description: None,
+                status: Some(TaskStatus::Todo),
+                priority: None,
+                due_date: None,
+            })
+            .await
+            .unwrap();
+        task_ids.push(task.id);
+    }
 
-    // 統計の整合性チェック
-    assert_eq!(
-        stats.completed_tasks + stats.pending_tasks + stats.in_progress_tasks,
-        stats.total_tasks,
-        "Task counts should sum to total"
-    );
+    // 進行中タスクを15個作成
+    for i in 0..15 {
+        let task = service
+            .create_task(CreateTaskDto {
+                title: format!("In Progress Task {}", i),
+                description: None,
+                status: Some(TaskStatus::InProgress),
+                priority: None,
+                due_date: None,
+            })
+            .await
+            .unwrap();
+        task_ids.push(task.id);
+    }
 
-    assert_eq!(
-        stats.completion_rate,
-        (stats.completed_tasks as f64 / stats.total_tasks as f64 * 100.0).round(),
-        "Completion rate should be calculated correctly"
-    );
+    // Act: タスク一覧を取得して統計を計算
+    let all_tasks = service.list_tasks().await.unwrap();
 
-    // 完了率の範囲チェック
-    assert!(
-        stats.completion_rate >= 0.0 && stats.completion_rate <= 100.0,
-        "Completion rate should be between 0 and 100"
-    );
+    // Assert: 統計の検証
+    assert_eq!(all_tasks.len(), 100, "Total tasks should be 100");
+
+    let completed_count = all_tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Completed)
+        .count();
+    let todo_count = all_tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Todo)
+        .count();
+    let in_progress_count = all_tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::InProgress)
+        .count();
+
+    assert_eq!(completed_count, 60, "Completed tasks should be 60");
+    assert_eq!(todo_count, 25, "Todo tasks should be 25");
+    assert_eq!(in_progress_count, 15, "In progress tasks should be 15");
+
+    // 完了率の計算
+    let completion_rate = (completed_count as f64 / all_tasks.len() as f64 * 100.0).round();
+    assert_eq!(completion_rate, 60.0, "Completion rate should be 60%");
 }
 
-#[test]
-fn test_task_status_distribution_concepts() {
-    // タスクステータス分布の概念テスト（新しく追加したAPIで使用）
+#[tokio::test]
+async fn test_task_status_distribution() {
+    // Arrange: タスクステータス分布をテスト
+    let (_db, service) = setup_test_service().await;
 
-    // ステータス分布の構造
-    struct StatusDistributionConcept {
-        pending: usize,
-        in_progress: usize,
-        completed: usize,
-        other: usize,
+    // 異なるステータスのタスクを作成
+    let status_distribution = vec![
+        (TaskStatus::Todo, 30),
+        (TaskStatus::InProgress, 20),
+        (TaskStatus::Completed, 45),
+    ];
+
+    for (status, count) in &status_distribution {
+        for i in 0..*count {
+            service
+                .create_task(CreateTaskDto {
+                    title: format!("{:?} Task {}", status, i),
+                    description: None,
+                    status: Some(*status),
+                    priority: None,
+                    due_date: None,
+                })
+                .await
+                .unwrap();
+        }
     }
 
-    let distribution = StatusDistributionConcept {
-        pending: 30,
-        in_progress: 20,
-        completed: 45,
-        other: 5,
-    };
+    // Act: タスク一覧を取得して分布を計算
+    let all_tasks = service.list_tasks().await.unwrap();
 
-    let total = distribution.pending
-        + distribution.in_progress
-        + distribution.completed
-        + distribution.other;
+    // Assert: ステータス分布の検証
+    let mut status_counts = std::collections::HashMap::new();
+    for task in &all_tasks {
+        *status_counts.entry(task.status).or_insert(0) += 1;
+    }
 
-    // 分布の整合性チェック
-    assert_eq!(total, 100, "Distribution should sum to total tasks");
-
-    // 各ステータスが妥当な値であることを確認（usizeは非負なので存在確認のみ）
-    assert!(
-        distribution.pending < 1000,
-        "Pending tasks should be reasonable count"
+    assert_eq!(
+        status_counts.get(&TaskStatus::Todo).copied().unwrap_or(0),
+        30
     );
-    assert!(
-        distribution.in_progress < 1000,
-        "In progress tasks should be reasonable count"
+    assert_eq!(
+        status_counts
+            .get(&TaskStatus::InProgress)
+            .copied()
+            .unwrap_or(0),
+        20
     );
-    assert!(
-        distribution.completed < 1000,
-        "Completed tasks should be reasonable count"
-    );
-    assert!(
-        distribution.other < 1000,
-        "Other tasks should be reasonable count"
+    assert_eq!(
+        status_counts
+            .get(&TaskStatus::Completed)
+            .copied()
+            .unwrap_or(0),
+        45
     );
 
-    // 最も多いステータスの確認（概念的テスト）
-    let status_counts = [
-        ("pending", distribution.pending),
-        ("in_progress", distribution.in_progress),
-        ("completed", distribution.completed),
-        ("other", distribution.other),
-    ];
+    // 合計の検証
+    let total: usize = status_counts.values().sum();
+    assert_eq!(total, 95, "Total tasks should match created count");
+
+    // 最も多いステータスの確認
     let max_status = status_counts
         .iter()
         .max_by_key(|(_, count)| *count)
-        .unwrap();
+        .map(|(status, _)| status);
 
     assert_eq!(
-        max_status.0, "completed",
-        "Completed should be the highest status in this test"
+        max_status,
+        Some(&TaskStatus::Completed),
+        "Completed should be the most common status"
     );
 }
 
-#[test]
-fn test_bulk_status_update_concepts() {
-    // 一括ステータス更新の概念テスト（新しく追加したAPIで使用）
+#[tokio::test]
+async fn test_bulk_status_update() {
+    // Arrange: 一括ステータス更新をテスト
+    let (db, service) = setup_test_service().await;
+    let user_id = create_test_user(&db).await;
 
-    // 一括更新の結果構造
-    struct BulkUpdateResultConcept {
-        updated_count: usize,
-        error_count: usize,
-        total_requested: usize,
-        new_status: TaskStatus,
+    // 10個のタスクを作成
+    let mut task_ids = Vec::new();
+    for i in 0..10 {
+        let task = service
+            .create_task_for_user(
+                user_id,
+                CreateTaskDto {
+                    title: format!("Bulk Update Task {}", i),
+                    description: None,
+                    status: Some(TaskStatus::Todo),
+                    priority: None,
+                    due_date: None,
+                },
+            )
+            .await
+            .unwrap();
+        task_ids.push(task.id);
     }
 
-    let result = BulkUpdateResultConcept {
-        updated_count: 8,
-        error_count: 2,
-        total_requested: 10,
-        new_status: TaskStatus::Completed,
+    // Act: 一括更新を実行（8個成功、2個失敗をシミュレート）
+    let update_items: Vec<BatchUpdateTaskItemDto> = task_ids
+        .iter()
+        .take(8) // 最初の8個だけを更新対象にする
+        .map(|id| BatchUpdateTaskItemDto {
+            id: *id,
+            title: None,
+            status: Some(TaskStatus::Completed),
+            description: None,
+            due_date: None,
+        })
+        .collect();
+
+    let batch_update_dto = BatchUpdateTaskDto {
+        tasks: update_items,
     };
+    let update_result = service
+        .update_tasks_batch_for_user(user_id, batch_update_dto)
+        .await
+        .unwrap();
 
-    // 更新結果の整合性チェック
-    assert_eq!(
-        result.updated_count + result.error_count,
-        result.total_requested,
-        "Updated and error counts should sum to total requested"
-    );
+    // Assert: 更新結果の検証
+    assert_eq!(update_result.updated_count, 8, "Should update 8 tasks");
 
-    // 有効なステータス値の確認
-    let valid_statuses = ["pending", "in_progress", "completed"];
-    assert!(
-        valid_statuses.contains(&result.new_status.as_str()),
-        "New status should be valid"
-    );
+    // 更新されたタスクの状態を確認
+    let mut completed_count = 0;
+    let mut todo_count = 0;
 
-    // 成功率の計算（概念的テスト）
-    let success_rate = result.updated_count as f64 / result.total_requested as f64;
-    assert!(
-        (0.0..=1.0).contains(&success_rate),
-        "Success rate should be between 0 and 1"
-    );
+    for id in &task_ids {
+        let task = service.get_task(*id).await.unwrap();
+        match task.status {
+            TaskStatus::Completed => completed_count += 1,
+            TaskStatus::Todo => todo_count += 1,
+            _ => {}
+        }
+    }
 
-    // この例では80%の成功率
+    assert_eq!(completed_count, 8, "8 tasks should be completed");
+    assert_eq!(todo_count, 2, "2 tasks should remain in todo status");
+
+    // 成功率の計算と検証
+    let success_rate = update_result.updated_count as f64 / 10.0;
     assert_eq!(
         (success_rate * 100.0).round(),
         80.0,
@@ -512,91 +591,142 @@ fn test_bulk_status_update_concepts() {
     );
 }
 
-#[test]
-fn test_task_uuid_validation_concepts() {
-    // タスクUUID検証の概念テスト（一括操作で使用）
-    use uuid::Uuid;
+#[tokio::test]
+async fn test_task_operations_with_invalid_uuid() {
+    // Arrange: 無効なUUIDでのタスク操作をテスト
+    let (_db, service) = setup_test_service().await;
 
-    let valid_uuid = Uuid::new_v4();
+    // 有効なタスクを作成
+    let valid_task = service
+        .create_task(CreateTaskDto {
+            title: "Valid Task".to_string(),
+            description: None,
+            status: Some(TaskStatus::Todo),
+            priority: None,
+            due_date: None,
+        })
+        .await
+        .unwrap();
+
+    // Act & Assert: 存在しないUUIDでのタスク取得
+    let non_existent_uuid = Uuid::new_v4();
+    let get_result = service.get_task(non_existent_uuid).await;
+    assert!(get_result.is_err(), "Getting non-existent task should fail");
+
+    // Act & Assert: 存在しないUUIDでのタスク更新
+    let update_result = service
+        .update_task(non_existent_uuid, common::create_update_task())
+        .await;
+    assert!(
+        update_result.is_err(),
+        "Updating non-existent task should fail"
+    );
+
+    // Act & Assert: 存在しないUUIDでのタスク削除
+    let delete_result = service.delete_task(non_existent_uuid).await;
+    assert!(
+        delete_result.is_err(),
+        "Deleting non-existent task should fail"
+    );
+
+    // Act & Assert: nilのUUIDでの操作もテスト
     let nil_uuid = Uuid::nil();
-
-    // UUID形式の検証
-    assert_ne!(valid_uuid, nil_uuid, "Valid UUID should not be nil");
-    assert_eq!(
-        valid_uuid.to_string().len(),
-        36,
-        "UUID string should be 36 characters"
-    );
-
-    // UUID文字列からの変換テスト
-    let uuid_str = valid_uuid.to_string();
-    let parsed_uuid = Uuid::parse_str(&uuid_str).unwrap();
-    assert_eq!(
-        valid_uuid, parsed_uuid,
-        "UUID should parse back to original"
-    );
-
-    // 無効なUUID文字列のテスト
-    let invalid_uuid_str = "invalid-uuid-string";
+    let nil_get_result = service.get_task(nil_uuid).await;
     assert!(
-        Uuid::parse_str(invalid_uuid_str).is_err(),
-        "Invalid UUID string should fail to parse"
+        nil_get_result.is_err(),
+        "Getting task with nil UUID should fail"
     );
 
-    // 空文字列のテスト
-    assert!(
-        Uuid::parse_str("").is_err(),
-        "Empty string should fail to parse as UUID"
-    );
+    // 有効なタスクはまだ存在することを確認
+    let valid_get_result = service.get_task(valid_task.id).await;
+    assert!(valid_get_result.is_ok(), "Valid task should still exist");
 }
 
-#[test]
-fn test_task_status_validation_concepts() {
-    // タスクステータス検証の概念テスト（一括更新で使用）
+#[tokio::test]
+async fn test_task_status_transitions() {
+    // Arrange: タスクステータスの遷移をテスト
+    let (_db, service) = setup_test_service().await;
 
-    let valid_statuses = ["pending", "in_progress", "completed"];
-    let invalid_statuses = ["draft", "cancelled", "archived", ""];
+    // Todoステータスでタスクを作成
+    let task = service
+        .create_task(CreateTaskDto {
+            title: "Status Transition Task".to_string(),
+            description: None,
+            status: Some(TaskStatus::Todo),
+            priority: None,
+            due_date: None,
+        })
+        .await
+        .unwrap();
 
-    // 有効なステータスの確認
-    for status in valid_statuses {
-        assert!(!status.is_empty(), "Valid status should not be empty");
-        assert!(status.len() <= 20, "Status should be reasonable length");
-        assert!(
-            status.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
-            "Status should be lowercase with underscores only"
-        );
-    }
+    // Act & Assert: Todo -> InProgress への遷移
+    let update_to_in_progress = service
+        .update_task(
+            task.id,
+            UpdateTaskDto {
+                title: None,
+                description: None,
+                status: Some(TaskStatus::InProgress),
+                priority: None,
+                due_date: None,
+            },
+        )
+        .await
+        .unwrap();
 
-    // 無効なステータスの確認
-    for status in invalid_statuses {
-        if status.is_empty() {
-            assert!(status.is_empty(), "Empty status should be detected");
-        } else {
-            assert!(
-                !valid_statuses.contains(&status),
-                "Invalid status should not be in valid list"
-            );
-        }
-    }
+    assert_eq!(
+        update_to_in_progress.status,
+        TaskStatus::InProgress,
+        "Task should be in progress"
+    );
 
-    // ステータス変換の概念テスト
-    let status_mappings = [
-        ("pending", "in_progress"),
-        ("in_progress", "completed"),
-        ("completed", "pending"), // 再開の場合
-    ];
+    // Act & Assert: InProgress -> Completed への遷移
+    let update_to_completed = service
+        .update_task(
+            task.id,
+            UpdateTaskDto {
+                title: None,
+                description: None,
+                status: Some(TaskStatus::Completed),
+                priority: None,
+                due_date: None,
+            },
+        )
+        .await
+        .unwrap();
 
-    for (from, to) in status_mappings {
-        assert!(
-            valid_statuses.contains(&from),
-            "Source status should be valid"
-        );
-        assert!(
-            valid_statuses.contains(&to),
-            "Target status should be valid"
-        );
-        assert_ne!(from, to, "Status transition should change status");
-    }
+    assert_eq!(
+        update_to_completed.status,
+        TaskStatus::Completed,
+        "Task should be completed"
+    );
+
+    // Act & Assert: Completed -> Todo への遷移（再開）
+    let update_to_todo = service
+        .update_task(
+            task.id,
+            UpdateTaskDto {
+                title: None,
+                description: None,
+                status: Some(TaskStatus::Todo),
+                priority: None,
+                due_date: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        update_to_todo.status,
+        TaskStatus::Todo,
+        "Task should be back to todo"
+    );
+
+    // タスクの履歴を確認（更新日時が変わっていることを確認）
+    assert!(
+        update_to_todo.updated_at > task.updated_at,
+        "Updated timestamp should be newer"
+    );
 }
 
 // Admin専用メソッドのテスト

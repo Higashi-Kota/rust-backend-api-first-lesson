@@ -20,6 +20,23 @@ pub struct Model {
 
     pub is_revoked: bool,
 
+    #[sea_orm(nullable)]
+    pub last_used_at: Option<DateTime<Utc>>,
+
+    pub use_count: i32,
+
+    #[sea_orm(nullable)]
+    pub ip_address: Option<String>,
+
+    #[sea_orm(nullable)]
+    pub user_agent: Option<String>,
+
+    #[sea_orm(nullable)]
+    pub device_type: Option<String>,
+
+    #[sea_orm(nullable)]
+    pub geolocation_country: Option<String>,
+
     pub created_at: DateTime<Utc>,
 
     pub updated_at: DateTime<Utc>,
@@ -52,6 +69,7 @@ impl ActiveModelBehavior for ActiveModel {
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
             is_revoked: Set(false), // デフォルトで有効
+            use_count: Set(0),      // デフォルトは0回
             ..ActiveModelTrait::default()
         }
     }

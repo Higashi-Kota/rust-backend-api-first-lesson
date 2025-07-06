@@ -16,6 +16,13 @@ pub struct Model {
     pub failure_reason: Option<String>,
     pub ip_address: String,
     pub user_agent: Option<String>,
+    #[sea_orm(nullable)]
+    pub device_type: Option<String>,
+    #[sea_orm(nullable)]
+    pub browser_name: Option<String>,
+    #[sea_orm(nullable)]
+    pub country: Option<String>,
+    pub suspicious_score: i32,
     pub attempted_at: DateTime<Utc>,
 }
 
@@ -41,6 +48,7 @@ impl ActiveModelBehavior for ActiveModel {
         Self {
             id: Set(Uuid::new_v4()),
             attempted_at: Set(Utc::now()),
+            suspicious_score: Set(0), // デフォルトは0
             ..ActiveModelTrait::default()
         }
     }
@@ -73,6 +81,10 @@ impl Model {
             failure_reason: None,
             ip_address,
             user_agent,
+            device_type: None,
+            browser_name: None,
+            country: None,
+            suspicious_score: 0,
             attempted_at: Utc::now(),
         }
     }
@@ -93,6 +105,10 @@ impl Model {
             failure_reason: Some(failure_reason),
             ip_address,
             user_agent,
+            device_type: None,
+            browser_name: None,
+            country: None,
+            suspicious_score: 0,
             attempted_at: Utc::now(),
         }
     }

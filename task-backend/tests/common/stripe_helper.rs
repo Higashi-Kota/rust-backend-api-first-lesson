@@ -66,7 +66,7 @@ pub fn create_checkout_completed_payload(
             "liability": null,
             "status": null
         },
-        "cancel_url": "http://localhost:3001/cancel",
+        "cancel_url": "http://localhost:3000/cancel",
         "created": timestamp,
         "currency": "jpy",
         "custom_fields": [],
@@ -94,7 +94,7 @@ pub fn create_checkout_completed_payload(
         "shipping_options": [],
         "status": "complete",
         "subscription": subscription_id,
-        "success_url": "http://localhost:3001/success",
+        "success_url": "http://localhost:3000/success",
         "total_details": {
             "amount_discount": 0,
             "amount_shipping": 0,

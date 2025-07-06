@@ -100,12 +100,14 @@ impl FeatureUsageMetricsRepository {
 
         #[derive(Debug, FromQueryResult)]
         struct ActionCount {
+            feature_name: String,
             action_type: String,
             count: i64,
         }
 
         let results = FeatureUsageMetrics::find()
             .select_only()
+            .column(feature_usage_metrics_model::Column::FeatureName)
             .column(feature_usage_metrics_model::Column::ActionType)
             .column_as(
                 Expr::col(feature_usage_metrics_model::Column::Id).count(),
@@ -114,6 +116,7 @@ impl FeatureUsageMetricsRepository {
             .filter(feature_usage_metrics_model::Column::UserId.eq(user_id))
             .filter(feature_usage_metrics_model::Column::CreatedAt.gte(start_date))
             .filter(feature_usage_metrics_model::Column::CreatedAt.lt(end_date))
+            .group_by(feature_usage_metrics_model::Column::FeatureName)
             .group_by(feature_usage_metrics_model::Column::ActionType)
             .into_model::<ActionCount>()
             .all(&self.db)
@@ -121,7 +124,8 @@ impl FeatureUsageMetricsRepository {
 
         let mut counts = HashMap::new();
         for result in results {
-            counts.insert(result.action_type, result.count);
+            let key = format!("{}_{}", result.feature_name, result.action_type);
+            counts.insert(key, result.count);
         }
 
         Ok(counts)

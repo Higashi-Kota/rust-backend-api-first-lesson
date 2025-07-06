@@ -2,97 +2,224 @@
 
 #[cfg(test)]
 mod tests {
-    use task_backend::domain::role_model::RoleName;
+    use chrono::Utc;
+    use task_backend::domain::subscription_tier::SubscriptionTier;
+    // Permission types are not needed - using RoleWithPermissions methods directly
+    use task_backend::domain::role_model::{RoleName, RoleWithPermissions};
+    use uuid::Uuid;
 
     #[test]
-    fn test_role_validation_concepts() {
-        // ロールバリデーションの概念をテスト
+    fn test_role_name_conversion_and_validation() {
+        // AAAパターン: Arrange-Act-Assert
 
-        // Admin ロールの検証
-        assert_eq!(RoleName::Admin.as_str(), "admin");
-        assert!(RoleName::from_str("admin").is_some());
+        // Arrange: テストデータを準備
+        let test_cases = [
+            ("admin", Some(RoleName::Admin)),
+            ("member", Some(RoleName::Member)),
+            ("ADMIN", Some(RoleName::Admin)), // 大文字小文字をテスト
+            ("Member", Some(RoleName::Member)),
+            ("invalid", None),
+            ("", None),
+            ("superuser", None),
+        ];
 
-        // Member ロールの検証
-        assert_eq!(RoleName::Member.as_str(), "member");
-        assert!(RoleName::from_str("member").is_some());
-
-        // 無効なロール名
-        assert!(RoleName::from_str("invalid").is_none());
-        assert!(RoleName::from_str("").is_none());
-    }
-
-    #[test]
-    fn test_role_permissions_concepts() {
-        // ロール権限の概念をテスト
-        let admin_role = RoleName::Admin;
-        let member_role = RoleName::Member;
-
-        // Admin は Member より高い権限を持つ
-        assert!(admin_role.is_admin());
-        assert!(!member_role.is_admin());
-
-        // 両方とも有効なロール
-        assert!(admin_role.is_member() || admin_role.is_admin());
-        assert!(member_role.is_member());
-    }
-
-    #[test]
-    fn test_role_hierarchy_concepts() {
-        // ロール階層の概念をテスト
-        let admin = RoleName::Admin;
-        let member = RoleName::Member;
-
-        // Admin はすべてのリソースにアクセス可能
-        assert!(admin.is_admin());
-
-        // Member は自分のリソースのみアクセス可能
-        assert!(member.is_member());
-        assert!(!member.is_admin());
-    }
-
-    #[test]
-    fn test_role_name_conversion_concepts() {
-        // ロール名変換の概念をテスト
-
-        // 大文字小文字を問わない変換
-        assert_eq!(RoleName::from_str("ADMIN"), Some(RoleName::Admin));
-        assert_eq!(RoleName::from_str("admin"), Some(RoleName::Admin));
-        assert_eq!(RoleName::from_str("Admin"), Some(RoleName::Admin));
-
-        assert_eq!(RoleName::from_str("MEMBER"), Some(RoleName::Member));
-        assert_eq!(RoleName::from_str("member"), Some(RoleName::Member));
-        assert_eq!(RoleName::from_str("Member"), Some(RoleName::Member));
-    }
-
-    #[test]
-    fn test_role_creation_validation_concepts() {
-        // ロール作成時のバリデーション概念をテスト
-
-        // 有効なロール名
-        let valid_names = vec!["admin", "member", "moderator", "guest"];
-        for name in valid_names {
-            assert!(!name.is_empty(), "Role name should not be empty");
-            assert!(name.len() >= 3, "Role name should be at least 3 characters");
-            assert!(
-                name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
-                "Role name should contain only alphanumeric characters and underscores"
+        // Act & Assert: 各テストケースを検証
+        for (input, expected) in test_cases {
+            let result = RoleName::from_str(input);
+            assert_eq!(
+                result, expected,
+                "RoleName::from_str('{}') should return {:?}",
+                input, expected
             );
         }
 
-        // 無効なロール名の概念
-        let invalid_names = vec!["", "ab", "role with spaces", "role-with-dashes"];
-        for name in invalid_names {
-            if name.is_empty() {
-                assert!(name.is_empty(), "Empty role name should be detected");
-            } else if name.len() < 3 {
-                assert!(name.len() < 3, "Short role name should be detected");
-            } else if name.contains(' ') || name.contains('-') {
-                assert!(
-                    name.contains(' ') || name.contains('-'),
-                    "Role name with invalid characters should be detected"
-                );
-            }
+        // ロール名の文字列変換をテスト
+        assert_eq!(RoleName::Admin.as_str(), "admin");
+        assert_eq!(RoleName::Member.as_str(), "member");
+        assert_eq!(RoleName::Admin.to_string(), "admin");
+        assert_eq!(RoleName::Member.to_string(), "member");
+    }
+
+    #[test]
+    fn test_role_permissions_with_permission_checker() {
+        // AAAパターン: Arrange-Act-Assert
+
+        // Arrange: テスト用のロールを作成
+        let admin_role = RoleWithPermissions {
+            id: Uuid::new_v4(),
+            name: RoleName::Admin,
+            display_name: "Administrator".to_string(),
+            description: Some("System administrator".to_string()),
+            is_active: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            subscription_tier: SubscriptionTier::Enterprise,
+        };
+
+        let member_role = RoleWithPermissions {
+            id: Uuid::new_v4(),
+            name: RoleName::Member,
+            display_name: "Member".to_string(),
+            description: Some("Regular member".to_string()),
+            is_active: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            subscription_tier: SubscriptionTier::Free,
+        };
+
+        // Act & Assert: Admin権限の確認
+        assert!(
+            admin_role.is_admin(),
+            "Admin role should have admin permissions"
+        );
+        assert!(
+            !member_role.is_admin(),
+            "Member role should not have admin permissions"
+        );
+
+        // Act & Assert: Member権限の確認
+        assert!(
+            admin_role.is_member(),
+            "Admin role should also have member permissions"
+        );
+        assert!(
+            member_role.is_member(),
+            "Member role should have member permissions"
+        );
+
+        // Act & Assert: ロール名ベースの権限チェック
+        assert!(
+            RoleName::from_str("admin").unwrap().is_admin(),
+            "Admin role name should have admin permissions"
+        );
+        assert!(
+            !RoleName::from_str("member").unwrap().is_admin(),
+            "Member role name should not have admin permissions"
+        );
+    }
+
+    #[test]
+    fn test_role_hierarchy_and_resource_access() {
+        // AAAパターン: Arrange-Act-Assert
+
+        // Arrange: テスト用のロールとユーザーIDを作成
+        let admin_role = RoleWithPermissions {
+            id: Uuid::new_v4(),
+            name: RoleName::Admin,
+            display_name: "Administrator".to_string(),
+            description: None,
+            is_active: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            subscription_tier: SubscriptionTier::Enterprise,
+        };
+
+        let member_role = RoleWithPermissions {
+            id: Uuid::new_v4(),
+            name: RoleName::Member,
+            display_name: "Member".to_string(),
+            description: None,
+            is_active: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            subscription_tier: SubscriptionTier::Free,
+        };
+
+        let user_id = Uuid::new_v4();
+        let other_user_id = Uuid::new_v4();
+
+        // Act & Assert: Adminはすべてのリソースにアクセス可能
+        assert!(
+            admin_role.can_view_resource("task", Some(other_user_id), user_id),
+            "Admin should access any user's tasks"
+        );
+        assert!(
+            admin_role.can_view_resource("user", Some(other_user_id), user_id),
+            "Admin should access any user's profile"
+        );
+        assert!(
+            admin_role.can_create_resource("role"),
+            "Admin should be able to create roles"
+        );
+
+        // Act & Assert: Memberは自分のリソースのみアクセス可能
+        assert!(
+            member_role.can_view_resource("task", Some(user_id), user_id),
+            "Member should access their own tasks"
+        );
+        assert!(
+            !member_role.can_view_resource("task", Some(other_user_id), user_id),
+            "Member should not access other user's tasks"
+        );
+        assert!(
+            !member_role.can_create_resource("role"),
+            "Member should not be able to create roles"
+        );
+    }
+
+    #[test]
+    fn test_role_with_permissions_functionality() {
+        // AAAパターン: Arrange-Act-Assert
+
+        // Arrange: テスト用のロールを作成
+        let role = RoleWithPermissions {
+            id: Uuid::new_v4(),
+            name: RoleName::Admin,
+            display_name: "Administrator".to_string(),
+            description: Some("Full system access".to_string()),
+            is_active: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            subscription_tier: SubscriptionTier::Enterprise,
+        };
+
+        // Act & Assert: ロールの基本情報を確認
+        assert_eq!(role.name, RoleName::Admin, "Role name should be Admin");
+        assert_eq!(
+            role.display_name, "Administrator",
+            "Display name should match"
+        );
+        assert!(role.is_active, "Role should be active");
+        assert!(role.description.is_some(), "Description should be present");
+
+        // Act & Assert: サブスクリプション階層の確認
+        assert_eq!(
+            role.subscription_tier,
+            SubscriptionTier::Enterprise,
+            "Admin role should have Enterprise subscription tier"
+        );
+
+        // Act & Assert: 権限確認メソッドのテスト
+        let resource_types = ["user", "task", "role", "organization", "team"];
+        for resource_type in &resource_types {
+            let create_result = role.can_create_resource(resource_type);
+            assert!(
+                create_result || resource_type == &"organization" || resource_type == &"team",
+                "Admin should be able to create {}",
+                resource_type
+            );
+            let view_result = role.can_view_resource(resource_type, None, Uuid::new_v4());
+            assert!(
+                view_result || resource_type == &"organization" || resource_type == &"team",
+                "Admin should be able to view {}",
+                resource_type
+            );
         }
+
+        // Act: 非アクティブなロールを作成
+        let inactive_role = RoleWithPermissions {
+            id: Uuid::new_v4(),
+            name: RoleName::Member,
+            display_name: "Inactive Member".to_string(),
+            description: None,
+            is_active: false,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            subscription_tier: SubscriptionTier::Free,
+        };
+
+        // Assert: 非アクティブなロールの権限確認
+        assert!(!inactive_role.is_active, "Role should be inactive");
     }
 
     #[test]

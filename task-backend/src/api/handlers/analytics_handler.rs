@@ -80,10 +80,21 @@ pub async fn get_system_analytics_handler(
         .unwrap_or(0);
 
     // サブスクリプション分布
-    let subscription_distribution = subscription_service
+    let subscription_distribution_raw = subscription_service
         .get_subscription_distribution()
         .await
         .unwrap_or_default();
+
+    // Convert tuples to objects
+    let subscription_distribution: Vec<_> = subscription_distribution_raw
+        .into_iter()
+        .map(|(tier, count)| {
+            json!({
+                "tier": tier,
+                "count": count
+            })
+        })
+        .collect();
 
     // セキュリティ統計
     let suspicious_ips = login_attempt_repo
