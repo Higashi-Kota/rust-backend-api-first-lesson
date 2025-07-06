@@ -400,7 +400,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • Health Check: /health");
 
     // サーバーの起動
-    let server_addr = format!("{}:{}", app_config.host, app_config.port);
+    let server_addr = if let Ok(addr) = std::env::var("SERVER_ADDR") {
+        addr
+    } else {
+        format!("{}:{}", app_config.host, app_config.port)
+    };
     tracing::info!("🌐 Server listening on {}", server_addr);
     tracing::info!("📚 API Documentation: http://{}/docs", server_addr);
 
