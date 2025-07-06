@@ -55,7 +55,7 @@ impl PaymentService {
         if self.stripe_config.development_mode {
             tracing::info!("Development mode: returning mock checkout URL");
             return Ok(format!(
-                "http://localhost:3001/mock-checkout?user_id={}&tier={}",
+                "http://localhost:3000/mock-checkout?user_id={}&tier={}",
                 user_id,
                 tier.as_str()
             ));
@@ -109,7 +109,7 @@ impl PaymentService {
 
         // チェックアウトセッションを作成
         let frontend_url =
-            std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3001".to_string());
+            std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
 
         let cancel_url = format!("{}/subscription/cancel", frontend_url);
         let success_url = format!(
@@ -518,7 +518,7 @@ impl PaymentService {
         // 開発モードの場合はモックURLを返す
         if self.stripe_config.development_mode {
             return Ok(format!(
-                "http://localhost:3001/mock-portal?user_id={}",
+                "http://localhost:3000/mock-portal?user_id={}",
                 user_id
             ));
         }
@@ -536,7 +536,7 @@ impl PaymentService {
 
         // カスタマーポータルセッションを作成
         let frontend_url =
-            std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3001".to_string());
+            std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:3000".to_string());
 
         let return_url = format!("{}/subscription", frontend_url);
 

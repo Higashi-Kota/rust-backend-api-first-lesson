@@ -427,12 +427,20 @@ pub async fn rate_limit_middleware(headers: HeaderMap, request: Request, next: N
 
 /// CORS ミドルウェア設定
 pub fn cors_layer() -> tower_http::cors::CorsLayer {
+    use std::env;
+
+    // CORS_ALLOWED_ORIGINS環境変数から許可するオリジンを取得
+    // 設定されていない場合はFRONTEND_URLを使用、それもなければデフォルト値
+    let allowed_origin = env::var("CORS_ALLOWED_ORIGINS")
+        .or_else(|_| env::var("FRONTEND_URL"))
+        .unwrap_or_else(|_| "http://localhost:3000".to_string());
+
+    let origin_header = allowed_origin
+        .parse::<axum::http::HeaderValue>()
+        .expect("Invalid CORS origin");
+
     tower_http::cors::CorsLayer::new()
-        .allow_origin(
-            "http://localhost:3000"
-                .parse::<axum::http::HeaderValue>()
-                .unwrap(),
-        ) // フロントエンドのURL
+        .allow_origin(origin_header)
         .allow_methods([
             axum::http::Method::GET,
             axum::http::Method::POST,

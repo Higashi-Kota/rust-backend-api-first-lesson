@@ -52,6 +52,8 @@ rust-backend-api-first-lesson/
 | 環境変数 | デフォルト値 | 説明 | 例 |
 |---------|------------|------|-----|
 | `SERVER_ADDR` | `0.0.0.0:5000` | サーバーのバインドアドレス | `127.0.0.1:8080` |
+| `FRONTEND_URL` | `http://localhost:3000` | フロントエンドのURL | `https://app.example.com` |
+| `CORS_ALLOWED_ORIGINS` | `FRONTEND_URL`の値 | CORS許可オリジン | `http://localhost:3000` |
 
 ## データベース設定
 
@@ -127,6 +129,11 @@ postgres://[ユーザー名]:[パスワード]@[ホスト]:[ポート]/[デー�
 
 ### 特殊文字の定義
 `!@#$%^&*()_+-=[]{}|;:,.<>?`
+
+### パスワード強度の追加チェック
+- 連続する同一文字のチェック（例：`aaa`、`111`）
+- 連続する順次文字のチェック（例：`abc`、`123`）
+- 一般的なパスワードリストとの照合（`password`、`123456`など）
 
 ## パスワードハッシュ設定（Argon2）
 
@@ -207,6 +214,10 @@ INITIAL_ADMIN_PASSWORD_HASH=$argon2id$v=19$m=19456,t=2,p=1$xxxxxxxxxxxxxxxxxxxxx
 APP_ENV=development
 DATABASE_URL=postgres://postgres:password@localhost:5432/taskdb_dev
 
+# サーバー設定
+FRONTEND_URL=http://localhost:3000
+CORS_ALLOWED_ORIGINS=http://localhost:3000
+
 # JWT設定（開発用の簡単な秘密鍵）
 JWT_SECRET_KEY=development-secret-key-32-characters-long
 JWT_ACCESS_TOKEN_EXPIRY_MINUTES=60
@@ -234,6 +245,10 @@ RUST_LOG=task_backend=debug,tower_http=debug
 # 基本設定
 APP_ENV=staging
 DATABASE_URL=postgres://taskuser:staging-password@staging-db.example.com:5432/taskdb_staging
+
+# サーバー設定
+FRONTEND_URL=https://staging.yourdomain.com
+CORS_ALLOWED_ORIGINS=https://staging.yourdomain.com
 
 # JWT設定
 JWT_SECRET_KEY=staging-secret-key-please-change-in-production
@@ -267,6 +282,11 @@ APP_ENV=production
 DATABASE_URL=postgres://taskuser:secure-production-password@prod-db.example.com:5432/taskdb_prod
 DB_SCHEMA=public
 
+# サーバー設定
+SERVER_ADDR=0.0.0.0:8080
+FRONTEND_URL=https://app.yourdomain.com
+CORS_ALLOWED_ORIGINS=https://app.yourdomain.com
+
 # JWT設定（強力な秘密鍵）
 JWT_SECRET_KEY=${JWT_SECRET_KEY}  # 環境変数から取得
 JWT_ACCESS_TOKEN_EXPIRY_MINUTES=15
@@ -297,9 +317,6 @@ ARGON2_PARALLELISM=4
 
 # ロギング（エラーと警告のみ）
 RUST_LOG=task_backend=warn,tower_http=warn
-
-# サーバー設定
-SERVER_ADDR=0.0.0.0:8080
 ```
 
 ## Docker Compose での環境変数設定

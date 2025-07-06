@@ -2,7 +2,41 @@
 
 // ユーザーサービス関連のユニットテスト
 
-use task_backend::api::dto::user_dto::{RoleUserStats, SubscriptionAnalytics, UserActivityStats};
+use std::sync::Arc;
+use task_backend::api::dto::user_dto::{
+    RoleUserStats, SubscriptionAnalytics, UpdateProfileRequest, UpdateUsernameRequest,
+    UserActivityStats,
+};
+use task_backend::repository::{
+    bulk_operation_history_repository::BulkOperationHistoryRepository,
+    email_verification_token_repository::EmailVerificationTokenRepository,
+    user_repository::UserRepository, user_settings_repository::UserSettingsRepository,
+};
+use task_backend::service::user_service::UserService;
+use task_backend::utils::validation::common::validate_username;
+use validator::Validate;
+
+// テスト用のサービスを作成するヘルパー関数
+#[allow(dead_code)]
+async fn create_test_user_service() -> (crate::common::db::TestDatabase, UserService) {
+    let db = crate::common::db::TestDatabase::new().await;
+    let connection = db.connection.clone();
+
+    let user_repo = Arc::new(UserRepository::new(connection.clone()));
+    let user_settings_repo = Arc::new(UserSettingsRepository::new(connection.clone()));
+    let bulk_operation_history_repo =
+        Arc::new(BulkOperationHistoryRepository::new(connection.clone()));
+    let email_verification_token_repo = Arc::new(EmailVerificationTokenRepository::new(connection));
+
+    let service = UserService::new(
+        user_repo,
+        user_settings_repo,
+        bulk_operation_history_repo,
+        email_verification_token_repo,
+    );
+
+    (db, service)
+}
 
 // Phase 1.1 新規API用のユニットテスト
 
@@ -182,33 +216,105 @@ async fn test_conversion_rate_calculation() {
 }
 
 #[tokio::test]
-async fn test_user_validation_concepts() {
-    // ユーザー名バリデーションの概念テスト
+async fn test_username_validation_with_request() {
+    // AAAパターン: Arrange-Act-Assert
+
+    // Arrange: テストデータを準備
     let long_username = "a".repeat(31);
-    let invalid_usernames = ["", "ab", &long_username];
-    let valid_usernames = ["user", "test_user", "user123"];
+    let invalid_usernames = ["", "ab", &long_username, "invalid-name!", "user@name"];
+    let valid_usernames = ["user", "test_user", "user123", "alice_bob"];
 
-    // 無効なユーザー名が長さ制限を満たしていないことを確認
-    assert!(invalid_usernames
-        .iter()
-        .all(|u| u.len() < 3 || u.len() > 30));
+    // Act & Assert: 無効なユーザー名のバリデーション
+    for username in &invalid_usernames {
+        let request = UpdateUsernameRequest {
+            username: (*username).to_string(),
+        };
 
-    // 有効なユーザー名が長さ制限内であることを確認
-    assert!(valid_usernames
-        .iter()
-        .all(|u| u.len() >= 3 && u.len() <= 30));
+        // バリデーションが失敗することを確認
+        let result = request.validate();
+        assert!(result.is_err(), "Username '{}' should be invalid", username);
+    }
+
+    // Act & Assert: 有効なユーザー名のバリデーション
+    for username in &valid_usernames {
+        let request = UpdateUsernameRequest {
+            username: (*username).to_string(),
+        };
+
+        // バリデーションが成功することを確認
+        let result = request.validate();
+        assert!(result.is_ok(), "Username '{}' should be valid", username);
+
+        // カスタムバリデーション関数もテスト
+        let validation_result = validate_username(username);
+        assert!(
+            validation_result.is_ok(),
+            "Custom validation for '{}' should pass",
+            username
+        );
+    }
 }
 
 #[tokio::test]
-async fn test_profile_update_concepts() {
-    // プロファイル更新の概念テスト
+async fn test_profile_update_request_validation() {
+    // AAAパターン: Arrange-Act-Assert
+
+    // Arrange: テストデータを準備
     let profile_updates = [
-        ("new_username", "newemail@example.com"),
-        ("updated_user", "updated@example.com"),
+        (Some("new_username"), Some("newemail@example.com")),
+        (Some("updated_user"), Some("updated@example.com")),
+        (Some("alice123"), None),
+        (None, Some("test@example.com")),
     ];
 
-    // プロファイル更新データが適切な形式であることを確認
-    assert!(profile_updates
-        .iter()
-        .all(|(username, email)| { username.len() >= 3 && email.contains("@") }));
+    // Act & Assert: プロファイル更新リクエストのバリデーション
+    for (username, email) in &profile_updates {
+        let request = UpdateProfileRequest {
+            username: username.map(|s| s.to_string()),
+            email: email.map(|s| s.to_string()),
+        };
+
+        // 基本バリデーション
+        let validation_result = request.validate();
+        assert!(
+            validation_result.is_ok(),
+            "Profile update request should be valid"
+        );
+
+        // カスタムバリデーション（少なくとも1つのフィールドが必要）
+        let custom_validation = request.validate_update();
+        if username.is_none() && email.is_none() {
+            assert!(
+                custom_validation.is_err(),
+                "Update without any fields should be invalid"
+            );
+        } else {
+            assert!(
+                custom_validation.is_ok(),
+                "Update with at least one field should be valid"
+            );
+        }
+
+        // 更新されたフィールドの確認
+        let updated_fields = request.get_updated_fields();
+        let expected_count = [username.is_some(), email.is_some()]
+            .iter()
+            .filter(|&&x| x)
+            .count();
+        assert_eq!(
+            updated_fields.len(),
+            expected_count,
+            "Updated fields count mismatch"
+        );
+    }
+
+    // 無効なプロファイル更新リクエストのテスト
+    let empty_request = UpdateProfileRequest {
+        username: None,
+        email: None,
+    };
+    assert!(
+        empty_request.validate_update().is_err(),
+        "Empty update request should be invalid"
+    );
 }

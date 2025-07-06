@@ -12,7 +12,10 @@ use validator::Validate;
 /// ユーザー登録リクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct SignupRequest {
-    #[validate(email(message = "Invalid email format"))]
+    #[validate(
+        email(message = "Invalid email format"),
+        custom(function = common::validate_email_format)
+    )]
     pub email: String,
 
     #[validate(
@@ -45,7 +48,10 @@ pub struct SigninRequest {
 /// パスワードリセット要求リクエスト
 #[derive(Debug, Clone, Serialize, Deserialize, Validate)]
 pub struct PasswordResetRequestRequest {
-    #[validate(email(message = "Invalid email format"))]
+    #[validate(
+        email(message = "Invalid email format"),
+        custom(function = common::validate_email_format)
+    )]
     pub email: String,
 }
 

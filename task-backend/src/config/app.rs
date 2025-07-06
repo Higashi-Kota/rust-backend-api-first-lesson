@@ -6,26 +6,16 @@ pub struct SecurityConfig {
 }
 
 #[derive(Clone, Debug)]
-pub struct ServerConfig {
-    #[allow(dead_code)]
-    pub body_limit: usize,
-}
-
-#[derive(Clone, Debug)]
 pub struct AppConfig {
     pub environment: String,
     pub host: String,
     pub port: u16,
-    #[allow(dead_code)]
-    pub cors_allowed_origins: Vec<String>,
     pub database_url: String,
     #[allow(dead_code)]
     pub jwt_secret: String,
     #[allow(dead_code)]
     pub frontend_url: String,
     pub security: SecurityConfig,
-    #[allow(dead_code)]
-    pub server: ServerConfig,
 }
 
 impl AppConfig {
@@ -40,22 +30,14 @@ impl AppConfig {
                 .unwrap_or_else(|_| "5000".to_string())
                 .parse()
                 .map_err(|_| "Invalid PORT value")?,
-            cors_allowed_origins: env::var("CORS_ALLOWED_ORIGINS")
-                .unwrap_or_else(|_| "http://localhost:3001".to_string())
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .collect(),
             database_url: env::var("DATABASE_URL").map_err(|_| "DATABASE_URL must be set")?,
             jwt_secret: env::var("JWT_SECRET")
                 .or_else(|_| env::var("JWT_SECRET_KEY"))
                 .map_err(|_| "JWT_SECRET or JWT_SECRET_KEY must be set")?,
             frontend_url: env::var("FRONTEND_URL")
-                .unwrap_or_else(|_| "http://localhost:3001".to_string()),
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
             security: SecurityConfig {
                 cookie_secure: is_production,
-            },
-            server: ServerConfig {
-                body_limit: 50 * 1024 * 1024, // 50MB
             },
         })
     }
@@ -83,11 +65,6 @@ impl AppConfig {
                 .unwrap_or_else(|_| "5000".to_string())
                 .parse()
                 .unwrap_or(5000),
-            cors_allowed_origins: env::var("CORS_ALLOWED_ORIGINS")
-                .unwrap_or_else(|_| "http://localhost:3001".to_string())
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .collect(),
             database_url: env::var("DATABASE_URL").unwrap_or_else(|_| {
                 "postgresql://postgres:postgres@localhost:5432/test_db".to_string()
             }),
@@ -97,12 +74,9 @@ impl AppConfig {
                     "test-secret-key-that-is-at-least-32-characters-long".to_string()
                 }),
             frontend_url: env::var("FRONTEND_URL")
-                .unwrap_or_else(|_| "http://localhost:3001".to_string()),
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
             security: SecurityConfig {
                 cookie_secure: false,
-            },
-            server: ServerConfig {
-                body_limit: 50 * 1024 * 1024,
             },
         }
     }

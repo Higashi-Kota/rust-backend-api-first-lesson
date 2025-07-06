@@ -144,7 +144,7 @@ Cloudflare R2はS3互換のオブジェクトストレージで、エグレス�
    - 例：
      - フロントエンド: `https://app.yourdomain.com` → これを指定
      - バックエンド: `https://api.yourdomain.com` → 指定不要
-   - 開発環境では `http://localhost:3001` など、フロントエンドの開発サーバーURLを追加
+   - 開発環境では `http://localhost:3000` など、フロントエンドの開発サーバーURLを追加
 
 #### .env設定
 
@@ -316,7 +316,6 @@ CORSポリシーは、ブラウザのセキュリティ機能であり、**ブ�
   {
     "AllowedOrigins": [
       "http://localhost:3000",
-      "http://localhost:3001", 
       "http://127.0.0.1:3000"
     ],
     "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],

@@ -239,33 +239,53 @@ pub struct UserStats {
 impl UserService {
     /// ユーザー統計を取得（分析レスポンス用）
     pub async fn get_user_stats_for_analytics(&self) -> AppResult<UserStats> {
-        // This returns a dummy UserStats since we need the service type for analytics
-        // In a real implementation, you might want to merge this with individual user stats
-        // For now, returning a placeholder stats
-        let active_users = self.user_repo.find_active_users().await?;
-        if let Some(first_user) = active_users.first() {
+        // システム全体の代表的な統計情報を返す
+        // 最新の管理者ユーザーまたは最新のアクティブユーザーの情報を返す
+
+        // まず管理者を探す
+        let admin_users = self.user_repo.find_by_role_name("admin").await?;
+        let admin_user = admin_users.first().cloned();
+
+        if let Some(admin) = admin_user {
+            // 管理者が存在する場合は管理者の情報を返す
             Ok(UserStats {
-                user_id: first_user.id,
-                username: first_user.username.clone(),
-                email: first_user.email.clone(),
-                is_active: first_user.is_active,
-                email_verified: first_user.email_verified,
-                created_at: first_user.created_at,
-                updated_at: first_user.updated_at,
-                last_login_at: first_user.last_login_at,
+                user_id: admin.id,
+                username: admin.username.clone(),
+                email: admin.email.clone(),
+                is_active: admin.is_active,
+                email_verified: admin.email_verified,
+                created_at: admin.created_at,
+                updated_at: admin.updated_at,
+                last_login_at: admin.last_login_at,
             })
         } else {
-            // Return a placeholder if no users exist
-            Ok(UserStats {
-                user_id: uuid::Uuid::new_v4(),
-                username: "system".to_string(),
-                email: "system@example.com".to_string(),
-                is_active: true,
-                email_verified: true,
-                created_at: chrono::Utc::now(),
-                updated_at: chrono::Utc::now(),
-                last_login_at: None,
-            })
+            // 管理者がいない場合は最新のアクティブユーザーを返す
+            let active_users = self.user_repo.find_active_users().await?;
+
+            if let Some(user) = active_users.first() {
+                Ok(UserStats {
+                    user_id: user.id,
+                    username: user.username.clone(),
+                    email: user.email.clone(),
+                    is_active: user.is_active,
+                    email_verified: user.email_verified,
+                    created_at: user.created_at,
+                    updated_at: user.updated_at,
+                    last_login_at: user.last_login_at,
+                })
+            } else {
+                // ユーザーが存在しない場合は、システムの初期状態を表す統計情報を返す
+                Ok(UserStats {
+                    user_id: Uuid::nil(), // 00000000-0000-0000-0000-000000000000
+                    username: "System Analytics".to_string(),
+                    email: "analytics@system.local".to_string(),
+                    is_active: true,
+                    email_verified: true,
+                    created_at: chrono::Utc::now(),
+                    updated_at: chrono::Utc::now(),
+                    last_login_at: None,
+                })
+            }
         }
     }
 
