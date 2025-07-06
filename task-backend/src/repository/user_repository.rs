@@ -570,6 +570,40 @@ impl UserRepository {
 
         Ok(count as usize)
     }
+
+    // --- Stripe関連メソッド ---
+
+    /// Stripe顧客IDを更新
+    pub async fn update_stripe_customer_id(
+        &self,
+        id: Uuid,
+        stripe_customer_id: &str,
+    ) -> Result<Option<user_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+
+        let user = match UserEntity::find_by_id(id).one(&self.db).await? {
+            Some(u) => u,
+            None => return Ok(None),
+        };
+
+        let mut active_model: UserActiveModel = user.into();
+        active_model.stripe_customer_id = Set(Some(stripe_customer_id.to_string()));
+
+        Ok(Some(active_model.update(&self.db).await?))
+    }
+
+    /// Stripe顧客IDでユーザーを検索
+    pub async fn find_by_stripe_customer_id(
+        &self,
+        stripe_customer_id: &str,
+    ) -> Result<Option<user_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+
+        UserEntity::find()
+            .filter(user_model::Column::StripeCustomerId.eq(stripe_customer_id))
+            .one(&self.db)
+            .await
+    }
 }
 
 // --- DTOと関連構造体 ---

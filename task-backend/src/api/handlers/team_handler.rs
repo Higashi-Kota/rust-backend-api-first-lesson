@@ -4,7 +4,6 @@ use crate::api::dto::common::ApiResponse;
 use crate::api::dto::team_dto::*;
 use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
-use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use axum::{
@@ -51,31 +50,7 @@ pub async fn create_team_handler(
         .check_resource_access(user.user_id(), "team", None, "create")
         .await?;
 
-    // Pro以上のサブスクリプション階層を持つユーザーのみ複数チームを作成可能
-    // ただし、チームを所有していないユーザーは最初のチームを作成可能
-    let existing_owned_teams = app_state
-        .team_service
-        .get_teams(
-            TeamSearchQuery {
-                owner_id: Some(user.user_id()),
-                ..Default::default()
-            },
-            user.user_id(),
-        )
-        .await?;
-
-    // ユーザーが所有するチームのみをカウント
-    let owned_team_count = existing_owned_teams
-        .iter()
-        .filter(|team| team.owner_id == user.user_id())
-        .count();
-
-    // 3つ以上のチームを作成しようとする場合のみ制限（テストは2-3個のチームを作成するため）
-    if owned_team_count >= 3 && !user.claims.has_subscription_tier(SubscriptionTier::Pro) {
-        return Err(AppError::Forbidden(
-            "Free tier users can only create up to 3 teams. Please upgrade to Pro or higher to create more teams.".to_string()
-        ));
-    }
+    // サブスクリプション制限はTeamServiceで処理されるため、ここでは重複チェックしない
 
     let team_response = app_state
         .team_service

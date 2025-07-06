@@ -9,10 +9,11 @@ use crate::repository::{
 use crate::service::{
     attachment_service::AttachmentService, auth_service::AuthService,
     feature_tracking_service::FeatureTrackingService, organization_service::OrganizationService,
-    permission_service::PermissionService, role_service::RoleService,
-    security_service::SecurityService, subscription_service::SubscriptionService,
-    task_service::TaskService, team_invitation_service::TeamInvitationService,
-    team_service::TeamService, user_service::UserService,
+    payment_service::PaymentService, permission_service::PermissionService,
+    role_service::RoleService, security_service::SecurityService,
+    subscription_service::SubscriptionService, task_service::TaskService,
+    team_invitation_service::TeamInvitationService, team_service::TeamService,
+    user_service::UserService,
 };
 use crate::utils::jwt::JwtManager;
 use sea_orm::DatabaseConnection;
@@ -32,6 +33,7 @@ pub struct AppState {
     pub team_invitation_service: Arc<TeamInvitationService>,
     pub organization_service: Arc<OrganizationService>,
     pub subscription_service: Arc<SubscriptionService>,
+    pub payment_service: Arc<PaymentService>,
     pub subscription_history_repo: Arc<SubscriptionHistoryRepository>,
     pub bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
     pub daily_activity_summary_repo: Arc<DailyActivitySummaryRepository>,
@@ -46,6 +48,7 @@ pub struct AppState {
     pub cookie_config: CookieConfig,
     pub security_headers: SecurityHeaders,
     pub server_addr: String,
+    pub config: Arc<AppConfig>,
 }
 
 /// Cookie設定
@@ -115,6 +118,7 @@ impl AppState {
         team_invitation_service: Arc<TeamInvitationService>,
         organization_service: Arc<OrganizationService>,
         subscription_service: Arc<SubscriptionService>,
+        payment_service: Arc<PaymentService>,
         subscription_history_repo: Arc<SubscriptionHistoryRepository>,
         bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
         daily_activity_summary_repo: Arc<DailyActivitySummaryRepository>,
@@ -135,6 +139,7 @@ impl AppState {
             team_invitation_service,
             organization_service,
             subscription_service,
+            payment_service,
             subscription_history_repo,
             bulk_operation_history_repo,
             daily_activity_summary_repo,
@@ -150,7 +155,8 @@ impl AppState {
             db_pool,
             cookie_config: CookieConfig::from_app_config(app_config),
             security_headers: SecurityHeaders::default(),
-            server_addr: app_config.server.addr.clone(),
+            server_addr: format!("{}:{}", app_config.host, app_config.port),
+            config: Arc::new(app_config.clone()),
         }
     }
 }

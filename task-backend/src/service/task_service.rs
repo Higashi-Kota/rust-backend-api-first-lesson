@@ -8,20 +8,25 @@ use crate::api::dto::task_dto::{
 use crate::api::dto::PaginationMeta;
 use crate::db::DbPool;
 use crate::domain::permission::{Permission, PermissionResult, PermissionScope, Privilege};
+use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
+use crate::middleware::subscription_guard::check_feature_limit;
 use crate::repository::task_repository::TaskRepository;
+use crate::repository::user_repository::UserRepository;
 use std::sync::Arc;
 use uuid::Uuid;
 
 pub struct TaskService {
     repo: Arc<TaskRepository>,
+    user_repo: Arc<UserRepository>,
 }
 
 impl TaskService {
     pub fn new(db_pool: DbPool) -> Self {
         Self {
-            repo: Arc::new(TaskRepository::new(db_pool)),
+            repo: Arc::new(TaskRepository::new(db_pool.clone())),
+            user_repo: Arc::new(UserRepository::new(db_pool)),
         }
     }
 
@@ -38,6 +43,21 @@ impl TaskService {
         user_id: Uuid,
         payload: CreateTaskDto,
     ) -> AppResult<TaskDto> {
+        // ユーザーのサブスクリプションティアを取得
+        let user = self
+            .user_repo
+            .find_by_id(user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+        let user_tier =
+            SubscriptionTier::from_str(&user.subscription_tier).unwrap_or(SubscriptionTier::Free);
+
+        // 現在のタスク数を取得
+        let current_task_count = self.repo.count_user_tasks(user_id).await?;
+
+        // タスク数制限チェック
+        check_feature_limit(&user_tier, current_task_count, "tasks")?;
+
         let created_task = self.repo.create_for_user(user_id, payload).await?;
         Ok(created_task.into())
     }

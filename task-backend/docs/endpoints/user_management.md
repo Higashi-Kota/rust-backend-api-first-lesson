@@ -12,7 +12,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/users/profile \
+curl -X GET http://localhost:5000/users/profile \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -42,7 +42,7 @@ curl -X GET http://localhost:3000/users/profile \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/users/profile/username \
+curl -X PATCH http://localhost:5000/users/profile/username \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -56,7 +56,7 @@ curl -X PATCH http://localhost:3000/users/profile/username \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/users/profile/email \
+curl -X PATCH http://localhost:5000/users/profile/email \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -70,7 +70,7 @@ curl -X PATCH http://localhost:3000/users/profile/email \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/users/profile \
+curl -X PATCH http://localhost:5000/users/profile \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -86,7 +86,7 @@ curl -X PATCH http://localhost:3000/users/profile \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/users/stats \
+curl -X GET http://localhost:5000/users/stats \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -96,7 +96,7 @@ curl -X GET http://localhost:3000/users/stats \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/users/settings \
+curl -X GET http://localhost:5000/users/settings \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -106,7 +106,7 @@ curl -X GET http://localhost:3000/users/settings \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/users/verify-email \
+curl -X POST http://localhost:5000/users/verify-email \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -120,7 +120,7 @@ curl -X POST http://localhost:3000/users/verify-email \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/users/resend-verification \
+curl -X POST http://localhost:5000/users/resend-verification \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -130,7 +130,7 @@ curl -X POST http://localhost:3000/users/resend-verification \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/users/update-last-login \
+curl -X POST http://localhost:5000/users/update-last-login \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -144,7 +144,7 @@ curl -X POST http://localhost:3000/users/update-last-login \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/users \
+curl -X GET http://localhost:5000/admin/users \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -154,7 +154,7 @@ curl -X GET http://localhost:3000/admin/users \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-446655440000 \
+curl -X GET http://localhost:5000/admin/users/550e8400-e29b-41d4-a716-446655440000 \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -164,7 +164,7 @@ curl -X GET http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-4466554400
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/admin/users/advanced-search?subscription=pro&is_active=true&email_domain=example.com" \
+curl -X GET "http://localhost:5000/admin/users/advanced-search?subscription=pro&is_active=true&email_domain=example.com" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -174,7 +174,7 @@ curl -X GET "http://localhost:3000/admin/users/advanced-search?subscription=pro&
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/users/analytics \
+curl -X GET http://localhost:5000/admin/users/analytics \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -209,7 +209,7 @@ curl -X GET http://localhost:3000/admin/users/analytics \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/users/by-role/admin \
+curl -X GET http://localhost:5000/admin/users/by-role/admin \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -219,7 +219,7 @@ curl -X GET http://localhost:3000/admin/users/by-role/admin \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/admin/users/by-subscription?tier=enterprise&include_stats=true" \
+curl -X GET "http://localhost:5000/admin/users/by-subscription?tier=enterprise&include_stats=true" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -229,7 +229,7 @@ curl -X GET "http://localhost:3000/admin/users/by-subscription?tier=enterprise&i
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/users/bulk-operations \
+curl -X POST http://localhost:5000/admin/users/bulk-operations \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -247,7 +247,7 @@ curl -X POST http://localhost:3000/admin/users/bulk-operations \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-446655440000/status \
+curl -X PATCH http://localhost:5000/admin/users/550e8400-e29b-41d4-a716-446655440000/status \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -264,7 +264,7 @@ curl -X PATCH http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/users/health
+curl -X GET http://localhost:5000/users/health
 ```
 
 ## エラーレスポンス例
@@ -301,17 +301,17 @@ curl -X GET http://localhost:3000/users/health
 
 ```bash
 # 1. 現在のプロフィール確認
-curl -X GET http://localhost:3000/users/profile \
+curl -X GET http://localhost:5000/users/profile \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 2. ユーザー名更新
-curl -X PATCH http://localhost:3000/users/profile/username \
+curl -X PATCH http://localhost:5000/users/profile/username \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"username": "new_username"}'
 
 # 3. プロフィール情報更新
-curl -X PATCH http://localhost:3000/users/profile \
+curl -X PATCH http://localhost:5000/users/profile \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -320,6 +320,6 @@ curl -X PATCH http://localhost:3000/users/profile \
   }'
 
 # 4. 更新後の確認
-curl -X GET http://localhost:3000/users/profile \
+curl -X GET http://localhost:5000/users/profile \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```

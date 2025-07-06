@@ -1,4 +1,5 @@
 use sea_orm_migration::prelude::*;
+use std::env;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -6,9 +7,16 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // 初期管理者ユーザーを作成
-        // パスワード: "Adm1n$ecurE2024!" をArgon2でハッシュ化した値
-        let admin_password_hash = "$argon2id$v=19$m=65536,t=3,p=4$rwjnw7itO1QP7YiQLYYPuw$bwYljZ/eNoieCwcPydAbagPt05UT9wcs+n0zH58ZxS4";
+        // 環境変数から管理者情報を取得
+        let admin_email =
+            env::var("INITIAL_ADMIN_EMAIL").unwrap_or_else(|_| "admin@example.com".to_string());
+        let admin_username =
+            env::var("INITIAL_ADMIN_USERNAME").unwrap_or_else(|_| "admin".to_string());
+        let admin_password_hash = env::var("INITIAL_ADMIN_PASSWORD_HASH")
+            .unwrap_or_else(|_| {
+                // デフォルトパスワード: "Adm1n$ecurE2024!" をArgon2でハッシュ化した値
+                "$argon2id$v=19$m=65536,t=3,p=4$rwjnw7itO1QP7YiQLYYPuw$bwYljZ/eNoieCwcPydAbagPt05UT9wcs+n0zH58ZxS4".to_string()
+            });
 
         // adminロールのIDを取得
         manager
@@ -21,8 +29,9 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // 管理者ユーザーを挿入
-        manager
+        // 既存の管理者ユーザーが存在しない場合のみ作成
+        // 重複した場合はエラーを無視する（既に存在している場合）
+        let result = manager
             .exec_stmt(
                 Query::insert()
                     .into_table(Users::Table)
@@ -37,8 +46,8 @@ impl MigrationTrait for Migration {
                     ])
                     .values_panic([
                         Expr::cust("gen_random_uuid()"),
-                        "admin@example.com".into(),
-                        "admin".into(),
+                        admin_email.into(),
+                        admin_username.into(),
                         admin_password_hash.into(),
                         true.into(),
                         true.into(),
@@ -46,18 +55,34 @@ impl MigrationTrait for Migration {
                     ])
                     .to_owned(),
             )
-            .await?;
+            .await;
+
+        match result {
+            Ok(_) => println!("Initial admin user created successfully"),
+            Err(e) => {
+                // エラーが重複キーエラーの場合は無視
+                if e.to_string().contains("duplicate") || e.to_string().contains("unique") {
+                    println!("Admin user already exists, skipping creation");
+                } else {
+                    return Err(e);
+                }
+            }
+        }
 
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // 環境変数から管理者メールアドレスを取得
+        let admin_email =
+            env::var("INITIAL_ADMIN_EMAIL").unwrap_or_else(|_| "admin@example.com".to_string());
+
         // 初期管理者ユーザーを削除
         manager
             .exec_stmt(
                 Query::delete()
                     .from_table(Users::Table)
-                    .and_where(Expr::col(Users::Email).eq("admin@example.com"))
+                    .and_where(Expr::col(Users::Email).eq(&admin_email))
                     .to_owned(),
             )
             .await?;

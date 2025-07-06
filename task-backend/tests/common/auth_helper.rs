@@ -298,3 +298,15 @@ pub fn create_request(method: &str, uri: &str, body: Option<String>) -> Request<
 pub async fn create_and_authenticate_user(app: &Router) -> TestUser {
     create_and_authenticate_member(app).await
 }
+
+/// 管理者として認証するヘルパー
+pub async fn authenticate_as_admin(app: &Router) -> TestUser {
+    let signin_req = SigninRequest {
+        identifier: "admin@example.com".to_string(),
+        password: "Adm1n$ecurE2024!".to_string(),
+    };
+
+    signin_test_user(app, signin_req)
+        .await
+        .expect("Failed to authenticate as admin")
+}

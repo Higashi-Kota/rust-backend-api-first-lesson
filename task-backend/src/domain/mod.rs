@@ -17,6 +17,8 @@ pub mod refresh_token_model;
 pub mod role_model;
 pub mod security_incident_model;
 pub mod share_link_access_log_model;
+pub mod stripe_payment_history_model;
+pub mod stripe_subscription_model;
 pub mod subscription_history_model;
 pub mod subscription_tier;
 pub mod task_attachment_model;

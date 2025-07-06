@@ -36,6 +36,7 @@ pub struct EmailConfig {
     /// Mailgun ドメイン
     pub mailgun_domain: Option<String>,
     /// 開発モードかどうか（コンソール出力のみ）
+    #[allow(dead_code)]
     pub development_mode: bool,
 }
 

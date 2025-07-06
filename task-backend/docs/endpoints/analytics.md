@@ -10,7 +10,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/analytics/activity?period=30d&timezone=Asia/Tokyo" \
+curl -X GET "http://localhost:5000/analytics/activity?period=30d&timezone=Asia/Tokyo" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -62,7 +62,7 @@ curl -X GET "http://localhost:3000/analytics/activity?period=30d&timezone=Asia/T
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/analytics/tasks?group_by=status&include_trends=true" \
+curl -X GET "http://localhost:5000/analytics/tasks?group_by=status&include_trends=true" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -136,7 +136,7 @@ curl -X GET "http://localhost:3000/analytics/tasks?group_by=status&include_trend
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/analytics/behavior?analyze_patterns=true" \
+curl -X GET "http://localhost:5000/analytics/behavior?analyze_patterns=true" \
   -H "Authorization: Bearer <pro_access_token>"
 ```
 
@@ -198,7 +198,7 @@ curl -X GET "http://localhost:3000/analytics/behavior?analyze_patterns=true" \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/admin/analytics/system?include_details=true" \
+curl -X GET "http://localhost:5000/admin/analytics/system?include_details=true" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -280,7 +280,7 @@ curl -X GET "http://localhost:3000/admin/analytics/system?include_details=true" 
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/admin/analytics/users/550e8400-e29b-41d4-a716-446655440000/activity?period=90d" \
+curl -X GET "http://localhost:5000/admin/analytics/users/550e8400-e29b-41d4-a716-446655440000/activity?period=90d" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -290,7 +290,7 @@ curl -X GET "http://localhost:3000/admin/analytics/users/550e8400-e29b-41d4-a716
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/users/bulk-operations \
+curl -X POST http://localhost:5000/admin/users/bulk-operations \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -316,7 +316,7 @@ curl -X POST http://localhost:3000/admin/users/bulk-operations \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/exports/advanced \
+curl -X POST http://localhost:5000/exports/advanced \
   -H "Authorization: Bearer <pro_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -381,19 +381,19 @@ curl -X POST http://localhost:3000/exports/advanced \
 PRO_TOKEN="your_pro_access_token_here"
 
 # 1. 個人のアクティビティ統計を確認
-curl -s -X GET "http://localhost:3000/analytics/activity?period=30d" \
+curl -s -X GET "http://localhost:5000/analytics/activity?period=30d" \
   -H "Authorization: Bearer $PRO_TOKEN"
 
 # 2. 詳細なタスク統計を取得
-curl -s -X GET "http://localhost:3000/analytics/tasks?group_by=status&include_trends=true" \
+curl -s -X GET "http://localhost:5000/analytics/tasks?group_by=status&include_trends=true" \
   -H "Authorization: Bearer $PRO_TOKEN"
 
 # 3. 行動パターン分析を実行
-curl -s -X GET "http://localhost:3000/analytics/behavior?analyze_patterns=true" \
+curl -s -X GET "http://localhost:5000/analytics/behavior?analyze_patterns=true" \
   -H "Authorization: Bearer $PRO_TOKEN"
 
 # 4. 包括的なレポートをPDFでエクスポート
-EXPORT_RESPONSE=$(curl -s -X POST http://localhost:3000/exports/advanced \
+EXPORT_RESPONSE=$(curl -s -X POST http://localhost:5000/exports/advanced \
   -H "Authorization: Bearer $PRO_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

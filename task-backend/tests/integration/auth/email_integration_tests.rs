@@ -161,7 +161,7 @@ async fn test_password_reset_email_content() {
             "test@example.com",
             "Test User",
             "test_token_12345",
-            "http://localhost:3000/reset-password",
+            "http://localhost:5000/reset-password",
         )
         .await;
 
@@ -202,7 +202,7 @@ async fn test_email_verification_sending() {
             "verify@example.com",
             "Verify User",
             "verify_token_67890",
-            "http://localhost:3000/verify-email",
+            "http://localhost:5000/verify-email",
         )
         .await;
 

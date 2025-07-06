@@ -12,7 +12,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/organizations \
+curl -X POST http://localhost:5000/organizations \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -63,7 +63,7 @@ curl -X POST http://localhost:3000/organizations \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/organizations \
+curl -X GET http://localhost:5000/organizations \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -105,7 +105,7 @@ curl -X GET http://localhost:3000/organizations \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001 \
+curl -X GET http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -168,7 +168,7 @@ curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001 \
+curl -X PATCH http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -184,7 +184,7 @@ curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001 \
+curl -X DELETE http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -196,7 +196,7 @@ curl -X DELETE http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/settings \
+curl -X PATCH http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/settings \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -215,7 +215,7 @@ curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/members \
+curl -X POST http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/members \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -226,7 +226,7 @@ curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-4466554
 
 **またはユーザーIDで招待:**
 ```bash
-curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/members \
+curl -X POST http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/members \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -255,7 +255,7 @@ curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-4466554
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/members/550e8400-e29b-41d4-a716-446655440005 \
+curl -X PATCH http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/members/550e8400-e29b-41d4-a716-446655440005 \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -274,7 +274,7 @@ curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/members/550e8400-e29b-41d4-a716-446655440005 \
+curl -X DELETE http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/members/550e8400-e29b-41d4-a716-446655440005 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -288,7 +288,7 @@ curl -X DELETE http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/organizations/stats \
+curl -X GET http://localhost:5000/organizations/stats \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -357,7 +357,7 @@ curl -X GET http://localhost:3000/organizations/stats \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/settings \
+curl -X PATCH http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/settings \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -395,7 +395,7 @@ curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/subscription \
+curl -X PATCH http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/subscription \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -429,7 +429,7 @@ curl -X PATCH http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/subscription/history \
+curl -X GET http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/subscription/history \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -466,7 +466,7 @@ curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/capacity \
+curl -X GET http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/capacity \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -507,7 +507,7 @@ curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/departments \
+curl -X POST http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/departments \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -530,7 +530,7 @@ curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-4466554
 ACCESS_TOKEN="your_access_token_here"
 
 # 1. 新しい組織を作成
-ORG_RESPONSE=$(curl -s -X POST http://localhost:3000/organizations \
+ORG_RESPONSE=$(curl -s -X POST http://localhost:5000/organizations \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -542,7 +542,7 @@ ORG_RESPONSE=$(curl -s -X POST http://localhost:3000/organizations \
 ORG_ID=$(echo $ORG_RESPONSE | jq -r '.id')
 
 # 2. 組織設定を調整
-curl -s -X PATCH http://localhost:3000/organizations/$ORG_ID/settings \
+curl -s -X PATCH http://localhost:5000/organizations/$ORG_ID/settings \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -553,7 +553,7 @@ curl -s -X PATCH http://localhost:3000/organizations/$ORG_ID/settings \
   }'
 
 # 3. 管理者を招待
-curl -s -X POST http://localhost:3000/organizations/$ORG_ID/members \
+curl -s -X POST http://localhost:5000/organizations/$ORG_ID/members \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -562,7 +562,7 @@ curl -s -X POST http://localhost:3000/organizations/$ORG_ID/members \
   }'
 
 # 4. 一般メンバーを招待
-curl -s -X POST http://localhost:3000/organizations/$ORG_ID/members \
+curl -s -X POST http://localhost:5000/organizations/$ORG_ID/members \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -571,11 +571,11 @@ curl -s -X POST http://localhost:3000/organizations/$ORG_ID/members \
   }'
 
 # 5. 組織詳細を確認
-curl -s -X GET http://localhost:3000/organizations/$ORG_ID \
+curl -s -X GET http://localhost:5000/organizations/$ORG_ID \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 6. 組織統計を確認
-curl -s -X GET http://localhost:3000/organizations/stats \
+curl -s -X GET http://localhost:5000/organizations/stats \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

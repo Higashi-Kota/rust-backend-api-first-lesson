@@ -32,6 +32,9 @@ pub struct Model {
 
     pub subscription_tier: String,
 
+    #[sea_orm(unique, nullable)]
+    pub stripe_customer_id: Option<String>,
+
     pub last_login_at: Option<DateTime<Utc>>,
 
     pub created_at: DateTime<Utc>,
@@ -409,11 +412,6 @@ impl UserClaims {
     /// サブスクリプション階層を取得
     pub fn get_subscription_tier(&self) -> SubscriptionTier {
         self.subscription_tier
-    }
-
-    /// 指定されたサブスクリプション階層以上かチェック
-    pub fn has_subscription_tier(&self, required_tier: SubscriptionTier) -> bool {
-        self.subscription_tier.is_at_least(&required_tier)
     }
 }
 

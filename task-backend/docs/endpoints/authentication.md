@@ -11,7 +11,7 @@
 **リクエスト例:**
 
 ```bash
-curl -X POST http://localhost:3000/auth/signup \
+curl -X POST http://localhost:5000/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "username": "higashi-kota-14",
@@ -27,7 +27,7 @@ curl -X POST http://localhost:3000/auth/signup \
 **リクエスト例:**
 
 ```bash
-curl -X POST http://localhost:3000/auth/signin \
+curl -X POST http://localhost:5000/auth/signin \
   -H "Content-Type: application/json" \
   -d '{
     "identifier": "user@example.com",
@@ -42,7 +42,7 @@ curl -X POST http://localhost:3000/auth/signin \
 **リクエスト例:**
 
 ```bash
-curl -X POST http://localhost:3000/auth/refresh \
+curl -X POST http://localhost:5000/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{
     "refresh_token": "your_refresh_token_here"
@@ -56,7 +56,7 @@ curl -X POST http://localhost:3000/auth/refresh \
 **リクエスト例:**
 
 ```bash
-curl -X POST http://localhost:3000/auth/forgot-password \
+curl -X POST http://localhost:5000/auth/forgot-password \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com"
@@ -70,7 +70,7 @@ curl -X POST http://localhost:3000/auth/forgot-password \
 **リクエスト例:**
 
 ```bash
-curl -X POST http://localhost:3000/auth/reset-password \
+curl -X POST http://localhost:5000/auth/reset-password \
   -H "Content-Type: application/json" \
   -d '{
     "token": "reset_token_from_email",
@@ -85,7 +85,7 @@ curl -X POST http://localhost:3000/auth/reset-password \
 **リクエスト例:**
 
 ```bash
-curl -X GET http://localhost:3000/auth/status
+curl -X GET http://localhost:5000/auth/status
 ```
 
 ### 7. メール認証 (POST /auth/verify-email)
@@ -95,7 +95,7 @@ curl -X GET http://localhost:3000/auth/status
 **リクエスト例:**
 
 ```bash
-curl -X POST http://localhost:3000/auth/verify-email \
+curl -X POST http://localhost:5000/auth/verify-email \
   -H "Content-Type: application/json" \
   -d '{
     "token": "email_verification_token_here"
@@ -109,7 +109,7 @@ curl -X POST http://localhost:3000/auth/verify-email \
 **リクエスト例:**
 
 ```bash
-curl -X POST http://localhost:3000/auth/resend-verification \
+curl -X POST http://localhost:5000/auth/resend-verification \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -128,7 +128,7 @@ curl -X POST http://localhost:3000/auth/resend-verification \
 **リクエスト例:**
 
 ```bash
-curl -X GET http://localhost:3000/auth/me \
+curl -X GET http://localhost:5000/auth/me \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -139,7 +139,7 @@ curl -X GET http://localhost:3000/auth/me \
 **リクエスト例:**
 
 ```bash
-curl -X PUT http://localhost:3000/auth/change-password \
+curl -X PUT http://localhost:5000/auth/change-password \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -156,7 +156,7 @@ curl -X PUT http://localhost:3000/auth/change-password \
 **リクエスト例:**
 
 ```bash
-curl -X POST http://localhost:3000/auth/signout \
+curl -X POST http://localhost:5000/auth/signout \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -167,7 +167,7 @@ curl -X POST http://localhost:3000/auth/signout \
 **リクエスト例:**
 
 ```bash
-curl -X POST http://localhost:3000/auth/signout-all \
+curl -X POST http://localhost:5000/auth/signout-all \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -178,7 +178,7 @@ curl -X POST http://localhost:3000/auth/signout-all \
 **リクエスト例:**
 
 ```bash
-curl -X DELETE http://localhost:3000/auth/account \
+curl -X DELETE http://localhost:5000/auth/account \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{

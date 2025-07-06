@@ -10,7 +10,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/tasks \
+curl -X GET http://localhost:5000/tasks \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -36,7 +36,7 @@ curl -X GET http://localhost:3000/tasks \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/tasks \
+curl -X POST http://localhost:5000/tasks \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -53,7 +53,7 @@ curl -X POST http://localhost:3000/tasks \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001 \
+curl -X GET http://localhost:5000/tasks/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -63,7 +63,7 @@ curl -X GET http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001 \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001 \
+curl -X PATCH http://localhost:5000/tasks/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -78,7 +78,7 @@ curl -X PATCH http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001 \
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001 \
+curl -X DELETE http://localhost:5000/tasks/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -92,7 +92,7 @@ curl -X DELETE http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001 
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=10" \
+curl -X GET "http://localhost:5000/tasks/paginated?page=1&page_size=10" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -129,15 +129,15 @@ curl -X GET "http://localhost:3000/tasks/paginated?page=1&page_size=10" \
 **リクエスト例:**
 ```bash
 # ステータスでフィルタリング
-curl -X GET "http://localhost:3000/tasks/filter?status=todo&limit=5" \
+curl -X GET "http://localhost:5000/tasks/filter?status=todo&limit=5" \
   -H "Authorization: Bearer <access_token>"
 
 # タイトルで検索
-curl -X GET "http://localhost:3000/tasks/filter?title_contains=重要&page=1&page_size=5" \
+curl -X GET "http://localhost:5000/tasks/filter?title_contains=重要&page=1&page_size=5" \
   -H "Authorization: Bearer <access_token>"
 
 # 期日でフィルタリング
-curl -X GET "http://localhost:3000/tasks/filter?due_date_before=2025-07-01T00:00:00Z&sort_by=due_date&sort_order=asc" \
+curl -X GET "http://localhost:5000/tasks/filter?due_date_before=2025-07-01T00:00:00Z&sort_by=due_date&sort_order=asc" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -151,7 +151,7 @@ curl -X GET "http://localhost:3000/tasks/filter?due_date_before=2025-07-01T00:00
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/tasks/dynamic \
+curl -X GET http://localhost:5000/tasks/dynamic \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -166,7 +166,7 @@ curl -X GET http://localhost:3000/tasks/dynamic \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/tasks/dynamic/filter?status=in_progress&advanced_filter=true" \
+curl -X GET "http://localhost:5000/tasks/dynamic/filter?status=in_progress&advanced_filter=true" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -176,7 +176,7 @@ curl -X GET "http://localhost:3000/tasks/dynamic/filter?status=in_progress&advan
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/tasks/dynamic/paginated?page=1&page_size=50" \
+curl -X GET "http://localhost:5000/tasks/dynamic/paginated?page=1&page_size=50" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -188,7 +188,7 @@ curl -X GET "http://localhost:3000/tasks/dynamic/paginated?page=1&page_size=50" 
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/tasks/batch/create \
+curl -X POST http://localhost:5000/tasks/batch/create \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -214,7 +214,7 @@ curl -X POST http://localhost:3000/tasks/batch/create \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/tasks/batch/update \
+curl -X PATCH http://localhost:5000/tasks/batch/update \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -237,7 +237,7 @@ curl -X PATCH http://localhost:3000/tasks/batch/update \
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/tasks/batch/delete \
+curl -X POST http://localhost:5000/tasks/batch/delete \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -254,7 +254,7 @@ curl -X POST http://localhost:3000/tasks/batch/delete \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/tasks/batch/status \
+curl -X PATCH http://localhost:5000/tasks/batch/status \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -271,7 +271,7 @@ curl -X PATCH http://localhost:3000/tasks/batch/status \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/tasks/stats \
+curl -X GET http://localhost:5000/tasks/stats \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -283,7 +283,7 @@ curl -X GET http://localhost:3000/tasks/stats \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/tasks \
+curl -X GET http://localhost:5000/admin/tasks \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -293,7 +293,7 @@ curl -X GET http://localhost:3000/admin/tasks \
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/admin/tasks/paginated?page=1&page_size=50" \
+curl -X GET "http://localhost:5000/admin/tasks/paginated?page=1&page_size=50" \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -303,7 +303,7 @@ curl -X GET "http://localhost:3000/admin/tasks/paginated?page=1&page_size=50" \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
+curl -X GET http://localhost:5000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -313,7 +313,7 @@ curl -X GET http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-4466554400
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/tasks \
+curl -X POST http://localhost:5000/admin/tasks \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -329,7 +329,7 @@ curl -X POST http://localhost:3000/admin/tasks \
 
 **リクエスト例:**
 ```bash
-curl -X PUT http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
+curl -X PUT http://localhost:5000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -344,7 +344,7 @@ curl -X PUT http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-4466554400
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-446655440000/tasks \
+curl -X GET http://localhost:5000/admin/users/550e8400-e29b-41d4-a716-446655440000/tasks \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -354,7 +354,7 @@ curl -X GET http://localhost:3000/admin/users/550e8400-e29b-41d4-a716-4466554400
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
+curl -X DELETE http://localhost:5000/admin/tasks/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -366,7 +366,7 @@ curl -X DELETE http://localhost:3000/admin/tasks/550e8400-e29b-41d4-a716-4466554
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/admin/tasks/bulk/create \
+curl -X POST http://localhost:5000/admin/tasks/bulk/create \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -392,7 +392,7 @@ curl -X POST http://localhost:3000/admin/tasks/bulk/create \
 
 **リクエスト例:**
 ```bash
-curl -X PUT http://localhost:3000/admin/tasks/bulk/update \
+curl -X PUT http://localhost:5000/admin/tasks/bulk/update \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -416,7 +416,7 @@ curl -X PUT http://localhost:3000/admin/tasks/bulk/update \
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/admin/tasks/bulk/delete \
+curl -X DELETE http://localhost:5000/admin/tasks/bulk/delete \
   -H "Authorization: Bearer <admin_access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -433,7 +433,7 @@ curl -X DELETE http://localhost:3000/admin/tasks/bulk/delete \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/admin/tasks/statistics \
+curl -X GET http://localhost:5000/admin/tasks/statistics \
   -H "Authorization: Bearer <admin_access_token>"
 ```
 
@@ -483,7 +483,7 @@ curl -X GET http://localhost:3000/admin/tasks/statistics \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/health
+curl -X GET http://localhost:5000/health
 ```
 
 ## 使用例
@@ -495,7 +495,7 @@ curl -X GET http://localhost:3000/health
 ACCESS_TOKEN="your_access_token_here"
 
 # 1. 新しいタスクを作成
-TASK_RESPONSE=$(curl -s -X POST http://localhost:3000/tasks \
+TASK_RESPONSE=$(curl -s -X POST http://localhost:5000/tasks \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -508,21 +508,21 @@ TASK_RESPONSE=$(curl -s -X POST http://localhost:3000/tasks \
 TASK_ID=$(echo $TASK_RESPONSE | jq -r '.id')
 
 # 2. タスクを進行中に更新
-curl -s -X PATCH http://localhost:3000/tasks/$TASK_ID \
+curl -s -X PATCH http://localhost:5000/tasks/$TASK_ID \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"status": "in_progress"}'
 
 # 3. 現在のすべてのタスクを確認
-curl -s -X GET http://localhost:3000/tasks \
+curl -s -X GET http://localhost:5000/tasks \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 4. 進行中のタスクのみフィルタリング
-curl -s -X GET "http://localhost:3000/tasks/filter?status=in_progress" \
+curl -s -X GET "http://localhost:5000/tasks/filter?status=in_progress" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 5. タスク統計を確認
-curl -s -X GET http://localhost:3000/tasks/stats \
+curl -s -X GET http://localhost:5000/tasks/stats \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

@@ -12,7 +12,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/teams \
+curl -X POST http://localhost:5000/teams \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -42,7 +42,7 @@ curl -X POST http://localhost:3000/teams \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/teams \
+curl -X GET http://localhost:5000/teams \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -80,7 +80,7 @@ curl -X GET http://localhost:3000/teams \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001 \
+curl -X GET http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -124,7 +124,7 @@ curl -X GET http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001 \
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001 \
+curl -X PATCH http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -140,7 +140,7 @@ curl -X PATCH http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001 \
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001 \
+curl -X DELETE http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -154,7 +154,7 @@ curl -X DELETE http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001 
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/members \
+curl -X POST http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/members \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -183,7 +183,7 @@ curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/me
 
 **リクエスト例:**
 ```bash
-curl -X PATCH http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/members/550e8400-e29b-41d4-a716-446655440005/role \
+curl -X PATCH http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/members/550e8400-e29b-41d4-a716-446655440005/role \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -202,7 +202,7 @@ curl -X PATCH http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/m
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/members/550e8400-e29b-41d4-a716-446655440005 \
+curl -X DELETE http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/members/550e8400-e29b-41d4-a716-446655440005 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -216,7 +216,7 @@ curl -X DELETE http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/single \
+curl -X POST http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/single \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -246,7 +246,7 @@ curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/in
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/bulk \
+curl -X POST http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/bulk \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -292,7 +292,7 @@ curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/in
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations \
+curl -X GET http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/invitations \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -333,7 +333,7 @@ curl -X GET http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/inv
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/accept \
+curl -X POST http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/accept \
   -H "Authorization: Bearer <invitee_access_token>"
 ```
 
@@ -358,7 +358,7 @@ curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/in
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/decline \
+curl -X POST http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/decline \
   -H "Authorization: Bearer <invitee_access_token>"
 ```
 
@@ -368,7 +368,7 @@ curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/in
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/cancel \
+curl -X DELETE http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/cancel \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -378,7 +378,7 @@ curl -X DELETE http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/resend \
+curl -X POST http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/550e8400-e29b-41d4-a716-446655440006/resend \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -388,7 +388,7 @@ curl -X POST http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/in
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/statistics \
+curl -X GET http://localhost:5000/teams/550e8400-e29b-41d4-a716-446655440001/invitations/statistics \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -414,7 +414,7 @@ curl -X GET http://localhost:3000/teams/550e8400-e29b-41d4-a716-446655440001/inv
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/users/invitations \
+curl -X GET http://localhost:5000/users/invitations \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -451,7 +451,7 @@ curl -X GET http://localhost:3000/users/invitations \
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/teams/stats \
+curl -X GET http://localhost:5000/teams/stats \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -519,7 +519,7 @@ curl -X GET http://localhost:3000/teams/stats \
 ACCESS_TOKEN="your_access_token_here"
 
 # 1. 新しいチームを作成
-TEAM_RESPONSE=$(curl -s -X POST http://localhost:3000/teams \
+TEAM_RESPONSE=$(curl -s -X POST http://localhost:5000/teams \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -531,7 +531,7 @@ TEAM_RESPONSE=$(curl -s -X POST http://localhost:3000/teams \
 TEAM_ID=$(echo $TEAM_RESPONSE | jq -r '.id')
 
 # 2. チームにメンバーを招待
-curl -s -X POST http://localhost:3000/teams/$TEAM_ID/members \
+curl -s -X POST http://localhost:5000/teams/$TEAM_ID/members \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -540,7 +540,7 @@ curl -s -X POST http://localhost:3000/teams/$TEAM_ID/members \
   }'
 
 # 3. 別のメンバーを管理者として招待
-curl -s -X POST http://localhost:3000/teams/$TEAM_ID/members \
+curl -s -X POST http://localhost:5000/teams/$TEAM_ID/members \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -549,11 +549,11 @@ curl -s -X POST http://localhost:3000/teams/$TEAM_ID/members \
   }'
 
 # 4. チーム詳細を確認
-curl -s -X GET http://localhost:3000/teams/$TEAM_ID \
+curl -s -X GET http://localhost:5000/teams/$TEAM_ID \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 
 # 5. チーム統計を確認
-curl -s -X GET http://localhost:3000/teams/stats \
+curl -s -X GET http://localhost:5000/teams/stats \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

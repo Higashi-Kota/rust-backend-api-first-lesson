@@ -158,11 +158,6 @@ impl Model {
         }
     }
 
-    /// メンバー数制限をチェック
-    pub fn can_add_member(&self, current_member_count: i32) -> bool {
-        current_member_count < self.max_members
-    }
-
     /// サブスクリプション階層を取得
     pub fn get_subscription_tier(&self) -> SubscriptionTier {
         self.subscription_tier
@@ -246,8 +241,10 @@ mod tests {
         assert_eq!(pro_team.max_members, 10);
         assert_eq!(enterprise_team.max_members, 100);
 
-        assert!(free_team.can_add_member(2));
-        assert!(!free_team.can_add_member(3));
+        // Check member limits are set correctly
+        assert_eq!(free_team.max_members, 3);
+        assert!(2 < free_team.max_members);
+        assert!(3 >= free_team.max_members);
     }
 
     #[test]

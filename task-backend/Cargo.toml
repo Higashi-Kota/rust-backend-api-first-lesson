@@ -15,6 +15,15 @@ categories.workspace = true
 name = "task_backend"
 path = "src/lib.rs"
 
+# バイナリターゲット
+[[bin]]
+name = "task-backend"
+path = "src/main.rs"
+
+[[bin]]
+name = "generate-password-hash"
+path = "src/bin/generate_password_hash.rs"
+
 [dependencies]
 # Migration dependency - path updated for workspace structure
 migration = { path = "../migration" }
@@ -62,6 +71,7 @@ reqwest = { workspace = true }
 # Additional security and utilities - using workspace dependencies
 base64 = { workspace = true }
 hex = { workspace = true }
+hmac = { workspace = true }
 sha2 = { workspace = true }
 time = { workspace = true }
 
@@ -80,6 +90,9 @@ mime = { workspace = true }
 # Image processing - using workspace dependencies
 image = { workspace = true }
 webp = { workspace = true }
+
+# Payment processing - using workspace dependencies
+async-stripe = { workspace = true }
 
 [dev-dependencies]
 # Development and testing dependencies - using workspace dependencies

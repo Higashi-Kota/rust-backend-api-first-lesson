@@ -46,6 +46,7 @@ impl SubscriptionTier {
     pub fn is_at_least(&self, other: &Self) -> bool {
         self.level() >= other.level()
     }
+
     /// 全ての有効な階層を取得
     pub fn all() -> Vec<Self> {
         vec![Self::Free, Self::Pro, Self::Enterprise]

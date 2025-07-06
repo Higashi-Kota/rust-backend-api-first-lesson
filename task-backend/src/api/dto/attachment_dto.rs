@@ -219,3 +219,29 @@ pub struct ShareLinkListResponse {
     pub share_links: Vec<ShareLinkDto>,
     pub total: usize,
 }
+
+/// 直接アップロード用の署名付きURL生成リクエスト
+#[derive(Deserialize, Debug)]
+pub struct GenerateUploadUrlRequest {
+    /// ファイル名
+    pub file_name: String,
+    /// URL有効期限（秒）。最小60秒、最大3600秒（1時間）
+    pub expires_in_seconds: Option<u64>,
+}
+
+impl Default for GenerateUploadUrlRequest {
+    fn default() -> Self {
+        Self {
+            file_name: String::new(),
+            expires_in_seconds: Some(3600), // デフォルト1時間
+        }
+    }
+}
+
+/// 直接アップロード用の署名付きURL生成レスポンス
+#[derive(Serialize, Debug)]
+pub struct GenerateUploadUrlResponse {
+    pub upload_url: String,
+    pub upload_key: String,
+    pub expires_at: DateTime<Utc>,
+}

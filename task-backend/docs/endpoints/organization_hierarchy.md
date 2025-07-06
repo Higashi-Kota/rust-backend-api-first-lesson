@@ -14,7 +14,7 @@ Enterprise階層の組織内での部門管理と階層構造の管理APIエン�
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/hierarchy \
+curl -X GET http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/hierarchy \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -53,7 +53,7 @@ curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/departments \
+curl -X GET http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/departments \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -63,7 +63,7 @@ curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/departments \
+curl -X POST http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/departments \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -80,7 +80,7 @@ curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-4466554
 
 **リクエスト例:**
 ```bash
-curl -X PUT http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/departments/dept-001 \
+curl -X PUT http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/departments/dept-001 \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -95,7 +95,7 @@ curl -X PUT http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/departments/dept-001 \
+curl -X DELETE http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/departments/dept-001 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -109,7 +109,7 @@ curl -X DELETE http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/departments/dept-001/members \
+curl -X POST http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/departments/dept-001/members \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -125,7 +125,7 @@ curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-4466554
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/departments/dept-001/members/550e8400-e29b-41d4-a716-446655440200 \
+curl -X DELETE http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/departments/dept-001/members/550e8400-e29b-41d4-a716-446655440200 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -137,7 +137,7 @@ curl -X DELETE http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/analytics \
+curl -X GET http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/analytics \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -170,7 +170,7 @@ curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/analytics \
+curl -X POST http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/analytics \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -189,7 +189,7 @@ curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-4466554
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/permission-matrix \
+curl -X GET http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/permission-matrix \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -199,7 +199,7 @@ curl -X GET http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X PUT http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/permission-matrix \
+curl -X PUT http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/permission-matrix \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -224,7 +224,7 @@ curl -X PUT http://localhost:3000/organizations/550e8400-e29b-41d4-a716-44665544
 
 **リクエスト例:**
 ```bash
-curl -X GET "http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/effective-permissions?user_id=550e8400-e29b-41d4-a716-446655440200" \
+curl -X GET "http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/effective-permissions?user_id=550e8400-e29b-41d4-a716-446655440200" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -236,7 +236,7 @@ curl -X GET "http://localhost:3000/organizations/550e8400-e29b-41d4-a716-4466554
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/organizations/550e8400-e29b-41d4-a716-446655440001/data-export \
+curl -X POST http://localhost:5000/organizations/550e8400-e29b-41d4-a716-446655440001/data-export \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -310,11 +310,11 @@ ADMIN_TOKEN="enterprise_admin_token_here"
 ORG_ID="550e8400-e29b-41d4-a716-446655440001"
 
 # 1. 組織階層を確認
-curl -s -X GET http://localhost:3000/organizations/$ORG_ID/hierarchy \
+curl -s -X GET http://localhost:5000/organizations/$ORG_ID/hierarchy \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 
 # 2. 新しい部門を作成
-DEPT_RESPONSE=$(curl -s -X POST http://localhost:3000/organizations/$ORG_ID/departments \
+DEPT_RESPONSE=$(curl -s -X POST http://localhost:5000/organizations/$ORG_ID/departments \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -326,7 +326,7 @@ DEPT_RESPONSE=$(curl -s -X POST http://localhost:3000/organizations/$ORG_ID/depa
 DEPT_ID=$(echo $DEPT_RESPONSE | jq -r '.id')
 
 # 3. 部門にメンバーを追加
-curl -s -X POST http://localhost:3000/organizations/$ORG_ID/departments/$DEPT_ID/members \
+curl -s -X POST http://localhost:5000/organizations/$ORG_ID/departments/$DEPT_ID/members \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -335,11 +335,11 @@ curl -s -X POST http://localhost:3000/organizations/$ORG_ID/departments/$DEPT_ID
   }'
 
 # 4. 部門の分析データを確認
-curl -s -X GET http://localhost:3000/organizations/$ORG_ID/analytics \
+curl -s -X GET http://localhost:5000/organizations/$ORG_ID/analytics \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 
 # 5. 組織データをエクスポート
-curl -s -X POST http://localhost:3000/organizations/$ORG_ID/data-export \
+curl -s -X POST http://localhost:5000/organizations/$ORG_ID/data-export \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

@@ -89,6 +89,17 @@ impl TeamRepository {
         Ok(models)
     }
 
+    /// ユーザーが所有するチーム数を取得
+    pub async fn count_user_owned_teams(&self, owner_id: Uuid) -> AppResult<usize> {
+        let count = TeamEntity::find()
+            .filter(TeamColumn::OwnerId.eq(owner_id))
+            .count(&self.db)
+            .await
+            .map_err(map_db_error)?;
+
+        Ok(count as usize)
+    }
+
     /// チーム一覧をページングで取得
     pub async fn find_with_pagination(
         &self,
@@ -240,13 +251,13 @@ impl TeamRepository {
     }
 
     /// チームのメンバー数を取得
-    pub async fn count_members(&self, team_id: Uuid) -> AppResult<u64> {
+    pub async fn count_members(&self, team_id: Uuid) -> AppResult<usize> {
         let count = TeamMemberEntity::find()
             .filter(TeamMemberColumn::TeamId.eq(team_id))
             .count(&self.db)
             .await
             .map_err(map_db_error)?;
-        Ok(count)
+        Ok(count as usize)
     }
 
     /// 組織のチーム数を取得

@@ -33,38 +33,38 @@ cargo test test_create_task
 ### 基本CRUD操作
 ```bash
 # ヘルスチェック
-curl http://localhost:3000/health
+curl http://localhost:5000/health
 
 # タスク作成
-curl -X POST http://localhost:3000/tasks \
+curl -X POST http://localhost:5000/tasks \
   -H "Content-Type: application/json" \
   -d '{"title": "テストタスク", "status": "todo"}' | jq
 
 # タスク一覧取得
-curl http://localhost:3000/tasks | jq
+curl http://localhost:5000/tasks | jq
 
 # タスク取得（IDは上記で取得したものを使用）
-curl http://localhost:3000/tasks/{TASK_ID} | jq
+curl http://localhost:5000/tasks/{TASK_ID} | jq
 
 # タスク更新
-curl -X PATCH http://localhost:3000/tasks/{TASK_ID} \
+curl -X PATCH http://localhost:5000/tasks/{TASK_ID} \
   -H "Content-Type: application/json" \
   -d '{"status": "completed"}' | jq
 
 # タスク削除
-curl -X DELETE http://localhost:3000/tasks/{TASK_ID}
+curl -X DELETE http://localhost:5000/tasks/{TASK_ID}
 ```
 
 ### 高度な機能
 ```bash
 # フィルタリング
-curl "http://localhost:3000/tasks/filter?status=todo" | jq
+curl "http://localhost:5000/tasks/filter?status=todo" | jq
 
 # ページネーション
-curl "http://localhost:3000/tasks/paginated?page=1&page_size=5" | jq
+curl "http://localhost:5000/tasks/paginated?page=1&page_size=5" | jq
 
 # 一括作成
-curl -X POST http://localhost:3000/tasks/batch/create \
+curl -X POST http://localhost:5000/tasks/batch/create \
   -H "Content-Type: application/json" \
   -d '{
     "tasks": [
@@ -87,7 +87,7 @@ make docker-run
 docker-compose logs -f app
 
 # コンテナ内でのAPI確認
-docker-compose exec app curl http://localhost:3000/health
+docker-compose exec app curl http://localhost:5000/health
 
 # 停止 & クリーンアップ
 docker-compose down -v
@@ -119,10 +119,10 @@ make migrate
 make build
 
 # パフォーマンステスト
-time curl http://localhost:3000/tasks
+time curl http://localhost:5000/tasks
 
 # 複数リクエストのテスト
-for i in {1..10}; do curl -s http://localhost:3000/health; done
+for i in {1..10}; do curl -s http://localhost:5000/health; done
 
 # メモリ使用量確認
 docker stats task-backend
@@ -170,14 +170,14 @@ make clean && make dev
 make fmt && make clippy && make test && make run
 
 # API動作確認セット
-curl http://localhost:3000/health && \
-curl -X POST http://localhost:3000/tasks \
+curl http://localhost:5000/health && \
+curl -X POST http://localhost:5000/tasks \
   -H "Content-Type: application/json" \
   -d '{"title": "テスト", "status": "todo"}' | jq
 
 # コンテナでの完全テスト
 make docker-build && make docker-run && \
-sleep 5 && curl http://localhost:3000/health
+sleep 5 && curl http://localhost:5000/health
 
 # 本番リリース準備
 make ci-check && make build && make docker-build

@@ -10,7 +10,7 @@
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001/attachments \
+curl -X POST http://localhost:5000/tasks/550e8400-e29b-41d4-a716-446655440001/attachments \
   -H "Authorization: Bearer <access_token>" \
   -F "file=@/path/to/document.pdf"
 ```
@@ -53,15 +53,15 @@ curl -X POST http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001/at
 **リクエスト例:**
 ```bash
 # 基本的な一覧取得
-curl -X GET http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001/attachments \
+curl -X GET http://localhost:5000/tasks/550e8400-e29b-41d4-a716-446655440001/attachments \
   -H "Authorization: Bearer <access_token>"
 
 # ページネーション付き
-curl -X GET "http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001/attachments?page=1&per_page=20" \
+curl -X GET "http://localhost:5000/tasks/550e8400-e29b-41d4-a716-446655440001/attachments?page=1&per_page=20" \
   -H "Authorization: Bearer <access_token>"
 
 # ソート指定
-curl -X GET "http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001/attachments?sort_by=file_size&sort_order=desc" \
+curl -X GET "http://localhost:5000/tasks/550e8400-e29b-41d4-a716-446655440001/attachments?sort_by=file_size&sort_order=desc" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -107,7 +107,7 @@ curl -X GET "http://localhost:3000/tasks/550e8400-e29b-41d4-a716-446655440001/at
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440002 \
+curl -X GET http://localhost:5000/attachments/660e8400-e29b-41d4-a716-446655440002 \
   -H "Authorization: Bearer <access_token>" \
   -o downloaded_file.pdf
 ```
@@ -124,7 +124,7 @@ curl -X GET http://localhost:3000/attachments/660e8400-e29b-41d4-a716-4466554400
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440002 \
+curl -X DELETE http://localhost:5000/attachments/660e8400-e29b-41d4-a716-446655440002 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -146,11 +146,11 @@ curl -X DELETE http://localhost:3000/attachments/660e8400-e29b-41d4-a716-4466554
 **リクエスト例:**
 ```bash
 # デフォルト有効期限（1時間）
-curl -X GET http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440002/download-url \
+curl -X GET http://localhost:5000/attachments/660e8400-e29b-41d4-a716-446655440002/download-url \
   -H "Authorization: Bearer <access_token>"
 
 # カスタム有効期限（24時間）
-curl -X GET "http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440002/download-url?expires_in_seconds=86400" \
+curl -X GET "http://localhost:5000/attachments/660e8400-e29b-41d4-a716-446655440002/download-url?expires_in_seconds=86400" \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -160,7 +160,7 @@ curl -X GET "http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440
   "status": "success",
   "message": "Download URL generated successfully",
   "data": {
-    "download_url": "http://localhost:3000/storage/download/660e8400-e29b-41d4-a716-446655440002?signature=abcdef123456&expires=1735920000",
+    "download_url": "http://localhost:5000/storage/download/660e8400-e29b-41d4-a716-446655440002?signature=abcdef123456&expires=1735920000",
     "expires_in_seconds": 3600,
     "expires_at": "2025-06-12T11:00:00Z"
   }
@@ -178,7 +178,7 @@ curl -X GET "http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440
 
 **リクエスト例:**
 ```bash
-curl -X POST http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440002/share-links \
+curl -X POST http://localhost:5000/attachments/660e8400-e29b-41d4-a716-446655440002/share-links \
   -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -206,7 +206,7 @@ curl -X POST http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440
       "is_revoked": false,
       "created_at": "2025-06-12T10:00:00Z",
       "updated_at": "2025-06-12T10:00:00Z",
-      "share_url": "http://localhost:3000/share/shr_1234567890abcdef"
+      "share_url": "http://localhost:5000/share/shr_1234567890abcdef"
     },
     "message": "Share link created successfully"
   }
@@ -224,7 +224,7 @@ curl -X POST http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/attachments/660e8400-e29b-41d4-a716-446655440002/share-links \
+curl -X GET http://localhost:5000/attachments/660e8400-e29b-41d4-a716-446655440002/share-links \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -247,7 +247,7 @@ curl -X GET http://localhost:3000/attachments/660e8400-e29b-41d4-a716-4466554400
         "is_revoked": false,
         "created_at": "2025-06-12T10:00:00Z",
         "updated_at": "2025-06-12T10:00:00Z",
-        "share_url": "http://localhost:3000/share/shr_1234567890abcdef"
+        "share_url": "http://localhost:5000/share/shr_1234567890abcdef"
       }
     ],
     "total": 1
@@ -261,7 +261,7 @@ curl -X GET http://localhost:3000/attachments/660e8400-e29b-41d4-a716-4466554400
 
 **リクエスト例:**
 ```bash
-curl -X DELETE http://localhost:3000/share-links/770e8400-e29b-41d4-a716-446655440003 \
+curl -X DELETE http://localhost:5000/share-links/770e8400-e29b-41d4-a716-446655440003 \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -280,7 +280,7 @@ curl -X DELETE http://localhost:3000/share-links/770e8400-e29b-41d4-a716-4466554
 
 **リクエスト例:**
 ```bash
-curl -X GET http://localhost:3000/share/shr_1234567890abcdef \
+curl -X GET http://localhost:5000/share/shr_1234567890abcdef \
   -o shared_file.pdf
 ```
 
@@ -303,18 +303,18 @@ ACCESS_TOKEN="your_access_token_here"
 TASK_ID="550e8400-e29b-41d4-a716-446655440001"
 
 # 1. ファイルをアップロード
-UPLOAD_RESPONSE=$(curl -s -X POST http://localhost:3000/tasks/$TASK_ID/attachments \
+UPLOAD_RESPONSE=$(curl -s -X POST http://localhost:5000/tasks/$TASK_ID/attachments \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -F "file=@./important_document.pdf")
 
 ATTACHMENT_ID=$(echo $UPLOAD_RESPONSE | jq -r '.data.attachment.id')
 
 # 2. アップロードされたファイル一覧を確認
-curl -s -X GET http://localhost:3000/tasks/$TASK_ID/attachments \
+curl -s -X GET http://localhost:5000/tasks/$TASK_ID/attachments \
   -H "Authorization: Bearer $ACCESS_TOKEN" | jq
 
 # 3. 共有リンクを作成（48時間有効、最大10回アクセス可能）
-SHARE_RESPONSE=$(curl -s -X POST http://localhost:3000/attachments/$ATTACHMENT_ID/share-links \
+SHARE_RESPONSE=$(curl -s -X POST http://localhost:5000/attachments/$ATTACHMENT_ID/share-links \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -330,12 +330,12 @@ echo "共有URL: $SHARE_URL"
 curl -X GET $SHARE_URL -o downloaded_via_share.pdf
 
 # 5. 共有リンクの使用状況を確認
-curl -s -X GET http://localhost:3000/attachments/$ATTACHMENT_ID/share-links \
+curl -s -X GET http://localhost:5000/attachments/$ATTACHMENT_ID/share-links \
   -H "Authorization: Bearer $ACCESS_TOKEN" | jq
 
 # 6. 必要に応じて共有リンクを無効化
 SHARE_LINK_ID=$(echo $SHARE_RESPONSE | jq -r '.data.share_link.id')
-curl -X DELETE http://localhost:3000/share-links/$SHARE_LINK_ID \
+curl -X DELETE http://localhost:5000/share-links/$SHARE_LINK_ID \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

@@ -1,4 +1,4 @@
-.PHONY: help build test clean run migrate docker-build docker-run fmt clippy docker-pull-ghcr run-ghcr ghcr-login
+.PHONY: help build test clean run migrate docker-build docker-run fmt clippy docker-pull-ghcr run-ghcr ghcr-login generate-password-hash
 
 # Default target
 help:
@@ -26,6 +26,7 @@ help:
 	@echo "  build-ci         - Build with CI profile"
 	@echo "  build-dev        - Fast development build"
 	@echo "  test-integration - Run specific integration test group (GROUP=...)"
+	@echo "  generate-password-hash - Generate Argon2 password hash for admin user"
 
 # Build the entire workspace
 build:
@@ -87,7 +88,7 @@ run-ghcr:
 	@echo "Running with GitHub Container Registry image..."
 	@read -p "Enter GitHub username: " username; \
 	read -p "Enter repository name: " repo; \
-	docker run -p 3000:3000 \
+	docker run -p 5000:5000 \
 		-e DATABASE_URL=postgres://postgres:password@host.docker.internal:5432/taskdb \
 		ghcr.io/$$username/$$repo:latest
 
@@ -118,7 +119,7 @@ dev-setup:
 	@if [ ! -f .env ]; then \
 		echo "Creating .env file..."; \
 		echo "DATABASE_URL=postgres://postgres:password@localhost:5432/taskdb" > .env; \
-		echo "SERVER_ADDR=0.0.0.0:3000" >> .env; \
+		echo "SERVER_ADDR=0.0.0.0:5000" >> .env; \
 		echo "RUST_LOG=info" >> .env; \
 		echo "RUST_BACKTRACE=1" >> .env; \
 		echo "Please edit .env file with your configuration"; \
@@ -190,3 +191,38 @@ test-integration:
 		exit 1; \
 	fi
 	cargo test --test main $(GROUP) --verbose
+
+# Payment test helpers
+test-payment-mock:
+	@echo "🧪 Running payment tests with mock mode..."
+	@cp .env.test .env.test.backup 2>/dev/null || true
+	@echo "PAYMENT_DEVELOPMENT_MODE=true" > .env.test.tmp
+	@grep -v "PAYMENT_DEVELOPMENT_MODE\|STRIPE_" .env.test >> .env.test.tmp || true
+	@mv .env.test.tmp .env.test
+	@make test-integration GROUP=integration::payment
+	@mv .env.test.backup .env.test 2>/dev/null || true
+
+test-payment-stripe:
+	@echo "🧪 Running payment tests with Stripe test mode..."
+	@echo "⚠️  Make sure your Stripe test credentials are in .env.test"
+	@make test-integration GROUP=integration::payment
+
+stripe-listen:
+	@echo "🎧 Starting Stripe webhook forwarding..."
+	@echo "📝 Copy the webhook secret to your .env file"
+	stripe listen --forward-to localhost:5000/webhooks/stripe
+
+# Generate Argon2 password hash for admin user
+generate-password-hash:
+	@echo "Building password hash generator..."
+	@cargo build --package task-backend --bin generate-password-hash --release
+	@echo ""
+	@echo "=== Password Hash Generator ==="
+	@echo "Usage: Enter password when prompted or pass as argument"
+	@echo "Example: make generate-password-hash PASSWORD='MySecurePass123!'"
+	@echo ""
+	@if [ -z "$(PASSWORD)" ]; then \
+		./target/release/generate-password-hash; \
+	else \
+		./target/release/generate-password-hash "$(PASSWORD)"; \
+	fi

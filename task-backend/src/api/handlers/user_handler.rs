@@ -1212,7 +1212,7 @@ pub fn user_router(app_state: AppState) -> Router {
             "/users/{id}/subscription/upgrade",
             post(upgrade_user_subscription_handler),
         )
-        // 管理者用エンドポイント - Phase 1.1 高度なユーザー管理 API
+        // 管理者用エンドポイント
         .route("/admin/users", get(list_users_handler))
         .route(
             "/admin/users/advanced-search",
