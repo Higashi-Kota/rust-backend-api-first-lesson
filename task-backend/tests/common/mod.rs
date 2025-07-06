@@ -43,6 +43,7 @@ pub fn create_test_task() -> CreateTaskDto {
         title: "Test Task".to_string(),
         description: Some("Test Description".to_string()),
         status: Some(TaskStatus::Todo),
+        priority: None,
         due_date: Some(Utc::now()),
     }
 }
@@ -52,6 +53,7 @@ pub fn create_test_task_with_title(title: &str) -> CreateTaskDto {
         title: title.to_string(),
         description: Some("Test Description".to_string()),
         status: Some(TaskStatus::Todo),
+        priority: None,
         due_date: Some(Utc::now()),
     }
 }
@@ -61,6 +63,7 @@ pub fn create_update_task() -> UpdateTaskDto {
         title: Some("Updated Task".to_string()),
         description: Some("Updated Description".to_string()),
         status: Some(TaskStatus::InProgress),
+        priority: None,
         due_date: Some(Utc::now()),
     }
 }

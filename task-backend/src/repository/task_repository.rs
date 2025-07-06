@@ -5,6 +5,7 @@ use crate::api::dto::task_dto::{
 use crate::db;
 use crate::domain::task_model::{self, ActiveModel as TaskActiveModel, Entity as TaskEntity};
 use crate::domain::task_status::TaskStatus;
+use chrono::Utc;
 use sea_orm::{entity::*, query::*, DbConn, DbErr, DeleteResult, Set};
 use sea_orm::{Condition, Order, PaginatorTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
@@ -308,6 +309,7 @@ impl TaskRepository {
             title: Set(payload.title),
             description: Set(payload.description),
             status: Set(payload.status.unwrap_or(TaskStatus::Todo).to_string()),
+            priority: Set(payload.priority.unwrap_or("medium".to_string())),
             due_date: Set(payload.due_date),
             ..Default::default()
         };
@@ -342,6 +344,21 @@ impl TaskRepository {
 
         if let Some(status_val) = payload.status {
             active_model.status = Set(status_val.to_string());
+            changed = true;
+
+            // タスクが完了状態に変更された場合、完了日時と完了時間を設定
+            if status_val == TaskStatus::Completed && task.status != "completed" {
+                let now = Utc::now();
+                active_model.completed_at = Set(Some(now));
+
+                // 完了までの時間を計算（時間単位）
+                let duration_hours = (now - task.created_at).num_hours() as f64;
+                active_model.completion_duration_hours = Set(Some(duration_hours));
+            }
+        }
+
+        if let Some(priority_val) = payload.priority {
+            active_model.priority = Set(priority_val);
             changed = true;
         }
 
@@ -391,6 +408,16 @@ impl TaskRepository {
         if let Some(status_val) = payload.status {
             active_model.status = Set(status_val.to_string());
             changed = true;
+
+            // タスクが完了状態に変更された場合、完了日時と完了時間を設定
+            if status_val == TaskStatus::Completed && task.status != "completed" {
+                let now = Utc::now();
+                active_model.completed_at = Set(Some(now));
+
+                // 完了までの時間を計算（時間単位）
+                let duration_hours = (now - task.created_at).num_hours() as f64;
+                active_model.completion_duration_hours = Set(Some(duration_hours));
+            }
         }
 
         if payload.due_date.is_some() {
@@ -632,5 +659,123 @@ impl TaskRepository {
             .filter(task_model::Column::UserId.eq(user_id))
             .count(&self.db)
             .await
+    }
+
+    /// 優先度別のタスク数を取得
+    pub async fn get_priority_distribution(&self) -> Result<Vec<(String, u64)>, DbErr> {
+        self.prepare_connection().await?;
+
+        use sea_orm::sea_query::Expr;
+        use sea_orm::QuerySelect;
+
+        let result = TaskEntity::find()
+            .select_only()
+            .column(task_model::Column::Priority)
+            .column_as(Expr::col(task_model::Column::Id).count(), "count")
+            .group_by(task_model::Column::Priority)
+            .into_tuple::<(String, i64)>()
+            .all(&self.db)
+            .await?;
+
+        Ok(result
+            .into_iter()
+            .map(|(priority, count)| (priority, count as u64))
+            .collect())
+    }
+
+    /// 優先度別の平均完了日数を取得
+    pub async fn get_average_completion_days_by_priority(
+        &self,
+    ) -> Result<Vec<(String, f64)>, DbErr> {
+        self.prepare_connection().await?;
+
+        let priorities = vec!["high", "medium", "low"];
+        let mut result = Vec::new();
+
+        for priority in priorities {
+            let tasks = TaskEntity::find()
+                .filter(task_model::Column::Status.eq("completed"))
+                .filter(task_model::Column::Priority.eq(priority))
+                .filter(task_model::Column::CompletedAt.is_not_null())
+                .all(&self.db)
+                .await?;
+
+            if tasks.is_empty() {
+                result.push((priority.to_string(), 0.0));
+                continue;
+            }
+
+            let total_days: f64 = tasks
+                .iter()
+                .filter_map(|task| {
+                    task.completed_at
+                        .map(|completed| (completed - task.created_at).num_days() as f64)
+                })
+                .sum();
+
+            result.push((priority.to_string(), total_days / tasks.len() as f64));
+        }
+
+        Ok(result)
+    }
+
+    /// 週次トレンドデータを取得
+    pub async fn get_weekly_trend_data(
+        &self,
+        weeks: u32,
+    ) -> Result<Vec<(chrono::DateTime<Utc>, u64, u64)>, DbErr> {
+        self.prepare_connection().await?;
+
+        let mut result = Vec::new();
+
+        for week in 0..weeks {
+            let week_end = Utc::now() - chrono::Duration::weeks(week as i64);
+            let week_start = week_end - chrono::Duration::weeks(1);
+
+            // その週に作成されたタスク数
+            let created_count = TaskEntity::find()
+                .filter(task_model::Column::CreatedAt.gte(week_start))
+                .filter(task_model::Column::CreatedAt.lt(week_end))
+                .count(&self.db)
+                .await?;
+
+            // その週に完了したタスク数
+            let completed_count = TaskEntity::find()
+                .filter(task_model::Column::CompletedAt.gte(week_start))
+                .filter(task_model::Column::CompletedAt.lt(week_end))
+                .count(&self.db)
+                .await?;
+
+            result.push((week_start, created_count, completed_count));
+        }
+
+        result.reverse(); // 古い週から新しい週の順に並べ替え
+        Ok(result)
+    }
+
+    /// ユーザー別の平均完了時間（時間）を取得
+    pub async fn get_user_average_completion_hours(&self, user_id: Uuid) -> Result<f64, DbErr> {
+        self.prepare_connection().await?;
+
+        let completed_tasks = TaskEntity::find()
+            .filter(task_model::Column::UserId.eq(user_id))
+            .filter(task_model::Column::Status.eq("completed"))
+            .filter(task_model::Column::CompletedAt.is_not_null())
+            .all(&self.db)
+            .await?;
+
+        if completed_tasks.is_empty() {
+            return Ok(0.0);
+        }
+
+        let total_hours: f64 = completed_tasks
+            .iter()
+            .filter_map(|task| {
+                task.completed_at
+                    .map(|completed| (completed - task.created_at).num_hours() as f64)
+            })
+            .sum();
+
+        Ok(total_hours / completed_tasks.len() as f64)
     }
 }

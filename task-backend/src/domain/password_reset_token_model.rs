@@ -20,6 +20,14 @@ pub struct Model {
 
     pub is_used: bool,
 
+    pub ip_address: String,
+
+    #[sea_orm(nullable)]
+    pub user_agent: Option<String>,
+
+    #[sea_orm(nullable)]
+    pub requested_from: Option<String>,
+
     pub created_at: DateTime<Utc>,
 
     pub updated_at: DateTime<Utc>,
@@ -51,7 +59,8 @@ impl ActiveModelBehavior for ActiveModel {
             id: Set(Uuid::new_v4()),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
-            is_used: Set(false), // デフォルトで未使用
+            is_used: Set(false),                    // デフォルトで未使用
+            ip_address: Set("0.0.0.0".to_string()), // デフォルトIP
             ..ActiveModelTrait::default()
         }
     }
@@ -76,16 +85,21 @@ pub struct CreatePasswordResetToken {
     pub user_id: Uuid,
     pub token_hash: String,
     pub expires_at: DateTime<Utc>,
+    pub ip_address: String,
+    pub user_agent: Option<String>,
+    pub requested_from: Option<String>,
 }
 
 impl From<CreatePasswordResetToken> for ActiveModel {
     fn from(create_token: CreatePasswordResetToken) -> Self {
-        Self {
-            user_id: Set(create_token.user_id),
-            token_hash: Set(create_token.token_hash),
-            expires_at: Set(create_token.expires_at),
-            ..Self::new()
-        }
+        let mut model = Self::new();
+        model.user_id = Set(create_token.user_id);
+        model.token_hash = Set(create_token.token_hash);
+        model.expires_at = Set(create_token.expires_at);
+        model.ip_address = Set(create_token.ip_address);
+        model.user_agent = Set(create_token.user_agent);
+        model.requested_from = Set(create_token.requested_from);
+        model
     }
 }
 

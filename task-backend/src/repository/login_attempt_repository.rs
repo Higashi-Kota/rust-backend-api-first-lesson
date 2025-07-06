@@ -27,6 +27,10 @@ impl LoginAttemptRepository {
             failure_reason: Set(attempt.failure_reason.clone()),
             ip_address: Set(attempt.ip_address.clone()),
             user_agent: Set(attempt.user_agent.clone()),
+            device_type: Set(attempt.device_type.clone()),
+            browser_name: Set(attempt.browser_name.clone()),
+            country: Set(attempt.country.clone()),
+            suspicious_score: Set(attempt.suspicious_score),
             attempted_at: Set(attempt.attempted_at),
         };
 
@@ -68,6 +72,47 @@ impl LoginAttemptRepository {
         Ok(results
             .into_iter()
             .map(|(ip, count)| (ip, count as u64))
+            .collect())
+    }
+
+    /// 不審なアクティビティを検出（IPごとの失敗回数と最終試行時刻を含む）
+    pub async fn find_suspicious_ips_with_details(
+        &self,
+        threshold: u64,
+        hours: i64,
+    ) -> AppResult<Vec<(String, u64, DateTime<Utc>)>> {
+        let since = Utc::now() - chrono::Duration::hours(hours);
+
+        // 一度すべてのデータを取得してからメモリ上で集計する
+        let all_attempts = Entity::find()
+            .filter(Column::Success.eq(false))
+            .filter(Column::AttemptedAt.gte(since))
+            .all(&self.db)
+            .await?;
+
+        // IPアドレスごとに集計
+        let mut ip_map: std::collections::HashMap<String, (u64, DateTime<Utc>)> =
+            std::collections::HashMap::new();
+        for attempt in all_attempts {
+            let entry = ip_map
+                .entry(attempt.ip_address.clone())
+                .or_insert((0, attempt.attempted_at));
+            entry.0 += 1;
+            if attempt.attempted_at > entry.1 {
+                entry.1 = attempt.attempted_at;
+            }
+        }
+
+        // 閾値以上のものだけを結果として返す
+        let results: Vec<(String, i64, DateTime<Utc>)> = ip_map
+            .into_iter()
+            .filter(|(_, (count, _))| *count >= threshold)
+            .map(|(ip, (count, last))| (ip, count as i64, last))
+            .collect();
+
+        Ok(results
+            .into_iter()
+            .map(|(ip, count, last)| (ip, count as u64, last))
             .collect())
     }
 }

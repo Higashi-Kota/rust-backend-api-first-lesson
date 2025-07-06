@@ -898,4 +898,12 @@ impl UserService {
             results: Some(serde_json::json!(results)),
         })
     }
+
+    /// ロールごとのユーザー数を取得
+    pub async fn count_users_by_role(&self, role_id: Uuid) -> AppResult<i64> {
+        self.user_repo
+            .count_by_role_id(role_id)
+            .await
+            .map_err(AppError::DbErr)
+    }
 }

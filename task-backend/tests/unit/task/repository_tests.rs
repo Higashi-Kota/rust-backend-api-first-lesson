@@ -85,6 +85,7 @@ async fn test_update_task() {
         title: Some("Updated Title".to_string()),
         status: Some(TaskStatus::InProgress),
         description: None,
+        priority: None,
         due_date: None,
     };
 
@@ -126,6 +127,7 @@ async fn test_find_with_filter() {
         title: "Important Task".to_string(),
         description: Some("High priority".to_string()),
         status: Some(TaskStatus::Todo),
+        priority: None,
         due_date: Some(Utc::now() + chrono::Duration::days(1)),
     };
 
@@ -133,6 +135,7 @@ async fn test_find_with_filter() {
         title: "Normal Task".to_string(),
         description: Some("Medium priority".to_string()),
         status: Some(TaskStatus::InProgress),
+        priority: None,
         due_date: Some(Utc::now() + chrono::Duration::days(2)),
     };
 
@@ -140,6 +143,7 @@ async fn test_find_with_filter() {
         title: "Another Important Task".to_string(),
         description: Some("Also high priority".to_string()),
         status: Some(TaskStatus::Todo),
+        priority: None,
         due_date: Some(Utc::now() + chrono::Duration::days(3)),
     };
 
@@ -264,6 +268,7 @@ async fn test_pagination() {
             title: format!("Pagination Task {}", i),
             description: Some("For pagination test".to_string()),
             status: Some(TaskStatus::Todo),
+            priority: None,
             due_date: None,
         };
         repo.create(task).await.unwrap();

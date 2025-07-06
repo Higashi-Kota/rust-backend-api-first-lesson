@@ -26,6 +26,9 @@ async fn test_password_reset_token_creation_and_validation() {
         token_hash: Set(valid_token.to_string()),
         expires_at: Set(Utc::now() + Duration::hours(1)),
         is_used: Set(false),
+        ip_address: Set("127.0.0.1".to_string()),
+        user_agent: Set(Some("Test User Agent".to_string())),
+        requested_from: Set(Some("test_client".to_string())),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
     };
@@ -104,6 +107,9 @@ async fn test_password_reset_token_expiration() {
         token_hash: Set("expired_token_12345678901234567890".to_string()),
         expires_at: Set(Utc::now() - Duration::hours(1)), // 1時間前に期限切れ
         is_used: Set(false),
+        ip_address: Set("127.0.0.1".to_string()),
+        user_agent: Set(Some("Test User Agent".to_string())),
+        requested_from: Set(Some("test_client".to_string())),
         created_at: Set(Utc::now() - Duration::hours(2)),
         updated_at: Set(Utc::now() - Duration::hours(2)),
     };
@@ -121,6 +127,9 @@ async fn test_password_reset_token_expiration() {
         token_hash: Set("used_token_1234567890123456789012".to_string()),
         expires_at: Set(Utc::now() + Duration::hours(1)),
         is_used: Set(true), // 使用済み
+        ip_address: Set("127.0.0.1".to_string()),
+        user_agent: Set(Some("Test User Agent".to_string())),
+        requested_from: Set(Some("test_client".to_string())),
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
     };

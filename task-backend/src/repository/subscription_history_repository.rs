@@ -25,16 +25,8 @@ impl SubscriptionHistoryRepository {
     ) -> AppResult<Model> {
         let history = Model::new(user_id, previous_tier, new_tier, changed_by, reason);
 
-        let result = Entity::insert(history).exec(&self.db).await?;
-
-        let created_history = Entity::find_by_id(result.last_insert_id)
-            .one(&self.db)
-            .await?
-            .ok_or_else(|| {
-                crate::error::AppError::InternalServerError(
-                    "Failed to retrieve created subscription history".to_string(),
-                )
-            })?;
+        // ActiveModelを挿入してModelを取得
+        let created_history = history.insert(&self.db).await?;
 
         Ok(created_history)
     }

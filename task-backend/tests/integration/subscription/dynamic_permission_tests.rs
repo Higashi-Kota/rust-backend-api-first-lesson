@@ -49,6 +49,7 @@ async fn test_subscription_tier_response_format() {
         title: "Test Task for Member".to_string(),
         description: Some("Test Description".to_string()),
         status: Some(TaskStatus::Todo),
+        priority: None,
         due_date: None,
     };
 
@@ -206,6 +207,7 @@ async fn test_dynamic_permissions_user_isolation() {
         title: "User1 Task".to_string(),
         description: Some("User1's private task".to_string()),
         status: Some(TaskStatus::Todo),
+        priority: None,
         due_date: None,
     };
 

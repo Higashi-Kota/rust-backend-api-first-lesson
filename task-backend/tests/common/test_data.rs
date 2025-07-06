@@ -101,6 +101,7 @@ pub fn create_test_task() -> CreateTaskDto {
         title: "Test Task".to_string(),
         description: Some("Test Description".to_string()),
         status: Some(TaskStatus::Todo),
+        priority: None,
         due_date: Some(Utc::now()),
     }
 }
@@ -111,6 +112,7 @@ pub fn create_test_task_with_title(title: &str) -> CreateTaskDto {
         title: title.to_string(),
         description: Some("Test Description".to_string()),
         status: Some(TaskStatus::Todo),
+        priority: None,
         due_date: Some(Utc::now()),
     }
 }
@@ -125,6 +127,7 @@ pub fn create_custom_task(
         title: title.to_string(),
         description: description.map(|d| d.to_string()),
         status: status.and_then(TaskStatus::from_str),
+        priority: None,
         due_date: Some(Utc::now()),
     }
 }
@@ -135,6 +138,7 @@ pub fn create_partial_update_task_title(title: &str) -> UpdateTaskDto {
         title: Some(title.to_string()),
         description: None,
         status: None,
+        priority: None,
         due_date: None,
     }
 }
@@ -145,6 +149,7 @@ pub fn create_invalid_task_empty_title() -> CreateTaskDto {
         title: "".to_string(),
         description: Some("Valid description".to_string()),
         status: Some(TaskStatus::Todo),
+        priority: None,
         due_date: Some(Utc::now()),
     }
 }

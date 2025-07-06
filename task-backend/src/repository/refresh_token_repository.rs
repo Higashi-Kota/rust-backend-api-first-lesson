@@ -309,6 +309,118 @@ impl RefreshTokenRepository {
 
         Ok(newest_token.map(|token| (now - token.created_at).num_hours()))
     }
+
+    /// 平均セッション継続時間（分）を計算
+    pub async fn get_average_session_duration_minutes(&self) -> Result<f64, DbErr> {
+        self.prepare_connection().await?;
+
+        let tokens = RefreshTokenEntity::find()
+            .filter(refresh_token_model::Column::LastUsedAt.is_not_null())
+            .all(&self.db)
+            .await?;
+
+        if tokens.is_empty() {
+            return Ok(0.0);
+        }
+
+        let total_duration_minutes: i64 = tokens
+            .iter()
+            .filter_map(|token| {
+                token
+                    .last_used_at
+                    .map(|last_used| (last_used - token.created_at).num_minutes())
+            })
+            .sum();
+
+        Ok(total_duration_minutes as f64 / tokens.len() as f64)
+    }
+
+    /// 地理情報別のセッション分布を取得
+    pub async fn get_geographic_distribution(&self) -> Result<Vec<(String, u64, u64)>, DbErr> {
+        self.prepare_connection().await?;
+
+        use sea_orm::sea_query::Expr;
+        use sea_orm::QuerySelect;
+
+        // 国別にグループ化してカウント
+        let result = RefreshTokenEntity::find()
+            .filter(
+                Condition::all()
+                    .add(refresh_token_model::Column::IsRevoked.eq(false))
+                    .add(refresh_token_model::Column::GeolocationCountry.is_not_null()),
+            )
+            .select_only()
+            .column(refresh_token_model::Column::GeolocationCountry)
+            .column_as(
+                Expr::col(refresh_token_model::Column::Id).count(),
+                "session_count",
+            )
+            .column_as(
+                Expr::col(refresh_token_model::Column::UserId).count_distinct(),
+                "unique_users",
+            )
+            .group_by(refresh_token_model::Column::GeolocationCountry)
+            .into_tuple::<(Option<String>, i64, i64)>()
+            .all(&self.db)
+            .await?;
+
+        Ok(result
+            .into_iter()
+            .filter_map(|(country, count, users)| country.map(|c| (c, count as u64, users as u64)))
+            .collect())
+    }
+
+    /// デバイスタイプ別のセッション分布を取得
+    pub async fn get_device_distribution(&self) -> Result<Vec<(String, u64, u64)>, DbErr> {
+        self.prepare_connection().await?;
+
+        use sea_orm::sea_query::Expr;
+        use sea_orm::QuerySelect;
+
+        // デバイスタイプ別にグループ化してカウント
+        let result = RefreshTokenEntity::find()
+            .filter(
+                Condition::all()
+                    .add(refresh_token_model::Column::IsRevoked.eq(false))
+                    .add(refresh_token_model::Column::DeviceType.is_not_null()),
+            )
+            .select_only()
+            .column(refresh_token_model::Column::DeviceType)
+            .column_as(
+                Expr::col(refresh_token_model::Column::Id).count(),
+                "session_count",
+            )
+            .column_as(
+                Expr::col(refresh_token_model::Column::UserId).count_distinct(),
+                "unique_users",
+            )
+            .group_by(refresh_token_model::Column::DeviceType)
+            .into_tuple::<(Option<String>, i64, i64)>()
+            .all(&self.db)
+            .await?;
+
+        Ok(result
+            .into_iter()
+            .filter_map(|(device, count, users)| device.map(|d| (d, count as u64, users as u64)))
+            .collect())
+    }
+
+    /// ピーク時の同時セッション数を取得
+    pub async fn get_peak_concurrent_sessions(&self, hours: i64) -> Result<u64, DbErr> {
+        self.prepare_connection().await?;
+        let since = Utc::now() - chrono::Duration::hours(hours);
+
+        let count = RefreshTokenEntity::find()
+            .filter(
+                Condition::all()
+                    .add(refresh_token_model::Column::IsRevoked.eq(false))
+                    .add(refresh_token_model::Column::LastUsedAt.gte(since)),
+            )
+            .count(&self.db)
+            .await?;
+
+        Ok(count)
+    }
 }
 
 // --- DTOと関連構造体 ---

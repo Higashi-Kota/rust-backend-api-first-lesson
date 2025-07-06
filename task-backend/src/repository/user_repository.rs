@@ -348,6 +348,18 @@ impl UserRepository {
             .await
     }
 
+    /// 特定のロールを持つユーザー数を取得
+    pub async fn count_by_role_id(&self, role_id: Uuid) -> Result<i64, DbErr> {
+        self.prepare_connection().await?;
+
+        let count = UserEntity::find()
+            .filter(user_model::Column::RoleId.eq(role_id))
+            .count(&self.db)
+            .await?;
+
+        Ok(count as i64)
+    }
+
     /// 特定のロール名を持つユーザーを取得
     pub async fn find_by_role_name(&self, role_name: &str) -> Result<Vec<SafeUserWithRole>, DbErr> {
         self.prepare_connection().await?;

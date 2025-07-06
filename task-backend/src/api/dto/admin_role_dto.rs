@@ -5,6 +5,7 @@ use crate::domain::role_model::RoleWithPermissions;
 use crate::domain::subscription_tier::SubscriptionTier;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json;
 use uuid::Uuid;
 
 /// 管理者向けロール一覧クエリパラメータ
@@ -56,12 +57,38 @@ pub struct RolePermissionsWithSubscription {
 /// 基本権限
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BasePermissions {
-    pub is_admin: bool,
-    pub is_member: bool,
-    pub permission_level: u8,
-    pub can_create_users: bool,
-    pub can_create_roles: bool,
-    pub can_create_tasks: bool,
+    pub tasks: TaskPermissions,
+    pub teams: TeamPermissions,
+    pub users: UserPermissions,
+    pub admin: AdminPermissions,
+}
+
+/// タスク権限
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskPermissions {
+    pub create: bool,
+    pub read: bool,
+    pub update: bool,
+    pub delete: bool,
+}
+
+/// チーム権限
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamPermissions {
+    pub create: bool,
+    pub manage: bool,
+}
+
+/// ユーザー権限
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPermissions {
+    pub manage: bool,
+}
+
+/// 管理者権限
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdminPermissions {
+    pub full_access: bool,
 }
 
 /// サブスクリプション階層別権限
@@ -75,8 +102,11 @@ pub struct TierPermissions {
 /// 追加権限
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdditionalPermissions {
+    pub max_tasks: serde_json::Value, // Can be number or "unlimited"
+    pub max_teams: serde_json::Value, // Can be number or "unlimited"
     pub max_team_members: Option<u32>,
     pub max_projects: Option<u32>,
+    pub bulk_operations: bool,
     pub advanced_analytics: bool,
     pub api_access: bool,
     pub custom_integrations: bool,
@@ -86,6 +116,8 @@ pub struct AdditionalPermissions {
 /// サブスクリプション情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubscriptionInfo {
+    pub applicable_tiers: Vec<String>,
+    pub tier_independent: bool,
     pub available_tiers: Vec<String>,
     pub recommended_tier: String,
     pub tier_comparison: Vec<TierComparison>,
@@ -101,13 +133,24 @@ pub struct TierComparison {
 
 impl RoleWithSubscriptionResponse {
     pub fn from_role_with_tier(role: RoleWithPermissions, _tier: SubscriptionTier) -> Self {
+        let is_admin = role.is_admin();
+        let is_member = role.is_member();
+
         let base_permissions = BasePermissions {
-            is_admin: role.is_admin(),
-            is_member: role.is_member(),
-            permission_level: role.name.permission_level(),
-            can_create_users: role.can_create_resource("user"),
-            can_create_roles: role.can_create_resource("role"),
-            can_create_tasks: role.can_create_resource("task"),
+            tasks: TaskPermissions {
+                create: is_admin || is_member,
+                read: is_admin || is_member,
+                update: is_admin || is_member,
+                delete: is_admin || is_member,
+            },
+            teams: TeamPermissions {
+                create: is_admin,
+                manage: is_admin,
+            },
+            users: UserPermissions { manage: is_admin },
+            admin: AdminPermissions {
+                full_access: is_admin,
+            },
         };
 
         let subscription_based_permissions = SubscriptionTier::all()
@@ -177,6 +220,15 @@ impl RoleWithSubscriptionResponse {
                 subscription_based_permissions,
             },
             subscription_info: SubscriptionInfo {
+                applicable_tiers: if is_admin {
+                    vec!["all".to_string()]
+                } else {
+                    SubscriptionTier::all()
+                        .into_iter()
+                        .map(|t| t.to_string())
+                        .collect()
+                },
+                tier_independent: is_admin,
                 available_tiers: SubscriptionTier::all()
                     .into_iter()
                     .map(|t| t.to_string())
@@ -191,24 +243,33 @@ impl RoleWithSubscriptionResponse {
 fn get_tier_permissions(tier: SubscriptionTier) -> AdditionalPermissions {
     match tier {
         SubscriptionTier::Free => AdditionalPermissions {
+            max_tasks: serde_json::json!(10),
+            max_teams: serde_json::json!(1),
             max_team_members: Some(5),
             max_projects: Some(1),
+            bulk_operations: false,
             advanced_analytics: false,
             api_access: false,
             custom_integrations: false,
             priority_support: false,
         },
         SubscriptionTier::Pro => AdditionalPermissions {
+            max_tasks: serde_json::json!(100),
+            max_teams: serde_json::json!(5),
             max_team_members: Some(20),
             max_projects: Some(10),
+            bulk_operations: true,
             advanced_analytics: true,
             api_access: true,
             custom_integrations: false,
             priority_support: false,
         },
         SubscriptionTier::Enterprise => AdditionalPermissions {
+            max_tasks: serde_json::json!("unlimited"),
+            max_teams: serde_json::json!("unlimited"),
             max_team_members: None, // Unlimited
             max_projects: None,     // Unlimited
+            bulk_operations: true,
             advanced_analytics: true,
             api_access: true,
             custom_integrations: true,

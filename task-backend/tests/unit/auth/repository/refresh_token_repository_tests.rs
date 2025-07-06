@@ -47,6 +47,12 @@ async fn test_refresh_token_lifecycle() {
         created_at: Set(now),
         updated_at: Set(now),
         is_revoked: Set(false),
+        device_type: Set(Some("desktop".to_string())),
+        ip_address: Set(Some("127.0.0.1".to_string())),
+        user_agent: Set(Some("Test User Agent".to_string())),
+        geolocation_country: Set(Some("US".to_string())),
+        last_used_at: Set(Some(now)),
+        use_count: Set(0),
     };
 
     // Assert: モデルの各フィールドを確認
@@ -120,6 +126,12 @@ async fn test_refresh_token_expiration_validation() {
         created_at: Set(now - Duration::days(7)),
         updated_at: Set(now - Duration::days(7)),
         is_revoked: Set(false),
+        device_type: Set(Some("mobile".to_string())),
+        ip_address: Set(Some("127.0.0.1".to_string())),
+        user_agent: Set(Some("Test User Agent".to_string())),
+        geolocation_country: Set(Some("US".to_string())),
+        last_used_at: Set(Some(now - Duration::hours(2))),
+        use_count: Set(5),
     };
 
     let valid_model = refresh_token_model::ActiveModel {
@@ -130,6 +142,12 @@ async fn test_refresh_token_expiration_validation() {
         created_at: Set(now),
         updated_at: Set(now),
         is_revoked: Set(false),
+        device_type: Set(Some("tablet".to_string())),
+        ip_address: Set(Some("127.0.0.1".to_string())),
+        user_agent: Set(Some("Test User Agent".to_string())),
+        geolocation_country: Set(Some("US".to_string())),
+        last_used_at: Set(Some(now)),
+        use_count: Set(1),
     };
 
     // Assert: 期限の確認

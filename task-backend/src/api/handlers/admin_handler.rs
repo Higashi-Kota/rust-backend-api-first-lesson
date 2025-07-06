@@ -395,12 +395,31 @@ pub async fn admin_get_task_stats(
         0.0
     };
 
+    // 平均完了日数を計算（簡易実装）
+    let average_completion_days = {
+        let completed_with_dates = all_tasks
+            .iter()
+            .filter(|t| t.status == crate::domain::task_status::TaskStatus::Completed)
+            .filter_map(|t| t.due_date.map(|d| (t.created_at, d)))
+            .collect::<Vec<_>>();
+
+        if completed_with_dates.is_empty() {
+            0.0
+        } else {
+            let total_days: f64 = completed_with_dates
+                .iter()
+                .map(|(created, due)| (*due - *created).num_days() as f64)
+                .sum();
+            total_days / completed_with_dates.len() as f64
+        }
+    };
+
     let overview = TaskStatsOverview {
         total_tasks,
         completed_tasks,
         pending_tasks,
         overdue_tasks,
-        average_completion_days: 7.5, // 簡易実装
+        average_completion_days,
         completion_rate,
     };
 
@@ -439,59 +458,143 @@ pub async fn admin_get_task_stats(
     })
     .collect();
 
-    // 優先度分布（現在のタスクモデルには優先度がないため、仮実装）
-    let priority_distribution = vec![
-        TaskPriorityDistribution {
-            priority: "high".to_string(),
-            count: (total_tasks as f64 * 0.2) as u64,
-            percentage: 20.0,
-            average_completion_days: 3.5,
-        },
-        TaskPriorityDistribution {
-            priority: "medium".to_string(),
-            count: (total_tasks as f64 * 0.5) as u64,
-            percentage: 50.0,
-            average_completion_days: 7.0,
-        },
-        TaskPriorityDistribution {
-            priority: "low".to_string(),
-            count: (total_tasks as f64 * 0.3) as u64,
-            percentage: 30.0,
-            average_completion_days: 14.0,
-        },
-    ];
+    // 優先度分布を実際のデータから取得
+    let priority_data = task_service.get_priority_distribution().await?;
 
-    // トレンド（簡易実装）
+    // 優先度別の平均完了日数を実際のデータから取得
+    let priority_avg_days = task_service
+        .get_average_completion_days_by_priority()
+        .await?;
+
+    // 優先度別の平均完了日数をマップに変換
+    let priority_avg_map: std::collections::HashMap<String, f64> =
+        priority_avg_days.into_iter().collect();
+
+    let priority_distribution: Vec<TaskPriorityDistribution> = vec!["high", "medium", "low"]
+        .into_iter()
+        .map(|priority| {
+            let count = priority_data
+                .iter()
+                .find(|(p, _)| p == priority)
+                .map_or(0, |(_, c)| *c);
+
+            let percentage = if total_tasks > 0 {
+                (count as f64 / total_tasks as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            let avg_days = priority_avg_map.get(priority).copied().unwrap_or(0.0);
+
+            TaskPriorityDistribution {
+                priority: priority.to_string(),
+                count,
+                percentage,
+                average_completion_days: avg_days,
+            }
+        })
+        .collect();
+
+    // トレンドデータを実際のデータから取得（3週間分）
+    let trend_data = task_service.get_weekly_trend_data(3).await?;
+
+    let mut weekly_creation = Vec::new();
+    let mut weekly_completion = Vec::new();
+
+    for i in 0..trend_data.len() {
+        let (week_start, created, completed) = &trend_data[i];
+
+        // 前週との変化率を計算
+        let creation_change = if i > 0 {
+            let prev_created = trend_data[i - 1].1;
+            if prev_created > 0 {
+                ((*created as f64 - prev_created as f64) / prev_created as f64) * 100.0
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+
+        let completion_change = if i > 0 {
+            let prev_completed = trend_data[i - 1].2;
+            if prev_completed > 0 {
+                ((*completed as f64 - prev_completed as f64) / prev_completed as f64) * 100.0
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
+
+        weekly_creation.push(WeeklyTrend {
+            week_start: *week_start,
+            count: *created,
+            change_from_previous_week: creation_change,
+        });
+
+        weekly_completion.push(WeeklyTrend {
+            week_start: *week_start,
+            count: *completed,
+            change_from_previous_week: completion_change,
+        });
+    }
+
+    // 完了速度を計算（完了数/作成数）
+    let total_created: u64 = trend_data.iter().map(|(_, c, _)| *c).sum();
+    let total_completed: u64 = trend_data.iter().map(|(_, _, c)| *c).sum();
+    let completion_velocity = if total_created > 0 {
+        total_completed as f64 / total_created as f64
+    } else {
+        0.0
+    };
+
+    // 生産性トレンドを計算
+    let (direction, change_percentage) = if weekly_completion.len() >= 2 {
+        let recent = weekly_completion.last().unwrap().count as f64;
+        let previous = weekly_completion[weekly_completion.len() - 2].count as f64;
+
+        if previous == 0.0 {
+            // 前週が0で今週が0より大きい場合は100%増加とする
+            if recent > 0.0 {
+                ("increasing".to_string(), 100.0)
+            } else {
+                ("stable".to_string(), 0.0)
+            }
+        } else if recent > previous {
+            (
+                "increasing".to_string(),
+                ((recent - previous) / previous) * 100.0,
+            )
+        } else if recent < previous {
+            (
+                "decreasing".to_string(),
+                ((previous - recent) / previous) * 100.0,
+            )
+        } else {
+            ("stable".to_string(), 0.0)
+        }
+    } else {
+        ("stable".to_string(), 0.0)
+    };
+
+    // 次週の予測（簡単な線形予測）
+    let prediction_next_week = if weekly_completion.len() >= 2 {
+        let recent = weekly_completion.last().unwrap().count as f64;
+        let trend = weekly_completion.last().unwrap().change_from_previous_week / 100.0;
+        recent * (1.0 + trend)
+    } else {
+        weekly_completion.last().map_or(0.0, |t| t.count as f64)
+    };
+
     let trends = TaskTrends {
-        weekly_creation: vec![
-            WeeklyTrend {
-                week_start: Utc::now() - chrono::Duration::weeks(2),
-                count: 45,
-                change_from_previous_week: 12.5,
-            },
-            WeeklyTrend {
-                week_start: Utc::now() - chrono::Duration::weeks(1),
-                count: 52,
-                change_from_previous_week: 15.6,
-            },
-        ],
-        weekly_completion: vec![
-            WeeklyTrend {
-                week_start: Utc::now() - chrono::Duration::weeks(2),
-                count: 38,
-                change_from_previous_week: -5.0,
-            },
-            WeeklyTrend {
-                week_start: Utc::now() - chrono::Duration::weeks(1),
-                count: 42,
-                change_from_previous_week: 10.5,
-            },
-        ],
-        completion_velocity: 0.85,
+        weekly_creation,
+        weekly_completion,
+        completion_velocity,
         productivity_trend: ProductivityTrend {
-            direction: "increasing".to_string(),
-            change_percentage: 8.5,
-            prediction_next_week: 46.0,
+            direction,
+            change_percentage,
+            prediction_next_week,
         },
     };
 
@@ -527,14 +630,34 @@ pub async fn admin_get_task_stats(
                     0.0
                 };
 
+                // 平均完了時間を取得
+                let average_completion_time_hours = task_service
+                    .get_user_average_completion_hours(user_id)
+                    .await
+                    .unwrap_or(48.0); // エラー時はデフォルト値
+
+                // 生産性スコアを計算（完了率、平均完了時間、タスク数を考慮）
+                let productivity_score = {
+                    let rate_score = completion_rate * 0.5; // 完了率の重み: 50%
+                    let speed_score = if average_completion_time_hours > 0.0 {
+                        // 24時間以内: 100点、48時間: 50点、72時間以上: 0点
+                        (f64::max(72.0 - average_completion_time_hours, 0.0) / 72.0 * 100.0) * 0.3
+                    } else {
+                        0.0
+                    }; // 速度の重み: 30%
+                    let volume_score = (completed.min(20) as f64 / 20.0 * 100.0) * 0.2; // 完了数の重み: 20%（20個で満点）
+
+                    (rate_score + speed_score + volume_score).min(100.0)
+                };
+
                 performances.push(UserTaskPerformance {
                     user_id,
                     username: user.username,
                     tasks_created: actual_count,
                     tasks_completed: completed,
                     completion_rate,
-                    average_completion_time_hours: 48.0, // 簡易実装
-                    productivity_score: completion_rate * 0.8 + 20.0, // 簡易スコア
+                    average_completion_time_hours,
+                    productivity_score,
                 });
             }
         }
@@ -750,11 +873,22 @@ pub async fn admin_list_roles(
             .await?
     };
 
-    // レスポンスを構築
-    let role_responses: Vec<crate::api::dto::role_dto::RoleResponse> = roles
-        .into_iter()
-        .map(crate::api::dto::role_dto::RoleResponse::from)
-        .collect();
+    // レスポンスを構築 - ユーザー数を含める
+    let mut role_responses: Vec<crate::api::dto::role_dto::RoleResponse> = Vec::new();
+
+    for role in roles {
+        let mut role_response = crate::api::dto::role_dto::RoleResponse::from(role.clone());
+
+        // Get user count for this role
+        let user_count = app_state
+            .user_service
+            .count_users_by_role(role.id)
+            .await
+            .unwrap_or(0);
+
+        role_response.user_count = user_count as u64;
+        role_responses.push(role_response);
+    }
 
     let pagination = crate::api::dto::common::PaginationMeta {
         page,
@@ -1508,6 +1642,8 @@ pub async fn admin_get_feature_usage_counts(
                 .into_iter()
                 .map(|(name, count)| serde_json::json!({
                     "feature_name": name,
+                    "total_usage": count,
+                    "unique_users": count, // For now, we don't track unique users separately
                     "usage_count": count
                 }))
                 .collect::<Vec<_>>()
@@ -1639,6 +1775,7 @@ mod tests {
                 title: "Test Task".to_string(),
                 description: Some("Test Description".to_string()),
                 status: None,
+                priority: None,
                 due_date: None,
             }],
             assign_to_user: Some(Uuid::new_v4()),
@@ -1657,6 +1794,7 @@ mod tests {
                     title: format!("Task {}", i),
                     description: None,
                     status: None,
+                    priority: None,
                     due_date: None,
                 })
                 .collect(),
@@ -1741,6 +1879,7 @@ mod tests {
             title: "Admin Created Task".to_string(),
             description: Some("Task created by admin".to_string()),
             status: Some(TaskStatus::InProgress),
+            priority: None,
             due_date: None,
         };
         assert!(!create_request.title.is_empty());
@@ -1751,6 +1890,7 @@ mod tests {
             title: Some("Updated Task Title".to_string()),
             description: Some("Updated description".to_string()),
             status: Some(TaskStatus::Completed),
+            priority: None,
             due_date: None,
         };
         assert!(update_request.title.is_some());
@@ -1807,12 +1947,14 @@ mod tests {
                     title: "Batch Task 1".to_string(),
                     description: Some("First batch task".to_string()),
                     status: Some(TaskStatus::Todo),
+                    priority: None,
                     due_date: None,
                 },
                 CreateTaskDto {
                     title: "Batch Task 2".to_string(),
                     description: None,
                     status: Some(TaskStatus::InProgress),
+                    priority: None,
                     due_date: None,
                 },
             ],

@@ -66,6 +66,14 @@ mod m20250704_180001_create_share_link_access_logs;
 // Stripe決済関連マイグレーション
 mod m20250704_180002_add_stripe_support;
 
+// データ品質改善マイグレーション
+mod m20250706_000001_add_priority_completion_to_tasks;
+mod m20250706_000002_add_ip_tracking_to_password_reset;
+mod m20250706_000003_add_session_analytics_to_refresh_tokens;
+mod m20250706_000004_enhance_login_attempts_tracking;
+mod m20250706_000005_create_session_analytics_summaries;
+mod m20250706_000006_create_task_analytics_summaries;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -126,6 +134,13 @@ impl MigratorTrait for Migrator {
             Box::new(m20250704_180001_create_share_link_access_logs::Migration),
             // 19. Stripe決済システム
             Box::new(m20250704_180002_add_stripe_support::Migration),
+            // 20. データ品質改善（プレースホルダー実装の解消）
+            Box::new(m20250706_000001_add_priority_completion_to_tasks::Migration),
+            Box::new(m20250706_000002_add_ip_tracking_to_password_reset::Migration),
+            Box::new(m20250706_000003_add_session_analytics_to_refresh_tokens::Migration),
+            Box::new(m20250706_000004_enhance_login_attempts_tracking::Migration),
+            Box::new(m20250706_000005_create_session_analytics_summaries::Migration),
+            Box::new(m20250706_000006_create_task_analytics_summaries::Migration),
         ]
     }
 }

@@ -4,7 +4,7 @@ use sea_orm::entity::prelude::*; // Uuid, ActiveModelBehavior, ActiveModelTrait 
 use sea_orm::{ConnectionTrait, DbErr, Set}; // ActiveValue, Set, ConnectionTrait, DbErr を明示的にインポート
 use serde::{Deserialize, Serialize}; // Utc をインポート
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "tasks")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
@@ -15,8 +15,13 @@ pub struct Model {
     #[sea_orm(column_type = "Text", nullable)]
     pub description: Option<String>,
     pub status: String,
+    pub priority: String, // 'low', 'medium', 'high'
     #[sea_orm(nullable)]
     pub due_date: Option<DateTime<Utc>>,
+    #[sea_orm(nullable)]
+    pub completed_at: Option<DateTime<Utc>>,
+    #[sea_orm(nullable)]
+    pub completion_duration_hours: Option<f64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -41,9 +46,10 @@ impl Related<crate::domain::user_model::Entity> for Entity {
 impl ActiveModelBehavior for ActiveModel {
     fn new() -> Self {
         Self {
-            id: Set(Uuid::new_v4()),     // Uuid は prelude::* から
-            created_at: Set(Utc::now()), // Utc は chrono::Utc
-            updated_at: Set(Utc::now()), // Utc は chrono::Utc
+            id: Set(Uuid::new_v4()),             // Uuid は prelude::* から
+            priority: Set("medium".to_string()), // デフォルトはmedium
+            created_at: Set(Utc::now()),         // Utc は chrono::Utc
+            updated_at: Set(Utc::now()),         // Utc は chrono::Utc
             ..ActiveModelTrait::default()
         }
     }

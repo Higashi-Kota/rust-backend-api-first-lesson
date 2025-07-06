@@ -29,6 +29,7 @@ pub struct CreateTaskDto {
     pub description: Option<String>,
 
     pub status: Option<TaskStatus>, // 省略時はデフォルト値を使いたい場合
+    pub priority: Option<String>,   // 'low', 'medium', 'high'、省略時は'medium'
     pub due_date: Option<DateTime<Utc>>,
 }
 
@@ -51,6 +52,7 @@ pub struct UpdateTaskDto {
     pub description: Option<String>,
 
     pub status: Option<TaskStatus>,
+    pub priority: Option<String>, // 'low', 'medium', 'high'
     pub due_date: Option<DateTime<Utc>>,
 }
 
@@ -105,6 +107,7 @@ pub struct TaskDto {
     pub title: String,
     pub description: Option<String>,
     pub status: TaskStatus,
+    pub priority: String,
     pub due_date: Option<DateTime<Utc>>,
     pub user_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
@@ -119,6 +122,7 @@ impl From<task_model::Model> for TaskDto {
             title: model.title,
             description: model.description,
             status: TaskStatus::from_str(&model.status).unwrap_or(TaskStatus::Todo),
+            priority: model.priority,
             due_date: model.due_date,
             user_id: model.user_id,
             created_at: model.created_at,

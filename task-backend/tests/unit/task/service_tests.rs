@@ -250,6 +250,7 @@ async fn test_filter_tasks_service() {
             title: "Filter Test Task 1".to_string(),
             description: Some("High priority".to_string()),
             status: Some(TaskStatus::Todo),
+            priority: None,
             due_date: None,
         })
         .await
@@ -260,6 +261,7 @@ async fn test_filter_tasks_service() {
             title: "Filter Test Task 2".to_string(),
             description: Some("Low priority".to_string()),
             status: Some(TaskStatus::InProgress),
+            priority: None,
             due_date: None,
         })
         .await
@@ -270,6 +272,7 @@ async fn test_filter_tasks_service() {
             title: "Another Filter Task".to_string(),
             description: Some("Medium priority".to_string()),
             status: Some(TaskStatus::Todo),
+            priority: None,
             due_date: None,
         })
         .await
@@ -326,6 +329,7 @@ async fn test_paginated_tasks_service() {
                 title: format!("Pagination Service Task {}", i),
                 description: Some("For pagination test".to_string()),
                 status: Some(TaskStatus::Todo),
+                priority: None,
                 due_date: None,
             })
             .await
@@ -375,6 +379,7 @@ async fn test_task_statistics_calculation() {
                 title: format!("Completed Task {}", i),
                 description: None,
                 status: Some(TaskStatus::Completed),
+                priority: None,
                 due_date: None,
             })
             .await
@@ -389,6 +394,7 @@ async fn test_task_statistics_calculation() {
                 title: format!("Pending Task {}", i),
                 description: None,
                 status: Some(TaskStatus::Todo),
+                priority: None,
                 due_date: None,
             })
             .await
@@ -403,6 +409,7 @@ async fn test_task_statistics_calculation() {
                 title: format!("In Progress Task {}", i),
                 description: None,
                 status: Some(TaskStatus::InProgress),
+                priority: None,
                 due_date: None,
             })
             .await
@@ -457,6 +464,7 @@ async fn test_task_status_distribution() {
                     title: format!("{:?} Task {}", status, i),
                     description: None,
                     status: Some(*status),
+                    priority: None,
                     due_date: None,
                 })
                 .await
@@ -525,6 +533,7 @@ async fn test_bulk_status_update() {
                     title: format!("Bulk Update Task {}", i),
                     description: None,
                     status: Some(TaskStatus::Todo),
+                    priority: None,
                     due_date: None,
                 },
             )
@@ -593,6 +602,7 @@ async fn test_task_operations_with_invalid_uuid() {
             title: "Valid Task".to_string(),
             description: None,
             status: Some(TaskStatus::Todo),
+            priority: None,
             due_date: None,
         })
         .await
@@ -643,6 +653,7 @@ async fn test_task_status_transitions() {
             title: "Status Transition Task".to_string(),
             description: None,
             status: Some(TaskStatus::Todo),
+            priority: None,
             due_date: None,
         })
         .await
@@ -656,6 +667,7 @@ async fn test_task_status_transitions() {
                 title: None,
                 description: None,
                 status: Some(TaskStatus::InProgress),
+                priority: None,
                 due_date: None,
             },
         )
@@ -676,6 +688,7 @@ async fn test_task_status_transitions() {
                 title: None,
                 description: None,
                 status: Some(TaskStatus::Completed),
+                priority: None,
                 due_date: None,
             },
         )
@@ -696,6 +709,7 @@ async fn test_task_status_transitions() {
                 title: None,
                 description: None,
                 status: Some(TaskStatus::Todo),
+                priority: None,
                 due_date: None,
             },
         )

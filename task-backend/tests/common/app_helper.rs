@@ -180,6 +180,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
             activity_log_repo_sec,
             security_incident_repo_sec,
             login_attempt_repo_sec,
+            user_repo.clone(),
         )
     );
 
@@ -411,6 +412,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
             activity_log_repo.clone(),
             security_incident_repo,
             login_attempt_repo.clone(),
+            user_repo.clone(),
         ),
     );
 
@@ -707,6 +709,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
             activity_log_repo.clone(),
             security_incident_repo,
             login_attempt_repo.clone(),
+            user_repo.clone(),
         ),
     );
 

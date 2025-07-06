@@ -7,7 +7,7 @@ use crate::repository::{
     login_attempt_repository::LoginAttemptRepository,
     password_reset_token_repository::PasswordResetTokenRepository,
     refresh_token_repository::RefreshTokenRepository,
-    security_incident_repository::SecurityIncidentRepository,
+    security_incident_repository::SecurityIncidentRepository, user_repository::UserRepository,
 };
 use chrono::Utc;
 use std::sync::Arc;
@@ -20,6 +20,7 @@ pub struct SecurityService {
     activity_log_repo: Arc<ActivityLogRepository>,
     security_incident_repo: Arc<SecurityIncidentRepository>,
     login_attempt_repo: Arc<LoginAttemptRepository>,
+    user_repo: Arc<UserRepository>,
 }
 
 impl SecurityService {
@@ -29,6 +30,7 @@ impl SecurityService {
         activity_log_repo: Arc<ActivityLogRepository>,
         security_incident_repo: Arc<SecurityIncidentRepository>,
         login_attempt_repo: Arc<LoginAttemptRepository>,
+        user_repo: Arc<UserRepository>,
     ) -> Self {
         Self {
             refresh_token_repo,
@@ -36,6 +38,7 @@ impl SecurityService {
             activity_log_repo,
             security_incident_repo,
             login_attempt_repo,
+            user_repo,
         }
     }
 
@@ -125,14 +128,29 @@ impl SecurityService {
         // PasswordResetActivity DTOに変換
         let mut result = Vec::new();
         for activity in activities {
+            // ユーザー情報を取得
+            let (username, email) =
+                if let Ok(Some(user)) = self.user_repo.find_by_id(activity.user_id).await {
+                    (user.username, user.email)
+                } else {
+                    (
+                        "Deleted User".to_string(),
+                        "deleted@example.com".to_string(),
+                    )
+                };
+
             result.push(PasswordResetActivity {
                 user_id: activity.user_id,
-                username: "Unknown".to_string(),          // 簡略化
-                email: "unknown@example.com".to_string(), // 簡略化
+                username,
+                email,
                 requested_at: activity.created_at,
-                used_at: None, // 簡略化 - このフィールドは存在しない
+                used_at: if activity.is_used {
+                    Some(activity.updated_at)
+                } else {
+                    None
+                },
                 expires_at: activity.expires_at,
-                ip_address: None, // 簡略化 - このフィールドは存在しない
+                ip_address: None, // IPアドレスはリセットトークンには保存されていないため、ログから取得する必要がある
                 status: if activity.is_used {
                     "used".to_string()
                 } else if activity.expires_at < Utc::now() {
@@ -212,38 +230,53 @@ impl SecurityService {
         let suspicious_ips = self.login_attempt_repo.find_suspicious_ips(5, 1).await?;
         let suspicious_activity_count = suspicious_ips.len() as u64;
 
+        // 平均セッション継続時間を計算
+        let average_session_duration_minutes = self
+            .refresh_token_repo
+            .get_average_session_duration_minutes()
+            .await?;
+
+        // ピーク時の同時セッション数を取得（過去24時間）
+        let peak_concurrent_sessions = self
+            .refresh_token_repo
+            .get_peak_concurrent_sessions(24)
+            .await?;
+
+        // 地理情報分布を取得
+        let geographic_data = self
+            .refresh_token_repo
+            .get_geographic_distribution()
+            .await?;
+        let geographic_distribution = geographic_data
+            .into_iter()
+            .map(|(country, session_count, unique_users)| GeographicSession {
+                country,
+                session_count,
+                unique_users,
+            })
+            .collect();
+
+        // デバイス分布を取得
+        let device_data = self.refresh_token_repo.get_device_distribution().await?;
+        let device_distribution = device_data
+            .into_iter()
+            .map(|(device_type, session_count, unique_users)| DeviceSession {
+                device_type,
+                session_count,
+                unique_users,
+            })
+            .collect();
+
         Ok(SessionAnalytics {
             total_sessions: refresh_stats.total_tokens,
             active_sessions: refresh_stats.active_tokens,
             unique_users_today,
             unique_users_this_week,
-            average_session_duration_minutes: 45.0, // これは計算が複雑なため、簡易実装のまま
-            peak_concurrent_sessions: refresh_stats.active_tokens + 50,
+            average_session_duration_minutes,
+            peak_concurrent_sessions,
             suspicious_activity_count,
-            geographic_distribution: vec![
-                GeographicSession {
-                    country: "Japan".to_string(),
-                    session_count: refresh_stats.active_tokens / 2,
-                    unique_users: 20,
-                },
-                GeographicSession {
-                    country: "United States".to_string(),
-                    session_count: refresh_stats.active_tokens / 3,
-                    unique_users: 15,
-                },
-            ],
-            device_distribution: vec![
-                DeviceSession {
-                    device_type: "desktop".to_string(),
-                    session_count: refresh_stats.active_tokens / 2,
-                    unique_users: 18,
-                },
-                DeviceSession {
-                    device_type: "mobile".to_string(),
-                    session_count: refresh_stats.active_tokens / 3,
-                    unique_users: 12,
-                },
-            ],
+            geographic_distribution,
+            device_distribution,
         })
     }
 
@@ -255,18 +288,18 @@ impl SecurityService {
     ) -> AppResult<Vec<crate::api::dto::analytics_dto::SuspiciousIpInfo>> {
         let suspicious_ips = self
             .login_attempt_repo
-            .find_suspicious_ips(failed_attempts_threshold as u64, hours as i64)
+            .find_suspicious_ips_with_details(failed_attempts_threshold as u64, hours as i64)
             .await?;
 
         Ok(suspicious_ips
             .into_iter()
-            .map(
-                |(ip_address, count)| crate::api::dto::analytics_dto::SuspiciousIpInfo {
+            .map(|(ip_address, failed_attempts, last_attempt)| {
+                crate::api::dto::analytics_dto::SuspiciousIpInfo {
                     ip_address,
-                    failed_attempts: count,
-                    last_attempt: Utc::now(), // 簡易実装: 実際の最終試行時刻は別クエリが必要
-                },
-            )
+                    failed_attempts,
+                    last_attempt,
+                }
+            })
             .collect())
     }
 
