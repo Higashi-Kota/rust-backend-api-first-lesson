@@ -358,6 +358,8 @@ pub fn payment_router(app_state: AppState) -> Router {
             "/payments/subscription/upgrade-options",
             get(get_upgrade_options_handler),
         )
+        // Stripe設定エンドポイント（管理者専用）
+        .route("/admin/payments/config", get(get_stripe_config_handler))
         // Webhookエンドポイント（認証不要）
         .route("/webhooks/stripe", post(stripe_webhook_handler))
         .with_state(app_state)
@@ -366,4 +368,25 @@ pub fn payment_router(app_state: AppState) -> Router {
 /// 決済ルーターをAppStateから作成
 pub fn payment_router_with_state(app_state: AppState) -> Router {
     payment_router(app_state)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StripeConfigResponse {
+    pub publishable_key: String,
+    pub is_test_mode: bool,
+}
+
+/// Stripe設定情報を取得
+pub async fn get_stripe_config_handler(
+    State(_app_state): State<AppState>,
+) -> AppResult<Json<ApiResponse<StripeConfigResponse>>> {
+    let config = std::sync::Arc::new(crate::config::stripe::StripeConfig::from_env());
+
+    Ok(Json(ApiResponse::success(
+        "Stripe configuration retrieved",
+        StripeConfigResponse {
+            publishable_key: config.publishable_key.clone(),
+            is_test_mode: config.is_test_mode(),
+        },
+    )))
 }

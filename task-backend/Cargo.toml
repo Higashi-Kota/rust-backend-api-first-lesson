@@ -15,6 +15,15 @@ categories.workspace = true
 name = "task_backend"
 path = "src/lib.rs"
 
+# バイナリターゲット
+[[bin]]
+name = "task-backend"
+path = "src/main.rs"
+
+[[bin]]
+name = "generate-password-hash"
+path = "src/bin/generate_password_hash.rs"
+
 [dependencies]
 # Migration dependency - path updated for workspace structure
 migration = { path = "../migration" }

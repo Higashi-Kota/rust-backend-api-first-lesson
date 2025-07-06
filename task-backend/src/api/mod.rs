@@ -48,6 +48,7 @@ pub struct AppState {
     pub cookie_config: CookieConfig,
     pub security_headers: SecurityHeaders,
     pub server_addr: String,
+    pub config: Arc<AppConfig>,
 }
 
 /// Cookie設定
@@ -155,6 +156,7 @@ impl AppState {
             cookie_config: CookieConfig::from_app_config(app_config),
             security_headers: SecurityHeaders::default(),
             server_addr: format!("{}:{}", app_config.host, app_config.port),
+            config: Arc::new(app_config.clone()),
         }
     }
 }

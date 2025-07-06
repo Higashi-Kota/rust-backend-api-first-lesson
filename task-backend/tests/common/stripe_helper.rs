@@ -11,15 +11,6 @@ pub fn is_stripe_test_mode() -> bool {
         && env::var("STRIPE_SECRET_KEY").is_ok()
 }
 
-/// テスト用のStripe顧客を作成（モック）
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct MockStripeCustomer {
-    pub id: String,
-    pub email: String,
-    pub name: String,
-}
-
 /// テスト用のWebhookイベントペイロードを作成
 pub fn create_test_webhook_payload(event_type: &str, data: serde_json::Value) -> String {
     json!({

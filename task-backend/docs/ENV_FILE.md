@@ -159,6 +159,45 @@ postgres://[ユーザー名]:[パスワード]@[ホスト]:[ポート]/[デー�
 RUST_LOG=task_backend=debug,tower_http=warn,sqlx=info
 ```
 
+## 初期管理者ユーザー設定
+
+マイグレーション実行時に初期管理者ユーザーを作成するための設定です。
+
+| 環境変数 | デフォルト値 | 説明 | 注意事項 |
+|---------|------------|------|---------|
+| `INITIAL_ADMIN_EMAIL` | `admin@example.com` | 管理者メールアドレス | 本番環境では必ず変更 |
+| `INITIAL_ADMIN_USERNAME` | `admin` | 管理者ユーザー名 | 本番環境では必ず変更 |
+| `INITIAL_ADMIN_PASSWORD_HASH` | （下記参照） | Argon2ハッシュ化されたパスワード | 本番環境では必ず変更 |
+
+### パスワードハッシュの生成方法
+
+1. **付属のCLIツールを使用（推奨）**
+```bash
+# インタラクティブモード（パスワードを対話的に入力）
+make generate-password-hash
+
+# コマンドライン引数モード（パスワードを直接指定）
+make generate-password-hash PASSWORD='YourSecurePassword123!'
+
+# または直接実行
+cargo run --package task-backend --bin generate-password-hash -- 'YourSecurePassword123!'
+```
+
+出力例：
+```
+=== Password Hash Generated ===
+Password: YourSecurePassword123!
+Hash: $argon2id$v=19$m=19456,t=2,p=1$xxxxxxxxxxxxxxxxxxxxx
+To use in .env file:
+INITIAL_ADMIN_PASSWORD_HASH=$argon2id$v=19$m=19456,t=2,p=1$xxxxxxxxxxxxxxxxxxxxx
+```
+
+2. **デフォルトのパスワードハッシュ**
+- パスワード: `Adm1n$ecurE2024!`
+- ハッシュ: `$argon2id$v=19$m=65536,t=3,p=4$rwjnw7itO1QP7YiQLYYPuw$bwYljZ/eNoieCwcPydAbagPt05UT9wcs+n0zH58ZxS4`
+
+> **⚠️ セキュリティ警告**: 本番環境では必ず独自の強力なパスワードを設定し、そのハッシュを環境変数で指定してください。
+
 ## 環境別設定例
 
 ### 開発環境 (.env.development)

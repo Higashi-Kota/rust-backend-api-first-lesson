@@ -625,4 +625,15 @@ impl AttachmentService {
 
         Ok(config)
     }
+
+    /// 直接アップロード用の署名付きURLを生成
+    pub async fn generate_upload_url(
+        &self,
+        key: &str,
+        expires_in_seconds: u64,
+    ) -> AppResult<String> {
+        self.storage
+            .generate_upload_url(key, expires_in_seconds)
+            .await
+    }
 }

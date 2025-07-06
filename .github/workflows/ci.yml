@@ -84,6 +84,7 @@ jobs:
           - integration::roles
           - integration::security
           - integration::subscription
+          - integration::system
           - integration::tasks
           - integration::team
           - integration::user

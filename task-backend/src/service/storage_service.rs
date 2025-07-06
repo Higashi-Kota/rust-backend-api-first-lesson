@@ -62,8 +62,7 @@ pub trait StorageService: Send + Sync {
     /// 署名付きダウンロードURLを生成
     async fn generate_download_url(&self, key: &str, expires_in_seconds: u64) -> AppResult<String>;
 
-    /// 署名付きアップロードURLを生成（将来の実装用）
-    #[allow(dead_code)]
+    /// 署名付きアップロードURLを生成
     async fn generate_upload_url(&self, key: &str, expires_in_seconds: u64) -> AppResult<String>;
 }
 
@@ -287,19 +286,6 @@ impl StorageConfig {
                 )
             })?,
         })
-    }
-
-    /// 開発環境用のデフォルト設定
-    #[allow(dead_code)]
-    pub fn development_default() -> Self {
-        Self {
-            provider: StorageProvider::MinIO,
-            endpoint: "http://localhost:9000".to_string(),
-            bucket: "task-attachments".to_string(),
-            region: "us-east-1".to_string(),
-            access_key: "minioadmin".to_string(),
-            secret_key: "minioadmin".to_string(),
-        }
     }
 }
 

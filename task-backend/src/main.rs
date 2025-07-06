@@ -22,8 +22,9 @@ use crate::api::handlers::{
     organization_hierarchy_handler::organization_hierarchy_router,
     payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
     role_handler::role_router_with_state, security_handler::security_router,
-    subscription_handler::subscription_router_with_state, task_handler::task_router_with_state,
-    team_handler::team_router_with_state, user_handler::user_router_with_state,
+    subscription_handler::subscription_router_with_state, system_handler::system_router_with_state,
+    task_handler::task_router_with_state, team_handler::team_router_with_state,
+    user_handler::user_router_with_state,
 };
 use crate::api::AppState;
 use crate::config::AppConfig;
@@ -297,7 +298,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/share".to_string(), // 共有リンクのプレフィックス（認証不要）
             "/webhooks/stripe".to_string(), // Stripe Webhook（認証不要）
         ],
-        admin_only_paths: vec!["/admin".to_string(), "/api/admin".to_string()],
+        admin_only_paths: vec!["/admin".to_string()],
         require_verified_email: !app_config.is_development(), // 開発環境では false
         require_active_account: true,
     };
@@ -337,6 +338,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let permission_router = permission_router_with_state(app_state.clone());
     let analytics_router = analytics_router_with_state(app_state.clone());
     let security_router = security_router(app_state.clone());
+    let system_router = system_router_with_state(Arc::new(app_state.clone()));
     let admin_router = admin_router(app_state.clone());
     let hierarchy_router = organization_hierarchy_router().with_state(app_state.clone());
     let gdpr_router = gdpr_router_with_state(app_state.clone());
@@ -354,6 +356,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(permission_router)
         .merge(analytics_router)
         .merge(security_router)
+        .merge(system_router)
         .merge(admin_router)
         .merge(hierarchy_router)
         .merge(gdpr_router)

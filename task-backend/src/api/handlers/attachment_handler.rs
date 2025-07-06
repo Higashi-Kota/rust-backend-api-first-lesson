@@ -2,8 +2,8 @@
 
 use crate::api::dto::attachment_dto::{
     AttachmentDto, AttachmentFilterDto, AttachmentUploadResponse, CreateShareLinkRequest,
-    CreateShareLinkResponse, GenerateDownloadUrlRequest, GenerateDownloadUrlResponse, ShareLinkDto,
-    ShareLinkListResponse,
+    CreateShareLinkResponse, GenerateDownloadUrlRequest, GenerateDownloadUrlResponse,
+    GenerateUploadUrlRequest, GenerateUploadUrlResponse, ShareLinkDto, ShareLinkListResponse,
 };
 use crate::api::dto::{ApiResponse, PaginatedResponse};
 use crate::api::AppState;
@@ -439,6 +439,62 @@ pub fn attachment_routes() -> Router<AppState> {
         )
         // 共有リンクでダウンロード（認証不要）
         .route("/share/{share_token}", get(download_via_share_link_handler))
+        // 直接アップロード用の署名付きURL生成
+        .route(
+            "/tasks/{task_id}/attachments/upload-url",
+            post(generate_upload_url_handler),
+        )
+}
+
+/// 直接アップロード用の署名付きURL生成ハンドラー
+pub async fn generate_upload_url_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Path(task_id): Path<Uuid>,
+    Json(request): Json<GenerateUploadUrlRequest>,
+) -> AppResult<Json<ApiResponse<GenerateUploadUrlResponse>>> {
+    info!(
+        user_id = %user.user_id(),
+        task_id = %task_id,
+        file_name = %request.file_name,
+        "Generating upload URL"
+    );
+
+    // ユーザーがタスクへのアクセス権限を持っているか確認
+    let task_service = &app_state.task_service;
+    let _task = task_service
+        .get_task_for_user(user.user_id(), task_id)
+        .await?;
+
+    // キーを生成（タスクID/ユーザーID/タイムスタンプ/ファイル名）
+    let timestamp = Utc::now().timestamp();
+    let upload_key = format!(
+        "tasks/{}/attachments/{}/{}/{}",
+        task_id,
+        user.user_id(),
+        timestamp,
+        request.file_name
+    );
+
+    // 有効期限を検証
+    let expires_in_seconds = request.expires_in_seconds.unwrap_or(3600).clamp(60, 3600); // 最小60秒、最大1時間
+
+    // アップロードURLを生成
+    let upload_url = app_state
+        .attachment_service
+        .generate_upload_url(&upload_key, expires_in_seconds)
+        .await?;
+
+    let expires_at = Utc::now() + Duration::seconds(expires_in_seconds as i64);
+
+    Ok(Json(ApiResponse::success(
+        "Upload URL generated successfully",
+        GenerateUploadUrlResponse {
+            upload_url,
+            upload_key,
+            expires_at,
+        },
+    )))
 }
 
 // mime_guessクレートの代替実装（既存のmimeクレートを使用）

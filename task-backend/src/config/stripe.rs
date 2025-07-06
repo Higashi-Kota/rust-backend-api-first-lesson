@@ -18,7 +18,6 @@ pub static STRIPE_CLIENT: Lazy<Client> = Lazy::new(|| {
 #[derive(Clone, Debug)]
 pub struct StripeConfig {
     pub secret_key: String,
-    #[allow(dead_code)]
     pub publishable_key: String,
     pub pro_price_id: String,
     pub enterprise_price_id: String,
@@ -90,7 +89,6 @@ impl StripeConfig {
         }
     }
 
-    #[allow(dead_code)]
     pub fn is_test_mode(&self) -> bool {
         self.secret_key.starts_with("sk_test_") || self.development_mode
     }

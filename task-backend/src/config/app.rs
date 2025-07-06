@@ -64,12 +64,10 @@ impl AppConfig {
         self.environment == "development"
     }
 
-    #[allow(dead_code)]
     pub fn is_test(&self) -> bool {
         self.environment == "test"
     }
 
-    #[allow(dead_code)]
     pub fn is_production(&self) -> bool {
         self.environment == "production"
     }
