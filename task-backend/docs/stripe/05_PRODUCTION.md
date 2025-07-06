@@ -93,8 +93,6 @@ flowchart LR
 ```bash
 # 環境設定
 ENVIRONMENT=production
-HOST=0.0.0.0
-PORT=443
 
 # データベース（本番DB）
 DATABASE_URL=postgresql://user:password@production-db:5432/prod_db
