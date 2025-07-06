@@ -899,16 +899,13 @@ impl OrganizationService {
 #[cfg(test)]
 mod tests {
 
-    // Note: These would be integration tests with actual database connections
-    // For unit tests, we would need to mock the repositories
+    // Note: Full integration tests with database are in tests/integration/
+    // These are logic-only unit tests without database dependency
 
     #[test]
-    fn test_organization_service_creation() {
-        // Mock dependencies would be created here
-        // let org_repo = MockOrganizationRepository::new();
-        // let team_repo = MockTeamRepository::new();
-        // let user_repo = MockUserRepository::new();
-        // let service = OrganizationService::new(org_repo, team_repo, user_repo);
-        // assert!(service is created successfully);
+    fn test_organization_service_construction() {
+        // This is a simple construction test
+        // Full integration tests with database are in the integration test directory
+        // Test will be implemented when mock repositories are available
     }
 }

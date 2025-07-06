@@ -600,7 +600,6 @@ impl AttachmentService {
                 max_height: 1280,
                 webp_quality: 75.0,
                 jpeg_quality: 75,
-                strip_metadata: true,
                 keep_original: false,
             },
             SubscriptionTier::Pro => ImageOptimizationConfig {
@@ -609,7 +608,6 @@ impl AttachmentService {
                 max_height: 2048,
                 webp_quality: 85.0,
                 jpeg_quality: 85,
-                strip_metadata: true,
                 keep_original: false,
             },
             SubscriptionTier::Enterprise => ImageOptimizationConfig {
@@ -618,7 +616,6 @@ impl AttachmentService {
                 max_height: 4096,
                 webp_quality: 90.0,
                 jpeg_quality: 90,
-                strip_metadata: false,
                 keep_original: true,
             },
         };

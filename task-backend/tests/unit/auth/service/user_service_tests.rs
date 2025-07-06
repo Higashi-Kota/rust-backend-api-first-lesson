@@ -3,10 +3,7 @@
 // ユーザーサービス関連のユニットテスト
 
 use std::sync::Arc;
-use task_backend::api::dto::user_dto::{
-    RoleUserStats, SubscriptionAnalytics, UpdateProfileRequest, UpdateUsernameRequest,
-    UserActivityStats,
-};
+use task_backend::api::dto::user_dto::{UpdateProfileRequest, UpdateUsernameRequest};
 use task_backend::repository::{
     bulk_operation_history_repository::BulkOperationHistoryRepository,
     email_verification_token_repository::EmailVerificationTokenRepository,
@@ -17,7 +14,6 @@ use task_backend::utils::validation::common::validate_username;
 use validator::Validate;
 
 // テスト用のサービスを作成するヘルパー関数
-#[allow(dead_code)]
 async fn create_test_user_service() -> (crate::common::db::TestDatabase, UserService) {
     let db = crate::common::db::TestDatabase::new().await;
     let connection = db.connection.clone();
@@ -41,106 +37,237 @@ async fn create_test_user_service() -> (crate::common::db::TestDatabase, UserSer
 // Phase 1.1 新規API用のユニットテスト
 
 #[tokio::test]
-async fn test_user_stats_structure() {
-    // ユーザー統計の構造テスト（モックデータ）
-    let total_users = 100;
-    let active_users = 80;
-    let verified_users = 70;
+async fn test_update_username_with_actual_service() {
+    // Arrange: テスト用のサービスとデータベースを准備
+    let (db, service) = create_test_user_service().await;
+    let connection = db.connection.clone();
 
-    // ユーザー統計の構造を検証
-    assert!(total_users >= active_users);
-    assert!(total_users >= verified_users);
-    assert_eq!(total_users - active_users, 20); // inactive_users
-    assert_eq!(total_users - verified_users, 30); // unverified_users
+    // テスト用ユーザーを作成
+    use task_backend::repository::role_repository::RoleRepository;
+    use task_backend::repository::user_repository::{CreateUser, UserRepository};
+    let user_repo = UserRepository::new(connection.clone());
+    let role_repo = RoleRepository::new(std::sync::Arc::new(connection));
+
+    let default_role = role_repo.find_by_name("member").await.unwrap().unwrap();
+    let test_user = CreateUser {
+        email: "test_update@example.com".to_string(),
+        username: "oldusername".to_string(),
+        password_hash: "hashed_password".to_string(),
+        role_id: default_role.id,
+        subscription_tier: None,
+        is_active: None,
+        email_verified: None,
+    };
+    let created_user = user_repo.create(test_user).await.unwrap();
+
+    // Act: ユーザー名を更新
+    let new_username = "newusername";
+    let updated_user = service
+        .update_username(created_user.id, new_username)
+        .await
+        .unwrap();
+
+    // Assert: ユーザー名が更新されていることを確認
+    assert_eq!(updated_user.username, new_username);
+    assert_eq!(updated_user.id, created_user.id);
+    assert_eq!(updated_user.email, created_user.email);
 }
 
 #[tokio::test]
-async fn test_role_user_stats_structure() {
-    // ロール別ユーザー統計の構造テスト
-    let role_stats = RoleUserStats {
-        role_name: "admin".to_string(),
-        role_display_name: "Administrator".to_string(),
-        total_users: 10,
-        active_users: 8,
-        verified_users: 10,
-    };
+async fn test_update_email_with_actual_service() {
+    // Arrange: テスト用サービスとデータを准備
+    let (db, service) = create_test_user_service().await;
+    let connection = db.connection.clone();
 
-    assert!(role_stats.total_users >= role_stats.active_users);
-    assert!(role_stats.total_users >= role_stats.verified_users);
-    assert_eq!(role_stats.role_name, "admin");
+    // テスト用ユーザーを作成
+    use task_backend::repository::role_repository::RoleRepository;
+    use task_backend::repository::user_repository::{CreateUser, UserRepository};
+    let user_repo = UserRepository::new(connection.clone());
+    let role_repo = RoleRepository::new(std::sync::Arc::new(connection));
+
+    let default_role = role_repo.find_by_name("member").await.unwrap().unwrap();
+    let test_user = CreateUser {
+        email: "old_email@example.com".to_string(),
+        username: "emailtester".to_string(),
+        password_hash: "hashed_password".to_string(),
+        role_id: default_role.id,
+        subscription_tier: None,
+        is_active: None,
+        email_verified: None,
+    };
+    let created_user = user_repo.create(test_user).await.unwrap();
+
+    // Act: メールアドレスを更新
+    let new_email = "new_email@example.com";
+    let updated_user = service
+        .update_email(created_user.id, new_email)
+        .await
+        .unwrap();
+
+    // Assert: メールアドレスが更新され、email_verifiedがfalseにリセットされる
+    assert_eq!(updated_user.email, new_email);
+    assert_eq!(updated_user.id, created_user.id);
+    assert!(!updated_user.email_verified);
 }
 
 #[tokio::test]
-async fn test_subscription_analytics_calculation() {
-    // サブスクリプション分析の計算テスト
-    let analytics = SubscriptionAnalytics {
-        total_users: 100,
-        free_users: 70,
-        pro_users: 25,
-        enterprise_users: 5,
-        conversion_rate: 30.0,
-    };
+async fn test_toggle_account_status_with_actual_service() {
+    // Arrange: テスト用サービスとデータを准備
+    let (db, service) = create_test_user_service().await;
+    let connection = db.connection.clone();
 
-    assert_eq!(
-        analytics.total_users,
-        analytics.free_users + analytics.pro_users + analytics.enterprise_users
-    );
-    assert_eq!(analytics.conversion_rate, 30.0);
+    // テスト用ユーザーを作成
+    use task_backend::repository::role_repository::RoleRepository;
+    use task_backend::repository::user_repository::{CreateUser, UserRepository};
+    let user_repo = UserRepository::new(connection.clone());
+    let role_repo = RoleRepository::new(std::sync::Arc::new(connection));
+
+    let default_role = role_repo.find_by_name("member").await.unwrap().unwrap();
+    let test_user = CreateUser {
+        email: "toggle_test@example.com".to_string(),
+        username: "toggleuser".to_string(),
+        password_hash: "hashed_password".to_string(),
+        role_id: default_role.id,
+        subscription_tier: None,
+        is_active: None,
+        email_verified: None,
+    };
+    let created_user = user_repo.create(test_user).await.unwrap();
+    assert!(created_user.is_active); // デフォルトでアクティブ
+
+    // Act: アカウントを非アクティブに
+    let deactivated_user = service
+        .toggle_account_status(created_user.id, false)
+        .await
+        .unwrap();
+
+    // Assert: アカウントが非アクティブになった
+    assert!(!deactivated_user.is_active);
+
+    // Act: アカウントを再びアクティブに
+    let reactivated_user = service
+        .toggle_account_status(created_user.id, true)
+        .await
+        .unwrap();
+
+    // Assert: アカウントが再びアクティブになった
+    assert!(reactivated_user.is_active);
 }
 
 #[tokio::test]
-async fn test_user_activity_stats_structure() {
-    // ユーザーアクティビティ統計の構造テスト
-    let activity_stats = UserActivityStats {
-        total_logins_today: 150,
-        total_logins_week: 1200,
-        total_logins_month: 4800,
-        active_users_today: 45,
-        active_users_week: 320,
-        active_users_month: 1500,
-        average_session_duration: 25.5,
-    };
+async fn test_get_user_profile_with_actual_service() {
+    // Arrange: テスト用サービスとデータを准備
+    let (db, service) = create_test_user_service().await;
+    let connection = db.connection.clone();
 
-    assert!(activity_stats.total_logins_month >= activity_stats.total_logins_week);
-    assert!(activity_stats.total_logins_week >= activity_stats.total_logins_today);
-    assert!(activity_stats.active_users_month >= activity_stats.active_users_week);
-    assert!(activity_stats.active_users_week >= activity_stats.active_users_today);
-    assert!(activity_stats.average_session_duration > 0.0);
+    // テスト用ユーザーを作成
+    use task_backend::repository::role_repository::RoleRepository;
+    use task_backend::repository::user_repository::{CreateUser, UserRepository};
+    let user_repo = UserRepository::new(connection.clone());
+    let role_repo = RoleRepository::new(std::sync::Arc::new(connection));
+
+    let default_role = role_repo.find_by_name("member").await.unwrap().unwrap();
+    let test_user = CreateUser {
+        email: "profile_test@example.com".to_string(),
+        username: "profileuser".to_string(),
+        password_hash: "hashed_password".to_string(),
+        role_id: default_role.id,
+        subscription_tier: None,
+        is_active: None,
+        email_verified: None,
+    };
+    let created_user = user_repo.create(test_user).await.unwrap();
+
+    // Act: ユーザープロファイルを取得
+    let profile = service.get_user_profile(created_user.id).await.unwrap();
+
+    // Assert: プロファイルが正しく取得され、パスワードハッシュが含まれない
+    assert_eq!(profile.id, created_user.id);
+    assert_eq!(profile.email, created_user.email);
+    assert_eq!(profile.username, created_user.username);
+    assert!(profile.is_active);
+    // SafeUserにはpassword_hashが含まれないことを確認
 }
 
 #[tokio::test]
 async fn test_subscription_tier_validation() {
-    // サブスクリプション階層のバリデーションテスト
-    let subscription_tier = "pro".to_string();
+    // Arrange: SubscriptionTierタイプを使用したバリデーション
+    use task_backend::domain::subscription_tier::SubscriptionTier;
 
-    let subscription_tiers = ["free", "pro", "enterprise"];
-    assert!(subscription_tiers.contains(&subscription_tier.as_str()));
+    // Act & Assert: 有効なサブスクリプション階層
+    let free_tier = SubscriptionTier::from_str("free").unwrap();
+    assert_eq!(free_tier, SubscriptionTier::Free);
+    assert_eq!(free_tier.as_str(), "free");
 
-    // 無効な階層のテスト
-    let invalid_tier = "Premium";
-    assert!(!subscription_tiers.contains(&invalid_tier));
+    let pro_tier = SubscriptionTier::from_str("pro").unwrap();
+    assert_eq!(pro_tier, SubscriptionTier::Pro);
+    assert_eq!(pro_tier.as_str(), "pro");
+
+    let enterprise_tier = SubscriptionTier::from_str("enterprise").unwrap();
+    assert_eq!(enterprise_tier, SubscriptionTier::Enterprise);
+    assert_eq!(enterprise_tier.as_str(), "enterprise");
+
+    // Act & Assert: 無効なサブスクリプション階層
+    let invalid_tier = SubscriptionTier::from_str("Premium");
+    assert!(invalid_tier.is_none());
+
+    let empty_tier = SubscriptionTier::from_str("");
+    assert!(empty_tier.is_none());
 }
 
 #[tokio::test]
-async fn test_bulk_operation_result_aggregation() {
-    // 一括操作結果の集計テスト
-    let mut successful = 0;
-    let mut failed = 0;
-    let mut errors = Vec::new();
+async fn test_bulk_operation_with_actual_service() {
+    // Arrange: テスト用サービスとデータを准備
+    let (db, service) = create_test_user_service().await;
+    let connection = db.connection.clone();
 
-    // 成功例をシミュレート
-    for i in 0..5 {
-        if i % 2 == 0 {
-            successful += 1;
-        } else {
-            failed += 1;
-            errors.push(format!("User {}: Operation failed", i));
-        }
+    // 複数のテストユーザーを作成
+    use task_backend::api::dto::user_dto::BulkUserOperation;
+    use task_backend::repository::role_repository::RoleRepository;
+    use task_backend::repository::user_repository::{CreateUser, UserRepository};
+
+    let user_repo = UserRepository::new(connection.clone());
+    let role_repo = RoleRepository::new(std::sync::Arc::new(connection));
+    let default_role = role_repo.find_by_name("member").await.unwrap().unwrap();
+
+    let mut user_ids = Vec::new();
+    for i in 0..3 {
+        let test_user = CreateUser {
+            email: format!("bulk_test_{}@example.com", i),
+            username: format!("bulkuser{}", i),
+            password_hash: "hashed_password".to_string(),
+            role_id: default_role.id,
+            subscription_tier: None,
+            is_active: None,
+            email_verified: None,
+        };
+        let created_user = user_repo.create(test_user).await.unwrap();
+        user_ids.push(created_user.id);
     }
 
-    assert_eq!(successful, 3);
-    assert_eq!(failed, 2);
-    assert_eq!(errors.len(), 2);
+    // Act: 一括操作を実行（アカウントを非アクティブに）
+    let admin_user_id = user_ids[0]; // 便宜上、最初のユーザーを実行者とする
+    let result = service
+        .bulk_user_operations_extended(
+            &BulkUserOperation::Deactivate,
+            &user_ids,
+            None,
+            false,
+            admin_user_id,
+        )
+        .await
+        .unwrap();
+
+    // Assert: 一括操作結果を検証
+    assert_eq!(result.successful, 3);
+    assert_eq!(result.failed, 0);
+    assert_eq!(result.errors.len(), 0);
+
+    // ユーザーが実際に非アクティブになったか確認
+    for user_id in &user_ids {
+        let user = user_repo.find_by_id(*user_id).await.unwrap().unwrap();
+        assert!(!user.is_active);
+    }
 }
 
 #[tokio::test]
