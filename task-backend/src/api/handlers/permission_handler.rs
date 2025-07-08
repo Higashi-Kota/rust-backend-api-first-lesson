@@ -1,7 +1,7 @@
 // task-backend/src/api/handlers/permission_handler.rs
 
+use crate::api::dto::common::ApiResponse;
 use crate::api::dto::permission_dto::*;
-use crate::api::dto::ApiResponse;
 use crate::api::AppState;
 use crate::domain::permission::{
     Permission, PermissionQuota, PermissionResult, PermissionScope, Privilege,

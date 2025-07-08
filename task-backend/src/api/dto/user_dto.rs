@@ -1,6 +1,6 @@
 // task-backend/src/api/dto/user_dto.rs
 
-use crate::api::dto::{ApiResponse, OperationResult, PaginatedResponse};
+use crate::api::dto::common::{ApiResponse, OperationResult, PaginatedResponse};
 use crate::domain::user_model::SafeUser;
 use crate::service::user_service::UserStats;
 use crate::utils::validation::common;

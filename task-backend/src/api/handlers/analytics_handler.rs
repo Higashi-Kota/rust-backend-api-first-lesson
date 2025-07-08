@@ -529,19 +529,9 @@ pub async fn get_user_activity_handler(
         "User activity stats generated"
     );
 
-    // ApiResponse::success_with_metadataを活用
-    let metadata = json!({
-        "query_period_days": days,
-        "period_start": period_start.to_rfc3339(),
-        "period_end": period_end.to_rfc3339(),
-        "calculation_timestamp": Utc::now().to_rfc3339(),
-        "api_version": "v1"
-    });
-
-    Ok(Json(ApiResponse::success_with_metadata(
+    Ok(Json(ApiResponse::success(
         "User activity statistics retrieved successfully",
         response,
-        metadata,
     )))
 }
 

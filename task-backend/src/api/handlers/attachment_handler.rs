@@ -5,7 +5,7 @@ use crate::api::dto::attachment_dto::{
     CreateShareLinkResponse, GenerateDownloadUrlRequest, GenerateDownloadUrlResponse,
     GenerateUploadUrlRequest, GenerateUploadUrlResponse, ShareLinkDto, ShareLinkListResponse,
 };
-use crate::api::dto::{ApiResponse, PaginatedResponse};
+use crate::api::dto::common::{ApiResponse, PaginatedResponse};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;

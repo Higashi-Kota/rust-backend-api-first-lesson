@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::api::dto::{ApiResponse, OperationResult, PaginationMeta};
+use crate::api::dto::common::{ApiResponse, OperationResult, PaginationMeta};
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::user_model::SafeUser;

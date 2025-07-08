@@ -1,6 +1,6 @@
 // task-backend/src/api/handlers/role_handler.rs
+use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::dto::role_dto::*;
-use crate::api::dto::{ApiResponse, OperationResult};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUserWithRole;
