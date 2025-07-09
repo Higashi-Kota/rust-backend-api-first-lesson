@@ -119,7 +119,7 @@ async fn test_password_reset_invalid_email_format() {
 /// メール送信機能の開発モードテスト
 #[tokio::test]
 async fn test_email_service_development_mode() {
-    use task_backend::utils::email::{EmailConfig, EmailMessage, EmailService};
+    use task_backend::infrastructure::email::{EmailConfig, EmailMessage, EmailService};
 
     // 開発モード（デフォルト）のEmailServiceを作成
     let email_service = EmailService::new(EmailConfig {
@@ -146,7 +146,7 @@ async fn test_email_service_development_mode() {
 /// パスワードリセットメール送信の具体的なテスト
 #[tokio::test]
 async fn test_password_reset_email_content() {
-    use task_backend::utils::email::{EmailConfig, EmailService};
+    use task_backend::infrastructure::email::{EmailConfig, EmailService};
 
     // 開発モードのEmailServiceを作成
     let email_service = EmailService::new(EmailConfig {
@@ -171,7 +171,7 @@ async fn test_password_reset_email_content() {
 /// ウェルカムメール送信テスト
 #[tokio::test]
 async fn test_welcome_email_sending() {
-    use task_backend::utils::email::{EmailConfig, EmailService};
+    use task_backend::infrastructure::email::{EmailConfig, EmailService};
 
     let email_service = EmailService::new(EmailConfig {
         development_mode: true,
@@ -189,7 +189,7 @@ async fn test_welcome_email_sending() {
 /// メール認証メール送信テスト
 #[tokio::test]
 async fn test_email_verification_sending() {
-    use task_backend::utils::email::{EmailConfig, EmailService};
+    use task_backend::infrastructure::email::{EmailConfig, EmailService};
 
     let email_service = EmailService::new(EmailConfig {
         development_mode: true,
@@ -212,7 +212,7 @@ async fn test_email_verification_sending() {
 /// セキュリティ通知メール送信テスト
 #[tokio::test]
 async fn test_security_notification_sending() {
-    use task_backend::utils::email::{EmailConfig, EmailService};
+    use task_backend::infrastructure::email::{EmailConfig, EmailService};
 
     let email_service = EmailService::new(EmailConfig {
         development_mode: true,
@@ -235,12 +235,12 @@ async fn test_security_notification_sending() {
 /// EmailConfigのデフォルト設定テスト
 #[tokio::test]
 async fn test_email_config_from_environment() {
-    use task_backend::utils::email::EmailConfig;
+    use task_backend::infrastructure::email::EmailConfig;
 
     let config = EmailConfig::default();
     assert!(config.development_mode);
     assert_eq!(
         config.provider,
-        task_backend::utils::email::EmailProvider::Development
+        task_backend::infrastructure::email::EmailProvider::Development
     );
 }

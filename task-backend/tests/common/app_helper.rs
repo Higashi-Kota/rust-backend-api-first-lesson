@@ -16,6 +16,11 @@ use task_backend::{
     },
     features::storage::{attachment::service::AttachmentService, service::StorageService},
     features::task::{handler as task_handler, service::TaskService},
+    infrastructure::{
+        email::{EmailConfig, EmailService},
+        jwt::JwtManager,
+        password::PasswordManager,
+    },
     repository::{
         organization_repository::OrganizationRepository, role_repository::RoleRepository,
         subscription_history_repository::SubscriptionHistoryRepository,
@@ -25,11 +30,6 @@ use task_backend::{
         payment_service::PaymentService, permission_service::PermissionService,
         role_service::RoleService, subscription_service::SubscriptionService,
         team_service::TeamService, user_service::UserService,
-    },
-    utils::{
-        email::{EmailConfig, EmailService},
-        jwt::JwtManager,
-        password::PasswordManager,
     },
 };
 
@@ -67,15 +67,15 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     let app_config = AppConfig::for_testing();
 
     // テスト用にパスワードポリシーを調整（特殊文字要件を無効化）
-    let password_policy = task_backend::utils::password::PasswordPolicy {
+    let password_policy = task_backend::infrastructure::password::PasswordPolicy {
         require_special: false,
         ..Default::default()
     };
-    let argon2_config = task_backend::utils::password::Argon2Config::default();
+    let argon2_config = task_backend::infrastructure::password::Argon2Config::default();
 
     // 統合設定からユーティリティを作成
     let password_manager = Arc::new(PasswordManager::new(argon2_config, password_policy).unwrap());
-    let jwt_config = task_backend::utils::jwt::JwtConfig {
+    let jwt_config = task_backend::infrastructure::jwt::JwtConfig {
         secret_key: std::env::var("JWT_SECRET")
             .or_else(|_| std::env::var("JWT_SECRET_KEY"))
             .unwrap_or_else(|_| "test-secret-key-that-is-at-least-32-characters-long".to_string()),
@@ -313,15 +313,15 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
     let app_config = AppConfig::for_testing();
 
     // テスト用にパスワードポリシーを調整（特殊文字要件を無効化）
-    let password_policy = task_backend::utils::password::PasswordPolicy {
+    let password_policy = task_backend::infrastructure::password::PasswordPolicy {
         require_special: false,
         ..Default::default()
     };
-    let argon2_config = task_backend::utils::password::Argon2Config::default();
+    let argon2_config = task_backend::infrastructure::password::Argon2Config::default();
 
     // 統合設定からユーティリティを作成
     let password_manager = Arc::new(PasswordManager::new(argon2_config, password_policy).unwrap());
-    let jwt_config = task_backend::utils::jwt::JwtConfig {
+    let jwt_config = task_backend::infrastructure::jwt::JwtConfig {
         secret_key: std::env::var("JWT_SECRET")
             .or_else(|_| std::env::var("JWT_SECRET_KEY"))
             .unwrap_or_else(|_| "test-secret-key-that-is-at-least-32-characters-long".to_string()),
@@ -614,15 +614,15 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
     let app_config = AppConfig::for_testing();
 
     // テスト用にパスワードポリシーを調整（特殊文字要件を無効化）
-    let password_policy = task_backend::utils::password::PasswordPolicy {
+    let password_policy = task_backend::infrastructure::password::PasswordPolicy {
         require_special: false,
         ..Default::default()
     };
-    let argon2_config = task_backend::utils::password::Argon2Config::default();
+    let argon2_config = task_backend::infrastructure::password::Argon2Config::default();
 
     // 統合設定からユーティリティを作成
     let password_manager = Arc::new(PasswordManager::new(argon2_config, password_policy).unwrap());
-    let jwt_config = task_backend::utils::jwt::JwtConfig {
+    let jwt_config = task_backend::infrastructure::jwt::JwtConfig {
         secret_key: std::env::var("JWT_SECRET")
             .or_else(|_| std::env::var("JWT_SECRET_KEY"))
             .unwrap_or_else(|_| "test-secret-key-that-is-at-least-32-characters-long".to_string()),

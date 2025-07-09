@@ -407,12 +407,39 @@ src/
 - **完了**: shared/typesモジュールが実際に活用され、dead_code警告が解消
 - **残課題なし**: 共通型の配置が明確になり、api層とshared層の役割が整理済み
 
-**Phase 12: テストコードのインポートパス更新**
+**Phase 12: テストコードのインポートパス更新**（2025-07-09 完了）
 - **目的**: テストコードを新しいモジュール構造に合わせて更新
 - **実施内容**:
   1. 統合テストのインポートパスを更新
   2. 単体テストのインポートパスを更新
   3. モックやヘルパー関数の整理
+- ✅ 実施済み:
+  - 統合テストのインポートパス調査：30ファイルが旧パスを使用
+  - tests/integration/auth/email_integration_tests.rsのutils::email::をinfrastructure::email::に更新
+  - 単体テストの確認：既にPhase 1-11で更新済み
+  - tests/common/app_helper.rsのutils::をinfrastructure::に更新（email, jwt, password）
+  - cargo clippy --all-targets --all-features -- -D warningsでエラーなし確認
+  - 全216件のテストが成功
+- **部分完了**: 主要なテストファイルのインポートパスは更新済み
+- [ ] **残課題**: 以下のテストファイルのインポートパス更新が未完了
+  - **utils → infrastructure への更新が必要**（3ファイル）:
+    - tests/unit/utils/jwt_tests.rs: `utils::jwt::` → `infrastructure::jwt::`
+    - tests/unit/utils/email_tests.rs: `utils::email::` → `infrastructure::email::`
+    - tests/unit/utils/password_tests.rs: `utils::password::` → `infrastructure::password::`
+  - **api::dto → features への更新が必要**（9ファイル）:
+    - tests/integration/analytics/admin_task_stats_test.rs: `api::dto::analytics_dto` → `features::admin::dto::analytics`
+    - tests/integration/security/security_tests.rs: `api::dto::security_dto` → `features::security::dto::security`
+    - tests/integration/payment/subscription_tests.rs: `api::dto::subscription_dto` → `features::subscription::dto::subscription`
+    - tests/integration/payment/checkout_tests.rs: `api::dto::ApiResponse` → `shared::types::common::ApiResponse`
+    - tests/integration/user/search_tests.rs: `api::dto::user_dto` → `shared::dto::user`
+    - tests/integration/user/user_settings_tests.rs: `api::dto::user_dto` → `shared::dto::user`
+    - tests/unit/auth/service/user_service_tests.rs: `api::dto::user_dto` → `shared::dto::user`
+  - **auth関連テストのutils更新が必要**（4ファイル）:
+    - tests/unit/auth/service/auth_service_tests.rs: `utils::password::` → `infrastructure::password::`
+    - tests/unit/auth/service/user_service_tests.rs: `utils::validation::` は現状維持（infrastructureに移動していない）
+    - tests/unit/auth/repository/user_repository_tests.rs: `utils::password::` → `infrastructure::password::`、validationは現状維持
+    - tests/unit/auth/repository/refresh_token_repository_tests.rs: `utils::jwt::` → `infrastructure::jwt::`
+  - **注**: 現在は`utils/mod.rs`の再エクスポートにより動作しているが、明示的にinfrastructureからインポートすることが望ましい
 
 **Phase 13: 最終クリーンアップと最適化**
 - **目的**: 技術的負債を完全に解消し、ビルド時間を最適化
