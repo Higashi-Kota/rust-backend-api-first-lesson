@@ -131,10 +131,17 @@ Phase 8: features/task/
   - **完了**: 既存のファイルを再エクスポート形式に変更、featuresモジュールを追加
   - [ ] **残課題**: 他のhandler/serviceがGDPR機能を使用している場合のインポート更新（現状は再エクスポートで対応）
 
-- [ ] **Phase 6: ストレージ機能の独立**
-  - [ ] `features/storage`ディレクトリ作成
-  - [ ] attachment関連のファイルを集約
-  - [ ] ファイルアップロードテストの確認
+- [x] **Phase 6: ストレージ機能の独立**（2025-07-09 完了）
+  - [x] `features/storage`ディレクトリ作成
+  - [x] attachment関連のファイルを集約
+  - [x] storage_service.rsをfeatures/storage/service.rsに移動
+  - [x] attachment_repository.rs, attachment_share_link_repository.rsを移動
+  - [x] image_optimizer.rsをinfrastructure/utils/に移動
+  - [x] 既存ファイルを再エクスポート形式に変更
+  - [x] ファイルアップロードテストの確認
+  - [x] cargo clippy --all-targets --all-features -- -D warningsでエラーなし確認
+  - **完了**: 既存のインポートパスを維持しながら、ファイルをfeaturesに移動
+  - [ ] **残課題**: 再エクスポートの未使用警告を#[allow(unused_imports)]で抑制（下記参照）
 
 - [ ] **Phase 7: 認証機能の整理**
   - [ ] `features/auth`ディレクトリ作成
@@ -219,6 +226,28 @@ src/
   - 現在: `use crate::utils::jwt::JwtManager;`（再エクスポート経由で動作）
   - 将来: `use crate::infrastructure::jwt::JwtManager;`への更新を検討
   - 現状のままでも動作に問題なし（Phase 7で認証機能整理時に一括更新予定）
+
+**Phase 5での具体例**:
+- ✅ `features/gdpr`ディレクトリとファイルは作成済み
+- ✅ handler, service, dtoを集約
+- ✅ 既存のファイルを再エクスポート形式に変更
+- ✅ featuresモジュールをmain.rs, lib.rsに追加
+- 🔄 他のhandler/serviceがGDPR機能を使用している場合:
+  - 現状は既存パス（api::handlers::gdpr_handler等）の再エクスポートで対応
+  - 将来的にfeatures::gdpr::handlerへの直接参照への更新を検討
+
+**Phase 6での具体例**:
+- ✅ `features/storage`ディレクトリとファイルは作成済み
+- ✅ attachment関連のhandler, service, dtoを集約
+- ✅ storage_service.rsをfeatures/storage/service.rsに移動
+- ✅ attachment_repository.rs, attachment_share_link_repository.rsを移動
+- ✅ image_optimizer.rsをinfrastructure/utils/に移動し、utilsから再エクスポート
+- 🔄 再エクスポートの未使用警告:
+  - `#[allow(unused_imports)]`で一時的に抑制
+  - api::dto::attachment_dto, api::handlers::attachment_handler等から再エクスポート
+  - service::storage_service, service::attachment_service等から再エクスポート
+  - repository::attachment_repository, repository::attachment_share_link_repository等から再エクスポート
+- 🔄 mock_storage.rsは`tests/common/`に残留（テスト用のため現状維持で問題なし）
 
 **各Phase実施時の注意**:
 ```
