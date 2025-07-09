@@ -7,8 +7,8 @@ use crate::api::dto::team_dto::{
 };
 use crate::domain::team_member_model::Model as TeamMemberModel;
 use crate::domain::team_model::{Model as TeamModel, TeamRole};
+use crate::infrastructure::email::EmailService;
 use crate::middleware::subscription_guard::check_feature_limit;
-use crate::utils::email::EmailService;
 
 // Type aliases for domain models
 pub type Team = TeamModel;

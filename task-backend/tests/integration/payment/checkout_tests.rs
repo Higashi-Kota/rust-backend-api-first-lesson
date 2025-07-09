@@ -3,11 +3,11 @@ use crate::common::auth_helper::{create_test_user_with_info, signup_test_user};
 use crate::common::stripe_helper::is_stripe_test_mode;
 use axum::http::StatusCode;
 use serde_json::json;
-use task_backend::api::dto::ApiResponse;
 use task_backend::api::handlers::payment_handler::{
     CreateCheckoutResponse, CustomerPortalResponse,
 };
 use task_backend::features::auth::repository::user_repository::UserRepository;
+use task_backend::shared::types::common::ApiResponse;
 use tower::ServiceExt;
 
 #[tokio::test]

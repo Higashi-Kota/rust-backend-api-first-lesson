@@ -2,7 +2,7 @@
 
 use axum::{body, http::StatusCode};
 use serde_json::Value;
-use task_backend::api::dto::analytics_dto::TaskStatsDetailResponse;
+use task_backend::features::admin::dto::analytics::TaskStatsDetailResponse;
 use task_backend::shared::types::common::ApiResponse;
 use tower::ServiceExt;
 

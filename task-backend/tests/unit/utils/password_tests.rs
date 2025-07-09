@@ -1,6 +1,6 @@
 // tests/unit/utils/password_tests.rs
 
-use task_backend::utils::password::{Argon2Config, PasswordManager, PasswordPolicy};
+use task_backend::infrastructure::password::{Argon2Config, PasswordManager, PasswordPolicy};
 
 // パスワード関連のユニットテスト（既存のsrc/utils/password.rsのテストを拡張）
 

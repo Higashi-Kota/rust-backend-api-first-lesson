@@ -1,7 +1,7 @@
 // tests/unit/auth/service/auth_service_tests.rs
 
 use task_backend::features::auth::dto::{SigninRequest, SignupRequest};
-use task_backend::utils::password::{Argon2Config, PasswordManager, PasswordPolicy};
+use task_backend::infrastructure::password::{Argon2Config, PasswordManager, PasswordPolicy};
 use validator::Validate;
 
 #[tokio::test]

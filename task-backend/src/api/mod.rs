@@ -3,6 +3,7 @@ use crate::config::AppConfig;
 use crate::features::auth::service::AuthService;
 use crate::features::storage::attachment::service::AttachmentService;
 use crate::features::task::service::TaskService;
+use crate::infrastructure::jwt::JwtManager;
 use crate::repository::{
     bulk_operation_history_repository::BulkOperationHistoryRepository,
     daily_activity_summary_repository::DailyActivitySummaryRepository,
@@ -16,7 +17,6 @@ use crate::service::{
     subscription_service::SubscriptionService, team_invitation_service::TeamInvitationService,
     team_service::TeamService, user_service::UserService,
 };
-use crate::utils::jwt::JwtManager;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 

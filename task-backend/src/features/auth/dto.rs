@@ -2,7 +2,7 @@
 
 // 統一レスポンス構造体は必要に応じてインポート
 use crate::domain::user_model::SafeUser;
-use crate::utils::jwt::TokenPair;
+use crate::infrastructure::jwt::TokenPair;
 use crate::utils::validation::common;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -756,7 +756,7 @@ mod tests {
     #[test]
     fn test_auth_response_serialization() {
         use crate::domain::user_model::SafeUser;
-        use crate::utils::jwt::TokenPair;
+        use crate::infrastructure::jwt::TokenPair;
         use chrono::{DateTime, Utc};
         use uuid::Uuid;
 

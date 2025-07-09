@@ -1,9 +1,11 @@
 use crate::common::app_helper::setup_full_app;
 use crate::common::auth_helper::{create_test_user_with_info, signup_test_user};
 use axum::http::StatusCode;
-use task_backend::api::dto::subscription_dto::{CurrentSubscriptionResponse, SubscriptionTierInfo};
-use task_backend::api::dto::ApiResponse;
 use task_backend::features::auth::repository::user_repository::UserRepository;
+use task_backend::features::subscription::dto::subscription::{
+    CurrentSubscriptionResponse, SubscriptionTierInfo,
+};
+use task_backend::shared::types::common::ApiResponse;
 use tower::ServiceExt;
 
 #[tokio::test]

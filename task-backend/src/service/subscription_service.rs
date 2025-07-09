@@ -7,10 +7,10 @@ use crate::domain::subscription_history_model::{
 use crate::domain::user_model::Model as User;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::repository::user_repository::{SubscriptionTierStats, UserRepository};
+use crate::infrastructure::email::EmailService;
 use crate::repository::subscription_history_repository::{
     SubscriptionHistoryRepository, UserSubscriptionStats,
 };
-use crate::utils::email::EmailService;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
