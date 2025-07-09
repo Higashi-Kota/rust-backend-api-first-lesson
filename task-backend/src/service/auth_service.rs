@@ -1,6 +1,4 @@
 // task-backend/src/service/auth_service.rs
-use crate::api::dto::auth_dto::*;
-use crate::api::dto::user_dto::{EmailVerificationHistoryResponse, TokenStatusResponse};
 use crate::domain::email_verification_token_model::TokenValidationError as EmailTokenValidationError;
 use crate::domain::refresh_token_model::CreateRefreshToken;
 use crate::domain::role_model::RoleName;
@@ -13,6 +11,8 @@ use crate::repository::password_reset_token_repository::PasswordResetTokenReposi
 use crate::repository::refresh_token_repository::RefreshTokenRepository;
 use crate::repository::role_repository::RoleRepository;
 use crate::repository::user_repository::{CreateUser, UserRepository};
+use crate::shared::dto::auth::*;
+use crate::shared::dto::user::{EmailVerificationHistoryResponse, TokenStatusResponse};
 use crate::utils::email::EmailService;
 use crate::utils::error_helper::{
     conflict_error, convert_validation_errors, internal_server_error, not_found_error,
@@ -1186,7 +1186,7 @@ impl AuthService {
         &self,
         user_id: Uuid,
     ) -> AppResult<EmailVerificationHistoryResponse> {
-        use crate::api::dto::user_dto::{
+        use crate::shared::dto::user::{
             EmailVerificationHistoryItem, EmailVerificationHistoryResponse,
         };
 
@@ -1233,8 +1233,8 @@ impl AuthService {
     pub async fn check_pending_email_verification(
         &self,
         user_id: Uuid,
-    ) -> AppResult<crate::api::dto::user_dto::PendingEmailVerificationResponse> {
-        use crate::api::dto::user_dto::PendingEmailVerificationResponse;
+    ) -> AppResult<crate::shared::dto::user::PendingEmailVerificationResponse> {
+        use crate::shared::dto::user::PendingEmailVerificationResponse;
 
         // 最新のトークンを取得
         let latest_token = self

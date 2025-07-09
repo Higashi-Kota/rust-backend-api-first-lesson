@@ -1,7 +1,4 @@
 // task-backend/src/service/user_service.rs
-use crate::api::dto::user_dto::{
-    BulkOperationResult, BulkUserOperation, RoleUserStats, SubscriptionAnalytics,
-};
 use crate::domain::bulk_operation_history_model::{
     BulkOperationError, BulkOperationErrorDetails, BulkOperationType,
 };
@@ -12,6 +9,9 @@ use crate::repository::bulk_operation_history_repository::BulkOperationHistoryRe
 use crate::repository::email_verification_token_repository::EmailVerificationTokenRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::repository::user_settings_repository::UserSettingsRepository;
+use crate::shared::dto::user::{
+    BulkOperationResult, BulkUserOperation, RoleUserStats, SubscriptionAnalytics,
+};
 use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -474,8 +474,8 @@ impl UserService {
     pub async fn get_user_settings_legacy(
         &self,
         user_id: Uuid,
-    ) -> AppResult<crate::api::dto::user_dto::UserSettingsResponse> {
-        use crate::api::dto::user_dto::{SecuritySettings, UserPreferences, UserSettingsResponse};
+    ) -> AppResult<crate::shared::dto::user::UserSettingsResponse> {
+        use crate::shared::dto::user::{SecuritySettings, UserPreferences, UserSettingsResponse};
 
         // ユーザーの存在確認
         let _user = self

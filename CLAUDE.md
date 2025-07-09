@@ -106,10 +106,13 @@ Phase 8: features/task/
   - **完了**: main.rsにもcore, sharedモジュールを追加してビルドエラーを解決
   - [ ] **残課題**: shared/typesの未使用警告を一時的にallow(dead_code)で抑制（下記参照）
 
-- [ ] **Phase 3: 基本的なDTO共通化**
-  - [ ] `shared/dto`ディレクトリ作成
-  - [ ] Service層から参照されているDTOを移動
-  - [ ] 循環依存の解消を確認
+- [x] **Phase 3: 基本的なDTO共通化**（2025-07-09 部分完了）
+  - [x] `shared/dto`ディレクトリ作成
+  - [x] auth_dto.rs, user_dto.rsをshared/dtoに移動
+  - [x] Service層のインポートを更新（auth, user関連のみ）
+  - [x] make ci-check-fastでビルド確認
+  - **部分完了**: auth/userのDTOは移行済み、他のDTOは未移行
+  - [ ] **残課題**: 他のService層で使用されているDTOの移行（下記参照）
 
 - [ ] **Phase 4: ユーティリティの整理**
   - [ ] `infrastructure`ディレクトリ作成
@@ -182,6 +185,23 @@ src/
 - ✅ すべてのインポートをdomain::からcore::に更新済み
 - 🔄 `shared/types`モジュールの未使用警告を`#[allow(dead_code)]`で一時的に抑制
 - 🔄 Phase 3でDTOを移行する際に、shared/typesの活用と警告解除を予定
+
+**Phase 3での具体例**:
+- ✅ `shared/dto`ディレクトリとファイルは作成済み
+- ✅ auth_dto.rs, user_dto.rsをコピーし、元ファイルは再エクスポート形式に変更
+- ✅ auth_service.rs, user_service.rsのインポートをshared::dtoに更新済み
+- 🔄 以下のDTOは未移行（Service層で使用されているが、api::dtoに残っている）:
+  - `task_dto.rs` - task_serviceで使用
+  - `team_dto.rs` - team_serviceで使用（ワイルドカードインポート）
+  - `organization_dto.rs` - organization_serviceで使用（ワイルドカードインポート）
+  - `gdpr_dto.rs` - gdpr_serviceで使用（ワイルドカードインポート）
+  - `security_dto.rs` - security_serviceで使用（ワイルドカードインポート）
+  - `attachment_dto.rs` - attachment_serviceで使用（AttachmentSortBy, SortOrder）
+- 🔄 `PaginationMeta`の重複問題:
+  - `api::dto::common::PaginationMeta`がtask_serviceで使用中
+  - `shared::types::pagination::PaginationMeta`が未使用（dead_code警告）
+- 🔄 循環依存の問題:
+  - `role_dto.rs`が`role_service.rs`から型をインポート（逆方向の依存）
 
 **各Phase実施時の注意**:
 ```
