@@ -223,6 +223,51 @@ src/
 - **完了**: GDPRモジュールは完全にfeatures::gdprから直接インポートされるように変更
 - **残課題なし**: 全ての移行が完了し、既存テストも動作することを確認
 
+**Phase 9.2: Storageモジュールの再エクスポート解消**（2025-07-09 完了）
+- ✅ main.rsのインポートを`features::storage::attachment::handler::attachment_routes`に更新
+- ✅ 再エクスポートファイルを削除:
+  - api/handlers/attachment_handler.rs
+  - api/dto/attachment_dto.rs
+  - service/storage_service.rs
+  - service/attachment_service.rs
+  - repository/attachment_repository.rs
+  - repository/attachment_share_link_repository.rs
+- ✅ mod.rsファイルからStorageモジュール宣言を削除
+- ✅ インポートパス変更:
+  - main.rs: `api::handlers::attachment_handler` → `features::storage::attachment::handler`
+  - main.rs: `service::storage_service` → `features::storage::service`
+  - main.rs: `service::attachment_service` → `features::storage::attachment::service`
+  - tests/common/app_helper.rs: 同様の変更を複数箇所
+  - tests/common/mock_storage.rs: `service::storage_service` → `features::storage::service`
+- ✅ features/storage/attachment/service.rs内のインポートパス修正:
+  - `repository::attachment_repository` → `features::storage::repository::attachment_repository`
+  - `repository::attachment_share_link_repository` → `features::storage::repository::attachment_share_link_repository`
+- ✅ cargo clippy --all-targets --all-features -- -D warningsでエラーなし確認
+- **完了**: Storageモジュールは完全にfeatures::storageから直接インポートされるように変更
+- **残課題なし**: 全ての移行が完了し、既存テストも動作することを確認
+
+**Phase 9.3: Authモジュールの再エクスポート解消**
+- **対象**:
+  - auth_handler.rs、auth_service.rsの再エクスポート削除
+  - middleware/auth.rsの再エクスポート削除
+  - 認証関連リポジトリの再エクスポート削除
+- **実施内容**:
+  1. main.rsのインポートをfeatures::authに更新
+  2. 他のhandler/serviceからのAuthenticatedUser参照を更新
+  3. テストファイルのインポートパスを更新
+  4. 再エクスポートファイルを削除
+
+**Phase 9.4: Taskモジュールの再エクスポート解消**
+- **対象**:
+  - task_handler.rs、task_service.rsの再エクスポート削除
+  - task_dto.rs、task_model.rsの再エクスポート削除
+  - task_repository.rsの再エクスポート削除
+- **実施内容**:
+  1. main.rsのインポートをfeatures::taskに更新
+  2. 他のサービスからのタスク関連参照を更新
+  3. テストファイルのインポートパスを更新
+  4. 再エクスポートファイルを削除
+
 **Phase 10: 残存DTOの移行と循環依存の解消**
 - **対象**:
   - `team_dto.rs`、`organization_dto.rs`、`security_dto.rs`の移行
@@ -388,6 +433,29 @@ src/
   - main.rs: `api::handlers::gdpr_handler` → `features::gdpr::handler`
   - tests/common/app_helper.rs: 同様の変更を2箇所
 - **完了**: 最初の再エクスポート解消として成功、他のモジュールの参考となる実装
+
+**Phase 9.2: Storageモジュールの再エクスポート解消**（2025-07-09 完了）
+- ✅ main.rsのインポートを`features::storage::attachment::handler::attachment_routes`に更新
+- ✅ 再エクスポートファイルを削除:
+  - api/handlers/attachment_handler.rs
+  - api/dto/attachment_dto.rs
+  - service/storage_service.rs
+  - service/attachment_service.rs
+  - repository/attachment_repository.rs
+  - repository/attachment_share_link_repository.rs
+- ✅ mod.rsファイルからStorageモジュール宣言を削除
+- ✅ インポートパス変更:
+  - main.rs: `api::handlers::attachment_handler` → `features::storage::attachment::handler`
+  - main.rs: `service::storage_service` → `features::storage::service`
+  - main.rs: `service::attachment_service` → `features::storage::attachment::service`
+  - tests/common/app_helper.rs: 同様の変更を複数箇所
+  - tests/common/mock_storage.rs: `service::storage_service` → `features::storage::service`
+- ✅ features/storage/attachment/service.rs内のインポートパス修正:
+  - `repository::attachment_repository` → `features::storage::repository::attachment_repository`
+  - `repository::attachment_share_link_repository` → `features::storage::repository::attachment_share_link_repository`
+- ✅ cargo clippy --all-targets --all-features -- -D warningsでエラーなし確認
+- **完了**: Storageモジュールは完全にfeatures::storageから直接インポートされるように変更
+- **残課題なし**: 全ての移行が完了し、既存テストも動作することを確認
 
 **各Phase実施時の注意**:
 ```

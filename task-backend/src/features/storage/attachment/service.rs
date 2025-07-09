@@ -8,12 +8,14 @@ use crate::domain::task_attachment_model::{
     MAX_FILE_SIZE_FREE, MAX_FILE_SIZE_PRO,
 };
 use crate::error::{AppError, AppResult};
+use crate::features::storage::repository::attachment_repository::{
+    AttachmentRepository, CreateAttachmentDto,
+};
+use crate::features::storage::repository::attachment_share_link_repository::{
+    AttachmentShareLinkRepository, CreateShareLinkDto,
+};
 use crate::infrastructure::utils::image_optimizer::{
     is_image_mime_type, optimize_image, ImageOptimizationConfig,
-};
-use crate::repository::attachment_repository::{AttachmentRepository, CreateAttachmentDto};
-use crate::repository::attachment_share_link_repository::{
-    AttachmentShareLinkRepository, CreateShareLinkDto,
 };
 use crate::repository::task_repository::TaskRepository;
 use crate::repository::user_repository::UserRepository;

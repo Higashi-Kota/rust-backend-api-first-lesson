@@ -21,8 +21,7 @@ mod utils;
 
 use crate::api::handlers::{
     admin_handler::admin_router, analytics_handler::analytics_router_with_state,
-    attachment_handler::attachment_routes, auth_handler::auth_router_with_state,
-    organization_handler::organization_router_with_state,
+    auth_handler::auth_router_with_state, organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
     payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
     role_handler::role_router_with_state, security_handler::security_router,
@@ -34,6 +33,11 @@ use crate::api::AppState;
 use crate::config::AppConfig;
 use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schema_exists};
 use crate::features::gdpr::handler::gdpr_router_with_state;
+use crate::features::storage::attachment::handler::attachment_routes;
+use crate::features::storage::{
+    attachment::service::AttachmentService,
+    service::{self as storage_service, StorageConfig},
+};
 use crate::middleware::auth::{
     cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
 };
@@ -48,18 +52,11 @@ use crate::repository::{
     team_repository::TeamRepository, user_repository::UserRepository,
 };
 use crate::service::{
-    attachment_service::AttachmentService,
-    auth_service::AuthService,
-    organization_service::OrganizationService,
-    payment_service::PaymentService,
-    permission_service::PermissionService,
-    role_service::RoleService,
-    security_service::SecurityService,
-    storage_service::{self, StorageConfig},
-    subscription_service::SubscriptionService,
-    task_service::TaskService,
-    team_service::TeamService,
-    user_service::UserService,
+    auth_service::AuthService, organization_service::OrganizationService,
+    payment_service::PaymentService, permission_service::PermissionService,
+    role_service::RoleService, security_service::SecurityService,
+    subscription_service::SubscriptionService, task_service::TaskService,
+    team_service::TeamService, user_service::UserService,
 };
 use crate::utils::{
     email::{EmailConfig, EmailService},

@@ -8,6 +8,7 @@ use task_backend::{
         AppState,
     },
     config::AppConfig,
+    features::storage::{attachment::service::AttachmentService, service::StorageService},
     repository::{
         email_verification_token_repository::EmailVerificationTokenRepository,
         organization_repository::OrganizationRepository,
@@ -17,9 +18,8 @@ use task_backend::{
         team_repository::TeamRepository, user_repository::UserRepository,
     },
     service::{
-        attachment_service::AttachmentService, auth_service::AuthService,
-        payment_service::PaymentService, permission_service::PermissionService,
-        role_service::RoleService, storage_service::StorageService,
+        auth_service::AuthService, payment_service::PaymentService,
+        permission_service::PermissionService, role_service::RoleService,
         subscription_service::SubscriptionService, task_service::TaskService,
         team_service::TeamService, user_service::UserService,
     },
@@ -268,7 +268,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         .merge(task_backend::api::handlers::analytics_handler::analytics_router(app_state.clone()))
         .merge(task_backend::api::handlers::task_handler::task_router_with_state(app_state.clone()))
         .merge(
-            task_backend::api::handlers::attachment_handler::attachment_routes()
+            task_backend::features::storage::attachment::handler::attachment_routes()
                 .with_state(app_state),
         );
 
@@ -561,7 +561,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         )
         .merge(task_backend::features::gdpr::handler::gdpr_router_with_state(app_state.clone()))
         .merge(
-            task_backend::api::handlers::attachment_handler::attachment_routes()
+            task_backend::features::storage::attachment::handler::attachment_routes()
                 .with_state(app_state),
         )
         .layer(axum_middleware::from_fn_with_state(
@@ -845,7 +845,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         .merge(task_backend::api::handlers::security_handler::security_router(app_state.clone()))
         .merge(task_backend::features::gdpr::handler::gdpr_router_with_state(app_state.clone()))
         .merge(
-            task_backend::api::handlers::attachment_handler::attachment_routes()
+            task_backend::features::storage::attachment::handler::attachment_routes()
                 .with_state(app_state),
         )
         .layer(axum_middleware::from_fn_with_state(

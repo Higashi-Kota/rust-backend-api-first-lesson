@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use task_backend::error::AppResult;
-use task_backend::service::storage_service::StorageService;
+use task_backend::features::storage::service::StorageService;
 use uuid::Uuid;
 
 /// テスト用のモックストレージサービス
