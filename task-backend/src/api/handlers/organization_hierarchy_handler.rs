@@ -5,7 +5,7 @@ use crate::{
     },
     domain::permission_matrix_model::EntityType,
     error::AppError,
-    middleware::auth::AuthenticatedUser,
+    features::auth::middleware::AuthenticatedUser,
     service::organization_hierarchy_service::OrganizationHierarchyService,
 };
 use axum::{
@@ -479,11 +479,15 @@ pub async fn remove_department_member(
     .await?;
 
     let response_data = OperationResult::new(
-        format!(
-            "Department member {} removed from department {}",
-            user_id, department_id
-        ),
-        vec!["Department member removed".to_string()],
+        serde_json::json!({
+            "department_id": department_id,
+            "user_id": user_id,
+            "message": format!(
+                "Department member {} removed from department {}",
+                user_id, department_id
+            )
+        }),
+        vec![format!("Removed user {} from department", user_id)],
     );
 
     let api_response =

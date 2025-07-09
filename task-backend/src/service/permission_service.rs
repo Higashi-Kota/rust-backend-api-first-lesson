@@ -1,14 +1,14 @@
 // task-backend/src/service/permission_service.rs
 
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::role_model::RoleWithPermissions;
-use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::AppResult;
 // use crate::repository::permission_repository::PermissionRepository; // TODO: Implement when PermissionRepository is created
 use crate::error::AppError;
+use crate::features::auth::repository::user_repository::UserRepository;
 use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::role_repository::RoleRepository;
 use crate::repository::team_repository::TeamRepository;
-use crate::repository::user_repository::UserRepository;
 use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -335,7 +335,7 @@ impl PermissionService {
 mod tests {
     // use super::*;
     // use crate::domain::role_model::RoleName;
-    // use crate::domain::subscription_tier::SubscriptionTier;
+    // use crate::core::subscription_tier::SubscriptionTier;
     // use chrono::Utc;
     // use mockall::predicate::*;
     // use mockall::mock;

@@ -1,18 +1,22 @@
 // task-backend/src/service/team_service.rs
 
-use crate::api::dto::team_dto::*;
+use crate::api::dto::team_dto::{
+    CreateTeamRequest, InviteTeamMemberRequest, TeamActivity, TeamListResponse,
+    TeamMemberDetailResponse, TeamMemberResponse, TeamResponse, TeamSearchQuery, TeamStatsResponse,
+    TeamTierStats, UpdateTeamMemberRoleRequest, UpdateTeamRequest,
+};
 use crate::domain::team_member_model::Model as TeamMemberModel;
 use crate::domain::team_model::{Model as TeamModel, TeamRole};
+use crate::infrastructure::email::EmailService;
 use crate::middleware::subscription_guard::check_feature_limit;
-use crate::utils::email::EmailService;
 
 // Type aliases for domain models
 pub type Team = TeamModel;
 pub type TeamMember = TeamMemberModel;
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
+use crate::features::auth::repository::user_repository::UserRepository;
 use crate::repository::team_repository::TeamRepository;
-use crate::repository::user_repository::UserRepository;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -644,7 +648,7 @@ mod tests {
     #[test]
     fn test_check_team_access_logic() {
         // Logic test: Test access control decision logic without database
-        use crate::domain::subscription_tier::SubscriptionTier;
+        use crate::core::subscription_tier::SubscriptionTier;
         use crate::domain::team_model::Model as Team;
         use uuid::Uuid;
 
@@ -702,7 +706,7 @@ mod tests {
     #[test]
     fn test_team_member_limit_logic() {
         // Logic test: Test team member limit validation logic
-        use crate::domain::subscription_tier::SubscriptionTier;
+        use crate::core::subscription_tier::SubscriptionTier;
         use crate::domain::team_model::Model as Team;
 
         let owner_id = Uuid::new_v4();

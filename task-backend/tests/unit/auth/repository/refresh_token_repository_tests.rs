@@ -5,7 +5,7 @@
 use chrono::{Duration, Utc};
 use sea_orm::Set;
 use task_backend::domain::refresh_token_model;
-use task_backend::utils::jwt::{JwtConfig, JwtManager};
+use task_backend::infrastructure::jwt::{JwtConfig, JwtManager};
 use uuid::Uuid;
 
 #[tokio::test]

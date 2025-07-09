@@ -1,9 +1,9 @@
 // task-backend/src/repository/organization_repository.rs
 
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::organization_model::{
     Organization, OrganizationMember, OrganizationRole, OrganizationSettings,
 };
-use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 use sea_orm::sea_query::{Expr, PostgresQueryBuilder, Query};

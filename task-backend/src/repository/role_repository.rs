@@ -1,6 +1,6 @@
 // task-backend/src/repository/role_repository.rs
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::role_model::{self, Entity as Role, RoleWithPermissions};
-use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,

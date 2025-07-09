@@ -2,107 +2,38 @@
 
 use crate::api::dto::admin_organization_dto::*;
 use crate::api::dto::admin_role_dto::*;
-use crate::api::dto::common::{ApiResponse, PaginatedResponse, PaginationQuery};
 use crate::api::dto::subscription_history_dto::*;
-use crate::api::dto::task_dto::*;
 use crate::api::dto::team_invitation_dto::*;
 use crate::api::dto::user_dto::{
     UpdateUserSettingsRequest, UserSettingsDto, UserWithRoleResponse, UsersByLanguageResponse,
     UsersWithNotificationResponse,
 };
-use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::features::admin::dto::subscription_history::{
+    DeleteHistoryResponse, SubscriptionAnalyticsResponse, SubscriptionHistorySearchQuery,
+    SubscriptionTierDistribution,
+};
+use crate::features::admin::dto::{
+    AdminBulkCreateTasksRequest, AdminBulkDeleteTasksRequest, AdminBulkOperationResponse,
+    AdminBulkUpdateTasksRequest, AdminTaskStatsResponse, BulkOperationHistoryResponse,
+    BulkOperationListQuery, ChangeUserSubscriptionRequest, ChangeUserSubscriptionResponse,
+    CleanupResultResponse, UserFeatureMetricsResponse,
+};
+use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::features::task::dto::*;
+use crate::shared::types::pagination::{PaginatedResponse, PaginationQuery};
+use crate::shared::types::ApiResponse;
 use crate::utils::permission::{PermissionChecker, PermissionType};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
-use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
+use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
-
-/// 管理者向けタスク一括作成リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct AdminBulkCreateTasksRequest {
-    #[validate(length(min = 1, max = 100, message = "Must provide 1-100 tasks"))]
-    pub tasks: Vec<CreateTaskDto>,
-    pub assign_to_user: Option<Uuid>,
-}
-
-/// 管理者向けタスク一括更新リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct AdminBulkUpdateTasksRequest {
-    #[validate(length(min = 1, max = 100, message = "Must provide 1-100 task updates"))]
-    pub updates: Vec<BatchUpdateTaskItemDto>,
-}
-
-/// 管理者向けタスク一括削除リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct AdminBulkDeleteTasksRequest {
-    #[validate(length(min = 1, max = 100, message = "Must provide 1-100 task IDs"))]
-    pub task_ids: Vec<Uuid>,
-}
-
-/// 管理者向けタスク統計レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AdminTaskStatsResponse {
-    pub total_tasks: u32,
-    pub tasks_by_status: Vec<TaskStatusStats>,
-    pub tasks_by_user: Vec<UserTaskStats>,
-    pub recent_activity: Vec<TaskActivityStats>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TaskStatusStats {
-    pub status: String,
-    pub count: u32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UserTaskStats {
-    pub user_id: Uuid,
-    pub task_count: u64,
-    pub completed_count: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TaskActivityStats {
-    pub date: String,
-    pub created_count: u64,
-    pub completed_count: u64,
-}
-
-/// 管理者向け一括操作レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AdminBulkOperationResponse {
-    pub success_count: usize,
-    pub failed_count: usize,
-    pub total_requested: usize,
-    pub errors: Vec<String>,
-}
-
-/// ユーザーのサブスクリプション変更リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct ChangeUserSubscriptionRequest {
-    #[validate(length(min = 1, message = "New tier must not be empty"))]
-    pub new_tier: String,
-    pub reason: Option<String>,
-}
-
-/// ユーザーのサブスクリプション変更レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChangeUserSubscriptionResponse {
-    pub user_id: Uuid,
-    pub previous_tier: String,
-    pub new_tier: String,
-    pub changed_at: DateTime<Utc>,
-    pub history_id: Uuid,
-}
 
 // === タスク管理API ===
 
@@ -368,21 +299,20 @@ pub async fn admin_get_task_stats(
     let total_tasks = all_tasks.len() as u64;
     let completed_tasks = all_tasks
         .iter()
-        .filter(|t| t.status == crate::domain::task_status::TaskStatus::Completed)
+        .filter(|t| t.status == crate::core::task_status::TaskStatus::Completed)
         .count() as u64;
     let pending_tasks = all_tasks
         .iter()
         .filter(|t| {
-            t.status == crate::domain::task_status::TaskStatus::Todo
-                || t.status == crate::domain::task_status::TaskStatus::InProgress
+            t.status == crate::core::task_status::TaskStatus::Todo
+                || t.status == crate::core::task_status::TaskStatus::InProgress
         })
         .count() as u64;
     let overdue_tasks = all_tasks
         .iter()
         .filter(|t| {
             if let Some(due_date) = t.due_date {
-                due_date < Utc::now()
-                    && t.status != crate::domain::task_status::TaskStatus::Completed
+                due_date < Utc::now() && t.status != crate::core::task_status::TaskStatus::Completed
             } else {
                 false
             }
@@ -399,7 +329,7 @@ pub async fn admin_get_task_stats(
     let average_completion_days = {
         let completed_with_dates = all_tasks
             .iter()
-            .filter(|t| t.status == crate::domain::task_status::TaskStatus::Completed)
+            .filter(|t| t.status == crate::core::task_status::TaskStatus::Completed)
             .filter_map(|t| t.due_date.map(|d| (t.created_at, d)))
             .collect::<Vec<_>>();
 
@@ -429,7 +359,7 @@ pub async fn admin_get_task_stats(
             status: "todo".to_string(),
             count: all_tasks
                 .iter()
-                .filter(|t| t.status == crate::domain::task_status::TaskStatus::Todo)
+                .filter(|t| t.status == crate::core::task_status::TaskStatus::Todo)
                 .count() as u64,
             percentage: 0.0, // 後で計算
         },
@@ -437,7 +367,7 @@ pub async fn admin_get_task_stats(
             status: "in_progress".to_string(),
             count: all_tasks
                 .iter()
-                .filter(|t| t.status == crate::domain::task_status::TaskStatus::InProgress)
+                .filter(|t| t.status == crate::core::task_status::TaskStatus::InProgress)
                 .count() as u64,
             percentage: 0.0,
         },
@@ -608,7 +538,7 @@ pub async fn admin_get_task_stats(
             if let Some(user_id) = task.user_id {
                 let entry = user_tasks.entry(user_id).or_insert((0, 0));
                 entry.0 += 1; // created
-                if task.status == crate::domain::task_status::TaskStatus::Completed {
+                if task.status == crate::core::task_status::TaskStatus::Completed {
                     entry.1 += 1; // completed
                 }
             }
@@ -929,8 +859,8 @@ pub async fn admin_get_role_with_subscription(
     // サブスクリプション階層をクエリパラメータから取得
     let subscription_tier = params
         .get("tier")
-        .and_then(|t| crate::domain::subscription_tier::SubscriptionTier::from_str(t))
-        .unwrap_or(crate::domain::subscription_tier::SubscriptionTier::Free);
+        .and_then(|t| crate::core::subscription_tier::SubscriptionTier::from_str(t))
+        .unwrap_or(crate::core::subscription_tier::SubscriptionTier::Free);
 
     // ロールを取得
     let role = role_service
@@ -983,7 +913,7 @@ pub async fn admin_list_organizations(
 
     // サブスクリプション階層別の統計を計算
     let mut tier_stats: std::collections::HashMap<
-        crate::domain::subscription_tier::SubscriptionTier,
+        crate::core::subscription_tier::SubscriptionTier,
         crate::api::dto::organization_dto::OrganizationTierStats,
     > = std::collections::HashMap::new();
 
@@ -1230,49 +1160,6 @@ pub async fn change_user_subscription(
 }
 
 // === データクリーンアップ・メンテナンスAPI ===
-
-/// バルク操作履歴一覧取得クエリ
-#[derive(Debug, Deserialize)]
-pub struct BulkOperationListQuery {
-    #[serde(default = "default_page")]
-    pub page: i32,
-    #[serde(default = "default_per_page")]
-    pub per_page: i32,
-    pub start_date: Option<DateTime<Utc>>,
-    pub end_date: Option<DateTime<Utc>>,
-}
-
-/// バルク操作履歴レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BulkOperationHistoryResponse {
-    pub id: Uuid,
-    pub operation_type: String,
-    pub performed_by: Uuid,
-    pub performed_by_username: Option<String>,
-    pub affected_count: i32,
-    pub status: String,
-    pub error_details: Option<serde_json::Value>,
-    pub created_at: DateTime<Utc>,
-    pub completed_at: Option<DateTime<Utc>>,
-}
-
-/// クリーンアップ結果レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CleanupResultResponse {
-    pub operation_type: String,
-    pub deleted_count: u64,
-    pub before_date: Option<DateTime<Utc>>,
-    pub performed_at: DateTime<Utc>,
-}
-
-/// 機能使用メトリクスレスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UserFeatureMetricsResponse {
-    pub user_id: Uuid,
-    pub action_counts: HashMap<String, i64>,
-    pub start_date: DateTime<Utc>,
-    pub end_date: DateTime<Utc>,
-}
 
 /// 管理者向けバルク操作履歴一覧取得
 pub async fn admin_list_bulk_operations(
@@ -1763,251 +1650,7 @@ pub fn admin_router(app_state: crate::api::AppState) -> axum::Router {
         .with_state(app_state)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use validator::Validate;
-
-    #[test]
-    fn test_admin_bulk_create_tasks_request_validation() {
-        let valid_request = AdminBulkCreateTasksRequest {
-            tasks: vec![CreateTaskDto {
-                title: "Test Task".to_string(),
-                description: Some("Test Description".to_string()),
-                status: None,
-                priority: None,
-                due_date: None,
-            }],
-            assign_to_user: Some(Uuid::new_v4()),
-        };
-        assert!(valid_request.validate().is_ok());
-
-        let invalid_empty_request = AdminBulkCreateTasksRequest {
-            tasks: vec![],
-            assign_to_user: None,
-        };
-        assert!(invalid_empty_request.validate().is_err());
-
-        let invalid_too_many_request = AdminBulkCreateTasksRequest {
-            tasks: (0..101)
-                .map(|i| CreateTaskDto {
-                    title: format!("Task {}", i),
-                    description: None,
-                    status: None,
-                    priority: None,
-                    due_date: None,
-                })
-                .collect(),
-            assign_to_user: None,
-        };
-        assert!(invalid_too_many_request.validate().is_err());
-    }
-
-    #[test]
-    fn test_admin_bulk_update_tasks_request_validation() {
-        let valid_request = AdminBulkUpdateTasksRequest {
-            updates: vec![BatchUpdateTaskItemDto {
-                id: Uuid::new_v4(),
-                title: Some("Updated Task".to_string()),
-                description: Some("Updated Description".to_string()),
-                status: Some(crate::domain::task_status::TaskStatus::Completed),
-                due_date: None,
-            }],
-        };
-        assert!(valid_request.validate().is_ok());
-
-        let invalid_request = AdminBulkUpdateTasksRequest { updates: vec![] };
-        assert!(invalid_request.validate().is_err());
-    }
-
-    #[test]
-    fn test_admin_bulk_delete_tasks_request_validation() {
-        let valid_request = AdminBulkDeleteTasksRequest {
-            task_ids: vec![Uuid::new_v4(), Uuid::new_v4()],
-        };
-        assert!(valid_request.validate().is_ok());
-
-        let invalid_request = AdminBulkDeleteTasksRequest { task_ids: vec![] };
-        assert!(invalid_request.validate().is_err());
-    }
-
-    #[test]
-    fn test_admin_bulk_operation_response() {
-        let response = AdminBulkOperationResponse {
-            success_count: 5,
-            failed_count: 2,
-            total_requested: 7,
-            errors: vec!["Error 1".to_string(), "Error 2".to_string()],
-        };
-
-        assert_eq!(response.success_count, 5);
-        assert_eq!(response.failed_count, 2);
-        assert_eq!(response.total_requested, 7);
-        assert_eq!(response.errors.len(), 2);
-    }
-
-    #[test]
-    fn test_admin_task_stats_response() {
-        let stats = AdminTaskStatsResponse {
-            total_tasks: 100,
-            tasks_by_status: vec![
-                TaskStatusStats {
-                    status: "pending".to_string(),
-                    count: 30,
-                },
-                TaskStatusStats {
-                    status: "completed".to_string(),
-                    count: 70,
-                },
-            ],
-            tasks_by_user: vec![],
-            recent_activity: vec![],
-        };
-
-        assert_eq!(stats.total_tasks, 100);
-        assert_eq!(stats.tasks_by_status.len(), 2);
-        assert_eq!(stats.tasks_by_status[0].count, 30);
-        assert_eq!(stats.tasks_by_status[1].count, 70);
-    }
-
-    #[test]
-    fn test_admin_single_task_operations_logic() {
-        use crate::domain::task_status::TaskStatus;
-
-        // 単一タスク作成のロジックテスト
-        let create_request = CreateTaskDto {
-            title: "Admin Created Task".to_string(),
-            description: Some("Task created by admin".to_string()),
-            status: Some(TaskStatus::InProgress),
-            priority: None,
-            due_date: None,
-        };
-        assert!(!create_request.title.is_empty());
-        assert!(create_request.description.is_some());
-
-        // 単一タスク更新のロジックテスト
-        let update_request = UpdateTaskDto {
-            title: Some("Updated Task Title".to_string()),
-            description: Some("Updated description".to_string()),
-            status: Some(TaskStatus::Completed),
-            priority: None,
-            due_date: None,
-        };
-        assert!(update_request.title.is_some());
-        assert_eq!(update_request.status, Some(TaskStatus::Completed));
-    }
-
-    #[test]
-    fn test_admin_pagination_logic() {
-        // ページネーションパラメータのロジックテスト
-        let mut params = std::collections::HashMap::new();
-        params.insert("page".to_string(), "2".to_string());
-        params.insert("page_size".to_string(), "25".to_string());
-
-        let page = params
-            .get("page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(1);
-        let page_size = params
-            .get("page_size")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(10)
-            .clamp(1, 100);
-
-        assert_eq!(page, 2);
-        assert_eq!(page_size, 25);
-
-        // 不正な値の場合のテスト
-        let mut invalid_params = std::collections::HashMap::new();
-        invalid_params.insert("page".to_string(), "invalid".to_string());
-        invalid_params.insert("page_size".to_string(), "150".to_string());
-
-        let invalid_page = invalid_params
-            .get("page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(1);
-        let invalid_page_size = invalid_params
-            .get("page_size")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(10)
-            .clamp(1, 100);
-
-        assert_eq!(invalid_page, 1); // デフォルト値
-        assert_eq!(invalid_page_size, 100); // クランプされた最大値
-    }
-
-    #[test]
-    fn test_admin_batch_dto_conversion_logic() {
-        use crate::domain::task_status::TaskStatus;
-
-        // BatchCreateTaskDto のロジックテスト
-        let batch_create = BatchCreateTaskDto {
-            tasks: vec![
-                CreateTaskDto {
-                    title: "Batch Task 1".to_string(),
-                    description: Some("First batch task".to_string()),
-                    status: Some(TaskStatus::Todo),
-                    priority: None,
-                    due_date: None,
-                },
-                CreateTaskDto {
-                    title: "Batch Task 2".to_string(),
-                    description: None,
-                    status: Some(TaskStatus::InProgress),
-                    priority: None,
-                    due_date: None,
-                },
-            ],
-        };
-        assert_eq!(batch_create.tasks.len(), 2);
-        assert!(batch_create.tasks[0].description.is_some());
-        assert!(batch_create.tasks[1].description.is_none());
-
-        // BatchUpdateTaskDto のロジックテスト
-        let batch_update = BatchUpdateTaskDto {
-            tasks: vec![BatchUpdateTaskItemDto {
-                id: Uuid::new_v4(),
-                title: Some("Updated Batch Task".to_string()),
-                description: Some("Updated description".to_string()),
-                status: Some(TaskStatus::Completed),
-                due_date: None,
-            }],
-        };
-        assert_eq!(batch_update.tasks.len(), 1);
-        assert_eq!(batch_update.tasks[0].status, Some(TaskStatus::Completed));
-
-        // BatchDeleteTaskDto のロジックテスト
-        let task_ids = vec![Uuid::new_v4(), Uuid::new_v4()];
-        let batch_delete = BatchDeleteTaskDto {
-            ids: task_ids.clone(),
-        };
-        assert_eq!(batch_delete.ids.len(), 2);
-        assert_eq!(batch_delete.ids, task_ids);
-    }
-}
-
 // ============ サブスクリプション履歴検索・分析API ============
-
-/// サブスクリプション履歴検索クエリ（ページネーション付き）
-#[derive(Debug, Deserialize, Validate)]
-pub struct SubscriptionHistorySearchQuery {
-    pub tier: Option<String>,
-    pub user_id: Option<Uuid>,
-    pub start_date: Option<DateTime<Utc>>,
-    pub end_date: Option<DateTime<Utc>>,
-    #[serde(default = "default_page")]
-    pub page: i32,
-    #[serde(default = "default_per_page")]
-    pub per_page: i32,
-}
-
-fn default_page() -> i32 {
-    1
-}
-
-fn default_per_page() -> i32 {
-    10
-}
 
 /// 全サブスクリプション履歴取得（管理者用）
 pub async fn get_all_subscription_history_handler(
@@ -2157,7 +1800,7 @@ pub async fn get_subscription_analytics_handler(
         total_downgrades: downgrade_history.len() as u64,
         tier_distribution: tier_stats
             .into_iter()
-            .map(|(tier, count)| TierDistribution {
+            .map(|(tier, count)| SubscriptionTierDistribution {
                 tier,
                 count,
                 percentage: 0.0, // 後で計算
@@ -2255,39 +1898,6 @@ pub async fn delete_subscription_history_by_id_handler(
         },
         deleted,
     )))
-}
-
-/// サブスクリプション分析レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SubscriptionAnalyticsResponse {
-    pub total_upgrades: u64,
-    pub total_downgrades: u64,
-    pub tier_distribution: Vec<TierDistribution>,
-    pub recent_upgrades: Vec<SubscriptionChangeInfo>,
-    pub recent_downgrades: Vec<SubscriptionChangeInfo>,
-    pub monthly_trend: Vec<MonthlyTrend>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TierDistribution {
-    pub tier: String,
-    pub count: u64,
-    pub percentage: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MonthlyTrend {
-    pub month: String,
-    pub upgrades: u64,
-    pub downgrades: u64,
-    pub net_change: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DeleteHistoryResponse {
-    pub user_id: Uuid,
-    pub deleted_count: u64,
-    pub deleted_at: DateTime<Utc>,
 }
 
 // === ユーザー設定管理API ===
@@ -2474,5 +2084,228 @@ pub async fn admin_delete_user_settings(
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(AppError::NotFound("User settings not found".to_string()))
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::features::admin::dto::TaskStatusStats;
+    use validator::Validate;
+
+    #[test]
+    fn test_admin_bulk_create_tasks_request_validation() {
+        let valid_request = AdminBulkCreateTasksRequest {
+            tasks: vec![CreateTaskDto {
+                title: "Test Task".to_string(),
+                description: Some("Test Description".to_string()),
+                status: None,
+                priority: None,
+                due_date: None,
+            }],
+            assign_to_user: Some(Uuid::new_v4()),
+        };
+        assert!(valid_request.validate().is_ok());
+
+        let invalid_empty_request = AdminBulkCreateTasksRequest {
+            tasks: vec![],
+            assign_to_user: None,
+        };
+        assert!(invalid_empty_request.validate().is_err());
+
+        let invalid_too_many_request = AdminBulkCreateTasksRequest {
+            tasks: (0..101)
+                .map(|i| CreateTaskDto {
+                    title: format!("Task {}", i),
+                    description: None,
+                    status: None,
+                    priority: None,
+                    due_date: None,
+                })
+                .collect(),
+            assign_to_user: None,
+        };
+        assert!(invalid_too_many_request.validate().is_err());
+    }
+
+    #[test]
+    fn test_admin_bulk_update_tasks_request_validation() {
+        let valid_request = AdminBulkUpdateTasksRequest {
+            updates: vec![BatchUpdateTaskItemDto {
+                id: Uuid::new_v4(),
+                title: Some("Updated Task".to_string()),
+                description: Some("Updated Description".to_string()),
+                status: Some(crate::core::task_status::TaskStatus::Completed),
+                due_date: None,
+            }],
+        };
+        assert!(valid_request.validate().is_ok());
+
+        let invalid_request = AdminBulkUpdateTasksRequest { updates: vec![] };
+        assert!(invalid_request.validate().is_err());
+    }
+
+    #[test]
+    fn test_admin_bulk_delete_tasks_request_validation() {
+        let valid_request = AdminBulkDeleteTasksRequest {
+            task_ids: vec![Uuid::new_v4(), Uuid::new_v4()],
+        };
+        assert!(valid_request.validate().is_ok());
+
+        let invalid_request = AdminBulkDeleteTasksRequest { task_ids: vec![] };
+        assert!(invalid_request.validate().is_err());
+    }
+
+    #[test]
+    fn test_admin_bulk_operation_response() {
+        let response = AdminBulkOperationResponse {
+            success_count: 5,
+            failed_count: 2,
+            total_requested: 7,
+            errors: vec!["Error 1".to_string(), "Error 2".to_string()],
+        };
+
+        assert_eq!(response.success_count, 5);
+        assert_eq!(response.failed_count, 2);
+        assert_eq!(response.total_requested, 7);
+        assert_eq!(response.errors.len(), 2);
+    }
+
+    #[test]
+    fn test_admin_task_stats_response() {
+        let stats = AdminTaskStatsResponse {
+            total_tasks: 100,
+            tasks_by_status: vec![
+                TaskStatusStats {
+                    status: "pending".to_string(),
+                    count: 30,
+                },
+                TaskStatusStats {
+                    status: "completed".to_string(),
+                    count: 70,
+                },
+            ],
+            tasks_by_user: vec![],
+            recent_activity: vec![],
+        };
+
+        assert_eq!(stats.total_tasks, 100);
+        assert_eq!(stats.tasks_by_status.len(), 2);
+        assert_eq!(stats.tasks_by_status[0].count, 30);
+        assert_eq!(stats.tasks_by_status[1].count, 70);
+    }
+
+    #[test]
+    fn test_admin_single_task_operations_logic() {
+        use crate::core::task_status::TaskStatus;
+
+        // 単一タスク作成のロジックテスト
+        let create_request = CreateTaskDto {
+            title: "Admin Created Task".to_string(),
+            description: Some("Task created by admin".to_string()),
+            status: Some(TaskStatus::InProgress),
+            priority: None,
+            due_date: None,
+        };
+        assert!(!create_request.title.is_empty());
+        assert!(create_request.description.is_some());
+
+        // 単一タスク更新のロジックテスト
+        let update_request = UpdateTaskDto {
+            title: Some("Updated Task Title".to_string()),
+            description: Some("Updated description".to_string()),
+            status: Some(TaskStatus::Completed),
+            priority: None,
+            due_date: None,
+        };
+        assert!(update_request.title.is_some());
+        assert_eq!(update_request.status, Some(TaskStatus::Completed));
+    }
+
+    #[test]
+    fn test_admin_pagination_logic() {
+        // ページネーションパラメータのロジックテスト
+        let mut params = std::collections::HashMap::new();
+        params.insert("page".to_string(), "2".to_string());
+        params.insert("page_size".to_string(), "25".to_string());
+
+        let page = params
+            .get("page")
+            .and_then(|p| p.parse::<u64>().ok())
+            .unwrap_or(1);
+        let page_size = params
+            .get("page_size")
+            .and_then(|p| p.parse::<u64>().ok())
+            .unwrap_or(10)
+            .clamp(1, 100);
+
+        assert_eq!(page, 2);
+        assert_eq!(page_size, 25);
+
+        // 不正な値の場合のテスト
+        let mut invalid_params = std::collections::HashMap::new();
+        invalid_params.insert("page".to_string(), "invalid".to_string());
+        invalid_params.insert("page_size".to_string(), "150".to_string());
+
+        let invalid_page = invalid_params
+            .get("page")
+            .and_then(|p| p.parse::<u64>().ok())
+            .unwrap_or(1);
+        let invalid_page_size = invalid_params
+            .get("page_size")
+            .and_then(|p| p.parse::<u64>().ok())
+            .unwrap_or(10)
+            .clamp(1, 100);
+
+        assert_eq!(invalid_page, 1); // デフォルト値
+        assert_eq!(invalid_page_size, 100); // クランプされた最大値
+    }
+
+    #[test]
+    fn test_admin_batch_dto_conversion_logic() {
+        use crate::core::task_status::TaskStatus;
+
+        // BatchCreateTaskDto のロジックテスト
+        let batch_create = BatchCreateTaskDto {
+            tasks: vec![
+                CreateTaskDto {
+                    title: "Batch Task 1".to_string(),
+                    description: Some("First batch task".to_string()),
+                    status: Some(TaskStatus::Todo),
+                    priority: None,
+                    due_date: None,
+                },
+                CreateTaskDto {
+                    title: "Batch Task 2".to_string(),
+                    description: None,
+                    status: Some(TaskStatus::InProgress),
+                    priority: None,
+                    due_date: None,
+                },
+            ],
+        };
+        assert_eq!(batch_create.tasks.len(), 2);
+        assert!(batch_create.tasks[0].description.is_some());
+        assert!(batch_create.tasks[1].description.is_none());
+
+        // BatchUpdateTaskDto のロジックテスト
+        let batch_update = BatchUpdateTaskDto {
+            tasks: vec![BatchUpdateTaskItemDto {
+                id: Uuid::new_v4(),
+                title: Some("Updated Batch Task".to_string()),
+                description: Some("Updated description".to_string()),
+                status: Some(TaskStatus::Completed),
+                due_date: None,
+            }],
+        };
+        assert_eq!(batch_update.tasks.len(), 1);
+        assert_eq!(batch_update.tasks[0].status, Some(TaskStatus::Completed));
+
+        // BatchDeleteTaskDto のロジックテスト
+        let task_ids = vec![Uuid::new_v4(), Uuid::new_v4()];
+        let batch_delete = BatchDeleteTaskDto {
+            ids: task_ids.clone(),
+        };
+        assert_eq!(batch_delete.ids.len(), 2);
+        assert_eq!(batch_delete.ids, task_ids);
     }
 }

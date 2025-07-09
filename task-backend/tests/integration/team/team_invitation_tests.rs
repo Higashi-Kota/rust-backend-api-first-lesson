@@ -3,7 +3,7 @@
 use crate::common::{app_helper, auth_helper};
 use axum::http::StatusCode;
 use serde_json::json;
-use task_backend::api::dto::auth_dto::SignupRequest;
+use task_backend::features::auth::dto::SignupRequest;
 use tower::ServiceExt;
 use uuid::Uuid;
 

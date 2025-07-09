@@ -1,14 +1,14 @@
-use task_backend::domain::task_status::TaskStatus;
+use task_backend::core::task_status::TaskStatus;
 // tests/unit/service_tests.rs
 use sea_orm::{EntityTrait, Set};
 use task_backend::domain::role_model::{ActiveModel as RoleActiveModel, Entity as RoleEntity};
 use task_backend::domain::user_model::{ActiveModel as UserActiveModel, Entity as UserEntity};
-use task_backend::{
-    api::dto::task_dto::{
+use task_backend::features::task::{
+    dto::{
         BatchCreateTaskDto, BatchDeleteTaskDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto,
         CreateTaskDto, TaskFilterDto, UpdateTaskDto,
     },
-    service::task_service::TaskService,
+    service::TaskService,
 };
 use uuid::Uuid;
 

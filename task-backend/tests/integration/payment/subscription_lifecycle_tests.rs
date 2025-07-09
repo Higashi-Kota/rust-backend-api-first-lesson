@@ -5,7 +5,7 @@ use crate::common::{
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};
 use serde_json::json;
-use task_backend::domain::subscription_tier::SubscriptionTier;
+use task_backend::core::subscription_tier::SubscriptionTier;
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -166,8 +166,9 @@ async fn test_subscription_cancellation_with_grace_period() {
     }"#;
 
     // ユーザーのStripe顧客IDを設定
-    let user_repo =
-        task_backend::repository::user_repository::UserRepository::new(db.connection.clone());
+    let user_repo = task_backend::features::auth::repository::user_repository::UserRepository::new(
+        db.connection.clone(),
+    );
     user_repo
         .update_stripe_customer_id(user.id, "cus_test_123")
         .await
@@ -495,8 +496,9 @@ async fn test_subscription_period_end_downgrade() {
     subscription_repo.create(create_sub).await.unwrap();
 
     // ユーザーのStripe顧客IDを設定
-    let user_repo =
-        task_backend::repository::user_repository::UserRepository::new(db.connection.clone());
+    let user_repo = task_backend::features::auth::repository::user_repository::UserRepository::new(
+        db.connection.clone(),
+    );
     user_repo
         .update_stripe_customer_id(user.id, "cus_test_ended")
         .await

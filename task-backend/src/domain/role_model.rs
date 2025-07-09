@@ -41,9 +41,9 @@ impl Related<super::user_model::Entity> for Entity {
 impl ActiveModelBehavior for ActiveModel {}
 
 #[cfg(test)]
-use crate::domain::permission::Permission;
-use crate::domain::permission::{PermissionQuota, PermissionResult, PermissionScope, Privilege};
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::permission::Permission;
+use crate::core::permission::{PermissionQuota, PermissionResult, PermissionScope, Privilege};
+use crate::core::subscription_tier::SubscriptionTier;
 
 /// ロール名を表すenum
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

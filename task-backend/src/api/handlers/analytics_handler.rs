@@ -1,16 +1,17 @@
 // task-backend/src/api/handlers/analytics_handler.rs
 
 use crate::api::dto::analytics_dto::*;
-use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::AppState;
-use crate::domain::{daily_activity_summary_model, subscription_tier::SubscriptionTier};
+use crate::core::subscription_tier::SubscriptionTier;
+use crate::domain::daily_activity_summary_model;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     daily_activity_summary_repository::DailyActivitySummaryRepository,
     subscription_history_repository::SubscriptionHistoryRepository,
 };
+use crate::shared::types::{ApiResponse, OperationResult};
 use axum::{
     extract::{Json, Path, Query, State},
     routing::{get, post},
@@ -529,19 +530,9 @@ pub async fn get_user_activity_handler(
         "User activity stats generated"
     );
 
-    // ApiResponse::success_with_metadataを活用
-    let metadata = json!({
-        "query_period_days": days,
-        "period_start": period_start.to_rfc3339(),
-        "period_end": period_end.to_rfc3339(),
-        "calculation_timestamp": Utc::now().to_rfc3339(),
-        "api_version": "v1"
-    });
-
-    Ok(Json(ApiResponse::success_with_metadata(
+    Ok(Json(ApiResponse::success(
         "User activity statistics retrieved successfully",
         response,
-        metadata,
     )))
 }
 
@@ -1316,7 +1307,7 @@ async fn count_tasks_created_in_period(
     start: DateTime<Utc>,
     end: DateTime<Utc>,
 ) -> AppResult<u64> {
-    use crate::domain::task_model::{Column, Entity as TaskEntity};
+    use crate::features::task::domain::task_model::{Column, Entity as TaskEntity};
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let count = TaskEntity::find()
@@ -1334,7 +1325,7 @@ async fn count_tasks_completed_in_period(
     start: DateTime<Utc>,
     end: DateTime<Utc>,
 ) -> AppResult<u64> {
-    use crate::domain::task_model::{Column, Entity as TaskEntity};
+    use crate::features::task::domain::task_model::{Column, Entity as TaskEntity};
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let count = TaskEntity::find()
@@ -1520,7 +1511,7 @@ fn generate_mock_daily_activities(start: DateTime<Utc>, end: DateTime<Utc>) -> V
 
 /// タスクトレンドを実データから生成
 async fn generate_task_trends(db: &DatabaseConnection) -> AppResult<TaskTrends> {
-    use crate::domain::task_model::{Column, Entity as TaskEntity};
+    use crate::features::task::domain::task_model::{Column, Entity as TaskEntity};
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let mut weekly_creation = vec![];

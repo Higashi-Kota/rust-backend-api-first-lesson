@@ -7,54 +7,63 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 
 mod api;
 mod config;
+mod core;
 mod db;
 mod domain;
 mod error;
+mod features;
+mod infrastructure;
 mod middleware;
 mod repository;
 mod service;
+mod shared;
 mod utils;
 
 use crate::api::handlers::{
     admin_handler::admin_router, analytics_handler::analytics_router_with_state,
-    attachment_handler::attachment_routes, auth_handler::auth_router_with_state,
-    gdpr_handler::gdpr_router_with_state, organization_handler::organization_router_with_state,
+    organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
     payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
     role_handler::role_router_with_state, security_handler::security_router,
     subscription_handler::subscription_router_with_state, system_handler::system_router_with_state,
-    task_handler::task_router_with_state, team_handler::team_router_with_state,
-    user_handler::user_router_with_state,
+    team_handler::team_router_with_state, user_handler::user_router_with_state,
 };
 use crate::api::AppState;
 use crate::config::AppConfig;
 use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schema_exists};
-use crate::middleware::auth::{
-    cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
+use crate::features::auth::{
+    handler::auth_router_with_state,
+    middleware::{
+        cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
+    },
+    repository::{
+        email_verification_token_repository::EmailVerificationTokenRepository,
+        password_reset_token_repository::PasswordResetTokenRepository,
+        refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
+        user_settings_repository::UserSettingsRepository,
+    },
+    service::AuthService,
 };
+use crate::features::gdpr::handler::gdpr_router_with_state;
+use crate::features::storage::attachment::handler::attachment_routes;
+use crate::features::storage::{
+    attachment::service::AttachmentService,
+    service::{self as storage_service, StorageConfig},
+};
+use crate::features::task::{handler::task_router_with_state, service::TaskService};
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     login_attempt_repository::LoginAttemptRepository,
-    organization_repository::OrganizationRepository,
-    password_reset_token_repository::PasswordResetTokenRepository,
-    refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
+    organization_repository::OrganizationRepository, role_repository::RoleRepository,
     security_incident_repository::SecurityIncidentRepository,
     subscription_history_repository::SubscriptionHistoryRepository,
-    team_repository::TeamRepository, user_repository::UserRepository,
+    team_repository::TeamRepository,
 };
 use crate::service::{
-    attachment_service::AttachmentService,
-    auth_service::AuthService,
-    organization_service::OrganizationService,
-    payment_service::PaymentService,
-    permission_service::PermissionService,
-    role_service::RoleService,
-    security_service::SecurityService,
-    storage_service::{self, StorageConfig},
-    subscription_service::SubscriptionService,
-    task_service::TaskService,
-    team_service::TeamService,
-    user_service::UserService,
+    organization_service::OrganizationService, payment_service::PaymentService,
+    permission_service::PermissionService, role_service::RoleService,
+    security_service::SecurityService, subscription_service::SubscriptionService,
+    team_service::TeamService, user_service::UserService,
 };
 use crate::utils::{
     email::{EmailConfig, EmailService},
@@ -151,7 +160,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let role_repo = Arc::new(RoleRepository::new(Arc::new(db_pool.clone())));
     let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db_pool.clone()));
     let password_reset_token_repo = Arc::new(PasswordResetTokenRepository::new(db_pool.clone()));
-    let email_verification_token_repo = Arc::new(crate::repository::email_verification_token_repository::EmailVerificationTokenRepository::new(db_pool.clone()));
+    let email_verification_token_repo =
+        Arc::new(EmailVerificationTokenRepository::new(db_pool.clone()));
     let organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
     let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
     let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db_pool.clone()));
@@ -165,9 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             db_pool.clone(),
         ),
     );
-    let user_settings_repo = Arc::new(
-        crate::repository::user_settings_repository::UserSettingsRepository::new(db_pool.clone()),
-    );
+    let user_settings_repo = Arc::new(UserSettingsRepository::new(db_pool.clone()));
     let bulk_operation_history_repo = Arc::new(
         crate::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
             db_pool.clone(),
@@ -208,8 +216,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         role_repo.clone(),
         user_repo.clone(),
     ));
-
-    let task_service = Arc::new(TaskService::new(db_pool.clone()));
 
     // ストレージサービスの初期化（必須）
     tracing::info!("📦 Initializing storage service...");
@@ -279,6 +285,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         organization_repo.clone(),
     ));
 
+    // Task service creation
+    let task_service = Arc::new(TaskService::new(db_pool.clone()));
+
     tracing::info!("🎯 Business services created.");
 
     // 認証ミドルウェア設定
@@ -309,7 +318,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         auth_service,
         user_service,
         role_service,
-        task_service,
         team_service,
         team_invitation_service,
         organization_service,
@@ -322,6 +330,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         permission_service,
         security_service,
         attachment_service,
+        task_service,
         jwt_manager.clone(),
         Arc::new(db_pool.clone()),
         &app_config,
@@ -331,7 +340,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let auth_router = auth_router_with_state(app_state.clone());
     let user_router = user_router_with_state(app_state.clone());
     let role_router = role_router_with_state(app_state.clone());
-    let task_router = task_router_with_state(app_state.clone());
     let team_router = team_router_with_state(app_state.clone());
     let organization_router = organization_router_with_state(app_state.clone());
     let subscription_router = subscription_router_with_state(app_state.clone());
@@ -343,14 +351,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let admin_router = admin_router(app_state.clone());
     let hierarchy_router = organization_hierarchy_router().with_state(app_state.clone());
     let gdpr_router = gdpr_router_with_state(app_state.clone());
+    let task_router_inst = task_router_with_state(app_state.clone());
 
     // メインアプリケーションルーターの構築
     let app_router = Router::new()
         .merge(auth_router)
         .merge(user_router)
         .merge(role_router)
-        .merge(task_router)
         .merge(team_router)
+        .merge(task_router_inst)
         .merge(organization_router)
         .merge(subscription_router)
         .merge(payment_router)
@@ -382,7 +391,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • User Management: /users/*");
     tracing::info!("   • Role Management: /roles/*");
     tracing::info!("   • Task Management: /tasks/*");
-    tracing::info!("   • File Attachments: /tasks/*/attachments, /attachments/*");
+    tracing::info!("   • File Attachments: /attachments/*");
     tracing::info!(
         "   • Share Links: /attachments/*/share-links, /share-links/*, /share/* (public)"
     );

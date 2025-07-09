@@ -1,6 +1,6 @@
 use serde_json::json;
 use std::env;
-use task_backend::domain::subscription_tier::SubscriptionTier;
+use task_backend::core::subscription_tier::SubscriptionTier;
 
 /// Stripeのテストモードが有効かどうかを判定
 pub fn is_stripe_test_mode() -> bool {

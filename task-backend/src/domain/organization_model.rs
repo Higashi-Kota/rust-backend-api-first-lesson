@@ -1,6 +1,6 @@
 // task-backend/src/domain/organization_model.rs
 
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::subscription_tier::SubscriptionTier;
 use chrono::{DateTime, Utc};
 use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};

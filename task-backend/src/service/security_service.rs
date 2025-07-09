@@ -1,13 +1,19 @@
 // task-backend/src/service/security_service.rs
 
-use crate::api::dto::security_dto::*;
+use crate::api::dto::security_dto::{
+    AuditFinding, AuditReport, AuditReportRequest, AuditSummary, CleanupResult, DeviceSession,
+    GeographicSession, PasswordResetActivity, PasswordResetTokenStats, RefreshTokenStats,
+    RevokeAllTokensRequest, RevokeResult, SessionAnalytics,
+};
 use crate::error::AppResult;
+use crate::features::auth::repository::{
+    password_reset_token_repository::PasswordResetTokenRepository,
+    refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
+};
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     login_attempt_repository::LoginAttemptRepository,
-    password_reset_token_repository::PasswordResetTokenRepository,
-    refresh_token_repository::RefreshTokenRepository,
-    security_incident_repository::SecurityIncidentRepository, user_repository::UserRepository,
+    security_incident_repository::SecurityIncidentRepository,
 };
 use chrono::Utc;
 use std::sync::Arc;

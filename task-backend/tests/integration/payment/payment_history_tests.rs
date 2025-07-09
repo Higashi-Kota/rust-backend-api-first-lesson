@@ -5,9 +5,8 @@ use crate::common::{
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};
 use serde_json::json;
-use task_backend::domain::{
-    stripe_payment_history_model::PaymentStatus, subscription_tier::SubscriptionTier,
-};
+use task_backend::core::subscription_tier::SubscriptionTier;
+use task_backend::domain::stripe_payment_history_model::PaymentStatus;
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -174,8 +173,9 @@ async fn test_subscription_guard_middleware() {
     let _free_user = create_and_authenticate_user(&app).await;
 
     // ユーザーのサブスクリプションをProに更新
-    let _user_repo =
-        task_backend::repository::user_repository::UserRepository::new(db.connection.clone());
+    let _user_repo = task_backend::features::auth::repository::user_repository::UserRepository::new(
+        db.connection.clone(),
+    );
     let email_service = std::sync::Arc::new(
         task_backend::utils::email::EmailService::new(task_backend::utils::email::EmailConfig {
             development_mode: true,
