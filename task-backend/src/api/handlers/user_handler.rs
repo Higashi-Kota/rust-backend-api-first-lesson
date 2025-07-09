@@ -10,7 +10,7 @@ use crate::api::dto::user_dto::{
     UserSettingsResponse, UserStatsResponse, UserSummary, VerifyEmailRequest,
 };
 use crate::api::AppState;
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;

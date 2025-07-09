@@ -5,7 +5,7 @@ use crate::api::dto::task_dto::{
     UpdateTaskDto,
 };
 use crate::api::AppState;
-use crate::domain::task_status::TaskStatus;
+use crate::core::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use axum::{
@@ -759,8 +759,8 @@ pub fn task_router(app_state: AppState) -> Router {
     let _is_auth = is_auth_endpoint("/auth/signin");
 
     // PermissionChecker::check_scopeの使用例
-    let global_scope = crate::domain::permission::PermissionScope::Global;
-    let team_scope = crate::domain::permission::PermissionScope::Team;
+    let global_scope = crate::core::permission::PermissionScope::Global;
+    let team_scope = crate::core::permission::PermissionScope::Team;
     let _scope_check = PermissionChecker::check_scope(&global_scope, &team_scope);
 
     Router::new()

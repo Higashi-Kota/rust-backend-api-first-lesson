@@ -1,7 +1,7 @@
 // task-backend/src/service/permission_service.rs
 
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::role_model::RoleWithPermissions;
-use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::AppResult;
 // use crate::repository::permission_repository::PermissionRepository; // TODO: Implement when PermissionRepository is created
 use crate::error::AppError;
@@ -335,7 +335,7 @@ impl PermissionService {
 mod tests {
     // use super::*;
     // use crate::domain::role_model::RoleName;
-    // use crate::domain::subscription_tier::SubscriptionTier;
+    // use crate::core::subscription_tier::SubscriptionTier;
     // use chrono::Utc;
     // use mockall::predicate::*;
     // use mockall::mock;

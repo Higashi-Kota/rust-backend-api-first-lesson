@@ -1,4 +1,4 @@
-use task_backend::domain::task_status::TaskStatus;
+use task_backend::core::task_status::TaskStatus;
 // tests/unit/service_tests.rs
 use sea_orm::{EntityTrait, Set};
 use task_backend::domain::role_model::{ActiveModel as RoleActiveModel, Entity as RoleEntity};

@@ -192,7 +192,7 @@ async fn test_get_user_profile_with_actual_service() {
 #[tokio::test]
 async fn test_subscription_tier_validation() {
     // Arrange: SubscriptionTierタイプを使用したバリデーション
-    use task_backend::domain::subscription_tier::SubscriptionTier;
+    use task_backend::core::subscription_tier::SubscriptionTier;
 
     // Act & Assert: 有効なサブスクリプション階層
     let free_tier = SubscriptionTier::from_str("free").unwrap();

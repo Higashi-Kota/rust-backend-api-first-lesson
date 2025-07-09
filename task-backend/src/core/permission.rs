@@ -1,6 +1,6 @@
 // task-backend/src/domain/permission.rs
 
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::subscription_tier::SubscriptionTier;
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 use uuid::Uuid;

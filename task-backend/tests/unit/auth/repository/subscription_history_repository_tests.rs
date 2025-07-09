@@ -2,7 +2,8 @@
 
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use task_backend::{
-    domain::{role_model, subscription_tier::SubscriptionTier},
+    core::subscription_tier::SubscriptionTier,
+    domain::role_model,
     repository::{
         subscription_history_repository::SubscriptionHistoryRepository,
         user_repository::{CreateUser, UserRepository},

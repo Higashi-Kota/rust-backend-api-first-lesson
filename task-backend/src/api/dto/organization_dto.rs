@@ -1,7 +1,7 @@
 // task-backend/src/api/dto/organization_dto.rs
 
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::organization_model::{Organization, OrganizationRole, OrganizationSettings};
-use crate::domain::subscription_tier::SubscriptionTier;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

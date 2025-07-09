@@ -1,6 +1,6 @@
 // task-backend/src/middleware/subscription_guard.rs
 
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 
 /// 機能制限をチェックするためのヘルパー関数

@@ -1,8 +1,8 @@
 // src/domain/user_model.rs
 
-use super::permission::{PermissionResult, PermissionScope};
 use super::role_model::RoleWithPermissions;
-use super::subscription_tier::SubscriptionTier;
+use crate::core::permission::{PermissionResult, PermissionScope};
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;

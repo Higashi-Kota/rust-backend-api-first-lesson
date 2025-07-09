@@ -1,6 +1,6 @@
 use crate::api::dto::subscription_dto::{CurrentSubscriptionResponse, SubscriptionTierInfo};
 use crate::api::{dto::common::ApiResponse, AppState};
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use axum::{

@@ -95,10 +95,16 @@ Phase 8: features/task/
   - [x] 全テストがパスすることを確認
   - [ ] **残課題**: モジュール参照の問題を解決（下記参照）
 
-- [ ] **Phase 2: コアドメインモデルの統合**
-  - [ ] `core`ディレクトリ作成
-  - [ ] `subscription_tier.rs`, `permission.rs`, `task_status.rs`を移動
-  - [ ] 28箇所のimport文を更新
+- [x] **Phase 2: コアドメインモデルの統合**（2025-07-09 完了）
+  - [x] `core`ディレクトリ作成
+  - [x] `subscription_tier.rs`, `permission.rs`, `task_status.rs`を移動
+  - [x] 28箇所のimport文を更新
+  - [x] 7箇所のpermission import文を更新  
+  - [x] task_status import文を更新
+  - [x] テストファイルのimport文も更新
+  - [x] make ci-check-fastでビルド確認
+  - **完了**: main.rsにもcore, sharedモジュールを追加してビルドエラーを解決
+  - [ ] **残課題**: shared/typesの未使用警告を一時的にallow(dead_code)で抑制（下記参照）
 
 - [ ] **Phase 3: 基本的なDTO共通化**
   - [ ] `shared/dto`ディレクトリ作成
@@ -170,6 +176,12 @@ src/
 - ✅ `shared/types`ディレクトリとファイルは作成済み
 - ✅ `api/dto/common.rs`に型定義を残してビルドを通している
 - 🔄 将来的に`crate::shared::types`から再エクスポートする形に移行予定
+
+**Phase 2での具体例**:
+- ✅ `core`ディレクトリとファイルは作成済み
+- ✅ すべてのインポートをdomain::からcore::に更新済み
+- 🔄 `shared/types`モジュールの未使用警告を`#[allow(dead_code)]`で一時的に抑制
+- 🔄 Phase 3でDTOを移行する際に、shared/typesの活用と警告解除を予定
 
 **各Phase実施時の注意**:
 ```

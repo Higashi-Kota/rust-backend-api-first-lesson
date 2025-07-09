@@ -1,7 +1,7 @@
 use crate::config::stripe::{StripeConfig, STRIPE_CLIENT};
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
 use crate::domain::stripe_payment_history_model::PaymentStatus;
-use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::repository::stripe_payment_history_repository::{
     CreatePaymentHistory, StripePaymentHistoryRepository,

@@ -368,21 +368,20 @@ pub async fn admin_get_task_stats(
     let total_tasks = all_tasks.len() as u64;
     let completed_tasks = all_tasks
         .iter()
-        .filter(|t| t.status == crate::domain::task_status::TaskStatus::Completed)
+        .filter(|t| t.status == crate::core::task_status::TaskStatus::Completed)
         .count() as u64;
     let pending_tasks = all_tasks
         .iter()
         .filter(|t| {
-            t.status == crate::domain::task_status::TaskStatus::Todo
-                || t.status == crate::domain::task_status::TaskStatus::InProgress
+            t.status == crate::core::task_status::TaskStatus::Todo
+                || t.status == crate::core::task_status::TaskStatus::InProgress
         })
         .count() as u64;
     let overdue_tasks = all_tasks
         .iter()
         .filter(|t| {
             if let Some(due_date) = t.due_date {
-                due_date < Utc::now()
-                    && t.status != crate::domain::task_status::TaskStatus::Completed
+                due_date < Utc::now() && t.status != crate::core::task_status::TaskStatus::Completed
             } else {
                 false
             }
@@ -399,7 +398,7 @@ pub async fn admin_get_task_stats(
     let average_completion_days = {
         let completed_with_dates = all_tasks
             .iter()
-            .filter(|t| t.status == crate::domain::task_status::TaskStatus::Completed)
+            .filter(|t| t.status == crate::core::task_status::TaskStatus::Completed)
             .filter_map(|t| t.due_date.map(|d| (t.created_at, d)))
             .collect::<Vec<_>>();
 
@@ -429,7 +428,7 @@ pub async fn admin_get_task_stats(
             status: "todo".to_string(),
             count: all_tasks
                 .iter()
-                .filter(|t| t.status == crate::domain::task_status::TaskStatus::Todo)
+                .filter(|t| t.status == crate::core::task_status::TaskStatus::Todo)
                 .count() as u64,
             percentage: 0.0, // 後で計算
         },
@@ -437,7 +436,7 @@ pub async fn admin_get_task_stats(
             status: "in_progress".to_string(),
             count: all_tasks
                 .iter()
-                .filter(|t| t.status == crate::domain::task_status::TaskStatus::InProgress)
+                .filter(|t| t.status == crate::core::task_status::TaskStatus::InProgress)
                 .count() as u64,
             percentage: 0.0,
         },
@@ -608,7 +607,7 @@ pub async fn admin_get_task_stats(
             if let Some(user_id) = task.user_id {
                 let entry = user_tasks.entry(user_id).or_insert((0, 0));
                 entry.0 += 1; // created
-                if task.status == crate::domain::task_status::TaskStatus::Completed {
+                if task.status == crate::core::task_status::TaskStatus::Completed {
                     entry.1 += 1; // completed
                 }
             }
@@ -929,8 +928,8 @@ pub async fn admin_get_role_with_subscription(
     // サブスクリプション階層をクエリパラメータから取得
     let subscription_tier = params
         .get("tier")
-        .and_then(|t| crate::domain::subscription_tier::SubscriptionTier::from_str(t))
-        .unwrap_or(crate::domain::subscription_tier::SubscriptionTier::Free);
+        .and_then(|t| crate::core::subscription_tier::SubscriptionTier::from_str(t))
+        .unwrap_or(crate::core::subscription_tier::SubscriptionTier::Free);
 
     // ロールを取得
     let role = role_service
@@ -983,7 +982,7 @@ pub async fn admin_list_organizations(
 
     // サブスクリプション階層別の統計を計算
     let mut tier_stats: std::collections::HashMap<
-        crate::domain::subscription_tier::SubscriptionTier,
+        crate::core::subscription_tier::SubscriptionTier,
         crate::api::dto::organization_dto::OrganizationTierStats,
     > = std::collections::HashMap::new();
 
@@ -1810,7 +1809,7 @@ mod tests {
                 id: Uuid::new_v4(),
                 title: Some("Updated Task".to_string()),
                 description: Some("Updated Description".to_string()),
-                status: Some(crate::domain::task_status::TaskStatus::Completed),
+                status: Some(crate::core::task_status::TaskStatus::Completed),
                 due_date: None,
             }],
         };
@@ -1872,7 +1871,7 @@ mod tests {
 
     #[test]
     fn test_admin_single_task_operations_logic() {
-        use crate::domain::task_status::TaskStatus;
+        use crate::core::task_status::TaskStatus;
 
         // 単一タスク作成のロジックテスト
         let create_request = CreateTaskDto {
@@ -1938,7 +1937,7 @@ mod tests {
 
     #[test]
     fn test_admin_batch_dto_conversion_logic() {
-        use crate::domain::task_status::TaskStatus;
+        use crate::core::task_status::TaskStatus;
 
         // BatchCreateTaskDto のロジックテスト
         let batch_create = BatchCreateTaskDto {

@@ -5,9 +5,8 @@ use crate::common::{
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};
 use serde_json::json;
-use task_backend::domain::{
-    stripe_payment_history_model::PaymentStatus, subscription_tier::SubscriptionTier,
-};
+use task_backend::core::subscription_tier::SubscriptionTier;
+use task_backend::domain::stripe_payment_history_model::PaymentStatus;
 use tower::ServiceExt;
 
 #[tokio::test]

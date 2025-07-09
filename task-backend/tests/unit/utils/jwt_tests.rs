@@ -1,6 +1,6 @@
 // tests/unit/utils/jwt_tests.rs
 
-use task_backend::domain::subscription_tier::SubscriptionTier;
+use task_backend::core::subscription_tier::SubscriptionTier;
 use task_backend::domain::user_model::UserClaims;
 use task_backend::utils::jwt::{JwtConfig, JwtManager};
 use uuid::Uuid;

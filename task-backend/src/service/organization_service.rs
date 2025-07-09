@@ -1,8 +1,8 @@
 // task-backend/src/service/organization_service.rs
 
 use crate::api::dto::organization_dto::*;
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::organization_model::{Organization, OrganizationMember, OrganizationRole};
-use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;

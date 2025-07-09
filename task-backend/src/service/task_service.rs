@@ -6,9 +6,9 @@ use crate::api::dto::task_dto::{
     BatchUpdateResponseDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto, CreateTaskDto,
     PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse, UpdateTaskDto,
 };
+use crate::core::permission::{Permission, PermissionResult, PermissionScope, Privilege};
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
-use crate::domain::permission::{Permission, PermissionResult, PermissionScope, Privilege};
-use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::subscription_guard::check_feature_limit;
@@ -371,7 +371,7 @@ impl TaskService {
             // Free tier: Own scope only, basic features
             (PermissionScope::Own, Some(privilege_info))
                 if privilege_info.subscription_tier
-                    == crate::domain::subscription_tier::SubscriptionTier::Free =>
+                    == crate::core::subscription_tier::SubscriptionTier::Free =>
             {
                 self.list_tasks_for_user_limited(user.claims.user_id, privilege_info.quota.as_ref())
                     .await
@@ -380,7 +380,7 @@ impl TaskService {
             // Pro tier: Team scope, advanced features
             (PermissionScope::Team, Some(privilege_info))
                 if privilege_info.subscription_tier
-                    == crate::domain::subscription_tier::SubscriptionTier::Pro =>
+                    == crate::core::subscription_tier::SubscriptionTier::Pro =>
             {
                 self.list_tasks_for_team_with_features(
                     user.claims.user_id,
@@ -397,7 +397,7 @@ impl TaskService {
             // Enterprise tier: Global scope, unlimited features
             (PermissionScope::Global, Some(privilege_info))
                 if privilege_info.subscription_tier
-                    == crate::domain::subscription_tier::SubscriptionTier::Enterprise =>
+                    == crate::core::subscription_tier::SubscriptionTier::Enterprise =>
             {
                 self.list_all_tasks_unlimited(filter).await
             }
@@ -420,7 +420,7 @@ impl TaskService {
     async fn list_tasks_for_user_limited(
         &self,
         user_id: Uuid,
-        quota: Option<&crate::domain::permission::PermissionQuota>,
+        quota: Option<&crate::core::permission::PermissionQuota>,
     ) -> AppResult<TaskResponse> {
         let max_items = quota.and_then(|q| q.max_items).unwrap_or(100);
 

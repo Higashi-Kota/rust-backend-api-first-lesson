@@ -3,7 +3,7 @@
 use crate::api::dto::common::PaginationMeta;
 use crate::api::dto::organization_dto::{OrganizationListResponse, OrganizationTierStats};
 use crate::api::dto::user_dto::UserWithRoleResponse;
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::subscription_tier::SubscriptionTier;
 use serde::{Deserialize, Serialize};
 
 /// 管理者向け組織一覧リクエスト

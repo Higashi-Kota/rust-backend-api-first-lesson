@@ -1,6 +1,6 @@
 // task-backend/src/api/dto/team_dto.rs
 
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::team_model::{Model as Team, TeamRole};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

@@ -1,4 +1,4 @@
-use task_backend::domain::task_status::TaskStatus;
+use task_backend::core::task_status::TaskStatus;
 // tests/integration/subscription/dynamic_permission_tests.rs
 
 use crate::common::{app_helper, auth_helper};

@@ -5,7 +5,7 @@ use task_backend::api::dto::{
     auth_dto::*,
     task_dto::{CreateTaskDto, UpdateTaskDto},
 };
-use task_backend::domain::task_status::TaskStatus;
+use task_backend::core::task_status::TaskStatus;
 
 // === 認証関連のテストデータ ===
 

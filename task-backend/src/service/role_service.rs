@@ -121,7 +121,7 @@ impl RoleService {
     pub async fn get_role_by_id_with_subscription(
         &self,
         id: Uuid,
-        subscription_tier: crate::domain::subscription_tier::SubscriptionTier,
+        subscription_tier: crate::core::subscription_tier::SubscriptionTier,
     ) -> AppResult<RoleWithPermissions> {
         info!(role_id = %id, subscription_tier = %subscription_tier, "Fetching role by ID with subscription");
 
@@ -326,8 +326,8 @@ impl RoleService {
         let permission_result = user.can_perform_action("roles", "manage", None);
 
         match permission_result {
-            crate::domain::permission::PermissionResult::Allowed { .. } => Ok(()),
-            crate::domain::permission::PermissionResult::Denied { reason } => {
+            crate::core::permission::PermissionResult::Allowed { .. } => Ok(()),
+            crate::core::permission::PermissionResult::Denied { reason } => {
                 warn!(
                     user_id = %user.user_id,
                     role = ?user.role.as_ref().map(|r| &r.name),

@@ -7,12 +7,14 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 
 mod api;
 mod config;
+mod core;
 mod db;
 mod domain;
 mod error;
 mod middleware;
 mod repository;
 mod service;
+mod shared;
 mod utils;
 
 use crate::api::handlers::{

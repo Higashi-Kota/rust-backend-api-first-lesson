@@ -1,9 +1,9 @@
 // task-backend/src/service/attachment_service.rs
 
 use crate::api::dto::attachment_dto::{AttachmentSortBy, SortOrder};
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
 use crate::domain::attachment_share_link_model;
-use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::task_attachment_model::{
     self, get_all_allowed_mime_types, is_allowed_mime_type, MAX_FILE_SIZE_ENTERPRISE,
     MAX_FILE_SIZE_FREE, MAX_FILE_SIZE_PRO,

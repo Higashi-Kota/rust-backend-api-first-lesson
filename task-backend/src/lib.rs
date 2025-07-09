@@ -1,6 +1,7 @@
 // src/lib.rs
 pub mod api;
 pub mod config;
+pub mod core;
 pub mod db;
 pub mod domain;
 pub mod error;

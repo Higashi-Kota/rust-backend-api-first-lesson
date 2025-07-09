@@ -1,8 +1,8 @@
 // task-backend/src/utils/permission.rs
 
-use crate::domain::permission::PermissionScope;
+use crate::core::permission::PermissionScope;
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::role_model::{RoleName, RoleWithPermissions};
-use crate::domain::subscription_tier::SubscriptionTier;
 use uuid::Uuid;
 
 /// 統合された権限チェック機能

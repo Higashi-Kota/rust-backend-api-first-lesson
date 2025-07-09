@@ -363,7 +363,7 @@ mod tests {
             email_verified: true,
             role_name: "member".to_string(),
             role: None,
-            subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Free,
+            subscription_tier: crate::core::subscription_tier::SubscriptionTier::Free,
         }
     }
 

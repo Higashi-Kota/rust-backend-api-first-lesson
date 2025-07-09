@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::domain::permission::PermissionScope;
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::permission::PermissionScope;
+use crate::core::subscription_tier::SubscriptionTier;
 
 // --- Request DTOs ---
 
@@ -619,7 +619,7 @@ mod tests {
 
     #[test]
     fn test_permission_scope_level() {
-        use crate::domain::permission::PermissionScope;
+        use crate::core::permission::PermissionScope;
         assert_eq!(PermissionScope::Own.level(), 1);
         assert_eq!(PermissionScope::Team.level(), 2);
         assert_eq!(PermissionScope::Organization.level(), 3);

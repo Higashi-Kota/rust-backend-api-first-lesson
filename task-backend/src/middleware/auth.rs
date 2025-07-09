@@ -256,7 +256,7 @@ pub async fn jwt_auth_middleware(
                 is_active: true,
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
-                subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Enterprise,
+                subscription_tier: crate::core::subscription_tier::SubscriptionTier::Enterprise,
             };
 
             let user_with_role_claims = UserClaims {
@@ -267,7 +267,7 @@ pub async fn jwt_auth_middleware(
                 email_verified: user_claims.email_verified,
                 role_name: "admin".to_string(),
                 role: Some(admin_role),
-                subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Enterprise,
+                subscription_tier: crate::core::subscription_tier::SubscriptionTier::Enterprise,
             };
 
             // Set both AuthenticatedUser and AuthenticatedUserWithRole for test compatibility
@@ -355,7 +355,7 @@ pub async fn jwt_auth_middleware(
                 is_active: true,
                 created_at: chrono::Utc::now(),
                 updated_at: chrono::Utc::now(),
-                subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Free,
+                subscription_tier: crate::core::subscription_tier::SubscriptionTier::Free,
             };
 
             let user_with_role_claims = UserClaims {
@@ -366,7 +366,7 @@ pub async fn jwt_auth_middleware(
                 email_verified: user_claims.email_verified,
                 role_name: "member".to_string(),
                 role: Some(member_role),
-                subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Free,
+                subscription_tier: crate::core::subscription_tier::SubscriptionTier::Free,
             };
 
             let authenticated_user_with_role =
@@ -699,7 +699,7 @@ where
                         created_at: chrono::Utc::now(),
                         updated_at: chrono::Utc::now(),
                         subscription_tier:
-                            crate::domain::subscription_tier::SubscriptionTier::Enterprise,
+                            crate::core::subscription_tier::SubscriptionTier::Enterprise,
                     };
 
                     let user_with_role_claims = UserClaims {
@@ -711,7 +711,7 @@ where
                         role_name: "admin".to_string(),
                         role: Some(admin_role),
                         subscription_tier:
-                            crate::domain::subscription_tier::SubscriptionTier::Enterprise,
+                            crate::core::subscription_tier::SubscriptionTier::Enterprise,
                     };
 
                     return Ok(AuthenticatedUserWithRole::new(
@@ -728,7 +728,7 @@ where
                         is_active: true,
                         created_at: chrono::Utc::now(),
                         updated_at: chrono::Utc::now(),
-                        subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Free,
+                        subscription_tier: crate::core::subscription_tier::SubscriptionTier::Free,
                     };
 
                     let user_with_role_claims = UserClaims {
@@ -739,7 +739,7 @@ where
                         email_verified: auth_user.claims.email_verified,
                         role_name: "member".to_string(),
                         role: Some(member_role),
-                        subscription_tier: crate::domain::subscription_tier::SubscriptionTier::Free,
+                        subscription_tier: crate::core::subscription_tier::SubscriptionTier::Free,
                     };
 
                     return Ok(AuthenticatedUserWithRole::new(

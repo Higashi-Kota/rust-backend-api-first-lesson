@@ -14,6 +14,7 @@ pub struct PaginationMeta {
 }
 
 impl PaginationMeta {
+    #[allow(dead_code)]
     pub fn new(page: i32, per_page: i32, total_count: i64) -> Self {
         let total_pages = ((total_count as f64) / (per_page as f64)).ceil() as i32;
 
@@ -30,6 +31,7 @@ impl PaginationMeta {
 
 /// ページネーションクエリパラメータ
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct PaginationQuery {
     pub page: Option<i32>,
     pub per_page: Option<i32>,
@@ -37,6 +39,7 @@ pub struct PaginationQuery {
 
 impl PaginationQuery {
     /// デフォルト値を適用してページとper_pageを取得
+    #[allow(dead_code)]
     pub fn get_pagination(&self) -> (i32, i32) {
         let page = self.page.unwrap_or(1).max(1);
         let per_page = self.per_page.unwrap_or(20).clamp(1, 100);
@@ -44,6 +47,7 @@ impl PaginationQuery {
     }
 
     /// オフセットを計算
+    #[allow(dead_code)]
     pub fn get_offset(&self) -> i32 {
         let (page, per_page) = self.get_pagination();
         (page - 1) * per_page
@@ -58,6 +62,7 @@ pub struct PaginatedResponse<T> {
 }
 
 impl<T> PaginatedResponse<T> {
+    #[allow(dead_code)]
     pub fn new(items: Vec<T>, page: i32, per_page: i32, total_count: i64) -> Self {
         Self {
             items,

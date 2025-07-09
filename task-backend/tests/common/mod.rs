@@ -9,7 +9,7 @@ pub mod test_data;
 use chrono::Utc;
 use std::sync::Once;
 use task_backend::api::dto::task_dto::{CreateTaskDto, TaskDto, UpdateTaskDto};
-use task_backend::domain::task_status::TaskStatus;
+use task_backend::core::task_status::TaskStatus;
 use uuid::Uuid;
 
 // テスト環境の初期化を一度だけ実行

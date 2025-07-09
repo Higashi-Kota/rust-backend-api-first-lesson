@@ -9,7 +9,7 @@ use crate::utils::email::EmailService;
 // Type aliases for domain models
 pub type Team = TeamModel;
 pub type TeamMember = TeamMemberModel;
-use crate::domain::subscription_tier::SubscriptionTier;
+use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
@@ -644,7 +644,7 @@ mod tests {
     #[test]
     fn test_check_team_access_logic() {
         // Logic test: Test access control decision logic without database
-        use crate::domain::subscription_tier::SubscriptionTier;
+        use crate::core::subscription_tier::SubscriptionTier;
         use crate::domain::team_model::Model as Team;
         use uuid::Uuid;
 
@@ -702,7 +702,7 @@ mod tests {
     #[test]
     fn test_team_member_limit_logic() {
         // Logic test: Test team member limit validation logic
-        use crate::domain::subscription_tier::SubscriptionTier;
+        use crate::core::subscription_tier::SubscriptionTier;
         use crate::domain::team_model::Model as Team;
 
         let owner_id = Uuid::new_v4();

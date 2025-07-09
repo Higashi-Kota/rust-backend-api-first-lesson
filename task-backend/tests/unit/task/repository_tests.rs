@@ -1,4 +1,4 @@
-use task_backend::domain::task_status::TaskStatus;
+use task_backend::core::task_status::TaskStatus;
 // tests/unit/repository_tests.rs
 use chrono::Utc;
 use task_backend::{

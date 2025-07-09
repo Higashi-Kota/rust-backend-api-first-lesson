@@ -3,7 +3,8 @@
 use crate::api::dto::analytics_dto::*;
 use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::AppState;
-use crate::domain::{daily_activity_summary_model, subscription_tier::SubscriptionTier};
+use crate::core::subscription_tier::SubscriptionTier;
+use crate::domain::daily_activity_summary_model;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::repository::{

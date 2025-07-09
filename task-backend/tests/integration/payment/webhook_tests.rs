@@ -6,7 +6,7 @@ use crate::common::stripe_helper::{
 };
 use axum::http::StatusCode;
 use serde_json::json;
-use task_backend::domain::subscription_tier::SubscriptionTier;
+use task_backend::core::subscription_tier::SubscriptionTier;
 use task_backend::repository::user_repository::UserRepository;
 use tower::ServiceExt;
 
