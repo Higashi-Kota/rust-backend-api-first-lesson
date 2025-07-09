@@ -1,6 +1,12 @@
 // task-backend/src/service/organization_service.rs
 
-use crate::api::dto::organization_dto::*;
+use crate::api::dto::organization_dto::{
+    CreateOrganizationRequest, InviteOrganizationMemberRequest, OrganizationActivity,
+    OrganizationCapacityResponse, OrganizationListResponse, OrganizationMemberDetailResponse,
+    OrganizationMemberResponse, OrganizationResponse, OrganizationSearchQuery,
+    OrganizationStatsResponse, OrganizationTierStats, UpdateOrganizationMemberRoleRequest,
+    UpdateOrganizationRequest, UpdateOrganizationSettingsRequest,
+};
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::organization_model::{Organization, OrganizationMember, OrganizationRole};
 use crate::error::{AppError, AppResult};

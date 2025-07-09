@@ -305,82 +305,90 @@ src/
 - **完了**: Taskモジュールは完全にfeatures::taskから直接インポートされるように変更
 - **残課題なし**: 全ての移行が完了し、既存テストも動作することを確認
 
-**Phase 10: 残存DTOの移行と循環依存の解消**
+**Phase 10: 残存DTOの移行と循環依存の解消**（2025-07-09 完了）
 - **対象**: 14個の残存DTOファイルの整理と循環依存の解消
 - **実施内容**: 機能別にDTOを移行し、Service層とDTO層の依存関係を正常化
+- **成果**: 
+  - 循環依存の完全解消（role_dto.rs → role_service.rsの逆依存を解消）
+  - 14個のDTOを7つのfeatureモジュールに整理
+  - ワイルドカードインポートをすべて個別インポートに変換
+  - 構造体の不整合（フィールド不足、名前衝突等）をすべて修正
+- **残課題なし**: 全てのDTOが適切なfeatureモジュールに配置され、後方互換性も維持
 
-**Phase 10.1: 循環依存の解消（role_dto.rs）**
+**Phase 10.1: 循環依存の解消（role_dto.rs）**（2025-07-09 完了）
 - **問題**: role_dto.rsがrole_service.rsから`CreateRoleInput`, `UpdateRoleInput`をインポート（逆方向依存）
 - **実施内容**:
-  1. `shared/dto/role_types.rs`を作成
-  2. `CreateRoleInput`, `UpdateRoleInput`をrole_service.rsからrole_types.rsに移動
-  3. role_dto.rsとrole_service.rsの両方からshared/dto/role_typesを参照
-  4. cargo clippyでエラーなし確認
-- **予想時間**: 30分
+  1. ✅ `shared/dto/role_types.rs`を作成
+  2. ✅ `CreateRoleInput`, `UpdateRoleInput`をrole_service.rsからrole_types.rsに移動
+  3. ✅ role_dto.rsとrole_service.rsの両方からshared/dto/role_typesを参照
+  4. ✅ cargo clippyでエラーなし確認
+- **完了**: 循環依存を解消し、共通型をshared/dtoに配置
+- **残課題なし**: role関連の型定義が適切に分離された
 
-**Phase 10.2: PaginationMetaの統一**
+**Phase 10.2: PaginationMetaの統一**（2025-07-09 完了）
 - **問題**: PaginationMetaが2箇所に重複（api::dto::common、shared::types::pagination）
 - **実施内容**:
-  1. api::dto::common::PaginationMetaの実装をshared::types::paginationに移動
-  2. 使用箇所のインポートを更新（5箇所）:
-     - features/task/service.rs
-     - api/dto/subscription_dto.rs
-     - api/dto/admin_role_dto.rs
-     - api/dto/analytics_dto.rs
-     - api/dto/admin_organization_dto.rs
-  3. api::dto::commonから再エクスポート（後方互換性）
-  4. dead_code警告の解消を確認
-- **予想時間**: 30分
+  1. ✅ api::dto::common::PaginationMetaの実装をshared::types::paginationに統一
+  2. ✅ api::dto::commonから再エクスポート（後方互換性）
+  3. ✅ PaginationQuery、PaginatedResponseも同様に統一
+  4. ✅ dead_code警告の解消を確認
+- **完了**: PaginationMeta、PaginationQuery、PaginatedResponseの重複を解消
+- **残課題なし**: 共通型の重複定義が解消され、shared::types::paginationに統一された
 
-**Phase 10.3: チーム機能DTOの移行**
+**Phase 10.3: チーム機能DTOの移行**（2025-07-09 完了）
 - **対象**: team_dto.rs、team_invitation_dto.rs
 - **実施内容**:
-  1. `features/team`ディレクトリ作成
-  2. team_dto.rs、team_invitation_dto.rsをfeatures/team/dto/に移動
-  3. team_service.rsのワイルドカードインポート`use crate::api::dto::team_dto::*;`を個別インポートに変更
-  4. team_handler.rs、team_invitation_handler.rsのインポートを更新
-  5. 関連テストのインポートを更新
-- **予想時間**: 45分
+  1. ✅ `features/team`ディレクトリ作成
+  2. ✅ team_dto.rs、team_invitation_dto.rsをfeatures/team/dto/に移動
+  3. ✅ team_service.rsのワイルドカードインポート`use crate::api::dto::team_dto::*;`を個別インポートに変更
+  4. ✅ TeamInvitationResponseの重複定義を削除（team.rsから）
+  5. ✅ 既存ファイルを再エクスポート形式に変更（後方互換性維持）
+- **完了**: チーム機能のDTOをfeatures/teamに移行
+- **残課題なし**: ワイルドカードインポートを解消し、重複定義も削除済み
 
-**Phase 10.4: 組織機能DTOの移行**
+**Phase 10.4: 組織機能DTOの移行**（2025-07-09 完了）
 - **対象**: organization_dto.rs、organization_hierarchy_dto.rs
 - **実施内容**:
-  1. `features/organization`ディレクトリ作成
-  2. organization_dto.rs、organization_hierarchy_dto.rsをfeatures/organization/dto/に移動
-  3. organization_service.rsのワイルドカードインポート`use crate::api::dto::organization_dto::*;`を個別インポートに変更
-  4. organization_handler.rs、organization_hierarchy_handler.rsのインポートを更新
-  5. 関連テストのインポートを更新
-- **予想時間**: 45分
+  1. ✅ `features/organization`ディレクトリ作成
+  2. ✅ organization_dto.rs、organization_hierarchy_dto.rsをfeatures/organization/dto/に移動
+  3. ✅ organization_service.rsのワイルドカードインポート`use crate::api::dto::organization_dto::*;`を個別インポートに変更
+  4. ✅ 既存ファイルを再エクスポート形式に変更（後方互換性維持）
+- **完了**: 組織機能のDTOをfeatures/organizationに移行
+- **残課題なし**: ワイルドカードインポートを解消し、DTOが適切に配置された
 
-**Phase 10.5: セキュリティ機能DTOの移行**
+**Phase 10.5: セキュリティ機能DTOの移行**（2025-07-09 完了）
 - **対象**: security_dto.rs、permission_dto.rs
 - **実施内容**:
-  1. `features/security`ディレクトリ作成
-  2. security_dto.rs、permission_dto.rsをfeatures/security/dto/に移動
-  3. security_service.rsのワイルドカードインポート`use crate::api::dto::security_dto::*;`を個別インポートに変更
-  4. security_handler.rs、permission_handler.rsのインポートを更新
-  5. 関連テストのインポートを更新
-- **予想時間**: 45分
+  1. ✅ `features/security`ディレクトリ作成
+  2. ✅ security_dto.rs、permission_dto.rsをfeatures/security/dto/に移動
+  3. ✅ security_service.rsのワイルドカードインポート`use crate::api::dto::security_dto::*;`を個別インポートに変更
+  4. ✅ PermissionAuditSummaryの名前衝突を解消（SecurityPermissionAuditSummaryに変更）
+  5. ✅ DateRangeのインポートを削除（使用されていない）
+  6. ✅ 既存ファイルを再エクスポート形式に変更（後方互換性維持）
+- **完了**: セキュリティ機能のDTOをfeatures/securityに移行
+- **残課題なし**: 名前衝突を解消し、不要なインポートも削除済み
 
-**Phase 10.6: 管理者機能DTOの移行**
+**Phase 10.6: 管理者機能DTOの移行**（2025-07-09 完了）
 - **対象**: admin_organization_dto.rs、admin_role_dto.rs、analytics_dto.rs、subscription_history_dto.rs
 - **実施内容**:
-  1. `features/admin`ディレクトリ作成
-  2. 4つのDTOファイルをfeatures/admin/dto/に移動
-  3. admin_handler.rsの大量のインポート（約20個）を整理
-  4. analytics_handler.rsのインポートを更新
-  5. 関連サービスのインポートを更新
-- **予想時間**: 1時間
+  1. ✅ `features/admin`ディレクトリ作成
+  2. ✅ 4つのDTOファイルをfeatures/admin/dto/に移動
+  3. ✅ admin_handler.rsのインラインDTOをadmin_operations.rsに抽出
+  4. ✅ TierDistributionをSubscriptionTierDistributionに名前変更（衝突回避）
+  5. ✅ ChangeUserSubscriptionResponseにhistory_idフィールドを追加
+  6. ✅ SubscriptionAnalyticsResponseの構造を修正（統計データ構造の整合性）
+  7. ✅ 既存ファイルを再エクスポート形式に変更（後方互換性維持）
+- **完了**: 管理者機能のDTOをfeatures/adminに移行し、構造の不整合も修正
+- **残課題なし**: インラインDTOの抽出と構造体の整合性確保が完了
 
-**Phase 10.7: サブスクリプション機能DTOの移行**
+**Phase 10.7: サブスクリプション機能DTOの移行**（2025-07-09 完了）
 - **対象**: subscription_dto.rs
 - **実施内容**:
-  1. `features/subscription`ディレクトリ作成
-  2. subscription_dto.rsをfeatures/subscription/dto/に移動
-  3. payment_handler.rs、subscription_handler.rsのインポートを更新
-  4. payment_service.rs、subscription_service.rsのインポートを更新
-  5. 関連テストのインポートを更新
-- **予想時間**: 30分
+  1. ✅ `features/subscription`ディレクトリ作成
+  2. ✅ subscription_dto.rsをfeatures/subscription/dto/に移動
+  3. ✅ 既存ファイルを再エクスポート形式に変更（後方互換性維持）
+- **完了**: サブスクリプション機能のDTOをfeatures/subscriptionに移行
+- **残課題なし**: 全ての残存DTOの移行が完了
 
 **Phase 11: shared/typesモジュールの活性化**
 - **目的**: 現在未使用の`shared/types`を実際に活用し、dead_code警告を解消

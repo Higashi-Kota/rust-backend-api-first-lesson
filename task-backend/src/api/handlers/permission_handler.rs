@@ -1289,7 +1289,7 @@ pub async fn get_system_permission_audit_handler(
         .filter(|e| matches!(e.result, AuditResult::Denied))
         .count() as u32;
 
-    let summary = AuditSummary {
+    let summary = PermissionAuditSummary {
         total_checks: audit_entries.len() as u32,
         allowed_checks,
         denied_checks,

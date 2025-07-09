@@ -9,8 +9,17 @@ use crate::api::dto::user_dto::{
     UpdateUserSettingsRequest, UserSettingsDto, UserWithRoleResponse, UsersByLanguageResponse,
     UsersWithNotificationResponse,
 };
-use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::error::{AppError, AppResult};
+use crate::features::admin::dto::subscription_history::{
+    DeleteHistoryResponse, SubscriptionAnalyticsResponse, SubscriptionHistorySearchQuery,
+    SubscriptionTierDistribution,
+};
+use crate::features::admin::dto::{
+    AdminBulkCreateTasksRequest, AdminBulkDeleteTasksRequest, AdminBulkOperationResponse,
+    AdminBulkUpdateTasksRequest, AdminTaskStatsResponse, BulkOperationHistoryResponse,
+    BulkOperationListQuery, ChangeUserSubscriptionRequest, ChangeUserSubscriptionResponse,
+    CleanupResultResponse, UserFeatureMetricsResponse,
+};
 use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::features::task::dto::*;
 use crate::utils::permission::{PermissionChecker, PermissionType};
@@ -19,90 +28,11 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use chrono::{DateTime, Duration, Utc};
-use serde::{Deserialize, Serialize};
+use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
-
-/// 管理者向けタスク一括作成リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct AdminBulkCreateTasksRequest {
-    #[validate(length(min = 1, max = 100, message = "Must provide 1-100 tasks"))]
-    pub tasks: Vec<CreateTaskDto>,
-    pub assign_to_user: Option<Uuid>,
-}
-
-/// 管理者向けタスク一括更新リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct AdminBulkUpdateTasksRequest {
-    #[validate(length(min = 1, max = 100, message = "Must provide 1-100 task updates"))]
-    pub updates: Vec<BatchUpdateTaskItemDto>,
-}
-
-/// 管理者向けタスク一括削除リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct AdminBulkDeleteTasksRequest {
-    #[validate(length(min = 1, max = 100, message = "Must provide 1-100 task IDs"))]
-    pub task_ids: Vec<Uuid>,
-}
-
-/// 管理者向けタスク統計レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AdminTaskStatsResponse {
-    pub total_tasks: u32,
-    pub tasks_by_status: Vec<TaskStatusStats>,
-    pub tasks_by_user: Vec<UserTaskStats>,
-    pub recent_activity: Vec<TaskActivityStats>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TaskStatusStats {
-    pub status: String,
-    pub count: u32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UserTaskStats {
-    pub user_id: Uuid,
-    pub task_count: u64,
-    pub completed_count: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TaskActivityStats {
-    pub date: String,
-    pub created_count: u64,
-    pub completed_count: u64,
-}
-
-/// 管理者向け一括操作レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AdminBulkOperationResponse {
-    pub success_count: usize,
-    pub failed_count: usize,
-    pub total_requested: usize,
-    pub errors: Vec<String>,
-}
-
-/// ユーザーのサブスクリプション変更リクエスト
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct ChangeUserSubscriptionRequest {
-    #[validate(length(min = 1, message = "New tier must not be empty"))]
-    pub new_tier: String,
-    pub reason: Option<String>,
-}
-
-/// ユーザーのサブスクリプション変更レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChangeUserSubscriptionResponse {
-    pub user_id: Uuid,
-    pub previous_tier: String,
-    pub new_tier: String,
-    pub changed_at: DateTime<Utc>,
-    pub history_id: Uuid,
-}
 
 // === タスク管理API ===
 
@@ -1230,49 +1160,6 @@ pub async fn change_user_subscription(
 
 // === データクリーンアップ・メンテナンスAPI ===
 
-/// バルク操作履歴一覧取得クエリ
-#[derive(Debug, Deserialize)]
-pub struct BulkOperationListQuery {
-    #[serde(default = "default_page")]
-    pub page: i32,
-    #[serde(default = "default_per_page")]
-    pub per_page: i32,
-    pub start_date: Option<DateTime<Utc>>,
-    pub end_date: Option<DateTime<Utc>>,
-}
-
-/// バルク操作履歴レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BulkOperationHistoryResponse {
-    pub id: Uuid,
-    pub operation_type: String,
-    pub performed_by: Uuid,
-    pub performed_by_username: Option<String>,
-    pub affected_count: i32,
-    pub status: String,
-    pub error_details: Option<serde_json::Value>,
-    pub created_at: DateTime<Utc>,
-    pub completed_at: Option<DateTime<Utc>>,
-}
-
-/// クリーンアップ結果レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CleanupResultResponse {
-    pub operation_type: String,
-    pub deleted_count: u64,
-    pub before_date: Option<DateTime<Utc>>,
-    pub performed_at: DateTime<Utc>,
-}
-
-/// 機能使用メトリクスレスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UserFeatureMetricsResponse {
-    pub user_id: Uuid,
-    pub action_counts: HashMap<String, i64>,
-    pub start_date: DateTime<Utc>,
-    pub end_date: DateTime<Utc>,
-}
-
 /// 管理者向けバルク操作履歴一覧取得
 pub async fn admin_list_bulk_operations(
     State(app_state): State<crate::api::AppState>,
@@ -1762,9 +1649,446 @@ pub fn admin_router(app_state: crate::api::AppState) -> axum::Router {
         .with_state(app_state)
 }
 
+// ============ サブスクリプション履歴検索・分析API ============
+
+/// 全サブスクリプション履歴取得（管理者用）
+pub async fn get_all_subscription_history_handler(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(pagination): Query<PaginationQuery>,
+) -> AppResult<Json<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Only admins can view all subscription history".to_string(),
+        ));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        "Admin requesting all subscription history"
+    );
+
+    let all_histories = app_state.subscription_history_repo.find_all().await?;
+
+    // ページネーション適用
+    let (page, per_page) = pagination.get_pagination();
+    let total_count = all_histories.len() as i64;
+    let offset = pagination.get_offset() as usize;
+    let limit = per_page as usize;
+
+    let paginated_histories: Vec<SubscriptionHistoryItemResponse> = all_histories
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(SubscriptionHistoryItemResponse::from)
+        .collect();
+
+    let response = PaginatedResponse::new(paginated_histories, page, per_page, total_count);
+
+    Ok(Json(ApiResponse::success(
+        "Subscription history retrieved successfully",
+        response,
+    )))
+}
+
+/// サブスクリプション履歴検索（管理者用）
+pub async fn search_subscription_history_handler(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(search_query): Query<SubscriptionHistorySearchQuery>,
+) -> AppResult<Json<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Only admins can search subscription history".to_string(),
+        ));
+    }
+
+    search_query
+        .validate()
+        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        tier = ?search_query.tier,
+        user_id = ?search_query.user_id,
+        "Admin searching subscription history"
+    );
+
+    // 検索条件に基づいてフィルタリング
+    let histories = if let Some(tier) = &search_query.tier {
+        app_state
+            .subscription_history_repo
+            .find_by_tier(tier)
+            .await?
+    } else if let Some(user_id) = search_query.user_id {
+        app_state
+            .subscription_history_repo
+            .find_by_user_id(user_id)
+            .await?
+    } else if search_query.start_date.is_some() && search_query.end_date.is_some() {
+        app_state
+            .subscription_history_repo
+            .find_by_date_range(
+                search_query.start_date.unwrap(),
+                search_query.end_date.unwrap(),
+            )
+            .await?
+    } else {
+        // 検索条件がない場合は全件取得
+        app_state.subscription_history_repo.find_all().await?
+    };
+
+    // ページネーション適用
+    let page = search_query.page;
+    let per_page = search_query.per_page;
+    let total_count = histories.len() as i64;
+    let offset = ((page - 1) * per_page) as usize;
+    let limit = per_page as usize;
+
+    let paginated_histories: Vec<SubscriptionHistoryItemResponse> = histories
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(SubscriptionHistoryItemResponse::from)
+        .collect();
+
+    let response = PaginatedResponse::new(paginated_histories, page, per_page, total_count);
+
+    Ok(Json(ApiResponse::success(
+        "Subscription history search completed",
+        response,
+    )))
+}
+
+/// サブスクリプション分析データ取得（管理者用）
+pub async fn get_subscription_analytics_handler(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+) -> AppResult<Json<ApiResponse<SubscriptionAnalyticsResponse>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Only admins can view subscription analytics".to_string(),
+        ));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        "Admin requesting subscription analytics"
+    );
+
+    // アップグレード/ダウングレード履歴を取得
+    let upgrade_history = app_state.subscription_service.get_upgrade_history().await?;
+
+    let downgrade_history = app_state
+        .subscription_service
+        .get_downgrade_history()
+        .await?;
+
+    // 階層別統計を取得
+    let tier_stats = app_state
+        .subscription_history_repo
+        .get_tier_change_stats()
+        .await?;
+
+    // 分析レスポンスを構築
+    let analytics = SubscriptionAnalyticsResponse {
+        total_upgrades: upgrade_history.len() as u64,
+        total_downgrades: downgrade_history.len() as u64,
+        tier_distribution: tier_stats
+            .into_iter()
+            .map(|(tier, count)| SubscriptionTierDistribution {
+                tier,
+                count,
+                percentage: 0.0, // 後で計算
+            })
+            .collect(),
+        recent_upgrades: upgrade_history.into_iter().take(10).collect(),
+        recent_downgrades: downgrade_history.into_iter().take(10).collect(),
+        monthly_trend: vec![], // 将来の実装用
+    };
+
+    // パーセンテージを計算
+    let total_changes: u64 = analytics.tier_distribution.iter().map(|t| t.count).sum();
+
+    let mut analytics = analytics;
+    for tier in &mut analytics.tier_distribution {
+        tier.percentage = if total_changes > 0 {
+            (tier.count as f64 / total_changes as f64) * 100.0
+        } else {
+            0.0
+        };
+    }
+
+    Ok(Json(ApiResponse::success(
+        "Subscription analytics retrieved successfully",
+        analytics,
+    )))
+}
+
+/// 特定ユーザーのサブスクリプション履歴削除（GDPR対応）
+pub async fn delete_user_subscription_history_handler(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<(StatusCode, Json<ApiResponse<DeleteHistoryResponse>>)> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Only admins can delete subscription history".to_string(),
+        ));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        "Admin deleting user subscription history"
+    );
+
+    let deleted_count = app_state
+        .subscription_history_repo
+        .delete_by_user_id(user_id)
+        .await?;
+
+    let response = DeleteHistoryResponse {
+        user_id,
+        deleted_count,
+        deleted_at: Utc::now(),
+    };
+
+    Ok((
+        StatusCode::OK,
+        Json(ApiResponse::success(
+            format!("Deleted {} subscription history records", deleted_count),
+            response,
+        )),
+    ))
+}
+
+/// 特定のサブスクリプション履歴を削除（管理者用）
+pub async fn delete_subscription_history_by_id_handler(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(history_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<bool>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        history_id = %history_id,
+        "Admin deleting specific subscription history record"
+    );
+
+    let deleted = app_state
+        .subscription_history_repo
+        .delete_by_id(history_id)
+        .await?;
+
+    Ok(Json(ApiResponse::success(
+        if deleted {
+            "Subscription history record deleted successfully"
+        } else {
+            "Subscription history record not found"
+        },
+        deleted,
+    )))
+}
+
+// === ユーザー設定管理API ===
+
+/// 管理者向けユーザー設定取得
+pub async fn admin_get_user_settings(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<UserSettingsDto>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        "Admin getting user settings"
+    );
+
+    // UserServiceを通じてuser_settings_repoにアクセス
+    let settings = app_state
+        .user_service
+        .get_user_settings(user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User settings not found".to_string()))?;
+
+    Ok(Json(ApiResponse::success(
+        "User settings retrieved successfully",
+        UserSettingsDto::from(settings),
+    )))
+}
+
+/// 管理者向けユーザー設定更新
+pub async fn admin_update_user_settings(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+    Json(request): Json<UpdateUserSettingsRequest>,
+) -> AppResult<Json<ApiResponse<UserSettingsDto>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    request.validate()?;
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        "Admin updating user settings"
+    );
+
+    let input = crate::domain::user_settings_model::UserSettingsInput {
+        language: request.language,
+        timezone: request.timezone,
+        notifications_enabled: request.notifications_enabled,
+        email_notifications: request
+            .email_notifications
+            .and_then(|v| serde_json::from_value(v).ok()),
+        ui_preferences: request
+            .ui_preferences
+            .and_then(|v| serde_json::from_value(v).ok()),
+    };
+
+    let settings = app_state
+        .user_service
+        .update_user_settings(user_id, input)
+        .await?;
+
+    Ok(Json(ApiResponse::success(
+        "User settings updated successfully",
+        UserSettingsDto::from(settings),
+    )))
+}
+
+/// 管理者向け言語別ユーザー一覧取得
+pub async fn admin_get_users_by_language(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<UsersByLanguageResponse>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let language = params
+        .get("language")
+        .ok_or_else(|| AppError::BadRequest("Language parameter is required".to_string()))?;
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        language = %language,
+        "Admin getting users by language"
+    );
+
+    let user_ids = app_state
+        .user_service
+        .get_users_by_language(language)
+        .await?;
+
+    let response = UsersByLanguageResponse {
+        language: language.clone(),
+        user_count: user_ids.len(),
+        user_ids,
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Users retrieved successfully",
+        response,
+    )))
+}
+
+/// 管理者向け通知有効ユーザー一覧取得
+pub async fn admin_get_users_with_notification(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(params): Query<HashMap<String, String>>,
+) -> AppResult<Json<ApiResponse<UsersWithNotificationResponse>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    let notification_type = params.get("notification_type").ok_or_else(|| {
+        AppError::BadRequest("Notification type parameter is required".to_string())
+    })?;
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        notification_type = %notification_type,
+        "Admin getting users with notification enabled"
+    );
+
+    let user_ids = app_state
+        .user_service
+        .get_users_with_notification_enabled(notification_type)
+        .await?;
+
+    let response = UsersWithNotificationResponse {
+        notification_type: notification_type.clone(),
+        user_count: user_ids.len(),
+        user_ids,
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Users retrieved successfully",
+        response,
+    )))
+}
+
+/// 管理者向けユーザー設定削除
+pub async fn admin_delete_user_settings(
+    State(app_state): State<crate::api::AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<StatusCode> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden(
+            "Administrator access required".to_string(),
+        ));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        "Admin deleting user settings"
+    );
+
+    let deleted = app_state.user_service.delete_user_settings(user_id).await?;
+
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AppError::NotFound("User settings not found".to_string()))
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::features::admin::dto::TaskStatusStats;
     use validator::Validate;
 
     #[test]
@@ -1982,496 +2306,5 @@ mod tests {
         };
         assert_eq!(batch_delete.ids.len(), 2);
         assert_eq!(batch_delete.ids, task_ids);
-    }
-}
-
-// ============ サブスクリプション履歴検索・分析API ============
-
-/// サブスクリプション履歴検索クエリ（ページネーション付き）
-#[derive(Debug, Deserialize, Validate)]
-pub struct SubscriptionHistorySearchQuery {
-    pub tier: Option<String>,
-    pub user_id: Option<Uuid>,
-    pub start_date: Option<DateTime<Utc>>,
-    pub end_date: Option<DateTime<Utc>>,
-    #[serde(default = "default_page")]
-    pub page: i32,
-    #[serde(default = "default_per_page")]
-    pub per_page: i32,
-}
-
-fn default_page() -> i32 {
-    1
-}
-
-fn default_per_page() -> i32 {
-    10
-}
-
-/// 全サブスクリプション履歴取得（管理者用）
-pub async fn get_all_subscription_history_handler(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Query(pagination): Query<PaginationQuery>,
-) -> AppResult<Json<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only admins can view all subscription history".to_string(),
-        ));
-    }
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        "Admin requesting all subscription history"
-    );
-
-    let all_histories = app_state.subscription_history_repo.find_all().await?;
-
-    // ページネーション適用
-    let (page, per_page) = pagination.get_pagination();
-    let total_count = all_histories.len() as i64;
-    let offset = pagination.get_offset() as usize;
-    let limit = per_page as usize;
-
-    let paginated_histories: Vec<SubscriptionHistoryItemResponse> = all_histories
-        .into_iter()
-        .skip(offset)
-        .take(limit)
-        .map(SubscriptionHistoryItemResponse::from)
-        .collect();
-
-    let response = PaginatedResponse::new(paginated_histories, page, per_page, total_count);
-
-    Ok(Json(ApiResponse::success(
-        "Subscription history retrieved successfully",
-        response,
-    )))
-}
-
-/// サブスクリプション履歴検索（管理者用）
-pub async fn search_subscription_history_handler(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Query(search_query): Query<SubscriptionHistorySearchQuery>,
-) -> AppResult<Json<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only admins can search subscription history".to_string(),
-        ));
-    }
-
-    search_query
-        .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        tier = ?search_query.tier,
-        user_id = ?search_query.user_id,
-        "Admin searching subscription history"
-    );
-
-    // 検索条件に基づいてフィルタリング
-    let histories = if let Some(tier) = &search_query.tier {
-        app_state
-            .subscription_history_repo
-            .find_by_tier(tier)
-            .await?
-    } else if let Some(user_id) = search_query.user_id {
-        app_state
-            .subscription_history_repo
-            .find_by_user_id(user_id)
-            .await?
-    } else if search_query.start_date.is_some() && search_query.end_date.is_some() {
-        app_state
-            .subscription_history_repo
-            .find_by_date_range(
-                search_query.start_date.unwrap(),
-                search_query.end_date.unwrap(),
-            )
-            .await?
-    } else {
-        // 検索条件がない場合は全件取得
-        app_state.subscription_history_repo.find_all().await?
-    };
-
-    // ページネーション適用
-    let page = search_query.page;
-    let per_page = search_query.per_page;
-    let total_count = histories.len() as i64;
-    let offset = ((page - 1) * per_page) as usize;
-    let limit = per_page as usize;
-
-    let paginated_histories: Vec<SubscriptionHistoryItemResponse> = histories
-        .into_iter()
-        .skip(offset)
-        .take(limit)
-        .map(SubscriptionHistoryItemResponse::from)
-        .collect();
-
-    let response = PaginatedResponse::new(paginated_histories, page, per_page, total_count);
-
-    Ok(Json(ApiResponse::success(
-        "Subscription history search completed",
-        response,
-    )))
-}
-
-/// サブスクリプション分析データ取得（管理者用）
-pub async fn get_subscription_analytics_handler(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<ApiResponse<SubscriptionAnalyticsResponse>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only admins can view subscription analytics".to_string(),
-        ));
-    }
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        "Admin requesting subscription analytics"
-    );
-
-    // アップグレード/ダウングレード履歴を取得
-    let upgrade_history = app_state.subscription_service.get_upgrade_history().await?;
-
-    let downgrade_history = app_state
-        .subscription_service
-        .get_downgrade_history()
-        .await?;
-
-    // 階層別統計を取得
-    let tier_stats = app_state
-        .subscription_history_repo
-        .get_tier_change_stats()
-        .await?;
-
-    // 分析レスポンスを構築
-    let analytics = SubscriptionAnalyticsResponse {
-        total_upgrades: upgrade_history.len() as u64,
-        total_downgrades: downgrade_history.len() as u64,
-        tier_distribution: tier_stats
-            .into_iter()
-            .map(|(tier, count)| TierDistribution {
-                tier,
-                count,
-                percentage: 0.0, // 後で計算
-            })
-            .collect(),
-        recent_upgrades: upgrade_history.into_iter().take(10).collect(),
-        recent_downgrades: downgrade_history.into_iter().take(10).collect(),
-        monthly_trend: vec![], // 将来の実装用
-    };
-
-    // パーセンテージを計算
-    let total_changes: u64 = analytics.tier_distribution.iter().map(|t| t.count).sum();
-
-    let mut analytics = analytics;
-    for tier in &mut analytics.tier_distribution {
-        tier.percentage = if total_changes > 0 {
-            (tier.count as f64 / total_changes as f64) * 100.0
-        } else {
-            0.0
-        };
-    }
-
-    Ok(Json(ApiResponse::success(
-        "Subscription analytics retrieved successfully",
-        analytics,
-    )))
-}
-
-/// 特定ユーザーのサブスクリプション履歴削除（GDPR対応）
-pub async fn delete_user_subscription_history_handler(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
-) -> AppResult<(StatusCode, Json<ApiResponse<DeleteHistoryResponse>>)> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only admins can delete subscription history".to_string(),
-        ));
-    }
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        target_user_id = %user_id,
-        "Admin deleting user subscription history"
-    );
-
-    let deleted_count = app_state
-        .subscription_history_repo
-        .delete_by_user_id(user_id)
-        .await?;
-
-    let response = DeleteHistoryResponse {
-        user_id,
-        deleted_count,
-        deleted_at: Utc::now(),
-    };
-
-    Ok((
-        StatusCode::OK,
-        Json(ApiResponse::success(
-            format!("Deleted {} subscription history records", deleted_count),
-            response,
-        )),
-    ))
-}
-
-/// 特定のサブスクリプション履歴を削除（管理者用）
-pub async fn delete_subscription_history_by_id_handler(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Path(history_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<bool>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        history_id = %history_id,
-        "Admin deleting specific subscription history record"
-    );
-
-    let deleted = app_state
-        .subscription_history_repo
-        .delete_by_id(history_id)
-        .await?;
-
-    Ok(Json(ApiResponse::success(
-        if deleted {
-            "Subscription history record deleted successfully"
-        } else {
-            "Subscription history record not found"
-        },
-        deleted,
-    )))
-}
-
-/// サブスクリプション分析レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SubscriptionAnalyticsResponse {
-    pub total_upgrades: u64,
-    pub total_downgrades: u64,
-    pub tier_distribution: Vec<TierDistribution>,
-    pub recent_upgrades: Vec<SubscriptionChangeInfo>,
-    pub recent_downgrades: Vec<SubscriptionChangeInfo>,
-    pub monthly_trend: Vec<MonthlyTrend>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TierDistribution {
-    pub tier: String,
-    pub count: u64,
-    pub percentage: f64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct MonthlyTrend {
-    pub month: String,
-    pub upgrades: u64,
-    pub downgrades: u64,
-    pub net_change: i64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DeleteHistoryResponse {
-    pub user_id: Uuid,
-    pub deleted_count: u64,
-    pub deleted_at: DateTime<Utc>,
-}
-
-// === ユーザー設定管理API ===
-
-/// 管理者向けユーザー設定取得
-pub async fn admin_get_user_settings(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<UserSettingsDto>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        target_user_id = %user_id,
-        "Admin getting user settings"
-    );
-
-    // UserServiceを通じてuser_settings_repoにアクセス
-    let settings = app_state
-        .user_service
-        .get_user_settings(user_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound("User settings not found".to_string()))?;
-
-    Ok(Json(ApiResponse::success(
-        "User settings retrieved successfully",
-        UserSettingsDto::from(settings),
-    )))
-}
-
-/// 管理者向けユーザー設定更新
-pub async fn admin_update_user_settings(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
-    Json(request): Json<UpdateUserSettingsRequest>,
-) -> AppResult<Json<ApiResponse<UserSettingsDto>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
-    request.validate()?;
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        target_user_id = %user_id,
-        "Admin updating user settings"
-    );
-
-    let input = crate::domain::user_settings_model::UserSettingsInput {
-        language: request.language,
-        timezone: request.timezone,
-        notifications_enabled: request.notifications_enabled,
-        email_notifications: request
-            .email_notifications
-            .and_then(|v| serde_json::from_value(v).ok()),
-        ui_preferences: request
-            .ui_preferences
-            .and_then(|v| serde_json::from_value(v).ok()),
-    };
-
-    let settings = app_state
-        .user_service
-        .update_user_settings(user_id, input)
-        .await?;
-
-    Ok(Json(ApiResponse::success(
-        "User settings updated successfully",
-        UserSettingsDto::from(settings),
-    )))
-}
-
-/// 管理者向け言語別ユーザー一覧取得
-pub async fn admin_get_users_by_language(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<UsersByLanguageResponse>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
-    let language = params
-        .get("language")
-        .ok_or_else(|| AppError::BadRequest("Language parameter is required".to_string()))?;
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        language = %language,
-        "Admin getting users by language"
-    );
-
-    let user_ids = app_state
-        .user_service
-        .get_users_by_language(language)
-        .await?;
-
-    let response = UsersByLanguageResponse {
-        language: language.clone(),
-        user_count: user_ids.len(),
-        user_ids,
-    };
-
-    Ok(Json(ApiResponse::success(
-        "Users retrieved successfully",
-        response,
-    )))
-}
-
-/// 管理者向け通知有効ユーザー一覧取得
-pub async fn admin_get_users_with_notification(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<UsersWithNotificationResponse>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
-    let notification_type = params.get("notification_type").ok_or_else(|| {
-        AppError::BadRequest("Notification type parameter is required".to_string())
-    })?;
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        notification_type = %notification_type,
-        "Admin getting users with notification enabled"
-    );
-
-    let user_ids = app_state
-        .user_service
-        .get_users_with_notification_enabled(notification_type)
-        .await?;
-
-    let response = UsersWithNotificationResponse {
-        notification_type: notification_type.clone(),
-        user_count: user_ids.len(),
-        user_ids,
-    };
-
-    Ok(Json(ApiResponse::success(
-        "Users retrieved successfully",
-        response,
-    )))
-}
-
-/// 管理者向けユーザー設定削除
-pub async fn admin_delete_user_settings(
-    State(app_state): State<crate::api::AppState>,
-    admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
-) -> AppResult<StatusCode> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
-    info!(
-        admin_id = %admin_user.user_id(),
-        target_user_id = %user_id,
-        "Admin deleting user settings"
-    );
-
-    let deleted = app_state.user_service.delete_user_settings(user_id).await?;
-
-    if deleted {
-        Ok(StatusCode::NO_CONTENT)
-    } else {
-        Err(AppError::NotFound("User settings not found".to_string()))
     }
 }

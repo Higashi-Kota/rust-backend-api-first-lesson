@@ -1,6 +1,10 @@
 // task-backend/src/service/security_service.rs
 
-use crate::api::dto::security_dto::*;
+use crate::api::dto::security_dto::{
+    AuditFinding, AuditReport, AuditReportRequest, AuditSummary, CleanupResult, DeviceSession,
+    GeographicSession, PasswordResetActivity, PasswordResetTokenStats, RefreshTokenStats,
+    RevokeAllTokensRequest, RevokeResult, SessionAnalytics,
+};
 use crate::error::AppResult;
 use crate::features::auth::repository::{
     password_reset_token_repository::PasswordResetTokenRepository,

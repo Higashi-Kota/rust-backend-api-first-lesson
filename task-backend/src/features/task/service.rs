@@ -466,8 +466,8 @@ impl TaskService {
     // Admin専用メソッド群
     pub async fn get_admin_task_statistics(
         &self,
-    ) -> AppResult<crate::api::handlers::admin_handler::AdminTaskStatsResponse> {
-        use crate::api::handlers::admin_handler::{AdminTaskStatsResponse, TaskStatusStats};
+    ) -> AppResult<crate::features::admin::dto::AdminTaskStatsResponse> {
+        use crate::features::admin::dto::{AdminTaskStatsResponse, TaskStatusStats};
 
         let total_tasks =
             self.repo.count_all_tasks().await.map_err(|e| {

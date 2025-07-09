@@ -1,6 +1,10 @@
 // task-backend/src/service/team_service.rs
 
-use crate::api::dto::team_dto::*;
+use crate::api::dto::team_dto::{
+    CreateTeamRequest, InviteTeamMemberRequest, TeamActivity, TeamListResponse,
+    TeamMemberDetailResponse, TeamMemberResponse, TeamResponse, TeamSearchQuery, TeamStatsResponse,
+    TeamTierStats, UpdateTeamMemberRoleRequest, UpdateTeamRequest,
+};
 use crate::domain::team_member_model::Model as TeamMemberModel;
 use crate::domain::team_model::{Model as TeamModel, TeamRole};
 use crate::middleware::subscription_guard::check_feature_limit;
