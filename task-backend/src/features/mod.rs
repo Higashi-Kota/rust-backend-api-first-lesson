@@ -3,3 +3,4 @@
 pub mod auth;
 pub mod gdpr;
 pub mod storage;
+pub mod task;
