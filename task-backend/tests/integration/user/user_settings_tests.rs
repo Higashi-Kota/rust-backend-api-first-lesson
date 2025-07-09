@@ -2,8 +2,8 @@
 
 use crate::common::{app_helper, auth_helper};
 use axum::{body, http::StatusCode};
-use task_backend::api::dto::common::ApiResponse;
 use task_backend::api::dto::user_dto::{UpdateUserSettingsRequest, UserSettingsResponse};
+use task_backend::shared::types::common::ApiResponse;
 use tower::ServiceExt;
 
 #[tokio::test]

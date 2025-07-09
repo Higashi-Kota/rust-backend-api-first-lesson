@@ -1,5 +1,4 @@
 // task-backend/src/api/handlers/user_handler.rs
-use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::dto::user_dto::{
     AccountStatusUpdateResponse, BulkOperationResponse, BulkUserOperationsRequest,
     EmailVerificationHistoryResponse, EmailVerificationResponse, ProfileUpdateResponse,
@@ -14,6 +13,7 @@ use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
 use crate::features::auth::middleware::AuthenticatedUserWithRole;
+use crate::shared::types::{ApiResponse, OperationResult};
 use crate::utils::permission::PermissionChecker;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},

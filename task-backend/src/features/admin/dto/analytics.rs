@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::api::dto::common::PaginationMeta;
 use crate::core::subscription_tier::SubscriptionTier;
+use crate::shared::types::pagination::PaginationMeta;
 
 // --- Request DTOs ---
 

@@ -1,7 +1,7 @@
 // task-backend/src/api/dto/role_dto.rs
-use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::domain::role_model::RoleWithPermissions;
 use crate::shared::dto::role_types::{CreateRoleInput, UpdateRoleInput};
+use crate::shared::types::common::{ApiResponse, OperationResult};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

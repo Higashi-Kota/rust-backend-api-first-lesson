@@ -1,8 +1,8 @@
 // task-backend/src/api/dto/admin_role_dto.rs
-use crate::api::dto::common::PaginationMeta;
 use crate::api::dto::role_dto::RoleResponse;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::role_model::RoleWithPermissions;
+use crate::shared::types::pagination::PaginationMeta;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json;

@@ -1,7 +1,7 @@
 // src/features/task/dto.rs
-use crate::api::dto::common::PaginatedResponse;
 use crate::core::task_status::TaskStatus;
 use crate::features::task::domain::task_model;
+use crate::shared::types::pagination::PaginatedResponse;
 use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

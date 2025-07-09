@@ -1,8 +1,9 @@
 // task-backend/src/shared/dto/user.rs
 
-use crate::api::dto::common::{ApiResponse, OperationResult, PaginatedResponse};
 use crate::domain::user_model::SafeUser;
 use crate::service::user_service::UserStats;
+use crate::shared::types::common::{ApiResponse, OperationResult};
+use crate::shared::types::pagination::PaginatedResponse;
 use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -748,7 +749,7 @@ mod tests {
 
     #[test]
     fn test_pagination_meta() {
-        use crate::api::dto::PaginationMeta;
+        use crate::shared::types::pagination::PaginationMeta;
         let pagination = PaginationMeta::new(2, 10, 25);
         assert_eq!(pagination.page, 2);
         assert_eq!(pagination.per_page, 10);

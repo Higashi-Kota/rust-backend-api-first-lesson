@@ -1,11 +1,12 @@
 // task-backend/src/api/handlers/subscription_handler.rs
 
-use crate::api::dto::common::{ApiResponse, OperationResult, PaginationQuery};
 use crate::api::dto::subscription_dto::*;
 use crate::api::AppState;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::shared::types::pagination::PaginationQuery;
+use crate::shared::types::{ApiResponse, OperationResult};
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::request::Parts,

@@ -1,7 +1,6 @@
 // task-backend/src/api/handlers/analytics_handler.rs
 
 use crate::api::dto::analytics_dto::*;
-use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::AppState;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::daily_activity_summary_model;
@@ -12,6 +11,7 @@ use crate::repository::{
     daily_activity_summary_repository::DailyActivitySummaryRepository,
     subscription_history_repository::SubscriptionHistoryRepository,
 };
+use crate::shared::types::{ApiResponse, OperationResult};
 use axum::{
     extract::{Json, Path, Query, State},
     routing::{get, post},

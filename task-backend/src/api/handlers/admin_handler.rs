@@ -2,7 +2,6 @@
 
 use crate::api::dto::admin_organization_dto::*;
 use crate::api::dto::admin_role_dto::*;
-use crate::api::dto::common::{ApiResponse, PaginatedResponse, PaginationQuery};
 use crate::api::dto::subscription_history_dto::*;
 use crate::api::dto::team_invitation_dto::*;
 use crate::api::dto::user_dto::{
@@ -22,6 +21,8 @@ use crate::features::admin::dto::{
 };
 use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::features::task::dto::*;
+use crate::shared::types::pagination::{PaginatedResponse, PaginationQuery};
+use crate::shared::types::ApiResponse;
 use crate::utils::permission::{PermissionChecker, PermissionType};
 use axum::{
     extract::{Path, Query, State},

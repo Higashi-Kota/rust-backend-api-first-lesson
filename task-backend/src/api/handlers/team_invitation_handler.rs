@@ -1,9 +1,9 @@
 // task-backend/src/api/handlers/team_invitation_handler.rs
 
-use crate::api::dto::common::ApiResponse;
 use crate::api::dto::team_invitation_dto::*;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
+use crate::shared::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,

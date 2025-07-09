@@ -1,9 +1,9 @@
 // task-backend/src/api/handlers/organization_handler.rs
 
-use crate::api::dto::common::ApiResponse;
 use crate::api::dto::organization_dto::*;
 use crate::error::AppResult;
 use crate::features::auth::middleware::AuthenticatedUser;
+use crate::shared::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,

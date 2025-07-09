@@ -1,9 +1,9 @@
 // task-backend/src/api/dto/admin_organization_dto.rs
 
-use crate::api::dto::common::PaginationMeta;
 use crate::api::dto::organization_dto::{OrganizationListResponse, OrganizationTierStats};
 use crate::api::dto::user_dto::UserWithRoleResponse;
 use crate::core::subscription_tier::SubscriptionTier;
+use crate::shared::types::pagination::PaginationMeta;
 use serde::{Deserialize, Serialize};
 
 /// 管理者向け組織一覧リクエスト

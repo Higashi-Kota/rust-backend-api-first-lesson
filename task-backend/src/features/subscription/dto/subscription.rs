@@ -5,12 +5,13 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::api::dto::common::{ApiResponse, OperationResult, PaginationMeta};
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::domain::user_model::SafeUser;
 use crate::features::auth::repository::user_repository::SubscriptionTierStats;
 use crate::repository::subscription_history_repository::UserSubscriptionStats;
+use crate::shared::types::common::{ApiResponse, OperationResult};
+use crate::shared::types::pagination::PaginationMeta;
 
 // --- Request DTOs ---
 

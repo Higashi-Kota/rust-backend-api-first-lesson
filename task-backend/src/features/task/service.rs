@@ -1,6 +1,5 @@
 // src/features/task/service.rs
 
-use crate::api::dto::common::PaginationMeta;
 use crate::core::permission::{Permission, PermissionResult, PermissionScope, Privilege};
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
@@ -14,6 +13,7 @@ use crate::features::task::dto::{
 };
 use crate::features::task::repository::task_repository::TaskRepository;
 use crate::middleware::subscription_guard::check_feature_limit;
+use crate::shared::types::pagination::PaginationMeta;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;

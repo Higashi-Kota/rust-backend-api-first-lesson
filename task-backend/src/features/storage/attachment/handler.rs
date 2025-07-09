@@ -1,9 +1,10 @@
 // task-backend/src/features/storage/attachment/handler.rs
 
-use crate::api::dto::common::{ApiResponse, PaginatedResponse};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
+use crate::shared::types::common::ApiResponse;
+use crate::shared::types::pagination::PaginatedResponse;
 use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::{
