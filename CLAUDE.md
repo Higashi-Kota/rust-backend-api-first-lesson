@@ -143,10 +143,21 @@ Phase 8: features/task/
   - **完了**: 既存のインポートパスを維持しながら、ファイルをfeaturesに移動
   - [ ] **残課題**: 再エクスポートの未使用警告を#[allow(unused_imports)]で抑制（下記参照）
 
-- [ ] **Phase 7: 認証機能の整理**
-  - [ ] `features/auth`ディレクトリ作成
-  - [ ] 認証関連の全ファイルを集約
-  - [ ] middlewareの参照更新
+- [x] **Phase 7: 認証機能の整理**（2025-07-09 完了）
+  - [x] `features/auth`ディレクトリ作成
+  - [x] auth_handler.rs, auth_service.rsを移動
+  - [x] shared/dto/auth.rsをfeatures/auth/dto.rsに移動
+  - [x] middleware/auth.rsをfeatures/auth/middleware.rsに移動
+  - [x] 認証関連リポジトリ5つを移動（user, user_settings, refresh_token, password_reset_token, email_verification_token）
+  - [x] permission.rsをinfrastructure/utils/に移動
+  - [x] 既存ファイルを再エクスポート形式に変更
+  - [x] cargo clippy --all-targets --all-features -- -D warningsでエラーなし確認
+  - **完了**: 既存のインポートパスを維持しながら、ファイルをfeaturesに移動
+  - **残課題なし**: 全ての移行が完了し、cargo clippyでエラーなし確認済み
+  - [ ] **将来的な改善案**:
+    - 再エクスポートから直接参照への段階的移行（例: `middleware::auth` → `features::auth::middleware`）
+    - テストファイルのインポートパス更新（例: `api::dto::auth_dto` → `features::auth::dto`）
+    - 他のhandler/serviceで使用しているAuthenticatedUserの参照を直接features::authからに統一
 
 - [ ] **Phase 8: タスク機能の整理**
   - [ ] `features/task`ディレクトリ作成
@@ -248,6 +259,24 @@ src/
   - service::storage_service, service::attachment_service等から再エクスポート
   - repository::attachment_repository, repository::attachment_share_link_repository等から再エクスポート
 - 🔄 mock_storage.rsは`tests/common/`に残留（テスト用のため現状維持で問題なし）
+
+**Phase 7での具体例**:
+- ✅ `features/auth`ディレクトリとファイルは作成済み
+- ✅ auth関連の全コンポーネントを集約:
+  - handler.rs（api/handlers/auth_handler.rsから）
+  - service.rs（service/auth_service.rsから）
+  - dto.rs（shared/dto/auth.rsから）
+  - middleware.rs（middleware/auth.rsから）
+  - 5つのリポジトリ（user, user_settings, refresh_token, password_reset_token, email_verification_token）
+- ✅ permission.rsをinfrastructure/utils/に移動（middlewareで使用）
+- ✅ 既存のファイルを再エクスポート形式に変更（後方互換性維持）
+- ✅ 移動したファイル内のインポートパス更新:
+  - `crate::utils::jwt` → `crate::infrastructure::jwt`
+  - `crate::utils::email` → `crate::infrastructure::email`
+  - `crate::utils::password` → `crate::infrastructure::password`
+  - `crate::utils::permission` → `crate::infrastructure::utils::permission`
+- ✅ api/dto/auth_dto.rsの再エクスポートをfeatures/auth/dtoへの直接参照に変更
+- 🔄 現状は全て再エクスポート経由で動作しており、エラーや警告なし
 
 **各Phase実施時の注意**:
 ```
