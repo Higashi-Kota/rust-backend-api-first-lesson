@@ -5,6 +5,7 @@ pub mod core;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod infrastructure;
 pub mod middleware;
 pub mod repository;
 pub mod service;
