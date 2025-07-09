@@ -123,10 +123,13 @@ Phase 8: features/task/
   - **完了**: 既存のインポートパスを維持しながら、ファイルをinfrastructureに移動
   - [ ] **残課題**: middleware/auth.rsのimportは現状のままで動作（将来的に更新検討）
 
-- [ ] **Phase 5: GDPR機能の独立**
-  - [ ] `features/gdpr`ディレクトリ作成
-  - [ ] handler, service, dtoを集約
-  - [ ] 統合テストの動作確認
+- [x] **Phase 5: GDPR機能の独立**（2025-07-09 完了）
+  - [x] `features/gdpr`ディレクトリ作成
+  - [x] handler, service, dtoを集約
+  - [x] 統合テストの動作確認
+  - [x] cargo clippy --all-targets --all-features -- -D warningsでエラーなし確認
+  - **完了**: 既存のファイルを再エクスポート形式に変更、featuresモジュールを追加
+  - [ ] **残課題**: 他のhandler/serviceがGDPR機能を使用している場合のインポート更新（現状は再エクスポートで対応）
 
 - [ ] **Phase 6: ストレージ機能の独立**
   - [ ] `features/storage`ディレクトリ作成

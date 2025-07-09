@@ -11,6 +11,7 @@ mod core;
 mod db;
 mod domain;
 mod error;
+mod features;
 mod infrastructure;
 mod middleware;
 mod repository;
