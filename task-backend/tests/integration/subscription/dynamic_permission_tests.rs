@@ -4,7 +4,7 @@ use task_backend::core::task_status::TaskStatus;
 use crate::common::{app_helper, auth_helper};
 use axum::{body, http::StatusCode};
 use serde_json::Value;
-use task_backend::api::dto::task_dto::CreateTaskDto;
+use task_backend::features::task::dto::CreateTaskDto;
 use tower::ServiceExt;
 
 #[tokio::test]

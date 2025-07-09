@@ -20,7 +20,7 @@ async fn test_admin_list_bulk_operations_success() {
     // Create multiple tasks for bulk operation
     let mut task_ids = Vec::new();
     for i in 0..5 {
-        let task = task_backend::api::dto::task_dto::CreateTaskDto {
+        let task = task_backend::features::task::dto::CreateTaskDto {
             title: format!("Task {}", i),
             description: Some(format!("Description {}", i)),
             status: None,

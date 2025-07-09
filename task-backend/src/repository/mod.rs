@@ -14,6 +14,5 @@ pub mod security_incident_repository;
 pub mod stripe_payment_history_repository;
 pub mod stripe_subscription_repository;
 pub mod subscription_history_repository;
-pub mod task_repository;
 pub mod team_invitation_repository;
 pub mod team_repository;

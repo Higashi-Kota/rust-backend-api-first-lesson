@@ -1,6 +1,6 @@
 // task-backend/src/features/storage/attachment/dto.rs
 
-use crate::domain::task_attachment_model;
+use crate::features::task::domain::task_attachment_model;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

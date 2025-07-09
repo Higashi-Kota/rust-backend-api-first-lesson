@@ -3,10 +3,6 @@
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
 use crate::domain::attachment_share_link_model;
-use crate::domain::task_attachment_model::{
-    self, get_all_allowed_mime_types, is_allowed_mime_type, MAX_FILE_SIZE_ENTERPRISE,
-    MAX_FILE_SIZE_FREE, MAX_FILE_SIZE_PRO,
-};
 use crate::error::{AppError, AppResult};
 use crate::features::auth::repository::user_repository::UserRepository;
 use crate::features::storage::repository::attachment_repository::{
@@ -15,10 +11,14 @@ use crate::features::storage::repository::attachment_repository::{
 use crate::features::storage::repository::attachment_share_link_repository::{
     AttachmentShareLinkRepository, CreateShareLinkDto,
 };
+use crate::features::task::domain::task_attachment_model::{
+    self, get_all_allowed_mime_types, is_allowed_mime_type, MAX_FILE_SIZE_ENTERPRISE,
+    MAX_FILE_SIZE_FREE, MAX_FILE_SIZE_PRO,
+};
+use crate::features::task::repository::task_repository::TaskRepository;
 use crate::infrastructure::utils::image_optimizer::{
     is_image_mime_type, optimize_image, ImageOptimizationConfig,
 };
-use crate::repository::task_repository::TaskRepository;
 use crate::utils::token::generate_secure_token;
 use chrono::{Duration, Utc};
 use std::sync::Arc;

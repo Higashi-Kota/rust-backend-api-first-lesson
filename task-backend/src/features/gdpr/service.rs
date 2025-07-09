@@ -6,8 +6,8 @@ use crate::error::{AppError, AppResult};
 use crate::features::auth::repository::refresh_token_repository::RefreshTokenRepository;
 use crate::features::auth::repository::user_repository::UserRepository;
 use crate::features::gdpr::dto::*;
+use crate::features::task::repository::task_repository::TaskRepository;
 use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
-use crate::repository::task_repository::TaskRepository;
 use crate::repository::team_repository::TeamRepository;
 use chrono::Utc;
 use sea_orm::{

@@ -45,9 +45,9 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        has_many = "crate::domain::task_model::Entity",
+        has_many = "crate::features::task::domain::task_model::Entity",
         from = "Column::Id",
-        to = "crate::domain::task_model::Column::UserId"
+        to = "crate::features::task::domain::task_model::Column::UserId"
     )]
     Tasks,
 
@@ -73,7 +73,7 @@ pub enum Relation {
 }
 
 // リレーション実装
-impl Related<crate::domain::task_model::Entity> for Entity {
+impl Related<crate::features::task::domain::task_model::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Tasks.def()
     }

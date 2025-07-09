@@ -1,10 +1,12 @@
 // src/features/task/repository/task_repository.rs
-use crate::api::dto::task_dto::{
-    BatchUpdateTaskItemDto, CreateTaskDto, TaskFilterDto, UpdateTaskDto,
-};
 use crate::core::task_status::TaskStatus;
 use crate::db;
-use crate::domain::task_model::{self, ActiveModel as TaskActiveModel, Entity as TaskEntity};
+use crate::features::task::domain::task_model::{
+    self, ActiveModel as TaskActiveModel, Entity as TaskEntity,
+};
+use crate::features::task::dto::{
+    BatchUpdateTaskItemDto, CreateTaskDto, TaskFilterDto, UpdateTaskDto,
+};
 use chrono::Utc;
 use sea_orm::{entity::*, query::*, DbConn, DbErr, DeleteResult, Set};
 use sea_orm::{Condition, Order, PaginatorTrait, QueryFilter, QueryOrder};

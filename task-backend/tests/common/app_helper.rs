@@ -15,6 +15,7 @@ use task_backend::{
         service::AuthService,
     },
     features::storage::{attachment::service::AttachmentService, service::StorageService},
+    features::task::{handler as task_handler, service::TaskService},
     repository::{
         organization_repository::OrganizationRepository, role_repository::RoleRepository,
         subscription_history_repository::SubscriptionHistoryRepository,
@@ -23,7 +24,7 @@ use task_backend::{
     service::{
         payment_service::PaymentService, permission_service::PermissionService,
         role_service::RoleService, subscription_service::SubscriptionService,
-        task_service::TaskService, team_service::TeamService, user_service::UserService,
+        team_service::TeamService, user_service::UserService,
     },
     utils::{
         email::{EmailConfig, EmailService},
@@ -138,7 +139,6 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         role_repo.clone(),
         user_repo.clone(),
     ));
-    let task_service = Arc::new(TaskService::new(db.connection.clone()));
     let subscription_service = Arc::new(SubscriptionService::new(
         db.connection.clone(),
         email_service.clone(),
@@ -242,11 +242,13 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         subscription_service.clone(),
     ));
 
+    // タスクサービスの作成
+    let task_service = Arc::new(TaskService::new(db.connection.clone()));
+
     let app_state = AppState::with_config(
         auth_service,
         user_service,
         role_service,
-        task_service,
         team_service,
         team_invitation_service,
         organization_service,
@@ -259,6 +261,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         permission_service,
         security_service,
         attachment_service,
+        task_service,
         jwt_manager,
         Arc::new(db.connection.clone()),
         &app_config,
@@ -270,7 +273,6 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         .merge(user_handler::user_router(app_state.clone()))
         .merge(task_backend::api::handlers::security_handler::security_router(app_state.clone()))
         .merge(task_backend::api::handlers::analytics_handler::analytics_router(app_state.clone()))
-        .merge(task_backend::api::handlers::task_handler::task_router_with_state(app_state.clone()))
         .merge(
             task_backend::features::storage::attachment::handler::attachment_routes()
                 .with_state(app_state),
@@ -380,7 +382,6 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         role_repo.clone(),
         user_repo.clone(),
     ));
-    let task_service = Arc::new(TaskService::new(db.connection.clone()));
     let subscription_service = Arc::new(SubscriptionService::new(
         db.connection.clone(),
         email_service.clone(),
@@ -475,12 +476,14 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         subscription_service.clone(),
     ));
 
+    // タスクサービスの作成
+    let task_service = Arc::new(TaskService::new(db.connection.clone()));
+
     // 統一されたAppStateの作成
     let app_state = AppState::with_config(
         auth_service,
         user_service,
         role_service,
-        task_service,
         team_service,
         team_invitation_service,
         organization_service,
@@ -493,6 +496,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         permission_service,
         security_service,
         attachment_service,
+        task_service,
         jwt_manager.clone(),
         Arc::new(db.connection.clone()),
         &app_config,
@@ -528,8 +532,8 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
     let app = Router::new()
         .merge(auth_handler::auth_router(app_state.clone()))
         .merge(user_handler::user_router(app_state.clone()))
+        .merge(task_handler::task_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::role_handler::role_router_with_state(app_state.clone()))
-        .merge(task_backend::api::handlers::task_handler::task_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::team_handler::team_router_with_state(app_state.clone()))
         .merge(
             task_backend::api::handlers::organization_handler::organization_router_with_state(
@@ -679,7 +683,6 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         role_repo.clone(),
         user_repo.clone(),
     ));
-    let task_service = Arc::new(TaskService::new(db.connection.clone()));
     let subscription_service = Arc::new(SubscriptionService::new(
         db.connection.clone(),
         email_service.clone(),
@@ -774,12 +777,14 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         subscription_service.clone(),
     ));
 
+    // タスクサービスの作成
+    let task_service = Arc::new(TaskService::new(db.connection.clone()));
+
     // 統一されたAppStateの作成
     let app_state = AppState::with_config(
         auth_service,
         user_service,
         role_service,
-        task_service,
         team_service,
         team_invitation_service,
         organization_service,
@@ -792,6 +797,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         permission_service,
         security_service,
         attachment_service,
+        task_service,
         jwt_manager.clone(),
         Arc::new(db.connection.clone()),
         &app_config,
@@ -827,9 +833,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
     let app = Router::new()
         .merge(auth_handler::auth_router(app_state.clone()))
         .merge(user_handler::user_router(app_state.clone()))
-        .merge(task_backend::api::handlers::task_handler::task_router(
-            app_state.clone(),
-        ))
+        .merge(task_handler::task_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::role_handler::role_router(
             app_state.clone(),
         ))

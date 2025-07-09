@@ -1307,7 +1307,7 @@ async fn count_tasks_created_in_period(
     start: DateTime<Utc>,
     end: DateTime<Utc>,
 ) -> AppResult<u64> {
-    use crate::domain::task_model::{Column, Entity as TaskEntity};
+    use crate::features::task::domain::task_model::{Column, Entity as TaskEntity};
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let count = TaskEntity::find()
@@ -1325,7 +1325,7 @@ async fn count_tasks_completed_in_period(
     start: DateTime<Utc>,
     end: DateTime<Utc>,
 ) -> AppResult<u64> {
-    use crate::domain::task_model::{Column, Entity as TaskEntity};
+    use crate::features::task::domain::task_model::{Column, Entity as TaskEntity};
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let count = TaskEntity::find()
@@ -1511,7 +1511,7 @@ fn generate_mock_daily_activities(start: DateTime<Utc>, end: DateTime<Utc>) -> V
 
 /// タスクトレンドを実データから生成
 async fn generate_task_trends(db: &DatabaseConnection) -> AppResult<TaskTrends> {
-    use crate::domain::task_model::{Column, Entity as TaskEntity};
+    use crate::features::task::domain::task_model::{Column, Entity as TaskEntity};
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let mut weekly_creation = vec![];

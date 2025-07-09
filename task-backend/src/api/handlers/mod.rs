@@ -9,7 +9,6 @@ pub mod role_handler;
 pub mod security_handler;
 pub mod subscription_handler;
 pub mod system_handler;
-pub mod task_handler;
 pub mod team_handler;
 pub mod team_invitation_handler;
 pub mod user_handler;

@@ -1,19 +1,19 @@
 // src/features/task/service.rs
 
 use crate::api::dto::common::PaginationMeta;
-use crate::api::dto::task_dto::{
-    BatchCreateResponseDto, BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto,
-    BatchUpdateResponseDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto, CreateTaskDto,
-    PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse, UpdateTaskDto,
-};
 use crate::core::permission::{Permission, PermissionResult, PermissionScope, Privilege};
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
 use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::task::dto::{
+    BatchCreateResponseDto, BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto,
+    BatchUpdateResponseDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto, CreateTaskDto,
+    PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse, UpdateTaskDto,
+};
+use crate::features::task::repository::task_repository::TaskRepository;
 use crate::middleware::subscription_guard::check_feature_limit;
-use crate::repository::task_repository::TaskRepository;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;

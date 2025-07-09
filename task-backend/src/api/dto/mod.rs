@@ -10,7 +10,6 @@ pub mod role_dto;
 pub mod security_dto;
 pub mod subscription_dto;
 pub mod subscription_history_dto;
-pub mod task_dto;
 pub mod team_dto;
 pub mod team_invitation_dto;
 pub mod user_dto;

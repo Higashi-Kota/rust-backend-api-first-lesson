@@ -19,8 +19,6 @@ pub mod share_link_access_log_model;
 pub mod stripe_payment_history_model;
 pub mod stripe_subscription_model;
 pub mod subscription_history_model;
-pub mod task_attachment_model;
-pub mod task_model;
 pub mod team_invitation_model;
 pub mod team_member_model;
 pub mod team_model;

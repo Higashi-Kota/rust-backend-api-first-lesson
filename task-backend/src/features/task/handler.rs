@@ -1,13 +1,13 @@
 // src/features/task/handler.rs
-use crate::api::dto::task_dto::{
-    BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto, BatchUpdateResponseDto,
-    BatchUpdateTaskDto, CreateTaskDto, PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse,
-    UpdateTaskDto,
-};
 use crate::api::AppState;
 use crate::core::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
+use crate::features::task::dto::{
+    BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto, BatchUpdateResponseDto,
+    BatchUpdateTaskDto, CreateTaskDto, PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse,
+    UpdateTaskDto,
+};
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
@@ -750,8 +750,7 @@ pub async fn bulk_update_status_handler(
 // --- Admin functionality moved to admin_handler.rs ---
 
 // --- Router Setup ---
-// スキーマを指定できるようにルーター構築関数を修正
-pub fn task_router(app_state: AppState) -> Router {
+pub fn task_router_with_state(app_state: AppState) -> Router {
     use crate::features::auth::middleware::is_auth_endpoint;
     use crate::utils::permission::PermissionChecker;
 
@@ -789,11 +788,6 @@ pub fn task_router(app_state: AppState) -> Router {
         // ヘルスチェックエンドポイントを追加
         .route("/health", get(health_check_handler))
         .with_state(app_state)
-}
-
-// AppStateを使用したルーター構築用ヘルパー関数
-pub fn task_router_with_state(app_state: AppState) -> Router {
-    task_router(app_state)
 }
 
 // Admin functionality moved to admin_handler.rs

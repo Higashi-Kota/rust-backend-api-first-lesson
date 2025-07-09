@@ -1,10 +1,10 @@
 // task-backend/src/features/storage/repository/attachment_repository.rs
 
 use crate::db;
-use crate::domain::task_attachment_model::{
+use crate::features::storage::attachment::dto::{AttachmentSortBy, SortOrder};
+use crate::features::task::domain::task_attachment_model::{
     self, ActiveModel as AttachmentActiveModel, Entity as AttachmentEntity,
 };
-use crate::features::storage::attachment::dto::{AttachmentSortBy, SortOrder};
 use chrono::Utc;
 use sea_orm::{entity::*, DbConn, DbErr, DeleteResult, Set};
 use sea_orm::{PaginatorTrait, QueryFilter, QueryOrder};

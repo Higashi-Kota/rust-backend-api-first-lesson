@@ -4,7 +4,6 @@ use crate::api::dto::admin_organization_dto::*;
 use crate::api::dto::admin_role_dto::*;
 use crate::api::dto::common::{ApiResponse, PaginatedResponse, PaginationQuery};
 use crate::api::dto::subscription_history_dto::*;
-use crate::api::dto::task_dto::*;
 use crate::api::dto::team_invitation_dto::*;
 use crate::api::dto::user_dto::{
     UpdateUserSettingsRequest, UserSettingsDto, UserWithRoleResponse, UsersByLanguageResponse,
@@ -13,6 +12,7 @@ use crate::api::dto::user_dto::{
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::features::task::dto::*;
 use crate::utils::permission::{PermissionChecker, PermissionType};
 use axum::{
     extract::{Path, Query, State},

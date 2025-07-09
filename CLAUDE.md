@@ -274,26 +274,113 @@ src/
 - **完了**: Authモジュールは完全にfeatures::authから直接インポートされるように変更
 - **残課題なし**: 全ての移行が完了し、既存テストも動作することを確認
 
-**Phase 9.4: Taskモジュールの再エクスポート解消**
-- **対象**:
-  - task_handler.rs、task_service.rsの再エクスポート削除
-  - task_dto.rs、task_model.rsの再エクスポート削除
-  - task_repository.rsの再エクスポート削除
-- **実施内容**:
-  1. main.rsのインポートをfeatures::taskに更新
-  2. 他のサービスからのタスク関連参照を更新
-  3. テストファイルのインポートパスを更新
-  4. 再エクスポートファイルを削除
+**Phase 9.4: Taskモジュールの再エクスポート解消**（2025-07-09 完了）
+- ✅ 再エクスポートファイルを削除:
+  - api/handlers/task_handler.rs
+  - api/dto/task_dto.rs
+  - service/task_service.rs
+  - domain/task_model.rs
+  - domain/task_attachment_model.rs
+  - repository/task_repository.rs
+- ✅ mod.rsファイルから宣言を削除
+- ✅ インポートパスを更新:
+  - main.rs: `api::handlers::task_handler` → `features::task::handler`
+  - main.rs: `service::task_service` → `features::task::service`
+  - admin_handler.rs: `api::dto::task_dto` → `features::task::dto`
+  - analytics_handler.rs: `domain::task_model` → `features::task::domain::task_model`
+  - features/task内部: 内部参照を`features::task`に更新
+  - features/storage: `domain::task_attachment_model` → `features::task::domain::task_attachment_model`
+  - features/gdpr: `repository::task_repository` → `features::task::repository::task_repository`
+  - domain/user_model.rs: task_modelの参照を更新
+  - domain/attachment_share_link_model.rs: task_attachment_modelの参照を更新
+  - tests/unit/task/: service_tests.rs, repository_tests.rsのインポートを更新
+  - tests/common/: test_data.rs, mod.rs, app_helper.rsのインポートを更新
+  - tests/integration/: subscription, adminテストのインポートを更新
+- ✅ AppStateにTaskServiceフィールドを追加
+- ✅ main.rsでTaskServiceを初期化しAppStateに渡す
+- ✅ AppState::with_configメソッドにtask_serviceパラメータを追加
+- ✅ テストヘルパー（app_helper.rs）でTaskServiceを初期化
+- ✅ task_router関数を削除し、task_router_with_stateに統一
+- ✅ cargo clippy --all-targets --all-features -- -D warningsでエラーなし確認
+- **完了**: Taskモジュールは完全にfeatures::taskから直接インポートされるように変更
+- **残課題なし**: 全ての移行が完了し、既存テストも動作することを確認
 
 **Phase 10: 残存DTOの移行と循環依存の解消**
-- **対象**:
-  - `team_dto.rs`、`organization_dto.rs`、`security_dto.rs`の移行
-  - `role_dto.rs`の循環依存解消（role_serviceから型を分離）
-  - PaginationMetaの重複解消
+- **対象**: 14個の残存DTOファイルの整理と循環依存の解消
+- **実施内容**: 機能別にDTOを移行し、Service層とDTO層の依存関係を正常化
+
+**Phase 10.1: 循環依存の解消（role_dto.rs）**
+- **問題**: role_dto.rsがrole_service.rsから`CreateRoleInput`, `UpdateRoleInput`をインポート（逆方向依存）
 - **実施内容**:
-  1. 各DTOを適切なfeatureモジュールに移動
-  2. 共通型は`shared/types`に集約
-  3. サービス層の型定義をDTOから分離
+  1. `shared/dto/role_types.rs`を作成
+  2. `CreateRoleInput`, `UpdateRoleInput`をrole_service.rsからrole_types.rsに移動
+  3. role_dto.rsとrole_service.rsの両方からshared/dto/role_typesを参照
+  4. cargo clippyでエラーなし確認
+- **予想時間**: 30分
+
+**Phase 10.2: PaginationMetaの統一**
+- **問題**: PaginationMetaが2箇所に重複（api::dto::common、shared::types::pagination）
+- **実施内容**:
+  1. api::dto::common::PaginationMetaの実装をshared::types::paginationに移動
+  2. 使用箇所のインポートを更新（5箇所）:
+     - features/task/service.rs
+     - api/dto/subscription_dto.rs
+     - api/dto/admin_role_dto.rs
+     - api/dto/analytics_dto.rs
+     - api/dto/admin_organization_dto.rs
+  3. api::dto::commonから再エクスポート（後方互換性）
+  4. dead_code警告の解消を確認
+- **予想時間**: 30分
+
+**Phase 10.3: チーム機能DTOの移行**
+- **対象**: team_dto.rs、team_invitation_dto.rs
+- **実施内容**:
+  1. `features/team`ディレクトリ作成
+  2. team_dto.rs、team_invitation_dto.rsをfeatures/team/dto/に移動
+  3. team_service.rsのワイルドカードインポート`use crate::api::dto::team_dto::*;`を個別インポートに変更
+  4. team_handler.rs、team_invitation_handler.rsのインポートを更新
+  5. 関連テストのインポートを更新
+- **予想時間**: 45分
+
+**Phase 10.4: 組織機能DTOの移行**
+- **対象**: organization_dto.rs、organization_hierarchy_dto.rs
+- **実施内容**:
+  1. `features/organization`ディレクトリ作成
+  2. organization_dto.rs、organization_hierarchy_dto.rsをfeatures/organization/dto/に移動
+  3. organization_service.rsのワイルドカードインポート`use crate::api::dto::organization_dto::*;`を個別インポートに変更
+  4. organization_handler.rs、organization_hierarchy_handler.rsのインポートを更新
+  5. 関連テストのインポートを更新
+- **予想時間**: 45分
+
+**Phase 10.5: セキュリティ機能DTOの移行**
+- **対象**: security_dto.rs、permission_dto.rs
+- **実施内容**:
+  1. `features/security`ディレクトリ作成
+  2. security_dto.rs、permission_dto.rsをfeatures/security/dto/に移動
+  3. security_service.rsのワイルドカードインポート`use crate::api::dto::security_dto::*;`を個別インポートに変更
+  4. security_handler.rs、permission_handler.rsのインポートを更新
+  5. 関連テストのインポートを更新
+- **予想時間**: 45分
+
+**Phase 10.6: 管理者機能DTOの移行**
+- **対象**: admin_organization_dto.rs、admin_role_dto.rs、analytics_dto.rs、subscription_history_dto.rs
+- **実施内容**:
+  1. `features/admin`ディレクトリ作成
+  2. 4つのDTOファイルをfeatures/admin/dto/に移動
+  3. admin_handler.rsの大量のインポート（約20個）を整理
+  4. analytics_handler.rsのインポートを更新
+  5. 関連サービスのインポートを更新
+- **予想時間**: 1時間
+
+**Phase 10.7: サブスクリプション機能DTOの移行**
+- **対象**: subscription_dto.rs
+- **実施内容**:
+  1. `features/subscription`ディレクトリ作成
+  2. subscription_dto.rsをfeatures/subscription/dto/に移動
+  3. payment_handler.rs、subscription_handler.rsのインポートを更新
+  4. payment_service.rs、subscription_service.rsのインポートを更新
+  5. 関連テストのインポートを更新
+- **予想時間**: 30分
 
 **Phase 11: shared/typesモジュールの活性化**
 - **目的**: 現在未使用の`shared/types`を実際に活用し、dead_code警告を解消

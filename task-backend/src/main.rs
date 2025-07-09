@@ -26,8 +26,7 @@ use crate::api::handlers::{
     payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
     role_handler::role_router_with_state, security_handler::security_router,
     subscription_handler::subscription_router_with_state, system_handler::system_router_with_state,
-    task_handler::task_router_with_state, team_handler::team_router_with_state,
-    user_handler::user_router_with_state,
+    team_handler::team_router_with_state, user_handler::user_router_with_state,
 };
 use crate::api::AppState;
 use crate::config::AppConfig;
@@ -51,6 +50,7 @@ use crate::features::storage::{
     attachment::service::AttachmentService,
     service::{self as storage_service, StorageConfig},
 };
+use crate::features::task::{handler::task_router_with_state, service::TaskService};
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     login_attempt_repository::LoginAttemptRepository,
@@ -63,7 +63,7 @@ use crate::service::{
     organization_service::OrganizationService, payment_service::PaymentService,
     permission_service::PermissionService, role_service::RoleService,
     security_service::SecurityService, subscription_service::SubscriptionService,
-    task_service::TaskService, team_service::TeamService, user_service::UserService,
+    team_service::TeamService, user_service::UserService,
 };
 use crate::utils::{
     email::{EmailConfig, EmailService},
@@ -217,8 +217,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user_repo.clone(),
     ));
 
-    let task_service = Arc::new(TaskService::new(db_pool.clone()));
-
     // ストレージサービスの初期化（必須）
     tracing::info!("📦 Initializing storage service...");
     let storage_config = StorageConfig::from_env().expect(
@@ -287,6 +285,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         organization_repo.clone(),
     ));
 
+    // Task service creation
+    let task_service = Arc::new(TaskService::new(db_pool.clone()));
+
     tracing::info!("🎯 Business services created.");
 
     // 認証ミドルウェア設定
@@ -317,7 +318,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         auth_service,
         user_service,
         role_service,
-        task_service,
         team_service,
         team_invitation_service,
         organization_service,
@@ -330,6 +330,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         permission_service,
         security_service,
         attachment_service,
+        task_service,
         jwt_manager.clone(),
         Arc::new(db_pool.clone()),
         &app_config,
@@ -339,7 +340,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let auth_router = auth_router_with_state(app_state.clone());
     let user_router = user_router_with_state(app_state.clone());
     let role_router = role_router_with_state(app_state.clone());
-    let task_router = task_router_with_state(app_state.clone());
     let team_router = team_router_with_state(app_state.clone());
     let organization_router = organization_router_with_state(app_state.clone());
     let subscription_router = subscription_router_with_state(app_state.clone());
@@ -351,14 +351,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let admin_router = admin_router(app_state.clone());
     let hierarchy_router = organization_hierarchy_router().with_state(app_state.clone());
     let gdpr_router = gdpr_router_with_state(app_state.clone());
+    let task_router_inst = task_router_with_state(app_state.clone());
 
     // メインアプリケーションルーターの構築
     let app_router = Router::new()
         .merge(auth_router)
         .merge(user_router)
         .merge(role_router)
-        .merge(task_router)
         .merge(team_router)
+        .merge(task_router_inst)
         .merge(organization_router)
         .merge(subscription_router)
         .merge(payment_router)
@@ -390,7 +391,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("   • User Management: /users/*");
     tracing::info!("   • Role Management: /roles/*");
     tracing::info!("   • Task Management: /tasks/*");
-    tracing::info!("   • File Attachments: /tasks/*/attachments, /attachments/*");
+    tracing::info!("   • File Attachments: /attachments/*");
     tracing::info!(
         "   • Share Links: /attachments/*/share-links, /share-links/*, /share/* (public)"
     );

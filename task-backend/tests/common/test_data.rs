@@ -1,9 +1,9 @@
 // tests/common/test_data.rs
 
 use chrono::Utc;
-use task_backend::api::dto::task_dto::{CreateTaskDto, UpdateTaskDto};
 use task_backend::core::task_status::TaskStatus;
 use task_backend::features::auth::dto::*;
+use task_backend::features::task::dto::{CreateTaskDto, UpdateTaskDto};
 
 // === 認証関連のテストデータ ===
 
@@ -156,7 +156,7 @@ pub fn create_invalid_task_empty_title() -> CreateTaskDto {
 
 use axum::{body, http::Request, Router};
 use serde_json::Value;
-use task_backend::api::dto::task_dto::TaskDto;
+use task_backend::features::task::dto::TaskDto;
 use tower::ServiceExt;
 
 /// テストユーザー用のタスクを作成

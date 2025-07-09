@@ -2,6 +2,7 @@
 use crate::config::AppConfig;
 use crate::features::auth::service::AuthService;
 use crate::features::storage::attachment::service::AttachmentService;
+use crate::features::task::service::TaskService;
 use crate::repository::{
     bulk_operation_history_repository::BulkOperationHistoryRepository,
     daily_activity_summary_repository::DailyActivitySummaryRepository,
@@ -12,9 +13,8 @@ use crate::service::{
     feature_tracking_service::FeatureTrackingService, organization_service::OrganizationService,
     payment_service::PaymentService, permission_service::PermissionService,
     role_service::RoleService, security_service::SecurityService,
-    subscription_service::SubscriptionService, task_service::TaskService,
-    team_invitation_service::TeamInvitationService, team_service::TeamService,
-    user_service::UserService,
+    subscription_service::SubscriptionService, team_invitation_service::TeamInvitationService,
+    team_service::TeamService, user_service::UserService,
 };
 use crate::utils::jwt::JwtManager;
 use sea_orm::DatabaseConnection;
@@ -29,7 +29,6 @@ pub struct AppState {
     pub auth_service: Arc<AuthService>,
     pub user_service: Arc<UserService>,
     pub role_service: Arc<RoleService>,
-    pub task_service: Arc<TaskService>,
     pub team_service: Arc<TeamService>,
     pub team_invitation_service: Arc<TeamInvitationService>,
     pub organization_service: Arc<OrganizationService>,
@@ -43,6 +42,7 @@ pub struct AppState {
     pub permission_service: Arc<PermissionService>,
     pub security_service: Arc<SecurityService>,
     pub attachment_service: Arc<AttachmentService>,
+    pub task_service: Arc<TaskService>,
     pub jwt_manager: Arc<JwtManager>,
     pub db: Arc<DatabaseConnection>,
     pub db_pool: Arc<DatabaseConnection>,
@@ -114,7 +114,6 @@ impl AppState {
         auth_service: Arc<AuthService>,
         user_service: Arc<UserService>,
         role_service: Arc<RoleService>,
-        task_service: Arc<TaskService>,
         team_service: Arc<TeamService>,
         team_invitation_service: Arc<TeamInvitationService>,
         organization_service: Arc<OrganizationService>,
@@ -127,6 +126,7 @@ impl AppState {
         permission_service: Arc<PermissionService>,
         security_service: Arc<SecurityService>,
         attachment_service: Arc<AttachmentService>,
+        task_service: Arc<TaskService>,
         jwt_manager: Arc<JwtManager>,
         db_pool: Arc<DatabaseConnection>,
         app_config: &AppConfig,
@@ -135,7 +135,6 @@ impl AppState {
             auth_service,
             user_service,
             role_service,
-            task_service,
             team_service,
             team_invitation_service,
             organization_service,
@@ -151,6 +150,7 @@ impl AppState {
             permission_service,
             security_service,
             attachment_service,
+            task_service,
             jwt_manager,
             db: db_pool.clone(),
             db_pool,

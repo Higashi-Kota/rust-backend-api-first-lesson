@@ -26,9 +26,9 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "crate::domain::task_attachment_model::Entity",
+        belongs_to = "crate::features::task::domain::task_attachment_model::Entity",
         from = "Column::AttachmentId",
-        to = "crate::domain::task_attachment_model::Column::Id",
+        to = "crate::features::task::domain::task_attachment_model::Column::Id",
         on_update = "NoAction",
         on_delete = "Cascade"
     )]
@@ -44,7 +44,7 @@ pub enum Relation {
     User,
 }
 
-impl Related<crate::domain::task_attachment_model::Entity> for Entity {
+impl Related<crate::features::task::domain::task_attachment_model::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TaskAttachment.def()
     }
