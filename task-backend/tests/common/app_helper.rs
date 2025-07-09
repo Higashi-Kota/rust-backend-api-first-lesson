@@ -559,7 +559,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
                 app_state.clone(),
             )),
         )
-        .merge(task_backend::api::handlers::gdpr_handler::gdpr_router_with_state(app_state.clone()))
+        .merge(task_backend::features::gdpr::handler::gdpr_router_with_state(app_state.clone()))
         .merge(
             task_backend::api::handlers::attachment_handler::attachment_routes()
                 .with_state(app_state),
@@ -843,7 +843,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         )
         .merge(task_backend::api::handlers::analytics_handler::analytics_router(app_state.clone()))
         .merge(task_backend::api::handlers::security_handler::security_router(app_state.clone()))
-        .merge(task_backend::api::handlers::gdpr_handler::gdpr_router_with_state(app_state.clone()))
+        .merge(task_backend::features::gdpr::handler::gdpr_router_with_state(app_state.clone()))
         .merge(
             task_backend::api::handlers::attachment_handler::attachment_routes()
                 .with_state(app_state),

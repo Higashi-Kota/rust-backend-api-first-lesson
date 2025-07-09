@@ -22,7 +22,7 @@ mod utils;
 use crate::api::handlers::{
     admin_handler::admin_router, analytics_handler::analytics_router_with_state,
     attachment_handler::attachment_routes, auth_handler::auth_router_with_state,
-    gdpr_handler::gdpr_router_with_state, organization_handler::organization_router_with_state,
+    organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
     payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
     role_handler::role_router_with_state, security_handler::security_router,
@@ -33,6 +33,7 @@ use crate::api::handlers::{
 use crate::api::AppState;
 use crate::config::AppConfig;
 use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schema_exists};
+use crate::features::gdpr::handler::gdpr_router_with_state;
 use crate::middleware::auth::{
     cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
 };
