@@ -7,7 +7,7 @@ use crate::api::dto::task_dto::{
 use crate::api::AppState;
 use crate::core::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::AuthenticatedUser;
+use crate::features::auth::middleware::AuthenticatedUser;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
@@ -597,7 +597,7 @@ pub async fn get_user_task_stats_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
 ) -> AppResult<Json<serde_json::Value>> {
-    use crate::middleware::auth::{
+    use crate::features::auth::middleware::{
         extract_client_ip, get_authenticated_user_from_claims,
         get_authenticated_user_with_role_from_claims,
     };
@@ -752,7 +752,7 @@ pub async fn bulk_update_status_handler(
 // --- Router Setup ---
 // スキーマを指定できるようにルーター構築関数を修正
 pub fn task_router(app_state: AppState) -> Router {
-    use crate::middleware::auth::is_auth_endpoint;
+    use crate::features::auth::middleware::is_auth_endpoint;
     use crate::utils::permission::PermissionChecker;
 
     // 権限チェック関数を使用した例（実際にはハンドラー内で使用）

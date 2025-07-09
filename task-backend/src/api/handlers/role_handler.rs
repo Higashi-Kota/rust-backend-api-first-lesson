@@ -3,7 +3,7 @@ use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::dto::role_dto::*;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::AuthenticatedUserWithRole;
+use crate::features::auth::middleware::AuthenticatedUserWithRole;
 use axum::{
     extract::{Json, Path, Query, State},
     http::StatusCode,

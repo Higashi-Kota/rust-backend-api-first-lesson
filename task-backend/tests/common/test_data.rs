@@ -1,11 +1,9 @@
 // tests/common/test_data.rs
 
 use chrono::Utc;
-use task_backend::api::dto::{
-    auth_dto::*,
-    task_dto::{CreateTaskDto, UpdateTaskDto},
-};
+use task_backend::api::dto::task_dto::{CreateTaskDto, UpdateTaskDto};
 use task_backend::core::task_status::TaskStatus;
+use task_backend::features::auth::dto::*;
 
 // === 認証関連のテストデータ ===
 

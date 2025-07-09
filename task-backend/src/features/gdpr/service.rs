@@ -3,12 +3,12 @@
 use crate::db::DbPool;
 use crate::domain::user_consent_model::{self, ConsentType};
 use crate::error::{AppError, AppResult};
+use crate::features::auth::repository::refresh_token_repository::RefreshTokenRepository;
+use crate::features::auth::repository::user_repository::UserRepository;
 use crate::features::gdpr::dto::*;
-use crate::repository::refresh_token_repository::RefreshTokenRepository;
 use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
 use crate::repository::task_repository::TaskRepository;
 use crate::repository::team_repository::TeamRepository;
-use crate::repository::user_repository::UserRepository;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,

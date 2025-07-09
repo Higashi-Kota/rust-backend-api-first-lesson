@@ -6,7 +6,7 @@ use axum::{
     Router,
 };
 use serde_json::Value;
-use task_backend::api::dto::auth_dto::*;
+use task_backend::features::auth::dto::*;
 use tower::ServiceExt;
 use uuid::Uuid;
 

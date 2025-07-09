@@ -6,7 +6,7 @@ use crate::api::AppState;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::daily_activity_summary_model;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     daily_activity_summary_repository::DailyActivitySummaryRepository,

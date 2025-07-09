@@ -246,16 +246,33 @@ src/
 - **完了**: Storageモジュールは完全にfeatures::storageから直接インポートされるように変更
 - **残課題なし**: 全ての移行が完了し、既存テストも動作することを確認
 
-**Phase 9.3: Authモジュールの再エクスポート解消**
-- **対象**:
-  - auth_handler.rs、auth_service.rsの再エクスポート削除
-  - middleware/auth.rsの再エクスポート削除
-  - 認証関連リポジトリの再エクスポート削除
-- **実施内容**:
-  1. main.rsのインポートをfeatures::authに更新
-  2. 他のhandler/serviceからのAuthenticatedUser参照を更新
-  3. テストファイルのインポートパスを更新
-  4. 再エクスポートファイルを削除
+**Phase 9.3: Authモジュールの再エクスポート解消**（2025-07-09 完了）
+- ✅ main.rsのインポートを更新:
+  - `api::handlers::auth_handler` → `features::auth::handler`
+  - `middleware::auth` → `features::auth::middleware`
+  - `service::auth_service` → `features::auth::service`
+  - 認証関連リポジトリ → `features::auth::repository`
+- ✅ 再エクスポートファイルを削除:
+  - api/handlers/auth_handler.rs
+  - middleware/auth.rs
+  - service/auth_service.rs
+  - api/dto/auth_dto.rs
+  - repository/user_repository.rs
+  - repository/user_settings_repository.rs
+  - repository/refresh_token_repository.rs
+  - repository/password_reset_token_repository.rs
+  - repository/email_verification_token_repository.rs
+- ✅ mod.rsファイルから宣言を削除
+- ✅ インポートパス変更（主要な箇所）:
+  - api/mod.rs: AuthServiceのインポートをfeatures::authに更新
+  - 16個のハンドラー: AuthenticatedUser等のインポートを更新
+  - 14個のサービス: 認証関連リポジトリのインポートを更新
+  - tests/common/app_helper.rs: 認証関連のインポートを更新
+  - tests/common/auth_helper.rs, test_data.rs: auth_dtoのインポートを更新
+  - 多数のテストファイル: 認証関連モジュールのインポートを更新
+- ✅ cargo clippy --all-targets --all-features -- -D warningsでエラーなし確認
+- **完了**: Authモジュールは完全にfeatures::authから直接インポートされるように変更
+- **残課題なし**: 全ての移行が完了し、既存テストも動作することを確認
 
 **Phase 9.4: Taskモジュールの再エクスポート解消**
 - **対象**:

@@ -3,7 +3,7 @@
 use crate::api::dto::common::ApiResponse;
 use crate::api::dto::team_invitation_dto::*;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::AuthenticatedUser;
+use crate::features::auth::middleware::AuthenticatedUser;
 use axum::{
     extract::{Path, Query, State},
     Json,

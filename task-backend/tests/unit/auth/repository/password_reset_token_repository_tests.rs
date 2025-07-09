@@ -4,8 +4,8 @@
 
 use chrono::{Duration, Utc};
 use sea_orm::Set;
-use task_backend::api::dto::auth_dto::{PasswordResetRequest, PasswordResetRequestRequest};
 use task_backend::domain::password_reset_token_model;
+use task_backend::features::auth::dto::{PasswordResetRequest, PasswordResetRequestRequest};
 use uuid::Uuid;
 use validator::Validate;
 

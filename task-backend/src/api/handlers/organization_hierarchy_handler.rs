@@ -5,7 +5,7 @@ use crate::{
     },
     domain::permission_matrix_model::EntityType,
     error::AppError,
-    middleware::auth::AuthenticatedUser,
+    features::auth::middleware::AuthenticatedUser,
     service::organization_hierarchy_service::OrganizationHierarchyService,
 };
 use axum::{

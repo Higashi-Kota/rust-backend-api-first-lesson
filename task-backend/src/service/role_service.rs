@@ -2,8 +2,8 @@
 use crate::domain::role_model::{RoleName, RoleWithPermissions};
 use crate::domain::user_model::{SafeUserWithRole, UserClaims};
 use crate::error::{AppError, AppResult};
+use crate::features::auth::repository::user_repository::UserRepository;
 use crate::repository::role_repository::{CreateRoleData, RoleRepository, UpdateRoleData};
-use crate::repository::user_repository::UserRepository;
 use crate::utils::transaction::{execute_with_retry, RetryConfig};
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;

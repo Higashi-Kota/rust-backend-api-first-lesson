@@ -2,9 +2,9 @@
 
 use crate::domain::team_invitation_model::{Model as TeamInvitationModel, TeamInvitationStatus};
 use crate::error::{AppError, AppResult};
+use crate::features::auth::repository::user_repository::UserRepository;
 use crate::repository::team_invitation_repository::TeamInvitationRepository;
 use crate::repository::team_repository::TeamRepository;
-use crate::repository::user_repository::UserRepository;
 use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 

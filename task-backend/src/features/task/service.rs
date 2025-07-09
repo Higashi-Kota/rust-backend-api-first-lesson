@@ -10,10 +10,10 @@ use crate::core::permission::{Permission, PermissionResult, PermissionScope, Pri
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::AuthenticatedUser;
+use crate::features::auth::middleware::AuthenticatedUser;
+use crate::features::auth::repository::user_repository::UserRepository;
 use crate::middleware::subscription_guard::check_feature_limit;
 use crate::repository::task_repository::TaskRepository;
-use crate::repository::user_repository::UserRepository;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;

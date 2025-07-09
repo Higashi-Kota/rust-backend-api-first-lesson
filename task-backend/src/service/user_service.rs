@@ -5,10 +5,10 @@ use crate::domain::bulk_operation_history_model::{
 use crate::domain::user_model::{SafeUser, SafeUserWithRole};
 use crate::domain::user_settings_model;
 use crate::error::{AppError, AppResult};
+use crate::features::auth::repository::email_verification_token_repository::EmailVerificationTokenRepository;
+use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::auth::repository::user_settings_repository::UserSettingsRepository;
 use crate::repository::bulk_operation_history_repository::BulkOperationHistoryRepository;
-use crate::repository::email_verification_token_repository::EmailVerificationTokenRepository;
-use crate::repository::user_repository::UserRepository;
-use crate::repository::user_settings_repository::UserSettingsRepository;
 use crate::shared::dto::user::{
     BulkOperationResult, BulkUserOperation, RoleUserStats, SubscriptionAnalytics,
 };

@@ -3,7 +3,7 @@
 use crate::api::dto::common::ApiResponse;
 use crate::api::dto::organization_dto::*;
 use crate::error::AppResult;
-use crate::middleware::auth::AuthenticatedUser;
+use crate::features::auth::middleware::AuthenticatedUser;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,

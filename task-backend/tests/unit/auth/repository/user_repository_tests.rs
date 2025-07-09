@@ -4,8 +4,8 @@
 
 use chrono::Utc;
 use sea_orm::Set;
-use task_backend::api::dto::auth_dto::SignupRequest;
 use task_backend::domain::user_model::{self, SafeUser};
+use task_backend::features::auth::dto::SignupRequest;
 use task_backend::utils::password::{Argon2Config, PasswordManager, PasswordPolicy};
 use task_backend::utils::validation::common::validate_username;
 use uuid::Uuid;

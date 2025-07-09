@@ -3,25 +3,27 @@
 use axum::{body::Body, http::Request, Router};
 use std::sync::Arc;
 use task_backend::{
-    api::{
-        handlers::{auth_handler, user_handler},
-        AppState,
-    },
+    api::{handlers::user_handler, AppState},
     config::AppConfig,
+    features::auth::{
+        handler as auth_handler,
+        repository::{
+            email_verification_token_repository::EmailVerificationTokenRepository,
+            password_reset_token_repository::PasswordResetTokenRepository,
+            refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
+        },
+        service::AuthService,
+    },
     features::storage::{attachment::service::AttachmentService, service::StorageService},
     repository::{
-        email_verification_token_repository::EmailVerificationTokenRepository,
-        organization_repository::OrganizationRepository,
-        password_reset_token_repository::PasswordResetTokenRepository,
-        refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
+        organization_repository::OrganizationRepository, role_repository::RoleRepository,
         subscription_history_repository::SubscriptionHistoryRepository,
-        team_repository::TeamRepository, user_repository::UserRepository,
+        team_repository::TeamRepository,
     },
     service::{
-        auth_service::AuthService, payment_service::PaymentService,
-        permission_service::PermissionService, role_service::RoleService,
-        subscription_service::SubscriptionService, task_service::TaskService,
-        team_service::TeamService, user_service::UserService,
+        payment_service::PaymentService, permission_service::PermissionService,
+        role_service::RoleService, subscription_service::SubscriptionService,
+        task_service::TaskService, team_service::TeamService, user_service::UserService,
     },
     utils::{
         email::{EmailConfig, EmailService},
@@ -50,7 +52,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     let email_verification_token_repo =
         Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
     let user_settings_repo = Arc::new(
-        task_backend::repository::user_settings_repository::UserSettingsRepository::new(
+        task_backend::features::auth::repository::user_settings_repository::UserSettingsRepository::new(
             db.connection.clone(),
         ),
     );
@@ -152,7 +154,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         task_backend::service::organization_service::OrganizationService::new(
             OrganizationRepository::new(db.connection.clone()),
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
-            task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
+            task_backend::features::auth::repository::user_repository::UserRepository::new(db.connection.clone()),
             task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
     );
@@ -175,8 +177,8 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     );
     let security_service = std::sync::Arc::new(
         task_backend::service::security_service::SecurityService::new(
-            std::sync::Arc::new(task_backend::repository::refresh_token_repository::RefreshTokenRepository::new(db.connection.clone())),
-            std::sync::Arc::new(task_backend::repository::password_reset_token_repository::PasswordResetTokenRepository::new(db.connection.clone())),
+            std::sync::Arc::new(task_backend::features::auth::repository::refresh_token_repository::RefreshTokenRepository::new(db.connection.clone())),
+            std::sync::Arc::new(task_backend::features::auth::repository::password_reset_token_repository::PasswordResetTokenRepository::new(db.connection.clone())),
             activity_log_repo_sec,
             security_incident_repo_sec,
             login_attempt_repo_sec,
@@ -191,7 +193,9 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
                 db.connection.clone(),
             ),
             TeamRepository::new(db.connection.clone()),
-            UserRepository::new(db.connection.clone()),
+            task_backend::features::auth::repository::user_repository::UserRepository::new(
+                db.connection.clone(),
+            ),
         ),
     );
 
@@ -293,7 +297,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
     let email_verification_token_repo =
         Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
     let user_settings_repo = Arc::new(
-        task_backend::repository::user_settings_repository::UserSettingsRepository::new(
+        task_backend::features::auth::repository::user_settings_repository::UserSettingsRepository::new(
             db.connection.clone(),
         ),
     );
@@ -394,7 +398,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
                 db.connection.clone(),
             ),
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
-            task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
+            task_backend::features::auth::repository::user_repository::UserRepository::new(db.connection.clone()),
             task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
     );
@@ -423,7 +427,9 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
                 db.connection.clone(),
             ),
             TeamRepository::new(db.connection.clone()),
-            UserRepository::new(db.connection.clone()),
+            task_backend::features::auth::repository::user_repository::UserRepository::new(
+                db.connection.clone(),
+            ),
         ),
     );
 
@@ -494,7 +500,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
 
     // 認証ミドルウェア設定を作成
     use axum::middleware as axum_middleware;
-    use task_backend::middleware::auth::{jwt_auth_middleware, AuthMiddlewareConfig};
+    use task_backend::features::auth::middleware::{jwt_auth_middleware, AuthMiddlewareConfig};
 
     let auth_middleware_config = AuthMiddlewareConfig {
         jwt_manager: jwt_manager.clone(),
@@ -590,7 +596,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
     let email_verification_token_repo =
         Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
     let user_settings_repo = Arc::new(
-        task_backend::repository::user_settings_repository::UserSettingsRepository::new(
+        task_backend::features::auth::repository::user_settings_repository::UserSettingsRepository::new(
             db.connection.clone(),
         ),
     );
@@ -691,7 +697,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
                 db.connection.clone(),
             ),
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
-            task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
+            task_backend::features::auth::repository::user_repository::UserRepository::new(db.connection.clone()),
             task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
     );
@@ -720,7 +726,9 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
                 db.connection.clone(),
             ),
             TeamRepository::new(db.connection.clone()),
-            UserRepository::new(db.connection.clone()),
+            task_backend::features::auth::repository::user_repository::UserRepository::new(
+                db.connection.clone(),
+            ),
         ),
     );
 
@@ -791,7 +799,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
 
     // 認証ミドルウェア設定を作成
     use axum::middleware as axum_middleware;
-    use task_backend::middleware::auth::{jwt_auth_middleware, AuthMiddlewareConfig};
+    use task_backend::features::auth::middleware::{jwt_auth_middleware, AuthMiddlewareConfig};
 
     let auth_middleware_config = AuthMiddlewareConfig {
         jwt_manager: jwt_manager.clone(),

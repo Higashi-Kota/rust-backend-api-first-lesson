@@ -2,7 +2,6 @@
 pub mod admin_organization_dto;
 pub mod admin_role_dto;
 pub mod analytics_dto;
-pub mod auth_dto;
 pub mod common;
 pub mod organization_dto;
 pub mod organization_hierarchy_dto;

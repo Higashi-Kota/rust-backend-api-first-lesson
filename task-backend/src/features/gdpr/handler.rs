@@ -3,13 +3,13 @@
 use crate::api::dto::common::ApiResponse;
 use crate::api::AppState;
 use crate::error::AppResult;
+use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::features::gdpr::dto::{
     ComplianceStatusResponse, ConsentHistoryResponse, ConsentStatusResponse, ConsentUpdateRequest,
     DataDeletionRequest, DataDeletionResponse, DataExportRequest, DataExportResponse,
     SingleConsentUpdateRequest,
 };
 use crate::features::gdpr::service::GdprService;
-use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use axum::{
     extract::{Path, State},
     Json,

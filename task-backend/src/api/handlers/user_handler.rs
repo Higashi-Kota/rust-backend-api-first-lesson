@@ -12,8 +12,8 @@ use crate::api::dto::user_dto::{
 use crate::api::AppState;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::AuthenticatedUser;
-use crate::middleware::auth::AuthenticatedUserWithRole;
+use crate::features::auth::middleware::AuthenticatedUser;
+use crate::features::auth::middleware::AuthenticatedUserWithRole;
 use crate::utils::permission::PermissionChecker;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},

@@ -9,8 +9,8 @@ use crate::api::dto::common::{ApiResponse, OperationResult, PaginationMeta};
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::domain::user_model::SafeUser;
+use crate::features::auth::repository::user_repository::SubscriptionTierStats;
 use crate::repository::subscription_history_repository::UserSubscriptionStats;
-use crate::repository::user_repository::SubscriptionTierStats;
 
 // --- Request DTOs ---
 

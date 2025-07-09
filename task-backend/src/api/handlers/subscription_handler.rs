@@ -5,7 +5,7 @@ use crate::api::dto::subscription_dto::*;
 use crate::api::AppState;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::request::Parts,

@@ -3,7 +3,7 @@
 use crate::api::dto::common::{ApiResponse, PaginatedResponse};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::AuthenticatedUser;
+use crate::features::auth::middleware::AuthenticatedUser;
 use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::{

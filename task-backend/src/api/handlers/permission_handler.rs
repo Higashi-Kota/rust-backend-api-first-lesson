@@ -8,7 +8,7 @@ use crate::core::permission::{
 };
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::utils::permission::PermissionType;
 use axum::{
     extract::{Json, Path, Query, State},
@@ -422,7 +422,7 @@ pub async fn get_admin_features_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<AdminFeaturesResponse>> {
-    use crate::middleware::auth::{
+    use crate::features::auth::middleware::{
         check_create_permission, check_delete_permission, check_resource_access_permission,
         check_view_permission,
     };

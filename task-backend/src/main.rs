@@ -21,7 +21,7 @@ mod utils;
 
 use crate::api::handlers::{
     admin_handler::admin_router, analytics_handler::analytics_router_with_state,
-    auth_handler::auth_router_with_state, organization_handler::organization_router_with_state,
+    organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
     payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
     role_handler::role_router_with_state, security_handler::security_router,
@@ -32,31 +32,38 @@ use crate::api::handlers::{
 use crate::api::AppState;
 use crate::config::AppConfig;
 use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schema_exists};
+use crate::features::auth::{
+    handler::auth_router_with_state,
+    middleware::{
+        cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
+    },
+    repository::{
+        email_verification_token_repository::EmailVerificationTokenRepository,
+        password_reset_token_repository::PasswordResetTokenRepository,
+        refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
+        user_settings_repository::UserSettingsRepository,
+    },
+    service::AuthService,
+};
 use crate::features::gdpr::handler::gdpr_router_with_state;
 use crate::features::storage::attachment::handler::attachment_routes;
 use crate::features::storage::{
     attachment::service::AttachmentService,
     service::{self as storage_service, StorageConfig},
 };
-use crate::middleware::auth::{
-    cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
-};
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     login_attempt_repository::LoginAttemptRepository,
-    organization_repository::OrganizationRepository,
-    password_reset_token_repository::PasswordResetTokenRepository,
-    refresh_token_repository::RefreshTokenRepository, role_repository::RoleRepository,
+    organization_repository::OrganizationRepository, role_repository::RoleRepository,
     security_incident_repository::SecurityIncidentRepository,
     subscription_history_repository::SubscriptionHistoryRepository,
-    team_repository::TeamRepository, user_repository::UserRepository,
+    team_repository::TeamRepository,
 };
 use crate::service::{
-    auth_service::AuthService, organization_service::OrganizationService,
-    payment_service::PaymentService, permission_service::PermissionService,
-    role_service::RoleService, security_service::SecurityService,
-    subscription_service::SubscriptionService, task_service::TaskService,
-    team_service::TeamService, user_service::UserService,
+    organization_service::OrganizationService, payment_service::PaymentService,
+    permission_service::PermissionService, role_service::RoleService,
+    security_service::SecurityService, subscription_service::SubscriptionService,
+    task_service::TaskService, team_service::TeamService, user_service::UserService,
 };
 use crate::utils::{
     email::{EmailConfig, EmailService},
@@ -153,7 +160,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let role_repo = Arc::new(RoleRepository::new(Arc::new(db_pool.clone())));
     let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db_pool.clone()));
     let password_reset_token_repo = Arc::new(PasswordResetTokenRepository::new(db_pool.clone()));
-    let email_verification_token_repo = Arc::new(crate::repository::email_verification_token_repository::EmailVerificationTokenRepository::new(db_pool.clone()));
+    let email_verification_token_repo =
+        Arc::new(EmailVerificationTokenRepository::new(db_pool.clone()));
     let organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
     let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
     let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db_pool.clone()));
@@ -167,9 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             db_pool.clone(),
         ),
     );
-    let user_settings_repo = Arc::new(
-        crate::repository::user_settings_repository::UserSettingsRepository::new(db_pool.clone()),
-    );
+    let user_settings_repo = Arc::new(UserSettingsRepository::new(db_pool.clone()));
     let bulk_operation_history_repo = Arc::new(
         crate::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
             db_pool.clone(),

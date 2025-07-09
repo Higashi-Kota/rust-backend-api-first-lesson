@@ -5,16 +5,16 @@ use crate::domain::role_model::RoleName;
 use crate::domain::user_model::UserClaims;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::dto::*;
+use crate::features::auth::repository::email_verification_token_repository::EmailVerificationTokenRepository;
+use crate::features::auth::repository::password_reset_token_repository::PasswordResetTokenRepository;
+use crate::features::auth::repository::refresh_token_repository::RefreshTokenRepository;
+use crate::features::auth::repository::user_repository::{CreateUser, UserRepository};
 use crate::infrastructure::email::EmailService;
 use crate::infrastructure::jwt::{JwtManager, TokenPair};
 use crate::infrastructure::password::{PasswordChangeInput, PasswordManager};
 use crate::repository::activity_log_repository::ActivityLogRepository;
-use crate::repository::email_verification_token_repository::EmailVerificationTokenRepository;
 use crate::repository::login_attempt_repository::LoginAttemptRepository;
-use crate::repository::password_reset_token_repository::PasswordResetTokenRepository;
-use crate::repository::refresh_token_repository::RefreshTokenRepository;
 use crate::repository::role_repository::RoleRepository;
-use crate::repository::user_repository::{CreateUser, UserRepository};
 use crate::shared::dto::user::{EmailVerificationHistoryResponse, TokenStatusResponse};
 use crate::utils::error_helper::{
     conflict_error, convert_validation_errors, internal_server_error, not_found_error,

@@ -3,9 +3,9 @@
 use crate::domain::role_model::RoleWithPermissions;
 use crate::domain::user_model::UserClaims;
 use crate::error::AppError;
+use crate::features::auth::repository::user_repository::UserRepository;
 use crate::infrastructure::jwt::JwtManager;
 use crate::infrastructure::utils::permission::PermissionChecker;
-use crate::repository::user_repository::UserRepository;
 use axum::{
     extract::{Request, State},
     http::{header, HeaderMap},

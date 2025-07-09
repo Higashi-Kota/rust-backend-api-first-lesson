@@ -3,13 +3,13 @@ use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
 use crate::domain::stripe_payment_history_model::PaymentStatus;
 use crate::error::{AppError, AppResult};
+use crate::features::auth::repository::user_repository::UserRepository;
 use crate::repository::stripe_payment_history_repository::{
     CreatePaymentHistory, StripePaymentHistoryRepository,
 };
 use crate::repository::stripe_subscription_repository::{
     CreateStripeSubscription, StripeSubscriptionRepository, UpdateStripeSubscription,
 };
-use crate::repository::user_repository::UserRepository;
 use crate::service::subscription_service::SubscriptionService;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;

@@ -7,7 +7,7 @@ use task_backend::api::dto::ApiResponse;
 use task_backend::api::handlers::payment_handler::{
     CreateCheckoutResponse, CustomerPortalResponse,
 };
-use task_backend::repository::user_repository::UserRepository;
+use task_backend::features::auth::repository::user_repository::UserRepository;
 use tower::ServiceExt;
 
 #[tokio::test]

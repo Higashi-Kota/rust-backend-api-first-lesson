@@ -8,6 +8,7 @@ use crate::domain::task_attachment_model::{
     MAX_FILE_SIZE_FREE, MAX_FILE_SIZE_PRO,
 };
 use crate::error::{AppError, AppResult};
+use crate::features::auth::repository::user_repository::UserRepository;
 use crate::features::storage::repository::attachment_repository::{
     AttachmentRepository, CreateAttachmentDto,
 };
@@ -18,7 +19,6 @@ use crate::infrastructure::utils::image_optimizer::{
     is_image_mime_type, optimize_image, ImageOptimizationConfig,
 };
 use crate::repository::task_repository::TaskRepository;
-use crate::repository::user_repository::UserRepository;
 use crate::utils::token::generate_secure_token;
 use chrono::{Duration, Utc};
 use std::sync::Arc;

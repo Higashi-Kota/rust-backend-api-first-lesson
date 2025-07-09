@@ -5,7 +5,7 @@ use crate::api::dto::team_dto::*;
 use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::AuthenticatedUser;
+use crate::features::auth::middleware::AuthenticatedUser;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,

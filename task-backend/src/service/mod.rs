@@ -1,5 +1,4 @@
 // src/service/mod.rs
-pub mod auth_service;
 pub mod feature_tracking_service;
 pub mod organization_hierarchy_service;
 pub mod organization_service;

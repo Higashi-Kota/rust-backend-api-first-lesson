@@ -12,7 +12,7 @@ use crate::api::dto::user_dto::{
 };
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::error::{AppError, AppResult};
-use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::utils::permission::{PermissionChecker, PermissionType};
 use axum::{
     extract::{Path, Query, State},
