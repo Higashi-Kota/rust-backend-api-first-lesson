@@ -114,11 +114,53 @@ features/{feature_name}/
   - `task-backend/src/api/dto/admin_role_dto.rs`
   - `task-backend/src/api/dto/analytics_dto.rs`
 
+#### Phase 18 (Subscription機能) - 完了 ✅
+**残課題**:
+- 警告抑制: 約10箇所の`#[allow(unused_imports)]`と`#[allow(dead_code)]`
+- 型エラー: 多数のコンパイルエラー（主に以下が原因）
+  - DTOの型名不一致: `UserSubscriptionStatsResponse`、`SubscriptionTierStatsResponse`、`SubscriptionChangeInfo`などの参照エラー
+  - インポートパスの問題: 旧domainと新modelsの参照混在
+  - ページネーション型エラー: u64とi32の型不一致
+- 旧ファイル: 6ファイルの削除または再エクスポート化が必要
+  - `task-backend/src/domain/subscription_history_model.rs`
+  - `task-backend/src/domain/stripe_subscription_model.rs`
+  - `task-backend/src/repository/subscription_history_repository.rs`
+  - `task-backend/src/repository/stripe_subscription_repository.rs`
+  - `task-backend/src/service/subscription_service.rs`
+  - `task-backend/src/api/handlers/subscription_handler.rs`
+
+**Phase 19での解決保証**:
+1. 型名の不一致は、DTOファイルの正しいインポートで解決
+2. インポートパスは旧domainディレクトリ削除時に一括修正
+3. ページネーション型エラーは適切な型変換で対応
+4. これらは全て機械的な修正で確実に解決可能
+
 **共通の対応方針**:
 - Phase 19「残存ファイルの整理と移行」で一括対応
 - 警告抑制は旧ファイル削除と同時に解除
 - DTOの曖昧性エラーは明示的インポートで解決
 - 型の統一は旧domainモジュール削除時に実施
+
+### 🚨 Phase 19 達成条件
+
+Phase 19完了時には以下の条件を**必ず**満たすこと：
+
+1. **コンパイルエラーゼロ**
+   - `cargo build --workspace`が警告・エラーなしで成功
+
+2. **Clippy警告ゼロ**
+   - `cargo clippy --workspace --all-targets --all-features -- -D warnings`が警告・エラーなしで成功
+
+3. **全テストパス**
+   - `make ci-check-fast`で既存テストが全てパス
+   - 新規追加したfeatureモジュールのテストも含む
+
+4. **不要なアノテーション削除**
+   - 全ての`#[allow(dead_code)]`を削除
+   - 全ての`#[allow(unused_imports)]`を削除
+   - 必要最小限の警告抑制のみ残す
+
+これらの条件を満たさない場合、Phase 19は完了とみなさない。
 
 ### 🎯 最終目標
 
