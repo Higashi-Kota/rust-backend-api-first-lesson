@@ -1,6 +1,20 @@
-// task-backend/src/api/handlers/permission_handler.rs
+// task-backend/src/features/security/handlers/permission.rs
 
-use crate::api::dto::permission_dto::*;
+use super::super::dto::{
+    AdminFeatureInfo, AdminFeaturesResponse, AdminRiskLevel, AnalyticsFeaturesResponse,
+    AnalyticsLevel, AuditCapabilities, AuditPeriod, AuditResult, AvailableResourcesResponse,
+    BulkPermissionCheckRequest, BulkPermissionCheckResponse, CheckPermissionRequest,
+    ComplexOperationPermissionResponse, ComplexOperationRequest, DeniedPermission,
+    EffectivePermission, ExportCapabilities, FeatureAccessRequest, FeatureAccessResponse,
+    FeatureInfo, FeatureLimits, FeatureQuery, InheritedPermission, PermissionAuditEntry,
+    PermissionAuditSummary, PermissionCheckDetail, PermissionCheckResponse, PermissionCheckResult,
+    PermissionCondition, PermissionInfo, PermissionQuery, PermissionScopeInfo, PermissionSource,
+    PermissionSummary, PermissionValidationResponse, PrivilegeInfo, QuotaInfo, ReportInfo,
+    ResourceInfo, ResourcePermissionResponse, RestrictedFeatureInfo, SubscriptionRequirement,
+    SystemPermissionAuditQuery, SystemPermissionAuditResponse, SystemPermissionInfo,
+    SystemPermissionScope, UserEffectivePermissionsQuery, UserEffectivePermissionsResponse,
+    UserPermissionsResponse, UserRoleInfo, ValidatePermissionRequest, ValidationSummary,
+};
 use crate::api::AppState;
 use crate::core::permission::{
     Permission, PermissionQuota, PermissionResult, PermissionScope, Privilege,
@@ -22,23 +36,12 @@ use validator::Validate;
 
 // --- Query Parameters ---
 
-/// 権限検索パラメータ
-#[derive(Debug, Deserialize)]
-pub struct PermissionQuery {
-    pub resource: Option<String>,
-    pub action: Option<String>,
-}
-
-/// 機能検索パラメータ
-#[derive(Debug, Deserialize)]
-pub struct FeatureQuery {
-    pub category: Option<String>,
-}
+// FeatureQuery and PermissionQuery are defined in the dto module
 
 // --- Permission Checking Endpoints ---
 
 /// 特定の権限をチェック
-// TODO: Phase 19で削除予定（features/security/handlers/permission.rsに移行済み）
+// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
 #[allow(dead_code)]
 pub async fn check_permission_handler(
     State(_app_state): State<AppState>,
@@ -228,6 +231,8 @@ pub async fn validate_permissions_handler(
 
     let summary = ValidationSummary::new(&checks);
 
+    // PermissionValidationResponseを作成
+    use super::super::dto::PermissionValidationResponse;
     let response = PermissionValidationResponse {
         user_id: user.claims.user_id,
         overall_result,
@@ -475,6 +480,7 @@ pub async fn get_admin_features_handler(
 }
 
 /// アナリティクス機能アクセス情報を取得
+#[allow(dead_code)]
 pub async fn get_analytics_features_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -700,6 +706,8 @@ fn get_effective_scopes(role_name: &str) -> Vec<PermissionScopeInfo> {
 }
 
 fn get_user_accessible_resources(role_name: &str, _tier: &SubscriptionTier) -> Vec<ResourceInfo> {
+    use super::super::dto::ActionInfo;
+
     let mut resources = vec![ResourceInfo {
         resource_type: "tasks".to_string(),
         display_name: "Tasks".to_string(),
@@ -955,6 +963,7 @@ fn get_export_capabilities(tier: &SubscriptionTier) -> ExportCapabilities {
 // --- Permission Audit APIs ---
 
 /// リソース固有権限チェック
+#[allow(dead_code)]
 pub async fn check_resource_permission_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -1038,6 +1047,7 @@ pub async fn check_resource_permission_handler(
 }
 
 /// バルク権限チェック
+#[allow(dead_code)]
 pub async fn bulk_permission_check_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -1157,6 +1167,7 @@ pub async fn bulk_permission_check_handler(
 }
 
 /// ユーザー有効権限取得
+#[allow(dead_code)]
 pub async fn get_user_effective_permissions_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -1253,6 +1264,7 @@ pub async fn get_user_effective_permissions_handler(
 }
 
 /// システム権限監査（管理者のみ）
+#[allow(dead_code)]
 pub async fn get_system_permission_audit_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
@@ -1502,6 +1514,7 @@ fn generate_mock_audit_entries(
 // --- NEW: Dead code utilization endpoints ---
 
 /// 権限拒否の詳細情報を取得
+#[allow(dead_code)]
 pub async fn check_permission_denial_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -1584,6 +1597,7 @@ pub async fn check_permission_denial_handler(
 }
 
 /// 特権の機能チェック
+#[allow(dead_code)]
 pub async fn check_privilege_feature_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -1704,6 +1718,7 @@ fn get_required_tier_for_action(resource: &str, action: &str) -> Option<Subscrip
 }
 
 /// 複数権限の同時チェック（check_multiple_permissionsを使用）
+#[allow(dead_code)]
 pub async fn check_complex_operation_permissions_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -1832,7 +1847,6 @@ async fn permission_health_check_handler() -> &'static str {
 // --- Router Setup ---
 
 /// 権限管理ルーターを作成
-#[allow(dead_code)]
 pub fn permission_router(app_state: AppState) -> Router {
     Router::new()
         // 権限チェックエンドポイント
@@ -1884,7 +1898,6 @@ pub fn permission_router(app_state: AppState) -> Router {
 }
 
 /// 権限管理ルーターをAppStateから作成
-#[allow(dead_code)]
 pub fn permission_router_with_state(app_state: AppState) -> Router {
     permission_router(app_state)
 }

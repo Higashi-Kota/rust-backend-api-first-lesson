@@ -258,7 +258,7 @@ impl From<crate::domain::department_member_model::Model> for DepartmentMemberRes
             "Viewer" => DepartmentRole::Viewer,
             _ => DepartmentRole::Member, // Default fallback
         };
-        
+
         Self {
             id: model.id,
             department_id: model.department_id,

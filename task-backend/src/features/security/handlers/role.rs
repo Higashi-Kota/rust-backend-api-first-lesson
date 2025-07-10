@@ -1,5 +1,9 @@
-// task-backend/src/api/handlers/role_handler.rs
-use crate::api::dto::role_dto::*;
+// task-backend/src/features/security/handlers/role.rs
+
+use super::super::dto::{
+    AssignRoleRequest, AssignRoleResponse, CreateRoleRequest, CreateRoleResponse,
+    DeleteRoleResponse, RoleListResponse, RoleResponse, UpdateRoleRequest, UpdateRoleResponse,
+};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUserWithRole;
@@ -54,7 +58,7 @@ where
 // --- ロール管理ハンドラー ---
 
 /// ロール一覧取得
-// TODO: Phase 19で削除予定（features/security/handlers/role.rsに移行済み）
+// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
 #[allow(dead_code)]
 pub async fn list_roles_handler(
     State(app_state): State<AppState>,
@@ -340,16 +344,9 @@ pub async fn assign_role_to_user_handler(
     }))
 }
 
-// --- 統計情報ハンドラー ---
-
-// --- ヘルスチェック ---
-
-// --- 追加エンドポイント ---
-
 // --- ルーター ---
 
 /// ロールルーターを作成
-#[allow(dead_code)]
 pub fn role_router(app_state: AppState) -> Router {
     let router = Router::new()
         // ロール管理
@@ -370,7 +367,6 @@ pub fn role_router(app_state: AppState) -> Router {
 }
 
 /// ロールルーターをAppStateから作成
-#[allow(dead_code)]
 pub fn role_router_with_state(app_state: AppState) -> Router {
     role_router(app_state)
 }

@@ -4,9 +4,9 @@ use super::super::dto::requests::{
     UpdateOrganizationSettingsRequest,
 };
 use super::super::dto::responses::{
-    OrganizationCapacityResponse, OrganizationListResponse,
-    OrganizationMemberDetailResponse, OrganizationMemberResponse, OrganizationResponse,
-    OrganizationStatsResponse, OrganizationUsageInfo,
+    OrganizationCapacityResponse, OrganizationListResponse, OrganizationMemberDetailResponse,
+    OrganizationMemberResponse, OrganizationResponse, OrganizationStatsResponse,
+    OrganizationUsageInfo,
 };
 // TODO: Phase 19でOrganizationActivityを使用するようになったら#[allow(unused_imports)]を削除
 #[allow(unused_imports)]

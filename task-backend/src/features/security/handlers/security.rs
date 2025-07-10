@@ -1,6 +1,10 @@
-// task-backend/src/api/handlers/security_handler.rs
+// task-backend/src/features/security/handlers/security.rs
 
-use crate::api::dto::security_dto::*;
+use super::super::dto::{
+    AuditReportRequest, AuditReportResponse, CleanupTokensRequest, CleanupTokensResponse,
+    PasswordResetMonitorResponse, RefreshTokenMonitorResponse, RevokeAllTokensRequest,
+    RevokeAllTokensResponse, SessionAnalyticsResponse, TokenStatsResponse,
+};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUserWithRole;
@@ -13,7 +17,7 @@ use tracing::{info, warn};
 use validator::Validate;
 
 /// トークン利用統計取得（管理者用）
-// TODO: Phase 19で削除予定（features/security/handlers/security.rsに移行済み）
+// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
 #[allow(dead_code)]
 pub async fn get_token_stats_handler(
     State(_app_state): State<AppState>,
@@ -75,7 +79,7 @@ pub async fn get_refresh_tokens_handler(
     );
 
     // アクティブなトークン概要はシンプルなメッセージに変更（実装省略）
-    let active_tokens: Vec<crate::api::dto::security_dto::ActiveTokenSummary> = vec![];
+    let active_tokens = vec![];
 
     let response = RefreshTokenMonitorResponse {
         active_tokens,
@@ -130,7 +134,7 @@ pub async fn cleanup_tokens_handler(
                 .security_service
                 .cleanup_expired_password_reset_tokens()
                 .await?;
-            CleanupResult {
+            super::super::dto::CleanupResult {
                 deleted_count: refresh_result.deleted_count + password_result.deleted_count,
                 cleanup_type: "all".to_string(),
             }
@@ -317,7 +321,6 @@ pub async fn generate_audit_report_handler(
 }
 
 /// セキュリティ管理ルーターを作成
-#[allow(dead_code)]
 pub fn security_router(app_state: AppState) -> Router {
     Router::new()
         // Phase 1.2 セキュリティ・トークン管理 API

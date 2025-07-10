@@ -300,7 +300,7 @@ impl OrganizationHierarchyService {
         Err(AppError::InternalServerError(
             "Permission matrix not yet implemented".to_string(),
         ))
-        
+
         // TODO: Phase 19で以下のコメントアウトを解除
         // let active_model = permission_matrix_model::ActiveModel {
         //     id: Set(Uuid::new_v4()),
