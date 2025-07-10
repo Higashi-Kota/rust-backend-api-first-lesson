@@ -1,14 +1,18 @@
-// task-backend/src/service/team_service.rs
+// task-backend/src/features/team/services/team.rs
 
-use crate::domain::team_member_model::Model as TeamMemberModel;
-use crate::domain::team_model::{Model as TeamModel, TeamRole};
-use crate::features::team::dto::team::{
+// Import from the old team.rs file until full migration
+use super::super::dto::team::{
     CreateTeamRequest, InviteTeamMemberRequest, TeamActivity, TeamListResponse,
     TeamMemberDetailResponse, TeamMemberResponse, TeamResponse, TeamSearchQuery, TeamStatsResponse,
     TeamTierStats, UpdateTeamMemberRoleRequest, UpdateTeamRequest,
 };
+use super::super::models::team::{Model as TeamModel, TeamRole as ModelsTeamRole};
+use super::super::models::team_member::Model as TeamMemberModel;
+use super::super::repositories::team::TeamRepository;
+use crate::domain::team_model::TeamRole as DomainTeamRole;
 use crate::infrastructure::email::EmailService;
 use crate::middleware::subscription_guard::check_feature_limit;
+use std::str::FromStr;
 
 // Type aliases for domain models
 pub type Team = TeamModel;
@@ -16,18 +20,21 @@ pub type TeamMember = TeamMemberModel;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::repository::user_repository::UserRepository;
-use crate::repository::team_repository::TeamRepository;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
+#[allow(dead_code)]
 pub struct TeamService {
     team_repository: TeamRepository,
     user_repository: UserRepository,
     email_service: Arc<EmailService>,
 }
 
+// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
+#[allow(dead_code)]
 impl TeamService {
     pub fn new(
         _db: Arc<DatabaseConnection>,
@@ -96,7 +103,8 @@ impl TeamService {
         let created_team = self.team_repository.create_team(&team).await?;
 
         // オーナーをメンバーとして追加
-        let owner_member = TeamMember::new_member(created_team.id, owner_id, TeamRole::Owner, None);
+        let owner_member =
+            TeamMember::new_member(created_team.id, owner_id, ModelsTeamRole::Owner, None);
         let created_member = self.team_repository.add_member(&owner_member).await?;
 
         info!(
@@ -289,7 +297,10 @@ impl TeamService {
             ));
         }
 
-        let member = TeamMember::new_member(team_id, user_id, request.role, Some(inviter_id));
+        // Convert domain TeamRole to models TeamRole
+        let models_role =
+            ModelsTeamRole::from_str(&request.role.to_string()).unwrap_or(ModelsTeamRole::Member);
+        let member = TeamMember::new_member(team_id, user_id, models_role, Some(inviter_id));
         let created_member = self.team_repository.add_member(&member).await?;
 
         // メール送信のための情報を取得
@@ -349,7 +360,7 @@ impl TeamService {
             .await?;
 
         // オーナーの役割変更は禁止
-        if member.get_role() == TeamRole::Owner {
+        if member.role == ModelsTeamRole::Owner.to_string() {
             return Err(AppError::ValidationError(
                 "Cannot change owner role".to_string(),
             ));
@@ -380,7 +391,7 @@ impl TeamService {
             .ok_or_else(|| AppError::NotFound("Team member not found".to_string()))?;
 
         // オーナーは削除不可
-        if member.get_role() == TeamRole::Owner {
+        if member.role == ModelsTeamRole::Owner.to_string() {
             return Err(AppError::ValidationError(
                 "Cannot remove team owner".to_string(),
             ));
@@ -548,7 +559,7 @@ impl TeamService {
             user_id: member.user_id,
             username: user.username,
             email: user.email,
-            role: member.get_role(),
+            role: DomainTeamRole::from_str(&member.role).unwrap_or(DomainTeamRole::Member),
             joined_at: member.joined_at,
             invited_by: member.invited_by,
         })
@@ -619,7 +630,7 @@ impl TeamService {
             user_id: member.user_id,
             username: user.username,
             email: user.email,
-            role: member.get_role(),
+            role: DomainTeamRole::from_str(&member.role).unwrap_or(DomainTeamRole::Member),
             is_owner,
             is_admin,
             can_invite,
@@ -648,8 +659,8 @@ mod tests {
     #[test]
     fn test_check_team_access_logic() {
         // Logic test: Test access control decision logic without database
+        use super::super::super::models::team::Model as Team;
         use crate::core::subscription_tier::SubscriptionTier;
-        use crate::domain::team_model::Model as Team;
         use uuid::Uuid;
 
         let _team_id = Uuid::new_v4();
@@ -706,8 +717,8 @@ mod tests {
     #[test]
     fn test_team_member_limit_logic() {
         // Logic test: Test team member limit validation logic
+        use super::super::super::models::team::Model as Team;
         use crate::core::subscription_tier::SubscriptionTier;
-        use crate::domain::team_model::Model as Team;
 
         let owner_id = Uuid::new_v4();
 

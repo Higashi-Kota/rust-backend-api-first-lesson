@@ -1,8 +1,12 @@
 // task-backend/src/api/dto/team_invitation_dto.rs
 
-use crate::domain::team_invitation_model::{Model as TeamInvitationModel, TeamInvitationStatus};
+use crate::domain::team_invitation_model::{
+    Model as DomainTeamInvitationModel, TeamInvitationStatus,
+};
+use crate::features::team::models::team_invitation::Model as TeamInvitationModel;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
@@ -99,7 +103,9 @@ fn validate_emails(emails: &[String]) -> Result<(), ValidationError> {
 
 impl From<TeamInvitationModel> for TeamInvitationResponse {
     fn from(model: TeamInvitationModel) -> Self {
-        let status = model.get_status();
+        // Parse status string to domain enum
+        let status =
+            TeamInvitationStatus::from_str(&model.status).unwrap_or(TeamInvitationStatus::Pending);
         Self {
             id: model.id,
             team_id: model.team_id,
@@ -120,18 +126,43 @@ impl From<TeamInvitationModel> for TeamInvitationResponse {
 
 impl From<&TeamInvitationModel> for TeamInvitationResponse {
     fn from(model: &TeamInvitationModel) -> Self {
+        // Parse status string to domain enum
+        let status =
+            TeamInvitationStatus::from_str(&model.status).unwrap_or(TeamInvitationStatus::Pending);
         Self {
             id: model.id,
             team_id: model.team_id,
             invited_email: model.invited_email.clone(),
             invited_user_id: model.invited_user_id,
             invited_by_user_id: model.invited_by_user_id,
-            status: model.get_status(),
+            status,
             message: model.message.clone(),
             expires_at: model.expires_at,
             accepted_at: model.accepted_at,
             declined_at: model.declined_at,
             decline_reason: model.decline_reason.clone(),
+            created_at: model.created_at,
+            updated_at: model.updated_at,
+        }
+    }
+}
+
+// Add From implementation for domain model to maintain compatibility
+impl From<DomainTeamInvitationModel> for TeamInvitationResponse {
+    fn from(model: DomainTeamInvitationModel) -> Self {
+        let status = model.get_status();
+        Self {
+            id: model.id,
+            team_id: model.team_id,
+            invited_email: model.invited_email,
+            invited_user_id: model.invited_user_id,
+            invited_by_user_id: model.invited_by_user_id,
+            status,
+            message: model.message,
+            expires_at: model.expires_at,
+            accepted_at: model.accepted_at,
+            declined_at: model.declined_at,
+            decline_reason: model.decline_reason,
             created_at: model.created_at,
             updated_at: model.updated_at,
         }

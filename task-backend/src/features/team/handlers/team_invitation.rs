@@ -1,8 +1,8 @@
-// task-backend/src/api/handlers/team_invitation_handler.rs
+// task-backend/src/features/team/handlers/team_invitation.rs
 
+use super::super::dto::team_invitation::*;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
-use crate::features::team::dto::team_invitation::*;
 use crate::shared::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -31,9 +31,8 @@ pub async fn bulk_member_invite(
         ));
     }
 
-    let mut success_count = 0;
-    let mut invitations = Vec::new();
-    let mut failed_emails = Vec::new();
+    let mut successful = Vec::new();
+    let mut failed = Vec::new();
 
     for email in &request.emails {
         match service
@@ -47,20 +46,20 @@ pub async fn bulk_member_invite(
         {
             Ok(mut created_invitations) => {
                 if let Some(invitation) = created_invitations.pop() {
-                    invitations.push(TeamInvitationResponse::from(invitation));
-                    success_count += 1;
+                    successful.push(TeamInvitationResponse::from(invitation));
                 }
             }
             Err(_) => {
-                failed_emails.push(email.clone());
+                failed.push(email.clone());
             }
         }
     }
 
+    let success_count = successful.len();
     let response = BulkInviteResponse {
         success_count,
-        invitations,
-        failed_emails,
+        invitations: successful,
+        failed_emails: failed,
     };
 
     Ok(Json(ApiResponse::success(
@@ -226,7 +225,14 @@ pub async fn get_invitation_statistics(
     }
 
     let stats = service.get_invitation_statistics(team_id).await?;
-    let response = InvitationStatisticsResponse::from(stats);
+    let response = InvitationStatisticsResponse {
+        total: stats.total,
+        pending: stats.pending,
+        accepted: stats.accepted,
+        declined: stats.declined,
+        expired: stats.expired,
+        cancelled: stats.cancelled,
+    };
 
     Ok(Json(ApiResponse::success(
         "Operation completed successfully",
@@ -555,24 +561,5 @@ mod tests {
         assert_eq!(response.invited_email, model.invited_email);
         assert_eq!(response.message, model.message);
         assert_eq!(response.status, TeamInvitationStatus::Pending);
-    }
-
-    #[test]
-    fn test_invitation_statistics_response_creation() {
-        let stats = crate::service::team_invitation_service::TeamInvitationStatistics {
-            total: 50,
-            pending: 10,
-            accepted: 30,
-            declined: 8,
-            expired: 2,
-            cancelled: 0,
-        };
-
-        let response = InvitationStatisticsResponse::from(stats);
-        assert_eq!(response.total, 50);
-        assert_eq!(response.pending, 10);
-        assert_eq!(response.accepted, 30);
-        assert_eq!(response.declined, 8);
-        assert_eq!(response.expired, 2);
     }
 }

@@ -1,7 +1,7 @@
-// task-backend/src/api/handlers/team_handler.rs
+// task-backend/src/features/team/handlers/team.rs
 
-use crate::api::dto::team_dto::*;
-use crate::api::handlers::team_invitation_handler;
+use super::super::dto::team::*;
+use super::team_invitation;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
@@ -17,8 +17,6 @@ use uuid::Uuid;
 use validator::Validate;
 
 // Helper function to handle validation errors
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 fn handle_validation_error(err: validator::ValidationErrors) -> AppError {
     let error_messages: Vec<String> = err
         .field_errors()
@@ -38,8 +36,6 @@ fn handle_validation_error(err: validator::ValidationErrors) -> AppError {
 }
 
 /// チーム作成
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn create_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -71,8 +67,6 @@ pub async fn create_team_handler(
 }
 
 /// チーム詳細取得
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn get_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -90,8 +84,6 @@ pub async fn get_team_handler(
 }
 
 /// チーム一覧取得
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn list_teams_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -109,8 +101,6 @@ pub async fn list_teams_handler(
 }
 
 /// チーム更新
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn update_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -138,8 +128,6 @@ pub async fn update_team_handler(
 }
 
 /// チーム削除
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn delete_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -166,8 +154,6 @@ pub async fn delete_team_handler(
 }
 
 /// チームメンバー招待
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn invite_team_member_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -199,8 +185,6 @@ pub async fn invite_team_member_handler(
 }
 
 /// チームメンバー役割更新
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn update_team_member_role_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -220,8 +204,6 @@ pub async fn update_team_member_role_handler(
 }
 
 /// チームメンバー削除
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn remove_team_member_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -242,8 +224,6 @@ pub async fn remove_team_member_handler(
 }
 
 /// チーム統計取得
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn get_team_stats_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -260,8 +240,6 @@ pub async fn get_team_stats_handler(
 }
 
 /// チーム一覧をページング付きで取得
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn get_teams_with_pagination_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -284,8 +262,6 @@ pub async fn get_teams_with_pagination_handler(
 }
 
 /// チームメンバーの詳細情報を取得（権限情報付き）
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub async fn get_team_member_details_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -305,8 +281,6 @@ pub async fn get_team_member_details_handler(
 // --- ルーター ---
 
 /// チームルーターを作成
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub fn team_router(app_state: AppState) -> Router {
     Router::new()
         // チーム管理
@@ -332,76 +306,76 @@ pub fn team_router(app_state: AppState) -> Router {
         // Phase 2.2: チーム招待・権限管理 API
         .route(
             "/teams/{id}/bulk-member-invite",
-            post(team_invitation_handler::bulk_member_invite),
+            post(team_invitation::bulk_member_invite),
         )
         .route(
             "/teams/{id}/invitations",
-            get(team_invitation_handler::get_team_invitations),
+            get(team_invitation::get_team_invitations),
         )
         .route(
             "/teams/{id}/invitations/{invite_id}/decline",
-            patch(team_invitation_handler::decline_invitation),
+            patch(team_invitation::decline_invitation),
         )
         // 新規招待API
         .route(
             "/teams/{id}/invitations/single",
-            post(team_invitation_handler::create_single_invitation),
+            post(team_invitation::create_single_invitation),
         )
         .route(
             "/teams/{id}/invitations/paginated",
-            get(team_invitation_handler::get_invitations_with_pagination),
+            get(team_invitation::get_invitations_with_pagination),
         )
         .route(
             "/teams/{team_id}/invitations/check/{email}",
-            get(team_invitation_handler::check_team_invitation),
+            get(team_invitation::check_team_invitation),
         )
         // ユーザー招待関連API
         .route(
             "/invitations/by-email",
-            get(team_invitation_handler::get_invitations_by_email),
+            get(team_invitation::get_invitations_by_email),
         )
         .route(
             "/invitations/stats",
-            get(team_invitation_handler::count_user_invitations),
+            get(team_invitation::count_user_invitations),
         )
         .route(
             "/invitations/bulk-update",
-            post(team_invitation_handler::bulk_update_invitation_status),
+            post(team_invitation::bulk_update_invitation_status),
         )
         // 管理者向け招待API
         .route(
             "/admin/invitations/expired/cleanup",
-            post(team_invitation_handler::cleanup_expired_invitations),
+            post(team_invitation::cleanup_expired_invitations),
         )
         .route(
             "/admin/invitations/old/delete",
-            delete(team_invitation_handler::delete_old_invitations),
+            delete(team_invitation::delete_old_invitations),
         )
         // 招待受諾・キャンセル・再送API
         .route(
             "/invitations/{id}/accept",
-            post(team_invitation_handler::accept_invitation),
+            post(team_invitation::accept_invitation),
         )
         .route(
             "/teams/{team_id}/invitations/{invite_id}/cancel",
-            delete(team_invitation_handler::cancel_invitation),
+            delete(team_invitation::cancel_invitation),
         )
         .route(
             "/invitations/{id}/resend",
-            post(team_invitation_handler::resend_invitation),
+            post(team_invitation::resend_invitation),
         )
         // 追加の統計・管理API
         .route(
             "/teams/{id}/invitations/statistics",
-            get(team_invitation_handler::get_invitation_statistics),
+            get(team_invitation::get_invitation_statistics),
         )
         .route(
             "/invitations/by-creator",
-            get(team_invitation_handler::get_invitations_by_creator),
+            get(team_invitation::get_invitations_by_creator),
         )
         .route(
             "/users/invitations",
-            get(team_invitation_handler::get_user_invitations),
+            get(team_invitation::get_user_invitations),
         )
         // チーム統計
         .route("/teams/stats", get(get_team_stats_handler))
@@ -411,8 +385,6 @@ pub fn team_router(app_state: AppState) -> Router {
 }
 
 /// チームルーターをAppStateから作成
-// TODO: Phase 19で古いハンドラーを削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub fn team_router_with_state(app_state: AppState) -> Router {
     team_router(app_state)
 }

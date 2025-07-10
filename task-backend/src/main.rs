@@ -26,7 +26,7 @@ use crate::api::handlers::{
     payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
     role_handler::role_router_with_state, security_handler::security_router,
     subscription_handler::subscription_router_with_state, system_handler::system_router_with_state,
-    team_handler::team_router_with_state, user_handler::user_router_with_state,
+    user_handler::user_router_with_state,
 };
 use crate::api::AppState;
 use crate::config::AppConfig;
@@ -51,6 +51,7 @@ use crate::features::storage::{
     service::{self as storage_service, StorageConfig},
 };
 use crate::features::task::{handler::task_router_with_state, service::TaskService};
+use crate::features::team::handlers::team_router_with_state;
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     login_attempt_repository::LoginAttemptRepository,

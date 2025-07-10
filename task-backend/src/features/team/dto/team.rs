@@ -1,7 +1,8 @@
 // task-backend/src/api/dto/team_dto.rs
 
 use crate::core::subscription_tier::SubscriptionTier;
-use crate::domain::team_model::{Model as Team, TeamRole};
+use crate::domain::team_model::{Model as DomainTeam, TeamRole};
+use crate::features::team::models::team::Model as Team;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -214,6 +215,44 @@ impl TeamPaginationResponse {
             page,
             page_size,
             total_pages,
+        }
+    }
+}
+
+// Add From implementation for domain model to maintain compatibility
+impl From<DomainTeam> for TeamListResponse {
+    fn from(team: DomainTeam) -> Self {
+        let subscription_tier = team.get_subscription_tier();
+        Self {
+            id: team.id,
+            name: team.name,
+            description: team.description,
+            organization_id: team.organization_id,
+            owner_id: team.owner_id,
+            subscription_tier,
+            max_members: team.max_members,
+            current_member_count: 0, // Will be populated by service
+            created_at: team.created_at,
+        }
+    }
+}
+
+impl From<(DomainTeam, Vec<TeamMemberResponse>)> for TeamResponse {
+    fn from((team, members): (DomainTeam, Vec<TeamMemberResponse>)) -> Self {
+        let current_member_count = members.len() as i32;
+        let subscription_tier = team.get_subscription_tier();
+        Self {
+            id: team.id,
+            name: team.name,
+            description: team.description,
+            organization_id: team.organization_id,
+            owner_id: team.owner_id,
+            subscription_tier,
+            max_members: team.max_members,
+            current_member_count,
+            created_at: team.created_at,
+            updated_at: team.updated_at,
+            members,
         }
     }
 }

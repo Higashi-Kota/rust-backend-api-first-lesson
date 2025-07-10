@@ -3,7 +3,6 @@
 use crate::api::dto::admin_organization_dto::*;
 use crate::api::dto::admin_role_dto::*;
 use crate::api::dto::subscription_history_dto::*;
-use crate::api::dto::team_invitation_dto::*;
 use crate::api::dto::user_dto::{
     UpdateUserSettingsRequest, UserSettingsDto, UserWithRoleResponse, UsersByLanguageResponse,
     UsersWithNotificationResponse,
@@ -21,6 +20,7 @@ use crate::features::admin::dto::{
 };
 use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::features::task::dto::*;
+use crate::features::team::dto::team_invitation::*;
 use crate::shared::types::pagination::{PaginatedResponse, PaginationQuery};
 use crate::shared::types::ApiResponse;
 use crate::utils::permission::{PermissionChecker, PermissionType};
