@@ -1,4 +1,5 @@
 // task-backend/src/api/handlers/organization_handler.rs
+// TODO: Phase 19で本ファイルを削除（features/organization/handlers/organization.rsへ移行済み）
 
 use crate::api::dto::organization_dto::*;
 use crate::error::AppResult;
@@ -14,6 +15,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// 組織作成
+#[allow(dead_code)]
 pub async fn create_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -37,6 +39,7 @@ pub async fn create_organization_handler(
 }
 
 /// 組織詳細取得
+#[allow(dead_code)]
 pub async fn get_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -54,6 +57,7 @@ pub async fn get_organization_handler(
 }
 
 /// 組織一覧取得
+#[allow(dead_code)]
 pub async fn get_organizations_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -71,6 +75,7 @@ pub async fn get_organizations_handler(
 }
 
 /// 組織更新
+#[allow(dead_code)]
 pub async fn update_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -98,6 +103,7 @@ pub async fn update_organization_handler(
 }
 
 /// 組織削除
+#[allow(dead_code)]
 pub async fn delete_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -124,6 +130,7 @@ pub async fn delete_organization_handler(
 }
 
 /// 組織メンバー招待
+#[allow(dead_code)]
 pub async fn invite_organization_member_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -149,6 +156,7 @@ pub async fn invite_organization_member_handler(
 }
 
 /// 組織メンバー役割更新
+#[allow(dead_code)]
 pub async fn update_organization_member_role_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -168,6 +176,7 @@ pub async fn update_organization_member_role_handler(
 }
 
 /// 組織メンバー削除
+#[allow(dead_code)]
 pub async fn remove_organization_member_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -188,6 +197,7 @@ pub async fn remove_organization_member_handler(
 }
 
 /// 組織設定更新
+#[allow(dead_code)]
 pub async fn update_organization_settings_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -213,6 +223,7 @@ pub async fn update_organization_settings_handler(
 }
 
 /// 組織統計取得
+#[allow(dead_code)]
 pub async fn get_organization_stats_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -230,6 +241,7 @@ pub async fn get_organization_stats_handler(
 }
 
 /// 組織メンバー詳細取得（権限情報付き）
+#[allow(dead_code)]
 pub async fn get_organization_member_details_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -247,6 +259,7 @@ pub async fn get_organization_member_details_handler(
 }
 
 /// 組織容量チェック
+#[allow(dead_code)]
 pub async fn check_organization_capacity_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -264,6 +277,7 @@ pub async fn check_organization_capacity_handler(
 }
 
 /// 組織一覧をページネーション付きで取得
+#[allow(dead_code)]
 pub async fn get_organizations_paginated_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -286,6 +300,7 @@ pub async fn get_organizations_paginated_handler(
 }
 
 /// 組織のサブスクリプション階層を更新
+#[allow(dead_code)]
 pub async fn update_organization_subscription_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -308,6 +323,7 @@ pub async fn update_organization_subscription_handler(
 }
 
 /// 組織のサブスクリプション履歴を取得
+#[allow(dead_code)]
 pub async fn get_organization_subscription_history_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -354,6 +370,7 @@ pub async fn get_organization_subscription_history_handler(
 }
 
 /// 組織ルーターを構築
+#[allow(dead_code)]
 pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::Router {
     use axum::{
         routing::{delete, get, patch, post, put},

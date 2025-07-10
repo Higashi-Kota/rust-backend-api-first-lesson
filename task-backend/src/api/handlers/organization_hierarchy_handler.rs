@@ -1,3 +1,5 @@
+// TODO: Phase 19で本ファイルを削除（features/organization/handlers/hierarchy.rsへ移行済み）
+
 use crate::{
     api::dto::{
         common::{ApiResponse, OperationResult},
@@ -18,6 +20,7 @@ use uuid::Uuid;
 use validator::Validate;
 
 // 組織階層構造の取得
+#[allow(dead_code)]
 pub async fn get_organization_hierarchy(
     State(app_state): State<crate::api::AppState>,
     Path(organization_id): Path<Uuid>,
@@ -62,6 +65,7 @@ pub async fn get_organization_hierarchy(
 }
 
 // 部門の作成
+#[allow(dead_code)]
 pub async fn create_department(
     State(app_state): State<crate::api::AppState>,
     Path(organization_id): Path<Uuid>,
@@ -107,6 +111,7 @@ pub async fn create_department(
 }
 
 // 部門一覧の取得
+#[allow(dead_code)]
 pub async fn get_departments(
     State(app_state): State<crate::api::AppState>,
     Path(organization_id): Path<Uuid>,
@@ -137,6 +142,7 @@ pub async fn get_departments(
 }
 
 // 部門の更新
+#[allow(dead_code)]
 pub async fn update_department(
     State(app_state): State<crate::api::AppState>,
     Path((organization_id, department_id)): Path<(Uuid, Uuid)>,
@@ -181,6 +187,7 @@ pub async fn update_department(
 }
 
 // 部門の削除
+#[allow(dead_code)]
 pub async fn delete_department(
     State(app_state): State<crate::api::AppState>,
     Path((organization_id, department_id)): Path<(Uuid, Uuid)>,
@@ -215,6 +222,7 @@ pub async fn delete_department(
 }
 
 // 組織分析ダッシュボードの取得
+#[allow(dead_code)]
 pub async fn get_organization_analytics(
     State(app_state): State<crate::api::AppState>,
     Path(organization_id): Path<Uuid>,
@@ -265,6 +273,7 @@ pub async fn get_organization_analytics(
 }
 
 // 権限マトリックスの設定
+#[allow(dead_code)]
 pub async fn set_organization_permission_matrix(
     State(app_state): State<crate::api::AppState>,
     Path(organization_id): Path<Uuid>,
@@ -310,6 +319,7 @@ pub async fn set_organization_permission_matrix(
 }
 
 // 権限マトリックスの取得
+#[allow(dead_code)]
 pub async fn get_organization_permission_matrix(
     State(app_state): State<crate::api::AppState>,
     Path(organization_id): Path<Uuid>,
@@ -339,6 +349,7 @@ pub async fn get_organization_permission_matrix(
 }
 
 // 実効権限の分析
+#[allow(dead_code)]
 pub async fn get_effective_permissions(
     State(app_state): State<crate::api::AppState>,
     Path(organization_id): Path<Uuid>,
@@ -376,6 +387,7 @@ pub async fn get_effective_permissions(
 }
 
 // 組織データのエクスポート
+#[allow(dead_code)]
 pub async fn export_organization_data(
     State(app_state): State<crate::api::AppState>,
     Path(organization_id): Path<Uuid>,
@@ -417,6 +429,7 @@ pub async fn export_organization_data(
 }
 
 // 部門メンバーの追加
+#[allow(dead_code)]
 pub async fn add_department_member(
     State(app_state): State<crate::api::AppState>,
     Path((organization_id, department_id)): Path<(Uuid, Uuid)>,
@@ -463,6 +476,7 @@ pub async fn add_department_member(
 }
 
 // 部門メンバーの削除
+#[allow(dead_code)]
 pub async fn remove_department_member(
     State(app_state): State<crate::api::AppState>,
     Path((organization_id, department_id, user_id)): Path<(Uuid, Uuid, Uuid)>,
@@ -496,6 +510,7 @@ pub async fn remove_department_member(
 }
 
 // 分析メトリクスの作成
+#[allow(dead_code)]
 pub async fn create_analytics_metric(
     State(app_state): State<crate::api::AppState>,
     Path(organization_id): Path<Uuid>,
@@ -547,6 +562,7 @@ pub async fn create_analytics_metric(
 }
 
 // ルーター設定
+#[allow(dead_code)]
 pub fn organization_hierarchy_router() -> axum::Router<crate::api::AppState> {
     use axum::routing::{delete, get, post, put};
 
@@ -595,6 +611,7 @@ pub fn organization_hierarchy_router() -> axum::Router<crate::api::AppState> {
 }
 
 /// 部門のフラットリストから階層構造を構築するヘルパー関数
+#[allow(dead_code)]
 fn build_department_hierarchy(
     departments: Vec<DepartmentResponseDto>,
 ) -> Vec<DepartmentHierarchyDto> {

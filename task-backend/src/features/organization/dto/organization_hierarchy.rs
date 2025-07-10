@@ -1,8 +1,9 @@
 use crate::domain::{
-    department_member_model::DepartmentRole,
     organization_analytics_model::{AnalyticsType, MetricValue, Period},
     permission_matrix_model::{ComplianceSettings, InheritanceSettings, PermissionMatrix},
 };
+use crate::features::organization::models::department::Model as Department;
+use crate::features::organization::models::department_member::DepartmentRole;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -54,6 +55,24 @@ pub struct DepartmentResponseDto {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+impl From<Department> for DepartmentResponseDto {
+    fn from(dept: Department) -> Self {
+        Self {
+            id: dept.id,
+            name: dept.name,
+            description: dept.description,
+            organization_id: dept.organization_id,
+            parent_department_id: dept.parent_department_id,
+            hierarchy_level: dept.hierarchy_level,
+            hierarchy_path: dept.hierarchy_path,
+            manager_user_id: dept.manager_user_id,
+            is_active: dept.is_active,
+            created_at: dept.created_at,
+            updated_at: dept.updated_at,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -229,11 +248,22 @@ impl From<crate::domain::organization_department_model::Model> for DepartmentRes
 
 impl From<crate::domain::department_member_model::Model> for DepartmentMemberResponseDto {
     fn from(model: crate::domain::department_member_model::Model) -> Self {
+        // Convert old DepartmentRole to new DepartmentRole
+        let role_str = model.get_role().to_string();
+        let role = match role_str.as_str() {
+            "Head" => DepartmentRole::Manager, // Map Head to Manager
+            "Manager" => DepartmentRole::Manager,
+            "Lead" => DepartmentRole::Lead,
+            "Member" => DepartmentRole::Member,
+            "Viewer" => DepartmentRole::Viewer,
+            _ => DepartmentRole::Member, // Default fallback
+        };
+        
         Self {
             id: model.id,
             department_id: model.department_id,
             user_id: model.user_id,
-            role: model.get_role(),
+            role,
             is_active: model.is_active,
             joined_at: model.joined_at,
             added_by: model.added_by,
