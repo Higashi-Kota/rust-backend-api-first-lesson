@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Model methods for analytics data
+
 use chrono::{DateTime, Utc};
 use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};

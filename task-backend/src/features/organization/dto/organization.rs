@@ -1,7 +1,9 @@
 // task-backend/src/api/dto/organization_dto.rs
 
 use crate::core::subscription_tier::SubscriptionTier;
-use crate::domain::organization_model::{Organization, OrganizationRole, OrganizationSettings};
+use crate::domain::organization_model::{
+    Organization, OrganizationMember, OrganizationRole, OrganizationSettings,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -214,6 +216,16 @@ pub struct OrganizationCapacityResponse {
     pub utilization_percentage: f64,
 }
 
+/// 組織使用状況情報（Phase 19互換性のため追加）
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrganizationUsageInfo {
+    pub current_tier: SubscriptionTier,
+    pub max_teams_allowed: u32,
+    pub max_members_allowed: u32,
+    pub teams_usage_percentage: f32,
+    pub members_usage_percentage: f32,
+}
+
 impl From<Organization> for OrganizationListResponse {
     fn from(org: Organization) -> Self {
         Self {
@@ -250,6 +262,44 @@ impl From<(Organization, Vec<OrganizationMemberResponse>, u32)> for Organization
             created_at: org.created_at,
             updated_at: org.updated_at,
             members,
+        }
+    }
+}
+
+// Phase 19互換性のために追加
+impl From<(OrganizationMember, crate::domain::user_model::Model)> for OrganizationMemberResponse {
+    fn from((member, user): (OrganizationMember, crate::domain::user_model::Model)) -> Self {
+        Self {
+            id: member.id,
+            user_id: member.user_id,
+            username: user.username,
+            email: user.email,
+            role: member.role,
+            joined_at: member.joined_at,
+            invited_by: member.invited_by,
+        }
+    }
+}
+
+impl From<(OrganizationMember, crate::domain::user_model::Model)>
+    for OrganizationMemberDetailResponse
+{
+    fn from((member, user): (OrganizationMember, crate::domain::user_model::Model)) -> Self {
+        let role = member.role.clone();
+        Self {
+            id: member.id,
+            user_id: member.user_id,
+            username: user.username,
+            email: user.email,
+            role: role.clone(),
+            is_owner: matches!(role, OrganizationRole::Owner),
+            is_admin: matches!(role, OrganizationRole::Admin),
+            can_manage: matches!(role, OrganizationRole::Owner | OrganizationRole::Admin),
+            can_create_teams: matches!(role, OrganizationRole::Owner | OrganizationRole::Admin),
+            can_invite_members: matches!(role, OrganizationRole::Owner | OrganizationRole::Admin),
+            can_change_settings: matches!(role, OrganizationRole::Owner),
+            joined_at: member.joined_at,
+            invited_by: member.invited_by,
         }
     }
 }

@@ -15,6 +15,8 @@ use task_backend::{
         service::AuthService,
     },
     features::storage::{attachment::service::AttachmentService, service::StorageService},
+    features::subscription::repositories::history::SubscriptionHistoryRepository,
+    features::subscription::services::subscription::SubscriptionService,
     features::task::{handler as task_handler, service::TaskService},
     infrastructure::{
         email::{EmailConfig, EmailService},
@@ -23,13 +25,11 @@ use task_backend::{
     },
     repository::{
         organization_repository::OrganizationRepository, role_repository::RoleRepository,
-        subscription_history_repository::SubscriptionHistoryRepository,
         team_repository::TeamRepository,
     },
     service::{
         payment_service::PaymentService, permission_service::PermissionService,
-        role_service::RoleService, subscription_service::SubscriptionService,
-        team_service::TeamService, user_service::UserService,
+        role_service::RoleService, team_service::TeamService, user_service::UserService,
     },
 };
 
@@ -155,7 +155,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
             OrganizationRepository::new(db.connection.clone()),
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
             task_backend::features::auth::repository::user_repository::UserRepository::new(db.connection.clone()),
-            task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
+            task_backend::features::subscription::repositories::history::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
     );
 
@@ -271,8 +271,15 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     let app = Router::new()
         .merge(auth_handler::auth_router(app_state.clone()))
         .merge(user_handler::user_router(app_state.clone()))
-        .merge(task_backend::api::handlers::security_handler::security_router(app_state.clone()))
-        .merge(task_backend::api::handlers::analytics_handler::analytics_router(app_state.clone()))
+        .merge(
+            task_backend::features::security::handlers::security::security_router(
+                app_state.clone(),
+            ),
+        )
+        .merge(
+            task_backend::features::analytics::handlers::analytics::analytics_router()
+                .with_state(app_state.clone()),
+        )
         .merge(
             task_backend::features::storage::attachment::handler::attachment_routes()
                 .with_state(app_state),
@@ -400,7 +407,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
             ),
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
             task_backend::features::auth::repository::user_repository::UserRepository::new(db.connection.clone()),
-            task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
+            task_backend::features::subscription::repositories::history::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
     );
 
@@ -534,19 +541,18 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         .merge(user_handler::user_router(app_state.clone()))
         .merge(task_handler::task_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::role_handler::role_router_with_state(app_state.clone()))
-        .merge(task_backend::api::handlers::team_handler::team_router_with_state(app_state.clone()))
+        .merge(task_backend::features::team::handlers::team_router_with_state(app_state.clone()))
         .merge(
-            task_backend::api::handlers::organization_handler::organization_router_with_state(
+            task_backend::features::organization::handlers::organization::organization_router_with_state(
                 app_state.clone(),
             ),
         )
-        .merge(task_backend::api::handlers::admin_handler::admin_router(
-            app_state.clone(),
-        ))
         .merge(
-            task_backend::api::handlers::subscription_handler::subscription_router_with_state(
-                app_state.clone(),
-            ),
+            task_backend::features::admin::handlers::admin_router().with_state(app_state.clone()),
+        )
+        .merge(
+            task_backend::features::subscription::handlers::subscription::subscription_router_with_state()
+                .with_state(app_state.clone()),
         )
         .merge(
             task_backend::api::handlers::payment_handler::payment_router_with_state(
@@ -559,11 +565,10 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
             ),
         )
         .merge(
-            task_backend::api::handlers::analytics_handler::analytics_router_with_state(
-                app_state.clone(),
-            ),
+            task_backend::features::analytics::handlers::analytics::analytics_router()
+                .with_state(app_state.clone()),
         )
-        .merge(task_backend::api::handlers::security_handler::security_router(app_state.clone()))
+        .merge(task_backend::features::security::handlers::security::security_router(app_state.clone()))
         .merge(
             task_backend::api::handlers::system_handler::system_router_with_state(Arc::new(
                 app_state.clone(),
@@ -701,7 +706,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
             ),
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
             task_backend::features::auth::repository::user_repository::UserRepository::new(db.connection.clone()),
-            task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
+            task_backend::features::subscription::repositories::history::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
     );
 
@@ -837,24 +842,24 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         .merge(task_backend::api::handlers::role_handler::role_router(
             app_state.clone(),
         ))
-        .merge(task_backend::api::handlers::team_handler::team_router(
-            app_state.clone(),
-        ))
+        .merge(task_backend::features::team::handlers::team_router_with_state(app_state.clone()))
         .merge(
-            task_backend::api::handlers::organization_handler::organization_router_with_state(
+            task_backend::features::organization::handlers::organization::organization_router_with_state(
                 app_state.clone(),
             ),
         )
         .merge(
-            task_backend::api::handlers::subscription_handler::subscription_router(
-                app_state.clone(),
-            ),
+            task_backend::features::subscription::handlers::subscription::subscription_router_with_state()
+                .with_state(app_state.clone()),
         )
         .merge(
             task_backend::api::handlers::permission_handler::permission_router(app_state.clone()),
         )
-        .merge(task_backend::api::handlers::analytics_handler::analytics_router(app_state.clone()))
-        .merge(task_backend::api::handlers::security_handler::security_router(app_state.clone()))
+        .merge(
+            task_backend::features::analytics::handlers::analytics::analytics_router()
+                .with_state(app_state.clone()),
+        )
+        .merge(task_backend::features::security::handlers::security::security_router(app_state.clone()))
         .merge(task_backend::features::gdpr::handler::gdpr_router_with_state(app_state.clone()))
         .merge(
             task_backend::features::storage::attachment::handler::attachment_routes()

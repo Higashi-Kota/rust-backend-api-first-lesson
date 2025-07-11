@@ -6,6 +6,7 @@ use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
 use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::task::domain::task_model;
 use crate::features::task::dto::{
     BatchCreateResponseDto, BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto,
     BatchUpdateResponseDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto, CreateTaskDto,
@@ -23,6 +24,7 @@ pub struct TaskService {
     user_repo: Arc<UserRepository>,
 }
 
+#[allow(dead_code)] // TODO: Will be used when task service methods are integrated with handlers
 impl TaskService {
     pub fn new(db_pool: DbPool) -> Self {
         Self {
@@ -584,5 +586,29 @@ impl TaskService {
             })
     }
 
-    // Unused admin methods removed - use admin_* methods instead
+    // Admin methods for task management
+    pub async fn admin_delete_task_by_id(&self, task_id: Uuid) -> AppResult<()> {
+        self.repo.delete(task_id).await.map_err(|e| {
+            if e.to_string().contains("not found") {
+                AppError::NotFound(format!("Task with ID {} not found", task_id))
+            } else {
+                AppError::InternalServerError(format!("Failed to delete task: {}", e))
+            }
+        })?;
+        Ok(())
+    }
+
+    pub async fn admin_list_all_tasks(&self) -> AppResult<Vec<task_model::Model>> {
+        self.repo
+            .list_all_tasks()
+            .await
+            .map_err(|e| AppError::InternalServerError(format!("Failed to list all tasks: {}", e)))
+    }
+
+    pub async fn admin_list_user_tasks(&self, user_id: Uuid) -> AppResult<Vec<task_model::Model>> {
+        self.repo
+            .find_all_for_user(user_id)
+            .await
+            .map_err(|e| AppError::InternalServerError(format!("Failed to list user tasks: {}", e)))
+    }
 }

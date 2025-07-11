@@ -17,8 +17,10 @@ use chrono::{DateTime, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use uuid::Uuid;
 
+#[allow(dead_code)] // Will be used for organization hierarchy features
 pub struct OrganizationHierarchyService;
 
+#[allow(dead_code)] // TODO: Will be used when organization hierarchy features are integrated
 impl OrganizationHierarchyService {
     // 組織階層構造の取得
     pub async fn get_organization_hierarchy(

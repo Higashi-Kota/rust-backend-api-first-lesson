@@ -1,4 +1,6 @@
 // task-backend/src/features/subscription/repositories/history.rs
+#![allow(dead_code)] // Repository methods for subscription history
+
 use crate::db::DbPool;
 use crate::error::AppResult;
 use sea_orm::*;
@@ -6,8 +8,6 @@ use uuid::Uuid;
 
 use super::super::models::history::{Column, Entity, Model, SubscriptionChangeInfo};
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
-#[allow(dead_code)]
 pub struct SubscriptionHistoryRepository {
     db: DbPool,
 }
@@ -177,23 +177,28 @@ impl SubscriptionHistoryRepository {
             .count(&self.db)
             .await?;
 
-        let upgrades = Entity::find()
+        let all_changes = Entity::find()
             .filter(Column::UserId.eq(user_id))
             .all(&self.db)
-            .await?
-            .into_iter()
-            .filter(|h| h.is_upgrade())
-            .count();
+            .await?;
 
-        let downgrades = Entity::find()
-            .filter(Column::UserId.eq(user_id))
-            .all(&self.db)
-            .await?
-            .into_iter()
-            .filter(|h| h.is_downgrade())
-            .count();
+        let upgrades = all_changes.iter().filter(|h| h.is_upgrade()).count();
+
+        let downgrades = all_changes.iter().filter(|h| h.is_downgrade()).count();
 
         let latest = self.find_latest_by_user_id(user_id).await?;
+
+        // Calculate days at current tier
+        let days_at_current_tier = if let Some(ref latest_change) = latest {
+            let now = chrono::Utc::now();
+            let duration = now - latest_change.changed_at;
+            duration.num_days() as u64
+        } else {
+            0
+        };
+
+        // Check if user has ever upgraded
+        let has_ever_upgraded = upgrades > 0;
 
         Ok(UserSubscriptionStats {
             user_id,
@@ -207,6 +212,8 @@ impl SubscriptionHistoryRepository {
                 .one(&self.db)
                 .await?
                 .map(|h| h.changed_at),
+            days_at_current_tier,
+            has_ever_upgraded,
         })
     }
 
@@ -258,4 +265,6 @@ pub struct UserSubscriptionStats {
     pub downgrade_count: u64,
     pub current_tier: Option<String>,
     pub first_subscription_date: Option<chrono::DateTime<chrono::Utc>>,
+    pub days_at_current_tier: u64,
+    pub has_ever_upgraded: bool,
 }

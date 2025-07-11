@@ -1,9 +1,12 @@
+#![allow(dead_code)] // Repository methods for permission matrix
+
 use crate::domain::permission_matrix_model::{self, Entity as PermissionMatrix, EntityType};
 use crate::error::AppError;
 use sea_orm::prelude::*;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
+#[allow(dead_code)] // Will be used for permission matrix features
 pub struct PermissionMatrixRepository;
 
 impl PermissionMatrixRepository {

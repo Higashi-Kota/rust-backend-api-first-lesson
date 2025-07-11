@@ -37,6 +37,7 @@ pub struct PaginationQuery {
 
 impl PaginationQuery {
     /// デフォルト値を適用してページとper_pageを取得
+    #[allow(dead_code)] // Utility method for pagination
     pub fn get_pagination(&self) -> (i32, i32) {
         let page = self.page.unwrap_or(1).max(1);
         let per_page = self.per_page.unwrap_or(20).clamp(1, 100);
@@ -44,6 +45,7 @@ impl PaginationQuery {
     }
 
     /// オフセットを計算
+    #[allow(dead_code)] // Utility method for pagination
     pub fn get_offset(&self) -> i32 {
         let (page, per_page) = self.get_pagination();
         (page - 1) * per_page

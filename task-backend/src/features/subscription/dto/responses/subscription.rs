@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::core::subscription_tier::SubscriptionTier;
-use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::domain::user_model::SafeUser;
 use crate::features::auth::repository::user_repository::SubscriptionTierStats;
-use crate::repository::subscription_history_repository::UserSubscriptionStats;
+use crate::features::subscription::models::history::SubscriptionChangeInfo;
+use crate::features::subscription::repositories::history::UserSubscriptionStats;
 use crate::shared::types::common::{ApiResponse, OperationResult};
 use crate::shared::types::pagination::PaginationMeta;
 
@@ -127,11 +127,14 @@ pub struct RevenueStats {
 }
 
 // Response type aliases for handlers
+#[allow(dead_code)] // Type alias for API responses
 pub type UpgradeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;
+#[allow(dead_code)] // Type alias for API responses
 pub type DowngradeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;
 
 // Implementation of response builders
 impl CurrentSubscriptionResponse {
+    #[allow(dead_code)] // DTO constructor method
     pub fn new(user_id: Uuid, tier: String, subscribed_at: DateTime<Utc>) -> Self {
         let tier_info = Self::get_tier_info(&tier);
         let current_tier_obj = SubscriptionTier::from_str(&tier);
@@ -246,6 +249,7 @@ impl CurrentSubscriptionResponse {
 }
 
 impl SubscriptionChangeResponse {
+    #[allow(dead_code)] // DTO constructor method
     pub fn new(
         user: SafeUser,
         previous_tier: String,

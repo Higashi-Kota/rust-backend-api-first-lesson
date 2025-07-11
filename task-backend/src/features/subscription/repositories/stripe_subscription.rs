@@ -10,8 +10,6 @@ use super::super::models::stripe_subscription::{
     self, ActiveModel as SubscriptionActiveModel, Entity as SubscriptionEntity,
 };
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct StripeSubscriptionRepository {
     db: DbConn,

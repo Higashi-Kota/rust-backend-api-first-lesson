@@ -66,6 +66,7 @@ impl ActivityLogRepository {
     }
 
     /// 指定日数内のユニークユーザー数を取得
+    #[allow(dead_code)] // Repository method for activity analytics
     pub async fn count_unique_users_in_days(&self, days: i64) -> AppResult<u64> {
         let days_ago = Utc::now() - chrono::Duration::days(days);
 

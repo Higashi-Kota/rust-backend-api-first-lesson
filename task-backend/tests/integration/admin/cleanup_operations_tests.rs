@@ -72,7 +72,7 @@ async fn test_admin_list_bulk_operations_success() {
     let json: Value = serde_json::from_slice(&body).unwrap();
 
     assert!(json["success"].as_bool().unwrap());
-    let items = json["data"]["items"].as_array().unwrap();
+    let items = json["data"].as_array().unwrap();
 
     // Note: The current implementation doesn't create bulk operation history records
     // This is a limitation that should be addressed in the future for audit purposes
@@ -260,13 +260,15 @@ async fn test_admin_get_user_feature_metrics_success() {
     for (feature_name, action_type, count) in features {
         for _ in 0..count {
             let feature_request =
-                task_backend::api::handlers::analytics_handler::TrackFeatureUsageRequest {
+                task_backend::features::analytics::dto::requests::TrackFeatureUsageRequest {
                     feature_name: feature_name.to_string(),
                     action_type: action_type.to_string(),
-                    metadata: Some(serde_json::json!({
-                        "source": "test",
-                        "version": "1.0"
-                    })),
+                    metadata: Some({
+                        let mut map = std::collections::HashMap::new();
+                        map.insert("source".to_string(), serde_json::json!("test"));
+                        map.insert("version".to_string(), serde_json::json!("1.0"));
+                        map
+                    }),
                 };
 
             let req = auth_helper::create_authenticated_request(

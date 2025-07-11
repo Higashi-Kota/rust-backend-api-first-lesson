@@ -17,12 +17,15 @@ use uuid::Uuid;
 
 /// 組織階層の再編成を行うUseCase
 /// 複数の部門を跨ぐ大規模な組織再編を扱う
+#[allow(dead_code)] // Organization hierarchy feature - will be used when integrated
 pub struct ReorganizeDepartmentsUseCase {
     db: Arc<DatabaseConnection>,
     organization_repository: Arc<OrganizationRepository>,
+    #[allow(dead_code)] // False positive - used in add_members_to_department
     user_repository: Arc<UserRepository>,
 }
 
+#[allow(dead_code)] // TODO: Will be used when organization reorganization features are integrated
 impl ReorganizeDepartmentsUseCase {
     pub fn new(
         db: Arc<DatabaseConnection>,
@@ -228,12 +231,14 @@ impl ReorganizeDepartmentsUseCase {
 }
 
 /// 部門メンバーの一括管理UseCase
+#[allow(dead_code)] // Organization hierarchy feature - will be used when integrated
 pub struct ManageDepartmentMembersUseCase {
     db: Arc<DatabaseConnection>,
     organization_repository: Arc<OrganizationRepository>,
     user_repository: Arc<UserRepository>,
 }
 
+#[allow(dead_code)] // TODO: Will be used when department member management features are integrated
 impl ManageDepartmentMembersUseCase {
     pub fn new(
         db: Arc<DatabaseConnection>,

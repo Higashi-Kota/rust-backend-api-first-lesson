@@ -174,6 +174,7 @@ impl PermissionChecker {
     }
 
     /// 管理機能へのアクセス権限があるかチェック
+    #[allow(dead_code)] // Utility method for permission checks
     pub fn can_access_admin_features(role: &RoleWithPermissions) -> bool {
         Self::is_admin(role)
             || role

@@ -4,8 +4,10 @@ use sea_orm::prelude::*;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
+#[allow(dead_code)] // Will be used for organization hierarchy features
 pub struct DepartmentMemberRepository;
 
+#[allow(dead_code)] // TODO: Will be used when department member features are integrated
 impl DepartmentMemberRepository {
     pub async fn create(
         db: &DatabaseConnection,

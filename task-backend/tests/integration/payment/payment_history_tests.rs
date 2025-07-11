@@ -184,7 +184,7 @@ async fn test_subscription_guard_middleware() {
         .unwrap(),
     );
     let subscription_service =
-        task_backend::service::subscription_service::SubscriptionService::new(
+        task_backend::features::subscription::services::subscription::SubscriptionService::new(
             db.connection.clone(),
             email_service,
         );

@@ -4,8 +4,10 @@ pub mod department_member;
 pub mod organization;
 
 // Re-export commonly used types
-pub use analytics::{AnalyticsType, MetricValue, Period};
-pub use department_member::DepartmentRole;
+// pub use analytics::{AnalyticsType, MetricValue, Period};
+// pub use department_member::DepartmentRole;
+// TODO: Phase 19で使用箇所が移行されたら#[allow(unused_imports)]を削除
+#[allow(unused_imports)]
 pub use organization::{Organization, OrganizationMember, OrganizationRole, OrganizationSettings};
 
 // TODO: Phase 19で古い参照を削除後、以下の#[allow]を削除予定

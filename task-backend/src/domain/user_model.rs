@@ -65,9 +65,9 @@ pub enum Relation {
     Role,
 
     #[sea_orm(
-        has_many = "crate::domain::subscription_history_model::Entity",
+        has_many = "crate::features::subscription::models::history::Entity",
         from = "Column::Id",
-        to = "crate::domain::subscription_history_model::Column::UserId"
+        to = "crate::features::subscription::models::history::Column::UserId"
     )]
     SubscriptionHistory,
 }

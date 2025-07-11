@@ -13,9 +13,11 @@ use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct OrganizationRepository {
+    #[allow(dead_code)] // Used by methods below
     db: DatabaseConnection,
 }
 
+#[allow(dead_code)] // TODO: Will be used when organization management features are integrated
 impl OrganizationRepository {
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }

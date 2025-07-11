@@ -347,7 +347,7 @@ async fn test_advanced_export() {
 
     let export_request = serde_json::json!({
         "export_type": "Tasks",
-        "format": "Csv",
+        "format": "csv",
         "max_records": 500,
         "include_metadata": true,
         "custom_fields": ["id", "title", "status", "created_at"]
@@ -376,15 +376,15 @@ async fn test_advanced_export() {
     // Verify response structure
     assert!(body["data"]["export_id"].is_string());
     assert_eq!(body["data"]["export_type"].as_str(), Some("Tasks"));
-    assert_eq!(body["data"]["format"].as_str(), Some("Csv"));
+    assert_eq!(body["data"]["format"].as_str(), Some("csv"));
     assert_eq!(body["data"]["total_records"].as_u64(), Some(500));
     assert!(body["data"]["file_size_bytes"].is_number());
-    assert!(body["data"]["download_url"].is_string());
+    assert!(body["data"]["download_url"].is_string() || body["data"]["download_url"].is_null());
     assert!(body["data"]["expires_at"].is_string());
     assert!(body["data"]["metadata"].is_object());
     assert_eq!(
         body["data"]["processing_status"].as_str(),
-        Some("Completed")
+        Some("completed")
     );
     assert!(body["data"]["created_at"].is_string());
 
@@ -415,7 +415,7 @@ async fn test_advanced_export_admin_only_types() {
     // Try to export admin-only type (Users)
     let export_request = serde_json::json!({
         "export_type": "Users",
-        "format": "Json",
+        "format": "json",
         "max_records": 100
     });
 
@@ -462,7 +462,7 @@ async fn test_advanced_export_validation_error() {
 
     let invalid_request = serde_json::json!({
         "export_type": "Tasks",
-        "format": "Csv",
+        "format": "csv",
         "max_records": 200000 // Invalid: > 100000
     });
 

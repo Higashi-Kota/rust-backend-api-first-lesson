@@ -3,5 +3,4 @@
 pub mod subscription;
 
 // 公開APIの再エクスポート
-#[allow(unused_imports)]
-pub use subscription::*;
+// pub use subscription::*;

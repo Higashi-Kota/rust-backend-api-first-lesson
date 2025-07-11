@@ -19,13 +19,10 @@ mod service;
 mod shared;
 mod utils;
 
+// Import routers - using new feature modules where available
 use crate::api::handlers::{
-    admin_handler::admin_router, analytics_handler::analytics_router_with_state,
-    organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
-    payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
-    role_handler::role_router_with_state, security_handler::security_router,
-    subscription_handler::subscription_router_with_state, system_handler::system_router_with_state,
+    payment_handler::payment_router_with_state, system_handler::system_router_with_state,
     user_handler::user_router_with_state,
 };
 use crate::api::AppState;
@@ -50,21 +47,20 @@ use crate::features::storage::{
     attachment::service::AttachmentService,
     service::{self as storage_service, StorageConfig},
 };
+use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
+use crate::features::subscription::services::subscription::SubscriptionService;
 use crate::features::task::{handler::task_router_with_state, service::TaskService};
 use crate::features::team::handlers::team_router_with_state;
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     login_attempt_repository::LoginAttemptRepository,
     organization_repository::OrganizationRepository, role_repository::RoleRepository,
-    security_incident_repository::SecurityIncidentRepository,
-    subscription_history_repository::SubscriptionHistoryRepository,
-    team_repository::TeamRepository,
+    security_incident_repository::SecurityIncidentRepository, team_repository::TeamRepository,
 };
 use crate::service::{
     organization_service::OrganizationService, payment_service::PaymentService,
     permission_service::PermissionService, role_service::RoleService,
-    security_service::SecurityService, subscription_service::SubscriptionService,
-    team_service::TeamService, user_service::UserService,
+    security_service::SecurityService, team_service::TeamService, user_service::UserService,
 };
 use crate::utils::{
     email::{EmailConfig, EmailService},
@@ -340,17 +336,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ルーターの設定
     let auth_router = auth_router_with_state(app_state.clone());
     let user_router = user_router_with_state(app_state.clone());
-    let role_router = role_router_with_state(app_state.clone());
+    // Use routers from feature modules
+    let role_router =
+        crate::features::security::handlers::role::role_router_with_state(app_state.clone());
     let team_router = team_router_with_state(app_state.clone());
-    let organization_router = organization_router_with_state(app_state.clone());
-    let subscription_router = subscription_router_with_state(app_state.clone());
+    let organization_router =
+        crate::features::organization::handlers::organization::organization_router_with_state(
+            app_state.clone(),
+        );
+    let subscription_router =
+        crate::features::subscription::handlers::subscription::subscription_router_with_state()
+            .with_state(app_state.clone());
     let payment_router = payment_router_with_state(app_state.clone());
-    let permission_router = permission_router_with_state(app_state.clone());
-    let analytics_router = analytics_router_with_state(app_state.clone());
-    let security_router = security_router(app_state.clone());
+    let permission_router =
+        crate::features::security::handlers::permission::permission_router_with_state(
+            app_state.clone(),
+        );
+    let analytics_router =
+        crate::features::analytics::handlers::analytics::analytics_router_with_state(
+            app_state.clone(),
+        );
+    let security_router =
+        crate::features::security::handlers::security::security_router(app_state.clone());
     let system_router = system_router_with_state(Arc::new(app_state.clone()));
-    let admin_router = admin_router(app_state.clone());
-    let hierarchy_router = organization_hierarchy_router().with_state(app_state.clone());
+    let admin_router =
+        crate::features::admin::handlers::admin_router().with_state(app_state.clone());
+    let hierarchy_router = organization_hierarchy_router(app_state.clone());
     let gdpr_router = gdpr_router_with_state(app_state.clone());
     let task_router_inst = task_router_with_state(app_state.clone());
 

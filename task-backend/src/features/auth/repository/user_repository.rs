@@ -1,4 +1,5 @@
 // src/repository/user_repository.rs
+#![allow(dead_code)] // Repository methods for user management
 
 use crate::db;
 use crate::domain::role_model::{self, Entity as RoleEntity, RoleWithPermissions};

@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Repository methods for organization analytics
+
 use super::super::models::analytics::{
     self, AnalyticsType, Entity as OrganizationAnalytics, Period,
 };

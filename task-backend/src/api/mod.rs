@@ -2,20 +2,21 @@
 use crate::config::AppConfig;
 use crate::features::auth::service::AuthService;
 use crate::features::storage::attachment::service::AttachmentService;
+use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
+use crate::features::subscription::services::subscription::SubscriptionService;
 use crate::features::task::service::TaskService;
 use crate::infrastructure::jwt::JwtManager;
 use crate::repository::{
     bulk_operation_history_repository::BulkOperationHistoryRepository,
     daily_activity_summary_repository::DailyActivitySummaryRepository,
     feature_usage_metrics_repository::FeatureUsageMetricsRepository,
-    subscription_history_repository::SubscriptionHistoryRepository,
 };
 use crate::service::{
     feature_tracking_service::FeatureTrackingService, organization_service::OrganizationService,
     payment_service::PaymentService, permission_service::PermissionService,
     role_service::RoleService, security_service::SecurityService,
-    subscription_service::SubscriptionService, team_invitation_service::TeamInvitationService,
-    team_service::TeamService, user_service::UserService,
+    team_invitation_service::TeamInvitationService, team_service::TeamService,
+    user_service::UserService,
 };
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
@@ -31,12 +32,17 @@ pub struct AppState {
     pub role_service: Arc<RoleService>,
     pub team_service: Arc<TeamService>,
     pub team_invitation_service: Arc<TeamInvitationService>,
+    #[allow(dead_code)] // Used by subscription feature module
     pub organization_service: Arc<OrganizationService>,
     pub subscription_service: Arc<SubscriptionService>,
     pub payment_service: Arc<PaymentService>,
+    #[allow(dead_code)] // Used by subscription feature module
     pub subscription_history_repo: Arc<SubscriptionHistoryRepository>,
+    #[allow(dead_code)] // Will be used by admin analytics feature
     pub bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
+    #[allow(dead_code)] // Will be used by admin analytics feature
     pub daily_activity_summary_repo: Arc<DailyActivitySummaryRepository>,
+    #[allow(dead_code)] // Will be used by admin analytics feature
     pub feature_usage_metrics_repo: Arc<FeatureUsageMetricsRepository>,
     pub feature_tracking_service: Arc<FeatureTrackingService>,
     pub permission_service: Arc<PermissionService>,

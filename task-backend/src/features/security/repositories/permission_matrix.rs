@@ -8,6 +8,7 @@ use uuid::Uuid;
 #[allow(dead_code)]
 pub struct PermissionMatrixRepository;
 
+#[allow(dead_code)] // TODO: Will be used when permission matrix features are integrated
 impl PermissionMatrixRepository {
     pub async fn find_by_entity(
         db: &DatabaseConnection,

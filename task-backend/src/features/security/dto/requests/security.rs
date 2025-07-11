@@ -1,7 +1,7 @@
 // task-backend/src/features/security/dto/requests/security.rs
 
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -14,6 +14,7 @@ pub struct CleanupTokensRequest {
 
 /// 全トークン無効化リクエスト
 #[derive(Debug, Clone, Deserialize, Validate)]
+#[allow(dead_code)] // DTO fields used in deserialization
 pub struct RevokeAllTokensRequest {
     pub user_id: Option<Uuid>, // 特定ユーザーのみ（Noneの場合は全ユーザー）
 
@@ -25,6 +26,7 @@ pub struct RevokeAllTokensRequest {
 
 /// 監査レポート生成リクエスト
 #[derive(Debug, Clone, Deserialize, Validate)]
+#[allow(dead_code)] // DTO fields used in deserialization
 pub struct AuditReportRequest {
     #[validate(length(min = 1, message = "Report type is required"))]
     pub report_type: String, // "security", "tokens", "sessions", "comprehensive"
@@ -34,7 +36,7 @@ pub struct AuditReportRequest {
 }
 
 /// 日付範囲
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DateRange {
     pub start_date: DateTime<Utc>,
     pub end_date: DateTime<Utc>,

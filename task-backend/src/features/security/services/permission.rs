@@ -1,8 +1,10 @@
 // task-backend/src/features/security/services/permission.rs
+#![allow(dead_code)] // Service methods for permission management
 
-use super::super::models::role::RoleWithPermissions;
+// use super::super::models::role::RoleWithPermissions;
 use super::super::repositories::role::RoleRepository;
 use crate::core::subscription_tier::SubscriptionTier;
+use crate::domain::role_model::RoleWithPermissions;
 use crate::error::AppResult;
 // use crate::repository::permission_repository::PermissionRepository; // TODO: Implement when PermissionRepository is created
 use crate::error::AppError;
@@ -14,8 +16,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// 権限管理の統合サービス
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
-#[allow(dead_code)]
+#[allow(dead_code)] // Security feature service - will be used when integrated
 pub struct PermissionService {
     // permission_repository: Arc<PermissionRepository>, // TODO: Implement when PermissionRepository is created
     role_repository: Arc<RoleRepository>,
@@ -280,7 +281,27 @@ impl PermissionService {
             .await?
             .ok_or_else(|| AppError::NotFound("Role not found".to_string()))?;
 
-        Ok(role)
+        // Convert from new RoleWithPermissions to old RoleWithPermissions
+        // TODO: Phase 19 - Remove this conversion when types are unified
+        let old_role = crate::domain::role_model::RoleWithPermissions {
+            id: role.id,
+            name: match role.name {
+                super::super::models::role::RoleName::Admin => {
+                    crate::domain::role_model::RoleName::Admin
+                }
+                super::super::models::role::RoleName::Member => {
+                    crate::domain::role_model::RoleName::Member
+                }
+            },
+            display_name: role.display_name,
+            description: role.description,
+            is_active: role.is_active,
+            subscription_tier: role.subscription_tier,
+            created_at: role.created_at,
+            updated_at: role.updated_at,
+        };
+
+        Ok(old_role)
     }
 
     /// 複数の権限を一度にチェック

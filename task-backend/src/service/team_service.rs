@@ -482,6 +482,7 @@ impl TeamService {
     }
 
     /// アクティブなチーム数を取得
+    #[allow(dead_code)] // Service method for team analytics
     pub async fn count_active_teams(&self) -> AppResult<u64> {
         // 現在の実装では全チームがアクティブとみなす
         // 将来的にはis_activeフラグやactivity_statusなどでフィルタリング可能

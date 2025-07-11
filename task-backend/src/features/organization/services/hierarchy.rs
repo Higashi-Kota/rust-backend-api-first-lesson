@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Service methods for organization hierarchy
+
 use super::super::models::{
     analytics::{self, AnalyticsType, MetricValue, Period},
     department,
@@ -284,6 +286,7 @@ impl OrganizationHierarchyService {
     // 権限マトリックスの設定
     // TODO: Phase 19でPermissionMatrixModelの構造を修正後、実装を復活
     #[allow(dead_code)]
+    #[allow(clippy::too_many_arguments)]
     pub async fn set_permission_matrix(
         _db: &DatabaseConnection,
         _entity_type: EntityType,
@@ -325,6 +328,7 @@ impl OrganizationHierarchyService {
     }
 
     // 分析データの記録
+    #[allow(clippy::too_many_arguments)]
     pub async fn record_analytics(
         db: &DatabaseConnection,
         organization_id: Uuid,
@@ -375,6 +379,7 @@ impl OrganizationHierarchyService {
     }
 
     // 分析データの取得
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_analytics(
         db: &DatabaseConnection,
         organization_id: Uuid,

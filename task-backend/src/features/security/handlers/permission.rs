@@ -29,7 +29,6 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use serde::Deserialize;
 use tracing::{info, warn};
 use uuid::Uuid;
 use validator::Validate;
@@ -1840,6 +1839,7 @@ pub async fn check_complex_operation_permissions_handler(
 // --- Health Check ---
 
 /// 権限サービスのヘルスチェック
+#[allow(dead_code)] // Health check endpoint
 async fn permission_health_check_handler() -> &'static str {
     "Permission service OK"
 }
@@ -1847,7 +1847,8 @@ async fn permission_health_check_handler() -> &'static str {
 // --- Router Setup ---
 
 /// 権限管理ルーターを作成
-pub fn permission_router(app_state: AppState) -> Router {
+#[allow(dead_code)] // Router setup function
+fn permission_router(app_state: AppState) -> Router {
     Router::new()
         // 権限チェックエンドポイント
         .route("/permissions/check", post(check_permission_handler))
@@ -1898,6 +1899,7 @@ pub fn permission_router(app_state: AppState) -> Router {
 }
 
 /// 権限管理ルーターをAppStateから作成
+#[allow(dead_code)] // Public router setup function
 pub fn permission_router_with_state(app_state: AppState) -> Router {
     permission_router(app_state)
 }

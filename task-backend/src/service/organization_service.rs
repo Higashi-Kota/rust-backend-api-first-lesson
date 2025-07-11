@@ -11,18 +11,23 @@ use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::organization_model::{Organization, OrganizationMember, OrganizationRole};
 use crate::error::{AppError, AppResult};
 use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
 use crate::repository::organization_repository::OrganizationRepository;
-use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
 use crate::repository::team_repository::TeamRepository;
 use uuid::Uuid;
 
 pub struct OrganizationService {
+    #[allow(dead_code)] // Used by methods
     organization_repository: OrganizationRepository,
+    #[allow(dead_code)] // Used by methods
     team_repository: TeamRepository,
+    #[allow(dead_code)] // Used by methods
     user_repository: UserRepository,
+    #[allow(dead_code)] // Used by methods
     subscription_history_repository: SubscriptionHistoryRepository,
 }
 
+#[allow(dead_code)] // TODO: Will be used when organization service features are integrated
 impl OrganizationService {
     pub fn new(
         organization_repository: OrganizationRepository,

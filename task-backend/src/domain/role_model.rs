@@ -1,4 +1,6 @@
 // task-backend/src/domain/role_model.rs
+#![allow(dead_code)] // Model methods and utilities
+
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};

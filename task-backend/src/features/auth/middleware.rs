@@ -105,6 +105,7 @@ impl AuthenticatedUser {
     }
 
     /// 組織または部門管理権限をチェック
+    #[allow(dead_code)] // Public API method for permission checks
     pub fn ensure_can_manage_organization_or_department(
         &self,
         organization_id: uuid::Uuid,

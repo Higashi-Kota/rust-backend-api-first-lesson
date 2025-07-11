@@ -1,6 +1,6 @@
 // task-backend/src/api/dto/subscription_history_dto.rs
 
-use crate::domain::subscription_history_model::{
+use crate::features::subscription::models::history::{
     Model as SubscriptionHistory, SubscriptionChangeInfo,
 };
 use chrono::{DateTime, Utc};
@@ -115,6 +115,7 @@ impl From<SubscriptionChangeInfo> for SubscriptionChangeInfoResponse {
 
 /// サブスクリプション履歴検索クエリ（ページネーション付き）
 #[derive(Debug, Deserialize, Validate)]
+#[allow(dead_code)] // Query parameters used in deserialization
 pub struct SubscriptionHistorySearchQuery {
     pub tier: Option<String>,
     pub user_id: Option<Uuid>,

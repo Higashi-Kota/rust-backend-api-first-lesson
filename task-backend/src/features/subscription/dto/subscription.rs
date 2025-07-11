@@ -6,10 +6,10 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::core::subscription_tier::SubscriptionTier;
-use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::domain::user_model::SafeUser;
 use crate::features::auth::repository::user_repository::SubscriptionTierStats;
-use crate::repository::subscription_history_repository::UserSubscriptionStats;
+use crate::features::subscription::models::history::SubscriptionChangeInfo;
+use crate::features::subscription::repositories::history::UserSubscriptionStats;
 use crate::shared::types::common::{ApiResponse, OperationResult};
 use crate::shared::types::pagination::PaginationMeta;
 
@@ -297,6 +297,7 @@ pub struct TierUserInfo {
 
 // --- Type Aliases for API Responses ---
 
+#[allow(dead_code)] // Type alias for API responses
 pub type ChangeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;
 pub type UpgradeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;
 pub type DowngradeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;
@@ -477,7 +478,7 @@ impl SubscriptionChangeResponse {
 
 // --- Validation Functions ---
 
-fn validate_upgrade_tier(tier: &SubscriptionTier) -> Result<(), validator::ValidationError> {
+pub fn validate_upgrade_tier(tier: &SubscriptionTier) -> Result<(), validator::ValidationError> {
     match tier {
         SubscriptionTier::Free => {
             let mut error = validator::ValidationError::new("invalid_upgrade");
@@ -488,7 +489,7 @@ fn validate_upgrade_tier(tier: &SubscriptionTier) -> Result<(), validator::Valid
     }
 }
 
-fn validate_downgrade_tier(tier: &SubscriptionTier) -> Result<(), validator::ValidationError> {
+pub fn validate_downgrade_tier(tier: &SubscriptionTier) -> Result<(), validator::ValidationError> {
     match tier {
         SubscriptionTier::Enterprise => {
             let mut error = validator::ValidationError::new("invalid_downgrade");

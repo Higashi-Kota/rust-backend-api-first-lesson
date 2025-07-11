@@ -132,6 +132,7 @@ pub struct TierFeatureComparison {
 }
 
 impl RoleWithSubscriptionResponse {
+    #[allow(dead_code)] // DTO conversion method for role with subscription info
     pub fn from_role_with_tier(role: RoleWithPermissions, _tier: SubscriptionTier) -> Self {
         let is_admin = role.is_admin();
         let is_member = role.is_member();
@@ -240,6 +241,7 @@ impl RoleWithSubscriptionResponse {
     }
 }
 
+#[allow(dead_code)] // Helper function for tier-based permissions
 fn get_tier_permissions(tier: SubscriptionTier) -> AdditionalPermissions {
     match tier {
         SubscriptionTier::Free => AdditionalPermissions {
@@ -278,6 +280,7 @@ fn get_tier_permissions(tier: SubscriptionTier) -> AdditionalPermissions {
     }
 }
 
+#[allow(dead_code)] // Helper function for tier recommendations
 fn recommend_tier_for_role(role: &RoleWithPermissions) -> SubscriptionTier {
     if role.is_admin() {
         SubscriptionTier::Enterprise

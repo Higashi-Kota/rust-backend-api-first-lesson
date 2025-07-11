@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Repository methods for bulk operations
+
 use crate::domain::bulk_operation_history_model::{
     self, BulkOperationErrorDetails, BulkOperationType, Entity as BulkOperationHistory,
 };

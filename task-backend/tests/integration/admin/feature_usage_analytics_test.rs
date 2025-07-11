@@ -25,14 +25,15 @@ async fn test_admin_get_feature_usage_counts() {
 
     // Track feature usage for first user
     for i in 0..5 {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("test_iteration".to_string(), serde_json::json!(i));
+        metadata.insert("user".to_string(), serde_json::json!("user1"));
+
         let feature_request =
-            task_backend::api::handlers::analytics_handler::TrackFeatureUsageRequest {
+            task_backend::features::analytics::dto::requests::TrackFeatureUsageRequest {
                 feature_name: format!("feature_{}", i % 3),
                 action_type: "view".to_string(),
-                metadata: Some(serde_json::json!({
-                    "test_iteration": i,
-                    "user": "user1"
-                })),
+                metadata: Some(metadata),
             };
 
         let req = auth_helper::create_authenticated_request(
@@ -47,13 +48,14 @@ async fn test_admin_get_feature_usage_counts() {
 
     // Track additional usage from second user
     for feature_name in ["feature_0", "feature_1", "feature_new"] {
+        let mut metadata = std::collections::HashMap::new();
+        metadata.insert("user".to_string(), serde_json::json!("user2"));
+
         let feature_request =
-            task_backend::api::handlers::analytics_handler::TrackFeatureUsageRequest {
+            task_backend::features::analytics::dto::requests::TrackFeatureUsageRequest {
                 feature_name: feature_name.to_string(),
                 action_type: "create".to_string(),
-                metadata: Some(serde_json::json!({
-                    "user": "user2"
-                })),
+                metadata: Some(metadata),
             };
 
         let req = auth_helper::create_authenticated_request(

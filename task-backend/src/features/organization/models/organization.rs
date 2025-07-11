@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Model methods and associated functions
+
 use crate::core::subscription_tier::SubscriptionTier;
 use chrono::{DateTime, Utc};
 use sea_orm::prelude::*;
@@ -258,6 +260,7 @@ impl OrganizationMember {
     }
 
     /// 役割を更新
+    #[allow(dead_code)] // Model utility method
     pub fn update_role(&mut self, role: OrganizationRole) {
         self.role = role;
     }

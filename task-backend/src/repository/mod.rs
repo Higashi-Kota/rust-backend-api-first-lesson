@@ -12,7 +12,5 @@ pub mod permission_matrix_repository;
 pub mod role_repository;
 pub mod security_incident_repository;
 pub mod stripe_payment_history_repository;
-pub mod stripe_subscription_repository;
-pub mod subscription_history_repository;
 pub mod team_invitation_repository;
 pub mod team_repository;

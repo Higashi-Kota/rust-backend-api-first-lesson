@@ -17,6 +17,7 @@ pub struct TaskRepository {
     schema: Option<String>,
 }
 
+#[allow(dead_code)] // TODO: Will be used when advanced task management features are integrated
 impl TaskRepository {
     pub fn new(db: DbConn) -> Self {
         Self { db, schema: None }
@@ -780,5 +781,15 @@ impl TaskRepository {
             .sum();
 
         Ok(total_hours / completed_tasks.len() as f64)
+    }
+
+    /// List all tasks (admin only)
+    pub async fn list_all_tasks(&self) -> Result<Vec<task_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+
+        TaskEntity::find()
+            .order_by_desc(task_model::Column::CreatedAt)
+            .all(&self.db)
+            .await
     }
 }

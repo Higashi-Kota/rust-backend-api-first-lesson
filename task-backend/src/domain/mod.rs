@@ -17,11 +17,19 @@ pub mod role_model;
 pub mod security_incident_model;
 pub mod share_link_access_log_model;
 pub mod stripe_payment_history_model;
-pub mod stripe_subscription_model;
-pub mod subscription_history_model;
 pub mod team_invitation_model;
 pub mod team_member_model;
 pub mod team_model;
 pub mod user_consent_model;
 pub mod user_model;
 pub mod user_settings_model;
+
+// Re-export subscription models for backward compatibility
+pub mod subscription_history_model {
+    // TODO: Remove this module after migrating all references
+    // pub use crate::features::subscription::models::history::*;
+}
+pub mod stripe_subscription_model {
+    // TODO: Remove this module after migrating all references
+    // pub use crate::features::subscription::models::stripe_subscription::*;
+}

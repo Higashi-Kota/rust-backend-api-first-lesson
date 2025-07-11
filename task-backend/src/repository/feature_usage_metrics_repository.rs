@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Repository methods for feature usage analytics
+
 use crate::domain::feature_usage_metrics_model::{self, Entity as FeatureUsageMetrics};
 use crate::error::AppResult;
 use chrono::{DateTime, Utc};
@@ -53,6 +55,22 @@ impl FeatureUsageMetricsRepository {
         Ok(metrics)
     }
 
+    /// Get user metrics since a given date
+    pub async fn get_user_metrics(
+        &self,
+        user_id: Uuid,
+        since: DateTime<Utc>,
+    ) -> AppResult<Vec<feature_usage_metrics_model::Model>> {
+        let metrics = FeatureUsageMetrics::find()
+            .filter(feature_usage_metrics_model::Column::UserId.eq(user_id))
+            .filter(feature_usage_metrics_model::Column::CreatedAt.gte(since))
+            .order_by_desc(feature_usage_metrics_model::Column::CreatedAt)
+            .all(&self.db)
+            .await?;
+
+        Ok(metrics)
+    }
+
     pub async fn get_feature_usage_counts(
         &self,
         start_date: DateTime<Utc>,
@@ -62,6 +80,7 @@ impl FeatureUsageMetricsRepository {
         use sea_orm::{FromQueryResult, QuerySelect};
 
         #[derive(Debug, FromQueryResult)]
+        #[allow(dead_code)] // Fields used by FromQueryResult derive
         struct FeatureUsageCount {
             feature_name: String,
             count: i64,
@@ -99,6 +118,7 @@ impl FeatureUsageMetricsRepository {
         use sea_orm::{FromQueryResult, QuerySelect};
 
         #[derive(Debug, FromQueryResult)]
+        #[allow(dead_code)] // Fields used by FromQueryResult derive
         struct ActionCount {
             feature_name: String,
             action_type: String,

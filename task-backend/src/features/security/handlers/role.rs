@@ -347,7 +347,8 @@ pub async fn assign_role_to_user_handler(
 // --- ルーター ---
 
 /// ロールルーターを作成
-pub fn role_router(app_state: AppState) -> Router {
+#[allow(dead_code)] // Router setup function
+fn role_router(app_state: AppState) -> Router {
     let router = Router::new()
         // ロール管理
         .route(
@@ -367,6 +368,7 @@ pub fn role_router(app_state: AppState) -> Router {
 }
 
 /// ロールルーターをAppStateから作成
+#[allow(dead_code)] // Public router setup function
 pub fn role_router_with_state(app_state: AppState) -> Router {
     role_router(app_state)
 }

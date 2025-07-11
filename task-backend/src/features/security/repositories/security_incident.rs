@@ -1,4 +1,5 @@
 // task-backend/src/features/security/repositories/security_incident.rs
+#![allow(dead_code)] // Repository methods for security incidents
 
 use super::super::models::security_incident::{Column, Entity};
 use crate::db::DbPool;

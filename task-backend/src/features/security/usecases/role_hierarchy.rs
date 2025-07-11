@@ -2,16 +2,18 @@
 
 use super::super::models::role::{RoleName, RoleWithPermissions};
 use super::super::services::role::RoleService;
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use uuid::Uuid;
 
 /// ロール階層の管理と処理を行うUseCase
+#[allow(dead_code)] // Security feature usecase - will be used when integrated
 pub struct RoleHierarchyUseCase {
     role_service: Arc<RoleService>,
 }
 
+#[allow(dead_code)] // TODO: Will be used when role hierarchy features are integrated
 impl RoleHierarchyUseCase {
     pub fn new(role_service: Arc<RoleService>) -> Self {
         Self { role_service }
@@ -280,17 +282,20 @@ impl RoleHierarchyUseCase {
 // データ構造
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for role hierarchy visualization
 pub struct RoleHierarchyTree {
     pub root: RoleNode,
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for role hierarchy visualization
 pub struct RoleNode {
     pub role: Option<RoleWithPermissions>,
     pub children: Vec<RoleNode>,
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for permission inheritance analysis
 pub struct InheritedPermissions {
     pub base_role: RoleWithPermissions,
     pub inherited_from: Vec<InheritedFrom>,
@@ -298,6 +303,7 @@ pub struct InheritedPermissions {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for permission inheritance analysis
 pub struct InheritedFrom {
     pub role_id: Uuid,
     pub role_name: String,
@@ -305,6 +311,7 @@ pub struct InheritedFrom {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for role analytics
 pub struct RoleStatistics {
     pub total_roles: usize,
     pub active_roles: usize,
@@ -316,6 +323,7 @@ pub struct RoleStatistics {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for role migration analysis
 pub struct RoleMigrationImpact {
     pub from_role: RoleWithPermissions,
     pub to_role: RoleWithPermissions,
@@ -326,6 +334,7 @@ pub struct RoleMigrationImpact {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)] // Will be used for risk assessment
 pub enum RiskLevel {
     None,
     Low,

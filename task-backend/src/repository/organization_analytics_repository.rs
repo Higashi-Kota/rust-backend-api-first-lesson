@@ -7,8 +7,10 @@ use sea_orm::prelude::*;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use uuid::Uuid;
 
+#[allow(dead_code)] // Will be used for organization analytics features
 pub struct OrganizationAnalyticsRepository;
 
+#[allow(dead_code)] // TODO: Will be used when organization analytics features are integrated
 impl OrganizationAnalyticsRepository {
     pub async fn create(
         db: &DatabaseConnection,

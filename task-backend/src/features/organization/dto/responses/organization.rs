@@ -1,7 +1,8 @@
-use super::super::super::models::{
+// TODO: Phase 20で統一後は直接modelsからインポート
+use crate::core::subscription_tier::SubscriptionTier;
+use crate::domain::organization_model::{
     Organization, OrganizationMember, OrganizationRole, OrganizationSettings,
 };
-use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::user_model::Model as User;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

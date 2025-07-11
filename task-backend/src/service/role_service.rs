@@ -1,4 +1,6 @@
 // task-backend/src/service/role_service.rs
+#![allow(dead_code)] // Service methods for role management
+
 use crate::domain::role_model::{RoleName, RoleWithPermissions};
 use crate::domain::user_model::{SafeUserWithRole, UserClaims};
 use crate::error::{AppError, AppResult};

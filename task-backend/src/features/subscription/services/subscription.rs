@@ -12,8 +12,6 @@ use uuid::Uuid;
 use super::super::models::history::{Model as SubscriptionHistory, SubscriptionChangeInfo};
 use super::super::repositories::history::{SubscriptionHistoryRepository, UserSubscriptionStats};
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct SubscriptionService {
     subscription_history_repo: Arc<SubscriptionHistoryRepository>,
@@ -184,6 +182,7 @@ impl SubscriptionService {
     }
 
     /// サブスクリプション履歴詳細を取得（find_by_idを活用）
+    #[allow(dead_code)] // Service method for subscription history details
     pub async fn get_subscription_history_detail(
         &self,
         history_id: Uuid,

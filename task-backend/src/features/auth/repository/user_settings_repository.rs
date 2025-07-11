@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Repository methods for user settings
+
 use crate::domain::user_settings_model::{self, Entity as UserSettings};
 use crate::error::AppResult;
 use sea_orm::{

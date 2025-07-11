@@ -111,10 +111,12 @@ pub struct PermissionMatrix {
 }
 
 impl Model {
+    #[allow(dead_code)] // Utility method for extracting permission matrix from JSON
     pub fn get_permission_matrix(&self) -> Result<PermissionMatrix, serde_json::Error> {
         serde_json::from_value(self.matrix_data.clone())
     }
 
+    #[allow(dead_code)] // Utility method for extracting inheritance settings from JSON
     pub fn get_inheritance_settings(
         &self,
     ) -> Result<Option<InheritanceSettings>, serde_json::Error> {
@@ -124,6 +126,7 @@ impl Model {
         }
     }
 
+    #[allow(dead_code)] // Utility method for extracting compliance settings from JSON
     pub fn get_compliance_settings(&self) -> Result<Option<ComplianceSettings>, serde_json::Error> {
         match &self.compliance_settings {
             Some(settings) => Ok(Some(serde_json::from_value(settings.clone())?)),

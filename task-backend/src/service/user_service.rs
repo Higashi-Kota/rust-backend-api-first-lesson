@@ -160,6 +160,7 @@ impl UserService {
     }
 
     /// IDでユーザーを取得
+    #[allow(dead_code)] // Service method for user retrieval
     pub async fn get_user_by_id(&self, user_id: Uuid) -> AppResult<SafeUser> {
         let user = self
             .user_repo
@@ -236,6 +237,7 @@ pub struct UserStats {
 
 // --- 新規API用のメソッド ---
 
+#[allow(dead_code)] // TODO: Will be used when analytics features are integrated
 impl UserService {
     /// ユーザー統計を取得（分析レスポンス用）
     pub async fn get_user_stats_for_analytics(&self) -> AppResult<UserStats> {

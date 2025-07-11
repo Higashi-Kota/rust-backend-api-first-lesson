@@ -1,4 +1,5 @@
 // task-backend/src/service/security_service.rs
+#![allow(dead_code)] // Service methods for security management
 
 use crate::api::dto::security_dto::{
     AuditFinding, AuditReport, AuditReportRequest, AuditSummary, CleanupResult, DeviceSession,

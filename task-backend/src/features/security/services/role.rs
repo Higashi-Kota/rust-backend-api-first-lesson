@@ -1,4 +1,6 @@
 // task-backend/src/features/security/services/role.rs
+#![allow(dead_code)] // Service methods for role management
+
 use super::super::models::role::{RoleName, RoleWithPermissions};
 use super::super::repositories::role::{CreateRoleData, RoleRepository, UpdateRoleData};
 use crate::domain::user_model::{SafeUserWithRole, UserClaims};
@@ -12,9 +14,8 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 /// ロールサービス
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Security feature service - will be used when integrated
 pub struct RoleService {
     db: Arc<DatabaseConnection>,
     role_repository: Arc<RoleRepository>,
@@ -404,7 +405,27 @@ impl RoleService {
         )
         .await?;
 
-        let user_with_role = updated_user.to_safe_user_with_role(role);
+        // Convert new RoleWithPermissions to old RoleWithPermissions
+        // TODO: Phase 19 - Remove this conversion when types are unified
+        let old_role = crate::domain::role_model::RoleWithPermissions {
+            id: role.id,
+            name: match role.name {
+                super::super::models::role::RoleName::Admin => {
+                    crate::domain::role_model::RoleName::Admin
+                }
+                super::super::models::role::RoleName::Member => {
+                    crate::domain::role_model::RoleName::Member
+                }
+            },
+            display_name: role.display_name,
+            description: role.description,
+            is_active: role.is_active,
+            subscription_tier: role.subscription_tier,
+            created_at: role.created_at,
+            updated_at: role.updated_at,
+        };
+
+        let user_with_role = updated_user.to_safe_user_with_role(old_role);
 
         info!(
             admin_id = %requesting_user.user_id,

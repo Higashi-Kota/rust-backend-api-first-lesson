@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Repository methods for activity summaries
+
 use crate::domain::daily_activity_summary_model::{self, Entity as DailyActivitySummary};
 use crate::error::AppResult;
 use chrono::{NaiveDate, Utc};
@@ -7,6 +9,7 @@ use sea_orm::{
 };
 
 pub struct DailyActivitySummaryRepository {
+    #[allow(dead_code)] // Will be used when methods are implemented
     db: DatabaseConnection,
 }
 

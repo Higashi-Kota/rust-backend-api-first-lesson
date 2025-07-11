@@ -17,8 +17,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post, put},
-    Json, Router,
+    Json,
 };
 use serde_json;
 use tracing::warn;
@@ -459,10 +458,7 @@ fn build_department_hierarchy(
     let mut parent_child_map: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
     for (id, dto) in &department_map {
         if let Some(parent_id) = dto.department.parent_department_id {
-            parent_child_map
-                .entry(parent_id)
-                .or_insert_with(Vec::new)
-                .push(*id);
+            parent_child_map.entry(parent_id).or_default().push(*id);
         } else {
             root_departments.push(*id);
         }
@@ -491,45 +487,4 @@ fn build_department_hierarchy(
         .collect()
 }
 
-/// Organization hierarchy routes
-// TODO: Phase 19で古い参照を削除後、#[allow(unused_imports)]を削除
-#[allow(unused_imports)]
-pub fn organization_hierarchy_routes() -> Router<crate::api::AppState> {
-    Router::new()
-        .route(
-            "/organizations/:organization_id/hierarchy",
-            get(get_organization_hierarchy),
-        )
-        .route(
-            "/organizations/:organization_id/departments",
-            get(get_departments).post(create_department),
-        )
-        .route(
-            "/organizations/:organization_id/departments/:department_id",
-            put(update_department).delete(delete_department),
-        )
-        .route(
-            "/organizations/:organization_id/departments/:department_id/members",
-            post(add_department_member),
-        )
-        .route(
-            "/organizations/:organization_id/departments/:department_id/members/:user_id",
-            delete(remove_department_member),
-        )
-        .route(
-            "/organizations/:organization_id/analytics",
-            get(get_organization_analytics).post(create_organization_analytics),
-        )
-        .route(
-            "/organizations/:organization_id/permission-matrix",
-            get(get_permission_matrix).put(set_permission_matrix),
-        )
-        .route(
-            "/organizations/:organization_id/effective-permissions",
-            get(analyze_effective_permissions),
-        )
-        .route(
-            "/organizations/:organization_id/data-export",
-            post(export_organization_data),
-        )
-}
+// Removed unused organization_hierarchy_routes function

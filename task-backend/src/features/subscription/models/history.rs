@@ -112,6 +112,7 @@ impl Model {
     }
 
     /// 変更タイプを取得
+    #[allow(dead_code)] // Model utility method
     pub fn change_type(&self) -> String {
         if self.is_upgrade() {
             "upgrade".to_string()

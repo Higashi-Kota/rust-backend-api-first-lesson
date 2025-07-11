@@ -32,6 +32,7 @@ pub struct SecurityService {
     user_repo: Arc<UserRepository>,
 }
 
+#[allow(dead_code)] // TODO: Will be used when security management features are integrated
 impl SecurityService {
     pub fn new(
         refresh_token_repo: Arc<RefreshTokenRepository>,

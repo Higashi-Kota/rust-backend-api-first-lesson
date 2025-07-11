@@ -1,4 +1,5 @@
 // task-backend/src/features/team/repositories/team.rs
+#![allow(dead_code)] // Repository methods for team management
 
 use crate::error::{AppError, AppResult};
 use crate::features::team::models::team::{

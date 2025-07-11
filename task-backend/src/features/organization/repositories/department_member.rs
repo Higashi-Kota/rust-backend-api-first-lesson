@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Repository methods for department members
+
 use super::super::models::department_member::{self, Entity as DepartmentMember};
 use crate::error::AppError;
 use sea_orm::prelude::*;

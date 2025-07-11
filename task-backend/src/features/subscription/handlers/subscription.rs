@@ -13,19 +13,41 @@ use axum::{
     Router,
 };
 use chrono::{DateTime, Duration, Utc};
-use serde::Deserialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
 use uuid::Uuid;
 use validator::Validate;
 
 use super::super::dto::subscription::*;
+use super::super::dto::SubscriptionOverviewResponse;
+use crate::features::subscription::models::history::SubscriptionChangeInfo;
+use crate::shared::types::pagination::PaginatedResponse;
 
 /// 管理者用統計クエリパラメータ
 #[derive(Debug, Deserialize)]
 pub struct AdminStatsQuery {
     pub include_revenue: Option<bool>,
     pub days: Option<u32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SubscriptionHistoryAdminResponse {
+    pub histories: Vec<SubscriptionChangeInfo>,
+    pub tier_stats: Vec<TierChangeStats>,
+    pub change_summary: ChangeSummary,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TierChangeStats {
+    pub tier: String,
+    pub count: u64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ChangeSummary {
+    pub total_changes: u64,
+    pub upgrades_count: u64,
+    pub downgrades_count: u64,
 }
 
 // --- カスタム抽出器 ---
@@ -301,7 +323,7 @@ pub async fn change_user_subscription_handler(
     }
 
     info!(
-        admin_id = %admin.user.user_id,
+        admin_id = %admin.user_id(),
         target_user_id = %user_id,
         from_tier = %current_user.subscription_tier,
         to_tier = %payload.new_tier,
@@ -314,7 +336,7 @@ pub async fn change_user_subscription_handler(
         .change_subscription_tier(
             user_id,
             payload.new_tier.clone(),
-            Some(admin.user.user_id),
+            Some(admin.user_id()),
             payload.reason.clone(),
         )
         .await?;
@@ -324,11 +346,11 @@ pub async fn change_user_subscription_handler(
         current_user.subscription_tier,
         payload.new_tier.clone(),
         payload.reason,
-        Some(admin.user.user_id),
+        Some(admin.user_id()),
     );
 
     info!(
-        admin_id = %admin.user.user_id,
+        admin_id = %admin.user_id(),
         target_user_id = %user_id,
         new_tier = %payload.new_tier,
         "Admin subscription change successful"
@@ -347,17 +369,23 @@ pub async fn get_user_subscription_history_handler(
     Query(pagination): Query<PaginationQuery>,
 ) -> AppResult<Json<ApiResponse<SubscriptionHistoryResponse>>> {
     let page = pagination.page.unwrap_or(1).max(1);
-    let page_size = pagination.page_size.unwrap_or(20).max(1).min(100);
+    let page_size = pagination.per_page.unwrap_or(20).clamp(1, 100);
 
     let (history, total) = app_state
         .subscription_service
-        .get_user_subscription_history(user.claims.user_id, page, page_size)
+        .get_user_subscription_history(user.claims.user_id, page as u64, page_size as u64)
+        .await?;
+
+    let stats = app_state
+        .subscription_service
+        .get_user_subscription_stats(user.claims.user_id)
         .await?;
 
     let response = SubscriptionHistoryResponse {
         user_id: user.claims.user_id,
         history,
-        pagination: PaginationMeta::new(page, page_size, total),
+        pagination: Some(PaginationMeta::new(page, page_size, total as i64)),
+        stats,
     };
 
     Ok(Json(ApiResponse::success(
@@ -370,13 +398,15 @@ pub async fn get_user_subscription_history_handler(
 pub async fn get_user_subscription_stats_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<UserSubscriptionStatsResponse>>> {
+) -> AppResult<Json<ApiResponse<crate::features::subscription::dto::UserSubscriptionStatsResponse>>>
+{
     let stats = app_state
         .subscription_service
         .get_user_subscription_stats(user.claims.user_id)
         .await?;
 
-    let response = UserSubscriptionStatsResponse::from_stats(stats);
+    let response =
+        crate::features::subscription::dto::UserSubscriptionStatsResponse::from_stats(stats);
 
     Ok(Json(ApiResponse::success(
         "Subscription statistics retrieved successfully",
@@ -388,16 +418,19 @@ pub async fn get_user_subscription_stats_handler(
 pub async fn get_subscription_tier_stats_handler(
     State(app_state): State<AppState>,
     _admin: AuthenticatedUserWithRole,
-) -> AppResult<Json<ApiResponse<Vec<SubscriptionTierStatsResponse>>>> {
+) -> AppResult<
+    Json<ApiResponse<Vec<crate::features::subscription::dto::SubscriptionTierStatsResponse>>>,
+> {
     let tier_stats = app_state
         .subscription_service
         .get_subscription_tier_stats()
         .await?;
 
-    let response: Vec<SubscriptionTierStatsResponse> = tier_stats
-        .into_iter()
-        .map(SubscriptionTierStatsResponse::from_stats)
-        .collect();
+    let response: Vec<crate::features::subscription::dto::SubscriptionTierStatsResponse> =
+        tier_stats
+            .into_iter()
+            .map(crate::features::subscription::dto::SubscriptionTierStatsResponse::from_stats)
+            .collect();
 
     Ok(Json(ApiResponse::success(
         "Subscription tier statistics retrieved successfully",
@@ -461,41 +494,45 @@ pub async fn get_subscription_overview_handler(
     )?;
 
     // 期間内のアップグレード・ダウングレードをフィルタ
-    let recent_upgrades: Vec<_> = upgrades
+    let recent_upgrades: Vec<SubscriptionChangeInfo> = upgrades
         .into_iter()
         .filter(|u| u.changed_at >= start_date)
         .collect();
-    let recent_downgrades: Vec<_> = downgrades
+    let recent_downgrades: Vec<SubscriptionChangeInfo> = downgrades
         .into_iter()
         .filter(|d| d.changed_at >= start_date)
         .collect();
 
-    let response = SubscriptionOverviewResponse {
+    let response = crate::features::subscription::dto::SubscriptionOverviewResponse {
         total_users: distribution.iter().map(|(_, count)| count).sum(),
         distribution: distribution
             .into_iter()
-            .map(|(tier, count)| TierDistribution {
-                tier,
-                user_count: count,
-            })
+            .map(
+                |(tier, count)| crate::features::subscription::dto::TierDistribution {
+                    tier,
+                    user_count: count,
+                },
+            )
             .collect(),
         tier_changes: tier_changes
             .into_iter()
-            .map(|(tier, count)| TierChangeStats {
-                tier,
-                change_count: count,
-            })
+            .map(
+                |(tier, count)| crate::features::subscription::dto::TierChangeStats {
+                    tier,
+                    change_count: count,
+                },
+            )
             .collect(),
         recent_upgrades_count: recent_upgrades.len() as u64,
         recent_downgrades_count: recent_downgrades.len() as u64,
         period_days: days as u32,
         tier_stats: tier_stats
             .into_iter()
-            .map(SubscriptionTierStatsResponse::from_stats)
+            .map(crate::features::subscription::dto::SubscriptionTierStatsResponse::from_stats)
             .collect(),
         // 収益情報は仮実装
         revenue_stats: if query.include_revenue.unwrap_or(false) {
-            Some(RevenueStats {
+            Some(crate::features::subscription::dto::RevenueStats {
                 monthly_recurring_revenue: 0.0,
                 annual_recurring_revenue: 0.0,
                 average_revenue_per_user: 0.0,
@@ -526,10 +563,276 @@ pub fn subscription_router() -> Router<AppState> {
 /// 管理者用サブスクリプションルーター
 pub fn admin_subscription_router() -> Router<AppState> {
     Router::new()
-        .route("/users/:user_id", patch(change_user_subscription_handler))
+        .route("/users/{user_id}", patch(change_user_subscription_handler))
         .route("/overview", get(get_subscription_overview_handler))
         .route("/stats/tiers", get(get_subscription_tier_stats_handler))
         .route("/history", get(get_subscription_history_by_period_handler))
+        .route("/history/search", get(search_subscription_history_handler))
+        .route("/analytics", get(get_subscription_analytics_handler))
+}
+
+// Legacy admin subscription router removed - use new endpoints
+
+/// Get subscription history with filters (admin)
+#[allow(dead_code)]
+async fn get_subscription_history_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUserWithRole,
+    Query(query): Query<SubscriptionHistoryQuery>,
+) -> AppResult<Json<ApiResponse<SubscriptionHistoryAdminResponse>>> {
+    let end_date = query.end_date.unwrap_or_else(Utc::now);
+    let start_date = query
+        .start_date
+        .unwrap_or_else(|| end_date - Duration::days(30));
+
+    let mut history = app_state
+        .subscription_service
+        .get_subscription_history_by_date_range(start_date, end_date)
+        .await?;
+
+    // Apply filter if provided
+    if let Some(filter) = query.filter {
+        match filter.as_str() {
+            "upgrades" => {
+                history.retain(|h| {
+                    if let Some(prev) = &h.previous_tier {
+                        get_tier_level(prev) < get_tier_level(&h.new_tier)
+                    } else {
+                        false
+                    }
+                });
+            }
+            "downgrades" => {
+                history.retain(|h| {
+                    if let Some(prev) = &h.previous_tier {
+                        get_tier_level(prev) > get_tier_level(&h.new_tier)
+                    } else {
+                        false
+                    }
+                });
+            }
+            _ => {}
+        }
+    }
+
+    // Calculate tier stats
+    let mut tier_counts = std::collections::HashMap::new();
+    let mut upgrades_count = 0u64;
+    let mut downgrades_count = 0u64;
+
+    for h in &history {
+        // Count changes by new tier
+        *tier_counts.entry(h.new_tier.clone()).or_insert(0u64) += 1;
+
+        // Count upgrades/downgrades
+        if let Some(prev) = &h.previous_tier {
+            let prev_level = get_tier_level(prev);
+            let new_level = get_tier_level(&h.new_tier);
+            match new_level.cmp(&prev_level) {
+                std::cmp::Ordering::Greater => upgrades_count += 1,
+                std::cmp::Ordering::Less => downgrades_count += 1,
+                std::cmp::Ordering::Equal => {}
+            }
+        }
+    }
+
+    let tier_stats: Vec<TierChangeStats> = tier_counts
+        .into_iter()
+        .map(|(tier, count)| TierChangeStats { tier, count })
+        .collect();
+
+    let response = SubscriptionHistoryAdminResponse {
+        histories: history.clone(),
+        tier_stats,
+        change_summary: ChangeSummary {
+            total_changes: history.len() as u64,
+            upgrades_count,
+            downgrades_count,
+        },
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Subscription history retrieved successfully",
+        response,
+    )))
+}
+
+#[allow(dead_code)]
+fn get_tier_level(tier: &str) -> u8 {
+    match tier {
+        "free" => 0,
+        "starter" => 1,
+        "professional" | "pro" => 2,
+        "enterprise" => 3,
+        _ => 0,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct SubscriptionHistoryQuery {
+    start_date: Option<DateTime<Utc>>,
+    end_date: Option<DateTime<Utc>>,
+    filter: Option<String>,
+}
+
+/// Get subscription history for a specific user - allows both user self-access and admin access
+pub async fn get_user_subscription_history_by_id_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Path(user_id): Path<Uuid>,
+    Query(query): Query<PaginationQuery>,
+) -> AppResult<Json<serde_json::Value>> {
+    // Check authorization: users can only access their own history unless they're admins
+    if user.user_id() != user_id && !user.is_admin() {
+        return Err(AppError::Forbidden(
+            "You can only access your own subscription history".to_string(),
+        ));
+    }
+
+    let page = query.page.unwrap_or(1) as u64;
+    let per_page = query.per_page.unwrap_or(20) as u64;
+
+    let (history, _total_count) = app_state
+        .subscription_service
+        .get_user_subscription_history(user_id, page, per_page)
+        .await?;
+
+    // Get stats
+    let stats = app_state
+        .subscription_service
+        .get_user_subscription_stats(user_id)
+        .await?;
+
+    // Get current user info for current tier
+    let user_profile = app_state.user_service.get_user_profile(user_id).await?;
+
+    // Format response to match test expectations
+    let response = serde_json::json!({
+        "user_id": user_id,
+        "history": history,
+        "stats": {
+            "total_changes": stats.total_changes,
+            "upgrade_count": stats.upgrade_count,
+            "downgrade_count": stats.downgrade_count,
+            "current_tier": user_profile.subscription_tier,
+            "days_at_current_tier": stats.days_at_current_tier,
+            "has_ever_upgraded": stats.has_ever_upgraded,
+        }
+    });
+
+    Ok(Json(response))
+}
+
+/// Get all subscription history with pagination (admin)
+#[allow(dead_code)]
+async fn get_all_subscription_history_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUserWithRole,
+    Query(query): Query<PaginationQuery>,
+) -> AppResult<Json<ApiResponse<PaginatedResponse<SubscriptionChangeInfo>>>> {
+    let end_date = Utc::now();
+    let start_date = end_date - Duration::days(365); // Default to last year
+
+    let history = app_state
+        .subscription_service
+        .get_subscription_history_by_date_range(start_date, end_date)
+        .await?;
+
+    let total = history.len();
+    let page = query.page.unwrap_or(1);
+    let per_page = query.per_page.unwrap_or(10);
+    let start = ((page - 1) * per_page) as usize;
+    let end = (start + per_page as usize).min(total);
+
+    let paginated_history = history[start..end].to_vec();
+
+    let response = PaginatedResponse {
+        items: paginated_history,
+        pagination: PaginationMeta::new(page, per_page, total as i64),
+    };
+
+    Ok(Json(ApiResponse::success(
+        "All subscription history retrieved successfully",
+        response,
+    )))
+}
+
+/// Search subscription history by tier (admin)
+async fn search_subscription_history_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUserWithRole,
+    Query(query): Query<SubscriptionSearchQuery>,
+) -> AppResult<Json<ApiResponse<Vec<SubscriptionChangeInfo>>>> {
+    let end_date = Utc::now();
+    let start_date = end_date - Duration::days(30); // Default to last 30 days
+
+    let mut history = app_state
+        .subscription_service
+        .get_subscription_history_by_date_range(start_date, end_date)
+        .await?;
+
+    // Filter by tier if provided
+    if let Some(tier) = query.tier {
+        history.retain(|h| h.new_tier == tier || h.previous_tier.as_ref() == Some(&tier));
+    }
+
+    Ok(Json(ApiResponse::success(
+        "Subscription history search completed",
+        history,
+    )))
+}
+
+/// Get subscription analytics (admin)
+async fn get_subscription_analytics_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUserWithRole,
+) -> AppResult<Json<ApiResponse<SubscriptionAnalyticsResponse>>> {
+    let distribution = app_state
+        .subscription_service
+        .get_subscription_distribution()
+        .await?;
+
+    let response = SubscriptionAnalyticsResponse {
+        total_subscriptions: distribution.iter().map(|(_, count)| *count as i64).sum(),
+        tier_distribution: distribution
+            .into_iter()
+            .map(|(tier, count)| TierDistribution {
+                tier,
+                count: count as i64,
+            })
+            .collect(),
+        growth_rate: 0.0, // TODO: Implement growth rate calculation
+        churn_rate: 0.0,  // TODO: Implement churn rate calculation
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Subscription analytics retrieved successfully",
+        response,
+    )))
+}
+
+#[derive(Debug, Deserialize)]
+struct SubscriptionSearchQuery {
+    tier: Option<String>,
+    #[allow(dead_code)]
+    user_id: Option<Uuid>,
+    #[allow(dead_code)]
+    organization_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SubscriptionAnalyticsResponse {
+    pub total_subscriptions: i64,
+    pub tier_distribution: Vec<TierDistribution>,
+    pub growth_rate: f64,
+    pub churn_rate: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TierDistribution {
+    pub tier: String,
+    pub count: i64,
 }
 
 /// 管理者権限を要求するルーターを生成
@@ -537,4 +840,9 @@ pub fn subscription_router_with_state() -> Router<AppState> {
     Router::new()
         .nest("/subscriptions", subscription_router())
         .nest("/admin/subscriptions", admin_subscription_router())
+        // Legacy paths for backward compatibility
+        .route(
+            "/users/{user_id}/subscription/history",
+            get(get_user_subscription_history_by_id_handler),
+        )
 }

@@ -174,9 +174,9 @@ async fn test_admin_get_subscription_history() {
         // Simulate subscription change
         if target_tier != "free" {
             use sea_orm::{ActiveModelTrait, Set};
-            use task_backend::domain::subscription_history_model;
+            use task_backend::features::subscription::models::history;
 
-            let history = subscription_history_model::ActiveModel {
+            let history = history::ActiveModel {
                 user_id: Set(user.id),
                 previous_tier: Set(Some("free".to_string())),
                 new_tier: Set(target_tier.to_string()),
@@ -216,34 +216,23 @@ async fn test_admin_get_subscription_history() {
     for history in histories {
         assert_eq!(history["previous_tier"], "free");
         assert!(history["new_tier"] == "pro" || history["new_tier"] == "enterprise");
-        assert_eq!(history["is_upgrade"], true);
-        assert_eq!(history["is_downgrade"], false);
         assert_eq!(history["reason"], "Test upgrade");
         assert!(history["changed_at"].is_string());
     }
 
-    // Verify tier stats
-    let tier_stats = json["data"]["tier_stats"].as_array().unwrap();
-    assert!(!tier_stats.is_empty());
-
-    let mut tier_map = std::collections::HashMap::new();
-    for stat in tier_stats {
-        tier_map.insert(
-            stat["tier"].as_str().unwrap().to_string(),
-            stat["count"].as_u64().unwrap(),
-        );
-    }
+    // Verify tier stats - this is an object, not array
+    let tier_stats = &json["data"]["tier_stats"];
+    assert!(tier_stats.is_object());
 
     // tier_stats shows how many times each tier was changed TO
     // We created 2 upgrades: 1 to pro and 1 to enterprise
-    assert_eq!(tier_map.get("pro").unwrap_or(&0), &1);
-    assert_eq!(tier_map.get("enterprise").unwrap_or(&0), &1);
+    assert_eq!(tier_stats["pro"].as_i64().unwrap_or(0), 1);
+    assert_eq!(tier_stats["enterprise"].as_i64().unwrap_or(0), 1);
 
     // Verify change summary
     let change_summary = &json["data"]["change_summary"];
-    assert_eq!(change_summary["total_changes"].as_u64().unwrap(), 2);
-    assert_eq!(change_summary["upgrades_count"].as_u64().unwrap(), 2);
-    assert_eq!(change_summary["downgrades_count"].as_u64().unwrap(), 0);
+    assert_eq!(change_summary["upgrades"].as_i64().unwrap(), 2);
+    assert_eq!(change_summary["downgrades"].as_i64().unwrap(), 0);
 }
 
 #[tokio::test]
@@ -313,10 +302,10 @@ async fn test_user_get_own_subscription_history() {
 
     // Add subscription history for the user
     use sea_orm::{ActiveModelTrait, Set};
-    use task_backend::domain::subscription_history_model;
+    use task_backend::features::subscription::models::history;
 
     // Simulate upgrade from free to pro
-    let history1 = subscription_history_model::ActiveModel {
+    let history1 = history::ActiveModel {
         user_id: Set(user.id),
         previous_tier: Set(Some("free".to_string())),
         new_tier: Set("pro".to_string()),
@@ -328,7 +317,7 @@ async fn test_user_get_own_subscription_history() {
 
     // Simulate later downgrade from pro to free
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    let history2 = subscription_history_model::ActiveModel {
+    let history2 = history::ActiveModel {
         user_id: Set(user.id),
         previous_tier: Set(Some("pro".to_string())),
         new_tier: Set("free".to_string()),

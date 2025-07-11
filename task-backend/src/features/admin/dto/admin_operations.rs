@@ -101,6 +101,7 @@ fn default_per_page() -> i32 {
 
 /// 一括操作リストクエリ
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)] // Query parameters used in deserialization
 pub struct BulkOperationListQuery {
     pub start_date: Option<DateTime<Utc>>,
     pub end_date: Option<DateTime<Utc>>,

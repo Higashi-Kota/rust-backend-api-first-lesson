@@ -56,7 +56,7 @@ async fn test_admin_list_organizations() {
     // 管理者として組織一覧を取得
     let req = auth_helper::create_authenticated_request(
         "GET",
-        "/admin/organizations?page=1&page_size=10",
+        "/admin/organizations?page=1&per_page=10",
         &admin_token,
         None,
     );
@@ -150,7 +150,7 @@ async fn test_admin_list_users_with_roles() {
     // 管理者として全ユーザー一覧を取得
     let req = auth_helper::create_authenticated_request(
         "GET",
-        "/admin/users/roles?page=1&page_size=10",
+        "/admin/users/roles?page=1&per_page=10",
         &admin_token,
         None,
     );
@@ -254,7 +254,7 @@ async fn test_admin_organization_pagination() {
     // 最初のページを取得（5件）
     let req = auth_helper::create_authenticated_request(
         "GET",
-        "/admin/organizations?page=1&page_size=5",
+        "/admin/organizations?page=1&per_page=5",
         &admin_token,
         None,
     );
@@ -276,7 +276,7 @@ async fn test_admin_organization_pagination() {
     // 2ページ目を取得
     let req = auth_helper::create_authenticated_request(
         "GET",
-        "/admin/organizations?page=2&page_size=5",
+        "/admin/organizations?page=2&per_page=5",
         &admin_token,
         None,
     );

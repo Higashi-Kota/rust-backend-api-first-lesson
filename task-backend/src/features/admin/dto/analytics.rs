@@ -361,6 +361,7 @@ impl Default for SubscriptionMetrics {
 }
 
 impl ActivitySummary {
+    #[allow(dead_code)] // Utility method for analytics calculations
     pub fn calculate_productivity_score(
         completion_rate: f64,
         average_daily_tasks: f64,
@@ -371,6 +372,7 @@ impl ActivitySummary {
 }
 
 impl TaskStatsOverview {
+    #[allow(dead_code)] // Utility method for task statistics
     pub fn calculate_completion_rate(completed: u64, total: u64) -> f64 {
         if total == 0 {
             0.0
@@ -549,7 +551,7 @@ pub struct UserRecommendation {
 }
 
 /// エクスポートフィルター
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ExportFilters {
     pub date_range: Option<DateRange>,
     pub user_filter: Option<UserFilter>,
@@ -753,6 +755,33 @@ pub enum ProficiencyLevel {
     Expert,
 }
 
+/// ユーザー分析エクスポートクエリ
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserAnalyticsExportQuery {
+    pub user_ids: Option<Vec<Uuid>>,
+}
+
+/// ユーザー分析エクスポート
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserAnalyticsExport {
+    pub user_id: Uuid,
+    pub username: String,
+    pub email: String,
+    pub registration_date: DateTime<Utc>,
+    pub last_active: DateTime<Utc>,
+    pub total_tasks: i32,
+    pub completed_tasks: i32,
+    pub feature_usage_summary: Vec<FeatureUsageSummary>,
+}
+
+/// 機能使用概要
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FeatureUsageSummary {
+    pub feature_name: String,
+    pub usage_count: u32,
+    pub last_used: DateTime<Utc>,
+}
+
 /// トレンド方向
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TrendDirection {
@@ -877,6 +906,7 @@ impl Default for SessionDuration {
 }
 
 impl BehavioralMetrics {
+    #[allow(dead_code)] // Utility method for engagement analysis
     pub fn calculate_engagement_level(activity_score: f64) -> EngagementLevel {
         match activity_score {
             score if score >= 80.0 => EngagementLevel::VeryHigh,

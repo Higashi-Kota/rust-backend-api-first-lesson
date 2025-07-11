@@ -1,4 +1,5 @@
 // task-backend/src/service/permission_service.rs
+#![allow(dead_code)] // Service methods for permission management
 
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::domain::role_model::RoleWithPermissions;
@@ -19,6 +20,7 @@ pub struct PermissionService {
     role_repository: Arc<RoleRepository>,
     user_repository: Arc<UserRepository>,
     team_repository: Arc<TeamRepository>,
+    #[allow(dead_code)] // Will be used for organization permission checks
     organization_repository: Arc<OrganizationRepository>,
 }
 

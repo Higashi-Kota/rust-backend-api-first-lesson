@@ -1,17 +1,18 @@
 // task-backend/src/features/security/usecases/permission_checker.rs
 
-use super::super::models::role::RoleWithPermissions;
 use super::super::services::permission::PermissionService;
-use crate::core::permission::{PermissionResult, PermissionScope};
+use crate::core::permission::PermissionScope;
 use crate::error::AppResult;
 use std::sync::Arc;
 use uuid::Uuid;
 
 /// 権限チェックのビジネスロジックを統合的に扱うUseCase
+#[allow(dead_code)] // Security feature usecase - will be used when integrated
 pub struct PermissionCheckerUseCase {
     permission_service: Arc<PermissionService>,
 }
 
+#[allow(dead_code)] // TODO: Will be used when advanced permission checking features are integrated
 impl PermissionCheckerUseCase {
     pub fn new(permission_service: Arc<PermissionService>) -> Self {
         Self { permission_service }
@@ -74,10 +75,14 @@ impl PermissionCheckerUseCase {
 
             // 時間制限付き権限チェック
             if let Some(time_restriction) = context.time_restriction {
-                if self.check_time_based_permission(time_restriction) {
+                if self.check_time_based_permission(time_restriction.clone()) {
+                    let description = match &time_restriction {
+                        TimeRestriction::BusinessHours => "Business hours".to_string(),
+                        TimeRestriction::Custom { description, .. } => description.clone(),
+                    };
                     return Ok(PermissionDecision::Allowed {
                         reason: "Time-based permission granted".to_string(),
-                        conditions: vec![format!("Valid during: {}", time_restriction.description)],
+                        conditions: vec![format!("Valid during: {}", description)],
                     });
                 }
             }
@@ -154,11 +159,10 @@ impl PermissionCheckerUseCase {
 
         Ok(HierarchicalPermissionResult {
             hierarchy_levels: permissions,
-            highest_permission,
+            highest_permission: highest_permission.clone(),
             effective_scope: highest_permission
                 .as_ref()
-                .map(|p| p.scope.clone())
-                .unwrap_or(PermissionScope::Own),
+                .map_or(PermissionScope::Own, |p| p.scope.clone()),
         })
     }
 
@@ -201,9 +205,7 @@ impl PermissionCheckerUseCase {
         use chrono::{Local, NaiveTime, Timelike};
 
         let now = Local::now();
-        let current_time =
-            NaiveTime::from_hms_opt(now.hour() as u32, now.minute() as u32, now.second() as u32)
-                .unwrap();
+        let current_time = NaiveTime::from_hms_opt(now.hour(), now.minute(), now.second()).unwrap();
 
         match restriction {
             TimeRestriction::BusinessHours => {
@@ -234,6 +236,7 @@ impl PermissionCheckerUseCase {
 // データ構造
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for complex permission scenarios
 pub struct ComplexPermissionContext {
     pub organization_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
@@ -241,6 +244,7 @@ pub struct ComplexPermissionContext {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for time-based permissions
 pub enum TimeRestriction {
     BusinessHours,
     Custom {
@@ -251,6 +255,7 @@ pub enum TimeRestriction {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for permission decisions
 pub enum PermissionDecision {
     Allowed {
         reason: String,
@@ -263,6 +268,7 @@ pub enum PermissionDecision {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for hierarchical permissions
 pub struct PermissionHierarchy {
     pub organization_id: Option<Uuid>,
     pub team_id: Option<Uuid>,
@@ -270,6 +276,7 @@ pub struct PermissionHierarchy {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for hierarchical permissions
 pub struct HierarchyLevel {
     pub level: String,
     pub has_permission: bool,
@@ -277,6 +284,7 @@ pub struct HierarchyLevel {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for hierarchical permissions
 pub struct HierarchicalPermissionResult {
     pub hierarchy_levels: Vec<HierarchyLevel>,
     pub highest_permission: Option<HierarchyLevel>,
@@ -284,6 +292,7 @@ pub struct HierarchicalPermissionResult {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for batch permission checks
 pub struct PermissionRequest {
     pub id: String,
     pub resource_type: String,
@@ -292,6 +301,7 @@ pub struct PermissionRequest {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Will be used for batch permission checks
 pub struct BatchPermissionResult {
     pub request_id: String,
     pub resource_type: String,
@@ -307,7 +317,7 @@ mod tests {
 
     #[test]
     fn test_time_restriction() {
-        let business_hours = TimeRestriction::BusinessHours;
+        let _business_hours = TimeRestriction::BusinessHours;
         // 実際のテストは時刻に依存するため、モックが必要
     }
 

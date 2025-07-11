@@ -86,6 +86,7 @@ impl From<String> for DepartmentRole {
 }
 
 impl Model {
+    #[allow(dead_code)] // Model utility method
     pub fn get_role(&self) -> DepartmentRole {
         DepartmentRole::from(self.role.clone())
     }

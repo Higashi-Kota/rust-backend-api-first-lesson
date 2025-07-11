@@ -1,4 +1,5 @@
 // task-backend/src/domain/organization_model.rs
+#![allow(dead_code)] // Model methods and utilities
 
 use crate::core::subscription_tier::SubscriptionTier;
 use chrono::{DateTime, Utc};
@@ -259,6 +260,7 @@ impl OrganizationMember {
     }
 
     /// 役割を更新
+    #[allow(dead_code)] // Model utility method
     pub fn update_role(&mut self, role: OrganizationRole) {
         self.role = role;
     }

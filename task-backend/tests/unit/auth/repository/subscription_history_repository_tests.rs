@@ -5,7 +5,7 @@ use task_backend::{
     core::subscription_tier::SubscriptionTier,
     domain::role_model,
     features::auth::repository::user_repository::{CreateUser, UserRepository},
-    repository::subscription_history_repository::SubscriptionHistoryRepository,
+    features::subscription::repositories::history::SubscriptionHistoryRepository,
 };
 use uuid::Uuid;
 
