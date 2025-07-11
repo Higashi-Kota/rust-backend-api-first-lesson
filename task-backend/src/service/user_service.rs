@@ -504,7 +504,7 @@ impl UserService {
 
         let domain_notifications = settings.get_email_notifications();
         // ドメインモデルからDTOへ変換
-        let notifications = crate::api::dto::user_dto::NotificationSettings {
+        let notifications = crate::shared::dto::user::NotificationSettings {
             email_notifications: true, // 汎用的な通知設定
             security_alerts: domain_notifications.security_alerts,
             task_reminders: domain_notifications.task_updates,

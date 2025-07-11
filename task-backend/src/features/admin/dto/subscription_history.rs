@@ -61,7 +61,7 @@ fn get_tier_level(tier: &str) -> i32 {
 pub struct SubscriptionHistoryResponse {
     pub user_id: Uuid,
     pub history: Vec<SubscriptionHistoryItemResponse>,
-    pub pagination: Option<crate::api::dto::common::PaginationMeta>,
+    pub pagination: Option<crate::shared::types::pagination::PaginationMeta>,
     pub stats: SubscriptionStatsResponse,
 }
 

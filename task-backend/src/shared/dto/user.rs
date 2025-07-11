@@ -443,7 +443,7 @@ pub struct UserWithRoleResponse {
     pub subscription_tier: String,
     pub created_at: DateTime<Utc>,
     pub last_login_at: Option<DateTime<Utc>>,
-    pub role: crate::api::dto::role_dto::RoleResponse,
+    pub role: crate::features::security::dto::legacy::role_dto::RoleResponse,
 }
 
 /// ロール別ユーザー統計

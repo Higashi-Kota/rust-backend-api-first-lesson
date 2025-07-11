@@ -1,8 +1,8 @@
 // task-backend/src/api/handlers/role_handler.rs
-use crate::api::dto::role_dto::*;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUserWithRole;
+use crate::features::security::dto::legacy::role_dto::*;
 use crate::shared::types::{ApiResponse, OperationResult};
 use axum::{
     extract::{Json, Path, Query, State},

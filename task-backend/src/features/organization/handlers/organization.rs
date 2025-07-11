@@ -2,14 +2,14 @@
 #![allow(unused_variables)]
 
 // 一時的に旧DTOを使用（Phase 19の互換性確保のため）
-use crate::api::dto::organization_dto::{
+use crate::domain::organization_model::OrganizationRole;
+use crate::features::organization::dto::organization::{
     CreateOrganizationRequest, InviteOrganizationMemberRequest, OrganizationCapacityResponse,
     OrganizationListResponse, OrganizationMemberDetailResponse, OrganizationMemberResponse,
     OrganizationResponse, OrganizationSearchQuery, OrganizationStatsResponse,
     UpdateOrganizationMemberRoleRequest, UpdateOrganizationRequest,
     UpdateOrganizationSettingsRequest, UpdateOrganizationSubscriptionRequest,
 };
-use crate::domain::organization_model::OrganizationRole;
 // TODO: Phase 19でOrganizationServiceの本来の使用箇所が移行されたら#[allow(unused_imports)]を削除
 #[allow(unused_imports)]
 use super::super::services::OrganizationService;

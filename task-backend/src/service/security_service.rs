@@ -1,15 +1,15 @@
 // task-backend/src/service/security_service.rs
 #![allow(dead_code)] // Service methods for security management
 
-use crate::api::dto::security_dto::{
-    AuditFinding, AuditReport, AuditReportRequest, AuditSummary, CleanupResult, DeviceSession,
-    GeographicSession, PasswordResetActivity, PasswordResetTokenStats, RefreshTokenStats,
-    RevokeAllTokensRequest, RevokeResult, SessionAnalytics,
-};
 use crate::error::AppResult;
 use crate::features::auth::repository::{
     password_reset_token_repository::PasswordResetTokenRepository,
     refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
+};
+use crate::features::security::dto::security::{
+    AuditFinding, AuditReport, AuditReportRequest, AuditSummary, CleanupResult, DeviceSession,
+    GeographicSession, PasswordResetActivity, PasswordResetTokenStats, RefreshTokenStats,
+    RevokeAllTokensRequest, RevokeResult, SessionAnalytics,
 };
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
@@ -292,7 +292,7 @@ impl SecurityService {
         &self,
         failed_attempts_threshold: u32,
         hours: u32,
-    ) -> AppResult<Vec<crate::api::dto::analytics_dto::SuspiciousIpInfo>> {
+    ) -> AppResult<Vec<crate::features::admin::dto::analytics::SuspiciousIpInfo>> {
         let suspicious_ips = self
             .login_attempt_repo
             .find_suspicious_ips_with_details(failed_attempts_threshold as u64, hours as i64)
@@ -301,7 +301,7 @@ impl SecurityService {
         Ok(suspicious_ips
             .into_iter()
             .map(|(ip_address, failed_attempts, last_attempt)| {
-                crate::api::dto::analytics_dto::SuspiciousIpInfo {
+                crate::features::admin::dto::analytics::SuspiciousIpInfo {
                     ip_address,
                     failed_attempts,
                     last_attempt,
@@ -464,7 +464,7 @@ impl SecurityService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::dto::security_dto::test_helpers;
+    use crate::features::security::dto::security::test_helpers;
     use validator::Validate;
 
     #[tokio::test]

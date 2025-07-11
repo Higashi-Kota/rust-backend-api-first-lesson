@@ -1,8 +1,11 @@
-use crate::api::dto::subscription_dto::{CurrentSubscriptionResponse, SubscriptionTierInfo};
-use crate::api::{dto::common::ApiResponse, AppState};
+use crate::api::AppState;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
+use crate::features::subscription::dto::subscription::{
+    CurrentSubscriptionResponse, SubscriptionTierInfo,
+};
+use crate::shared::types::common::ApiResponse;
 use axum::{
     extract::{Json, Query, State},
     http::HeaderMap,

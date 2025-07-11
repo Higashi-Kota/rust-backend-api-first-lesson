@@ -21,7 +21,6 @@ use crate::service::{
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
-pub mod dto;
 pub mod handlers;
 
 /// 統一されたアプリケーション状態

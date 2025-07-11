@@ -14,10 +14,10 @@ pub struct SystemInfoResponse {
 
 pub async fn get_system_info(
     State(app_state): State<Arc<AppState>>,
-) -> Result<Json<crate::api::dto::ApiResponse<SystemInfoResponse>>, AppError> {
+) -> Result<Json<crate::shared::types::common::ApiResponse<SystemInfoResponse>>, AppError> {
     let config = &app_state.config;
 
-    Ok(Json(crate::api::dto::ApiResponse::success(
+    Ok(Json(crate::shared::types::common::ApiResponse::success(
         "System information retrieved",
         SystemInfoResponse {
             environment: config.environment.clone(),

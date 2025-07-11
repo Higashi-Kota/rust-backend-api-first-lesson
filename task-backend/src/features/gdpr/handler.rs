@@ -1,6 +1,5 @@
 // task-backend/src/features/gdpr/handler.rs
 
-use crate::api::dto::common::ApiResponse;
 use crate::api::AppState;
 use crate::error::AppResult;
 use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
@@ -10,6 +9,7 @@ use crate::features::gdpr::dto::{
     SingleConsentUpdateRequest,
 };
 use crate::features::gdpr::service::GdprService;
+use crate::shared::types::common::ApiResponse;
 use axum::{
     extract::{Path, State},
     Json,

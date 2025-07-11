@@ -1,3 +1,4 @@
+pub mod legacy;
 pub mod permission;
 pub mod query;
 pub mod requests;

@@ -1,5 +1,10 @@
 // task-backend/src/api/handlers/user_handler.rs
-use crate::api::dto::user_dto::{
+use crate::api::AppState;
+use crate::core::subscription_tier::SubscriptionTier;
+use crate::error::{AppError, AppResult};
+use crate::features::auth::middleware::AuthenticatedUser;
+use crate::features::auth::middleware::AuthenticatedUserWithRole;
+use crate::shared::dto::user::{
     AccountStatusUpdateResponse, BulkOperationResponse, BulkUserOperationsRequest,
     EmailVerificationHistoryResponse, EmailVerificationResponse, ProfileUpdateResponse,
     ResendVerificationEmailRequest, SubscriptionAnalyticsResponse, SubscriptionQuery,
@@ -8,11 +13,6 @@ use crate::api::dto::user_dto::{
     UserListResponse, UserPermissionsResponse, UserProfileResponse, UserSearchQuery,
     UserSettingsResponse, UserStatsResponse, UserSummary, VerifyEmailRequest,
 };
-use crate::api::AppState;
-use crate::core::subscription_tier::SubscriptionTier;
-use crate::error::{AppError, AppResult};
-use crate::features::auth::middleware::AuthenticatedUser;
-use crate::features::auth::middleware::AuthenticatedUserWithRole;
 use crate::shared::types::{ApiResponse, OperationResult};
 use crate::utils::permission::PermissionChecker;
 use axum::{
@@ -1036,7 +1036,7 @@ pub async fn update_last_login_handler(
 
     // ApiResponse::success_messageを活用
     Ok(Json(
-        crate::api::dto::common::ApiResponse::<()>::success_message(
+        crate::shared::types::common::ApiResponse::<()>::success_message(
             "Last login time updated successfully",
         ),
     ))

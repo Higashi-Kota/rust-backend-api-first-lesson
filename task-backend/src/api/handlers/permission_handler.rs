@@ -1,6 +1,5 @@
 // task-backend/src/api/handlers/permission_handler.rs
 
-use crate::api::dto::permission_dto::*;
 use crate::api::AppState;
 use crate::core::permission::{
     Permission, PermissionQuota, PermissionResult, PermissionScope, Privilege,
@@ -8,6 +7,7 @@ use crate::core::permission::{
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::features::security::dto::permission::*;
 use crate::shared::types::ApiResponse;
 use crate::utils::permission::PermissionType;
 use axum::{

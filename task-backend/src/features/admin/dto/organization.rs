@@ -1,8 +1,10 @@
 // task-backend/src/api/dto/admin_organization_dto.rs
 
-use crate::api::dto::organization_dto::{OrganizationListResponse, OrganizationTierStats};
-use crate::api::dto::user_dto::UserWithRoleResponse;
 use crate::core::subscription_tier::SubscriptionTier;
+use crate::features::organization::dto::organization::{
+    OrganizationListResponse, OrganizationTierStats,
+};
+use crate::shared::dto::user::UserWithRoleResponse;
 use crate::shared::types::pagination::PaginationMeta;
 use serde::{Deserialize, Serialize};
 
