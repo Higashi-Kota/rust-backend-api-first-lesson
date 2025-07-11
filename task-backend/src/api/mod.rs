@@ -1,10 +1,12 @@
 // task-backend/src/api/mod.rs
 use crate::config::AppConfig;
 use crate::features::auth::service::AuthService;
+use crate::features::payment::services::payment_service::PaymentService;
 use crate::features::storage::attachment::service::AttachmentService;
 use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
 use crate::features::subscription::services::subscription::SubscriptionService;
 use crate::features::task::service::TaskService;
+use crate::features::user::services::user_service::UserService;
 use crate::infrastructure::jwt::JwtManager;
 use crate::repository::{
     bulk_operation_history_repository::BulkOperationHistoryRepository,
@@ -13,10 +15,9 @@ use crate::repository::{
 };
 use crate::service::{
     feature_tracking_service::FeatureTrackingService, organization_service::OrganizationService,
-    payment_service::PaymentService, permission_service::PermissionService,
-    role_service::RoleService, security_service::SecurityService,
-    team_invitation_service::TeamInvitationService, team_service::TeamService,
-    user_service::UserService,
+    permission_service::PermissionService, role_service::RoleService,
+    security_service::SecurityService, team_invitation_service::TeamInvitationService,
+    team_service::TeamService,
 };
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;

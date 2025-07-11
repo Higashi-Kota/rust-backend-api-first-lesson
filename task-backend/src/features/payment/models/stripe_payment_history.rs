@@ -1,4 +1,4 @@
-// src/domain/stripe_payment_history_model.rs
+// Payment history model for tracking Stripe payment transactions
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;

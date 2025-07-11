@@ -1,7 +1,5 @@
-// src/repository/stripe_payment_history_repository.rs
-
 use crate::db;
-use crate::domain::stripe_payment_history_model::{
+use crate::features::payment::models::stripe_payment_history::{
     self, ActiveModel as PaymentHistoryActiveModel, Entity as PaymentHistoryEntity,
 };
 use chrono::Utc;
@@ -36,12 +34,12 @@ impl StripePaymentHistoryRepository {
         user_id: Uuid,
         page: u64,
         per_page: u64,
-    ) -> Result<(Vec<stripe_payment_history_model::Model>, u64), DbErr> {
+    ) -> Result<(Vec<stripe_payment_history::Model>, u64), DbErr> {
         self.prepare_connection().await?;
 
         let paginator = PaymentHistoryEntity::find()
-            .filter(stripe_payment_history_model::Column::UserId.eq(user_id))
-            .order_by(stripe_payment_history_model::Column::CreatedAt, Order::Desc)
+            .filter(stripe_payment_history::Column::UserId.eq(user_id))
+            .order_by(stripe_payment_history::Column::CreatedAt, Order::Desc)
             .paginate(&self.db, per_page);
 
         let total_pages = paginator.num_pages().await?;
@@ -54,7 +52,7 @@ impl StripePaymentHistoryRepository {
     pub async fn create(
         &self,
         create_payment: CreatePaymentHistory,
-    ) -> Result<stripe_payment_history_model::Model, DbErr> {
+    ) -> Result<stripe_payment_history::Model, DbErr> {
         self.prepare_connection().await?;
 
         let new_payment = PaymentHistoryActiveModel {

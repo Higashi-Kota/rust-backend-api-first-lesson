@@ -2,6 +2,10 @@ use crate::api::AppState;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
+use crate::features::payment::dto::requests::{CreateCheckoutRequest, PaymentHistoryQuery};
+use crate::features::payment::dto::responses::{
+    CreateCheckoutResponse, CustomerPortalResponse, PaymentHistoryItem, PaymentHistoryResponse,
+};
 use crate::features::subscription::dto::subscription::{
     CurrentSubscriptionResponse, SubscriptionTierInfo,
 };
@@ -15,64 +19,6 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use validator::Validate;
-
-#[derive(Debug, Deserialize, Validate)]
-pub struct CreateCheckoutRequest {
-    #[validate(custom(function = "validate_tier"))]
-    pub tier: String,
-}
-
-fn validate_tier(tier: &str) -> Result<(), validator::ValidationError> {
-    match tier.to_lowercase().as_str() {
-        "pro" | "enterprise" => Ok(()),
-        _ => Err(validator::ValidationError::new("invalid_tier")),
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CreateCheckoutResponse {
-    pub checkout_url: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CustomerPortalResponse {
-    pub portal_url: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PaymentHistoryQuery {
-    #[serde(default = "default_page")]
-    pub page: u64,
-    #[serde(default = "default_per_page")]
-    pub per_page: u64,
-}
-
-fn default_page() -> u64 {
-    1
-}
-
-fn default_per_page() -> u64 {
-    10
-}
-
-#[derive(Debug, Serialize)]
-pub struct PaymentHistoryItem {
-    pub id: String,
-    pub amount: i32,
-    pub currency: String,
-    pub status: String,
-    pub description: Option<String>,
-    pub paid_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct PaymentHistoryResponse {
-    pub items: Vec<PaymentHistoryItem>,
-    pub total_pages: u64,
-    pub current_page: u64,
-    pub per_page: u64,
-}
 
 /// チェックアウトセッション作成
 pub async fn create_checkout_handler(
@@ -168,8 +114,66 @@ pub async fn create_customer_portal_handler(
     )))
 }
 
+/// 支払い履歴を取得
+pub async fn get_payment_history_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Query(query): Query<PaymentHistoryQuery>,
+) -> AppResult<Json<ApiResponse<PaymentHistoryResponse>>> {
+    info!(
+        user_id = %user.claims.user_id,
+        page = %query.page,
+        per_page = %query.per_page,
+        "Getting payment history"
+    );
+
+    // ページネーションの検証
+    if query.page == 0 {
+        return Err(AppError::BadRequest(
+            "Page number must be 1 or greater".to_string(),
+        ));
+    }
+    if query.per_page == 0 || query.per_page > 100 {
+        return Err(AppError::BadRequest(
+            "Per page must be between 1 and 100".to_string(),
+        ));
+    }
+
+    // 支払い履歴を取得（0-indexed）
+    let (history_items, total_pages) = app_state
+        .payment_service
+        .get_payment_history(user.claims.user_id, query.page - 1, query.per_page)
+        .await?;
+
+    // DTOに変換
+    let items: Vec<PaymentHistoryItem> = history_items
+        .into_iter()
+        .map(|item| PaymentHistoryItem {
+            id: item.id.to_string(),
+            amount: item.amount,
+            currency: item.currency,
+            status: item.status,
+            description: item.description,
+            paid_at: item.paid_at.map(|dt| dt.to_rfc3339()),
+            created_at: item.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    let response = PaymentHistoryResponse {
+        items,
+        total_pages,
+        page: query.page,
+        per_page: query.per_page,
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Payment history retrieved successfully",
+        response,
+    )))
+}
+
 /// Stripe Webhookハンドラー
-pub async fn stripe_webhook_handler(
+pub async fn webhook_handler(
     State(app_state): State<AppState>,
     headers: HeaderMap,
     body: String,
@@ -283,66 +287,29 @@ pub async fn get_upgrade_options_handler(
     )))
 }
 
-/// 支払い履歴を取得
-pub async fn get_payment_history_handler(
-    State(app_state): State<AppState>,
-    user: AuthenticatedUser,
-    Query(query): Query<PaymentHistoryQuery>,
-) -> AppResult<Json<ApiResponse<PaymentHistoryResponse>>> {
-    info!(
-        user_id = %user.claims.user_id,
-        page = %query.page,
-        per_page = %query.per_page,
-        "Getting payment history"
-    );
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StripeConfigResponse {
+    pub publishable_key: String,
+    pub is_test_mode: bool,
+}
 
-    // ページネーションの検証
-    if query.page == 0 {
-        return Err(AppError::BadRequest(
-            "Page number must be 1 or greater".to_string(),
-        ));
-    }
-    if query.per_page == 0 || query.per_page > 100 {
-        return Err(AppError::BadRequest(
-            "Per page must be between 1 and 100".to_string(),
-        ));
-    }
-
-    // 支払い履歴を取得（0-indexed）
-    let (history_items, total_pages) = app_state
-        .payment_service
-        .get_payment_history(user.claims.user_id, query.page - 1, query.per_page)
-        .await?;
-
-    // DTOに変換
-    let items: Vec<PaymentHistoryItem> = history_items
-        .into_iter()
-        .map(|item| PaymentHistoryItem {
-            id: item.id.to_string(),
-            amount: item.amount,
-            currency: item.currency,
-            status: item.status,
-            description: item.description,
-            paid_at: item.paid_at,
-            created_at: item.created_at,
-        })
-        .collect();
-
-    let response = PaymentHistoryResponse {
-        items,
-        total_pages,
-        current_page: query.page,
-        per_page: query.per_page,
-    };
+/// Stripe設定情報を取得
+pub async fn get_stripe_config_handler(
+    State(_app_state): State<AppState>,
+) -> AppResult<Json<ApiResponse<StripeConfigResponse>>> {
+    let config = std::sync::Arc::new(crate::config::stripe::StripeConfig::from_env());
 
     Ok(Json(ApiResponse::success(
-        "Payment history retrieved successfully",
-        response,
+        "Stripe configuration retrieved",
+        StripeConfigResponse {
+            publishable_key: config.publishable_key.clone(),
+            is_test_mode: config.is_test_mode(),
+        },
     )))
 }
 
-/// 決済関連のルーター
-pub fn payment_router(app_state: AppState) -> Router {
+/// 決済関連のルーター（メインから呼び出される関数）
+pub fn payment_router_with_state(app_state: AppState) -> Router {
     Router::new()
         // 認証が必要なエンドポイント
         .route("/payments/checkout", post(create_checkout_handler))
@@ -364,32 +331,6 @@ pub fn payment_router(app_state: AppState) -> Router {
         // Stripe設定エンドポイント（管理者専用）
         .route("/admin/payments/config", get(get_stripe_config_handler))
         // Webhookエンドポイント（認証不要）
-        .route("/webhooks/stripe", post(stripe_webhook_handler))
+        .route("/webhooks/stripe", post(webhook_handler))
         .with_state(app_state)
-}
-
-/// 決済ルーターをAppStateから作成
-pub fn payment_router_with_state(app_state: AppState) -> Router {
-    payment_router(app_state)
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StripeConfigResponse {
-    pub publishable_key: String,
-    pub is_test_mode: bool,
-}
-
-/// Stripe設定情報を取得
-pub async fn get_stripe_config_handler(
-    State(_app_state): State<AppState>,
-) -> AppResult<Json<ApiResponse<StripeConfigResponse>>> {
-    let config = std::sync::Arc::new(crate::config::stripe::StripeConfig::from_env());
-
-    Ok(Json(ApiResponse::success(
-        "Stripe configuration retrieved",
-        StripeConfigResponse {
-            publishable_key: config.publishable_key.clone(),
-            is_test_mode: config.is_test_mode(),
-        },
-    )))
 }

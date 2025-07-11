@@ -7,8 +7,8 @@ use task_backend::features::auth::repository::{
     email_verification_token_repository::EmailVerificationTokenRepository,
     user_repository::UserRepository, user_settings_repository::UserSettingsRepository,
 };
+use task_backend::features::user::services::user_service::UserService;
 use task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository;
-use task_backend::service::user_service::UserService;
 use task_backend::shared::dto::user::{UpdateProfileRequest, UpdateUsernameRequest};
 use task_backend::utils::validation::common::validate_username;
 use validator::Validate;

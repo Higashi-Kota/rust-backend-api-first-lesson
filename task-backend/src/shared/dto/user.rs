@@ -1,7 +1,7 @@
 // task-backend/src/shared/dto/user.rs
 
 use crate::domain::user_model::SafeUser;
-use crate::service::user_service::UserStats;
+use crate::features::user::services::user_service::UserStats;
 use crate::shared::types::common::{ApiResponse, OperationResult};
 use crate::shared::types::pagination::PaginatedResponse;
 use crate::utils::validation::common;
@@ -373,7 +373,9 @@ pub struct TokenStatusResponse {
 
 impl UserAdditionalInfo {
     pub fn from_user_stats(stats: &UserStats) -> Self {
-        let days_since_registration = (Utc::now() - stats.created_at).num_days();
+        let days_since_registration = Utc::now()
+            .signed_duration_since(stats.created_at)
+            .num_days();
 
         let account_status = AccountStatus {
             is_active: stats.is_active,

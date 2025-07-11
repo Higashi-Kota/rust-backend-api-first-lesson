@@ -3,7 +3,7 @@
 use axum::{body::Body, http::Request, Router};
 use std::sync::Arc;
 use task_backend::{
-    api::{handlers::user_handler, AppState},
+    api::AppState,
     config::AppConfig,
     features::auth::{
         handler as auth_handler,
@@ -14,10 +14,12 @@ use task_backend::{
         },
         service::AuthService,
     },
+    features::payment::services::payment_service::PaymentService,
     features::storage::{attachment::service::AttachmentService, service::StorageService},
     features::subscription::repositories::history::SubscriptionHistoryRepository,
     features::subscription::services::subscription::SubscriptionService,
     features::task::{handler as task_handler, service::TaskService},
+    features::user::services::user_service::UserService,
     infrastructure::{
         email::{EmailConfig, EmailService},
         jwt::JwtManager,
@@ -28,8 +30,7 @@ use task_backend::{
         team_repository::TeamRepository,
     },
     service::{
-        payment_service::PaymentService, permission_service::PermissionService,
-        role_service::RoleService, team_service::TeamService, user_service::UserService,
+        permission_service::PermissionService, role_service::RoleService, team_service::TeamService,
     },
 };
 
@@ -270,7 +271,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     // ルーターを作成して統合
     let app = Router::new()
         .merge(auth_handler::auth_router(app_state.clone()))
-        .merge(user_handler::user_router(app_state.clone()))
+        .merge(task_backend::features::user::handlers::user_handler::user_router(app_state.clone()))
         .merge(
             task_backend::features::security::handlers::security::security_router(
                 app_state.clone(),
@@ -538,7 +539,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
     // 全てのルーターを統合
     let app = Router::new()
         .merge(auth_handler::auth_router(app_state.clone()))
-        .merge(user_handler::user_router(app_state.clone()))
+        .merge(task_backend::features::user::handlers::user_handler::user_router(app_state.clone()))
         .merge(task_handler::task_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::role_handler::role_router_with_state(app_state.clone()))
         .merge(task_backend::features::team::handlers::team_router_with_state(app_state.clone()))
@@ -555,7 +556,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
                 .with_state(app_state.clone()),
         )
         .merge(
-            task_backend::api::handlers::payment_handler::payment_router_with_state(
+            task_backend::features::payment::handlers::payment_handler::payment_router_with_state(
                 app_state.clone(),
             ),
         )
@@ -570,7 +571,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         )
         .merge(task_backend::features::security::handlers::security::security_router(app_state.clone()))
         .merge(
-            task_backend::api::handlers::system_handler::system_router_with_state(Arc::new(
+            task_backend::features::system::handlers::system_handler::system_router_with_state(Arc::new(
                 app_state.clone(),
             )),
         )
@@ -837,7 +838,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
     // 全てのルーターを統合
     let app = Router::new()
         .merge(auth_handler::auth_router(app_state.clone()))
-        .merge(user_handler::user_router(app_state.clone()))
+        .merge(task_backend::features::user::handlers::user_handler::user_router(app_state.clone()))
         .merge(task_handler::task_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::role_handler::role_router(
             app_state.clone(),

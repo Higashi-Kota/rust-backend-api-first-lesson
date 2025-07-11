@@ -6,7 +6,7 @@ use axum::http::StatusCode;
 use chrono::{Duration, Utc};
 use serde_json::json;
 use task_backend::core::subscription_tier::SubscriptionTier;
-use task_backend::domain::stripe_payment_history_model::PaymentStatus;
+use task_backend::features::payment::models::stripe_payment_history::PaymentStatus;
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -83,7 +83,7 @@ async fn test_payment_history_creation_on_successful_payment() {
     // 決済履歴が記録されていることを確認
 
     // Assert - 決済履歴を確認
-    let payment_history_repo = task_backend::repository::stripe_payment_history_repository::StripePaymentHistoryRepository::new(db.connection.clone());
+    let payment_history_repo = task_backend::features::payment::repositories::stripe_payment_history_repository::StripePaymentHistoryRepository::new(db.connection.clone());
     let (_history, _) = payment_history_repo
         .find_by_user_id_paginated(user.id, 1, 10)
         .await
@@ -100,10 +100,10 @@ async fn test_get_payment_history_endpoint() {
     let user = create_and_authenticate_user(&app).await;
 
     // 決済履歴を直接作成
-    let payment_history_repo = task_backend::repository::stripe_payment_history_repository::StripePaymentHistoryRepository::new(db.connection.clone());
+    let payment_history_repo = task_backend::features::payment::repositories::stripe_payment_history_repository::StripePaymentHistoryRepository::new(db.connection.clone());
 
     let payment1 =
-        task_backend::repository::stripe_payment_history_repository::CreatePaymentHistory {
+        task_backend::features::payment::repositories::stripe_payment_history_repository::CreatePaymentHistory {
             user_id: user.id,
             stripe_payment_intent_id: Some("pi_test_1".to_string()),
             stripe_invoice_id: Some("inv_test_1".to_string()),
@@ -115,7 +115,7 @@ async fn test_get_payment_history_endpoint() {
         };
 
     let payment2 =
-        task_backend::repository::stripe_payment_history_repository::CreatePaymentHistory {
+        task_backend::features::payment::repositories::stripe_payment_history_repository::CreatePaymentHistory {
             user_id: user.id,
             stripe_payment_intent_id: Some("pi_test_2".to_string()),
             stripe_invoice_id: Some("inv_test_2".to_string()),
@@ -270,11 +270,11 @@ async fn test_successful_payments_only() {
         .await
         .unwrap();
 
-    let payment_history_repo = task_backend::repository::stripe_payment_history_repository::StripePaymentHistoryRepository::new(db.connection.clone());
+    let payment_history_repo = task_backend::features::payment::repositories::stripe_payment_history_repository::StripePaymentHistoryRepository::new(db.connection.clone());
 
     // 成功した支払いと失敗した支払いを作成
     let successful_payment =
-        task_backend::repository::stripe_payment_history_repository::CreatePaymentHistory {
+        task_backend::features::payment::repositories::stripe_payment_history_repository::CreatePaymentHistory {
             user_id: user.id,
             stripe_payment_intent_id: Some("pi_success".to_string()),
             stripe_invoice_id: None,
@@ -286,7 +286,7 @@ async fn test_successful_payments_only() {
         };
 
     let failed_payment =
-        task_backend::repository::stripe_payment_history_repository::CreatePaymentHistory {
+        task_backend::features::payment::repositories::stripe_payment_history_repository::CreatePaymentHistory {
             user_id: user.id,
             stripe_payment_intent_id: Some("pi_failed".to_string()),
             stripe_invoice_id: None,

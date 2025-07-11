@@ -1,16 +1,16 @@
 use crate::config::stripe::{StripeConfig, STRIPE_CLIENT};
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
-use crate::domain::stripe_payment_history_model::PaymentStatus;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::payment::models::stripe_payment_history::PaymentStatus;
+use crate::features::payment::repositories::stripe_payment_history_repository::{
+    CreatePaymentHistory, StripePaymentHistoryRepository,
+};
 use crate::features::subscription::repositories::stripe_subscription::{
     CreateStripeSubscription, StripeSubscriptionRepository, UpdateStripeSubscription,
 };
 use crate::features::subscription::services::subscription::SubscriptionService;
-use crate::repository::stripe_payment_history_repository::{
-    CreatePaymentHistory, StripePaymentHistoryRepository,
-};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use stripe::{
@@ -570,7 +570,10 @@ impl PaymentService {
         user_id: Uuid,
         page: u64,
         per_page: u64,
-    ) -> AppResult<(Vec<crate::domain::stripe_payment_history_model::Model>, u64)> {
+    ) -> AppResult<(
+        Vec<crate::features::payment::models::stripe_payment_history::Model>,
+        u64,
+    )> {
         self.payment_history_repo
             .find_by_user_id_paginated(user_id, page, per_page)
             .await

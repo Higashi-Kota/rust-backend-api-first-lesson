@@ -20,11 +20,7 @@ mod shared;
 mod utils;
 
 // Import routers - using new feature modules where available
-use crate::api::handlers::{
-    organization_hierarchy_handler::organization_hierarchy_router,
-    payment_handler::payment_router_with_state, system_handler::system_router_with_state,
-    user_handler::user_router_with_state,
-};
+use crate::api::handlers::organization_hierarchy_handler::organization_hierarchy_router;
 use crate::api::AppState;
 use crate::config::AppConfig;
 use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schema_exists};
@@ -49,8 +45,11 @@ use crate::features::storage::{
 };
 use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
 use crate::features::subscription::services::subscription::SubscriptionService;
+use crate::features::system::handlers::system_handler::system_router_with_state;
 use crate::features::task::{handler::task_router_with_state, service::TaskService};
 use crate::features::team::handlers::team_router_with_state;
+use crate::features::user::handlers::user_handler::user_router_with_state;
+use crate::features::user::services::user_service::UserService;
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     login_attempt_repository::LoginAttemptRepository,
@@ -58,9 +57,8 @@ use crate::repository::{
     security_incident_repository::SecurityIncidentRepository, team_repository::TeamRepository,
 };
 use crate::service::{
-    organization_service::OrganizationService, payment_service::PaymentService,
-    permission_service::PermissionService, role_service::RoleService,
-    security_service::SecurityService, team_service::TeamService, user_service::UserService,
+    organization_service::OrganizationService, permission_service::PermissionService,
+    role_service::RoleService, security_service::SecurityService, team_service::TeamService,
 };
 use crate::utils::{
     email::{EmailConfig, EmailService},
@@ -235,10 +233,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         email_service.clone(),
     ));
 
-    let payment_service = Arc::new(PaymentService::new(
-        db_pool.clone(),
-        subscription_service.clone(),
-    ));
+    let payment_service = Arc::new(
+        crate::features::payment::services::payment_service::PaymentService::new(
+            db_pool.clone(),
+            subscription_service.clone(),
+        ),
+    );
 
     let team_service = Arc::new(TeamService::new(
         Arc::new(db_pool.clone()),
@@ -347,7 +347,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let subscription_router =
         crate::features::subscription::handlers::subscription::subscription_router_with_state()
             .with_state(app_state.clone());
-    let payment_router = payment_router_with_state(app_state.clone());
+    let payment_router =
+        crate::features::payment::handlers::payment_handler::payment_router_with_state(
+            app_state.clone(),
+        );
     let permission_router =
         crate::features::security::handlers::permission::permission_router_with_state(
             app_state.clone(),
