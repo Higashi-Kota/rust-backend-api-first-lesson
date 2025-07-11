@@ -1,7 +1,7 @@
 // task-backend/src/shared/dto/auth.rs
 
 // 統一レスポンス構造体は必要に応じてインポート
-use crate::domain::user_model::SafeUser;
+use crate::features::user::models::user::SafeUser;
 use crate::infrastructure::jwt::TokenPair;
 use crate::utils::validation::common;
 use serde::{Deserialize, Serialize};
@@ -755,7 +755,7 @@ mod tests {
 
     #[test]
     fn test_auth_response_serialization() {
-        use crate::domain::user_model::SafeUser;
+        use crate::features::user::models::user::SafeUser;
         use crate::infrastructure::jwt::TokenPair;
         use chrono::{DateTime, Utc};
         use uuid::Uuid;

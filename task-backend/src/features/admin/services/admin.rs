@@ -1,9 +1,7 @@
 use crate::error::AppResult;
-use crate::repository::{
-    bulk_operation_history_repository::BulkOperationHistoryRepository,
-    daily_activity_summary_repository::DailyActivitySummaryRepository,
-    feature_usage_metrics_repository::FeatureUsageMetricsRepository,
-};
+use crate::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository;
+use crate::features::analytics::repositories::daily_activity_summary::DailyActivitySummaryRepository;
+use crate::features::analytics::repositories::feature_usage_metrics::FeatureUsageMetricsRepository;
 use chrono::{Duration, Utc};
 use sea_orm::DatabaseConnection;
 use uuid::Uuid;
@@ -76,7 +74,7 @@ impl AdminService {
     /// List bulk operations
     pub async fn list_bulk_operations(
         &self,
-    ) -> AppResult<Vec<crate::domain::bulk_operation_history_model::Model>> {
+    ) -> AppResult<Vec<crate::features::admin::models::bulk_operation_history::Model>> {
         // Get recent bulk operations (last 100)
         self.bulk_operation_repository.get_recent(100).await
     }
@@ -86,7 +84,7 @@ impl AdminService {
         &self,
         user_id: Uuid,
         days: i32,
-    ) -> AppResult<Vec<crate::domain::feature_usage_metrics_model::Model>> {
+    ) -> AppResult<Vec<crate::features::analytics::models::feature_usage_metrics::Model>> {
         let since = Utc::now() - Duration::days(days as i64);
         self.feature_usage_repository
             .get_user_metrics(user_id, since)

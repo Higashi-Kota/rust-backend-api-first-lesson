@@ -2,10 +2,10 @@
 
 // 一時的に旧モデルを使用（Phase 19の互換性確保のため）
 use crate::core::subscription_tier::SubscriptionTier;
-use crate::domain::organization_model::{
+use crate::error::{AppError, AppResult};
+use crate::features::organization::models::organization::{
     Organization, OrganizationMember, OrganizationRole, OrganizationSettings,
 };
-use crate::error::{AppError, AppResult};
 use chrono::{DateTime, Utc};
 use sea_orm::sea_query::{Expr, PostgresQueryBuilder, Query};
 use sea_orm::{ConnectionTrait, DatabaseConnection, QueryResult};

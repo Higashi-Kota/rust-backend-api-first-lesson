@@ -1,4 +1,5 @@
-#![allow(dead_code)] // Model methods and associated functions
+// task-backend/src/domain/organization_model.rs
+#![allow(dead_code)] // Model methods and utilities
 
 use crate::core::subscription_tier::SubscriptionTier;
 use chrono::{DateTime, Utc};
@@ -26,25 +27,24 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "crate::domain::user_model::Entity",
+        belongs_to = "crate::features::user::models::user::Entity",
         from = "Column::OwnerId",
-        to = "crate::domain::user_model::Column::Id"
+        to = "crate::features::user::models::user::Column::Id"
     )]
     Owner,
     #[sea_orm(has_many = "super::department::Entity")]
     OrganizationDepartments,
-    #[sea_orm(has_many = "super::analytics::Entity")]
+    #[sea_orm(has_many = "super::organization_analytics::Entity")]
     OrganizationAnalytics,
-    // TODO: Phase 19で適切な関係を設定 - 現在は循環依存を避けるためコメントアウト
-    // #[sea_orm(
-    //     has_many = "crate::features::team::models::team::Entity",
-    //     from = "Column::Id",
-    //     to = "crate::features::team::models::team::Column::OrganizationId"
-    // )]
-    // Teams,
+    #[sea_orm(
+        has_many = "crate::features::team::models::team::Entity",
+        from = "Column::Id",
+        to = "crate::features::team::models::team::Column::OrganizationId"
+    )]
+    Teams,
 }
 
-impl Related<crate::domain::user_model::Entity> for Entity {
+impl Related<crate::features::user::models::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Owner.def()
     }
@@ -56,7 +56,7 @@ impl Related<super::department::Entity> for Entity {
     }
 }
 
-impl Related<super::analytics::Entity> for Entity {
+impl Related<super::organization_analytics::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::OrganizationAnalytics.def()
     }

@@ -2,20 +2,29 @@
 
 ## 📌 現在の状態 (2025-07-11)
 
-**Phase 21 完了** - 新規Feature作成完了 ✅
+**Phase 22 完了** - 残課題の解消完了 ✅
 - Phase 19完了: 全テストパス達成 (523/523 パス、6 ignored)
-- Phase 20部分完了:
+- Phase 20完了: ✅
   - ✅ 空の再エクスポートハンドラー削除完了
   - ✅ api/dtoディレクトリ完全削除
   - ✅ インポートパス更新完了
   - ✅ payment関連ファイルの移行完了
-  - ⏳ 他のレガシーモデル・リポジトリ・サービスの移行は未着手
+  - ✅ domain/ディレクトリ内の全ファイル（19個）を適切なfeatureへ移行
+  - ✅ repository/ディレクトリ内の全ファイル（14個）を適切なfeatureへ移行
+  - ✅ service/ディレクトリ内の全ファイル（9個）を適切なfeatureへ移行
+  - ✅ api/handlers/内の残りファイル（3個）を適切なfeatureへ移行
+  - ✅ 空になったレガシーディレクトリ（domain/, repository/, service/, api/handlers/）削除
 - Phase 21完了:
   - ✅ features/payment/ 作成（DTOを含む完全な構造）
   - ✅ features/user/ 作成（サービスとハンドラーのみ）
   - ✅ features/system/ 作成（ハンドラーのみ）
   - ✅ 全テストのインポートパス更新
-  - ✅ ビルド成功（エラー・警告なし）
+  - ✅ ビルド成功（エラー0、警告のみ）
+- Phase 22完了:
+  - ✅ features/user/の完全化（UserRepository、UserSettingsRepository、DTOの移行）
+  - ✅ features/system/の完全化（SystemService実装、ヘルスチェック、メトリクス機能追加）
+  - ✅ 既存featureの構造補完（auth、taskの標準化）
+  - ✅ 全インポートパスの更新とビルド成功維持
 
 ## 🏗️ アーキテクチャ概要
 
@@ -33,13 +42,10 @@ src/
 │   ├── admin/        # 管理者機能
 │   ├── analytics/    # 分析機能
 │   ├── subscription/ # サブスクリプション
-│   ├── payment/      # 支払い処理 (Phase 21で追加)
-│   ├── user/         # ユーザー管理 (Phase 21で追加)
-│   └── system/       # システム機能 (Phase 21で追加)
-├── api/              # レガシーAPI層（段階的に削除予定）
-├── domain/           # レガシードメイン層（段階的に削除予定）
-├── repository/       # レガシーリポジトリ層（段階的に削除予定）
-├── service/          # レガシーサービス層（段階的に削除予定）
+│   ├── payment/      # 支払い処理
+│   ├── user/         # ユーザー管理
+│   └── system/       # システム機能
+├── api/              # APIの共通定義（AppState等）
 ├── shared/           # 共通型・ユーティリティ
 ├── infrastructure/   # 技術基盤
 └── main.rs
@@ -132,46 +138,74 @@ features/{feature_name}/
    - メトリクス収集サービスの実装
    - DTOの整理（必要に応じて）
 
-### Phase 22: 残課題の解消
+### Phase 22: 残課題の解消 ✅ 完了
 **目的**: Phase 20-21で積み残した移行作業と機能の完全実装
 
-#### タスク
+#### 完了タスク ✅
 1. **Phase 20残作業の完了**
-   - レガシーモデルファイル（19ファイル）の適切なfeatureへの移行
-   - レガシーリポジトリファイル（14ファイル）の適切なfeatureへの移行
-   - レガシーサービスファイル（9ファイル）の適切なfeatureへの移行
-   - `api/handlers/`内の残りハンドラー（3ファイル）の移行
-   - 空になったレガシーディレクトリの削除
+   - ✅ レガシーモデルファイル（19ファイル）の適切なfeatureへの移行
+   - ✅ レガシーリポジトリファイル（14ファイル）の適切なfeatureへの移行
+   - ✅ レガシーサービスファイル（9ファイル）の適切なfeatureへの移行
+   - ✅ `api/handlers/`内の残りハンドラー（3ファイル）の移行
+   - ✅ 空になったレガシーディレクトリの削除
 
 2. **Phase 21残課題の解消**
-   - **features/user/の完全化**
-     - `domain/user_model.rs` → `features/user/models/`
-     - UserRepositoryを`features/auth/`から`features/user/repositories/`へ
-     - `shared/dto/user/` → `features/user/dto/`への構造化
-     - UserSettingsサービスの統合
-   - **features/system/の完全化**
-     - システムヘルスチェックサービスの作成
-     - メトリクス収集サービスの実装
-     - 必要に応じたDTOの整理
+   - ✅ **features/user/の完全化**
+     - ✅ `domain/user_model.rs` → `features/user/models/`
+     - ✅ UserRepositoryを`features/auth/`から`features/user/repositories/`へ
+     - ✅ `shared/dto/user/` → `features/user/dto/`への構造化
+     - ✅ UserSettingsサービスの統合
+   - ✅ **features/system/の完全化**
+     - ✅ システムヘルスチェックサービスの作成
+     - ✅ メトリクス収集サービスの実装
+     - ✅ DTOの整理
 
 3. **既存featureの構造補完**
-   - 不完全な構造のfeatureにmodels/repositories/dto等を追加
-   - 再エクスポートの整理と最適化
+   - ✅ authの構造標準化（repository → repositories）
+   - ✅ taskの構造標準化（domain → models、repository → repositories、ファイル → ディレクトリ構造）
+
+#### Phase 22 残課題（Phase 23への積み残し）
+1. **Feature構造の改善が必要なモジュール**
+   - **gdpr feature**: `repositories/`、`services/`、`handlers/`、`dto/`の標準ディレクトリ構造化が必要
+   - **storage feature**: `repositories/`、`services/`、`handlers/`、`dto/`の標準ディレクトリ構造化が必要
+   - **auth feature**: ネストされた`src/features/auth/`ディレクトリの解消、フラットファイルのディレクトリ構造化
+
+2. **技術的負債**
+   - **Dead Code警告** (51ファイル): security(14)、organization(10)、team(8)、analytics(5)、subscription(5)、admin(4)、auth(2)、task(2)、user(1)
+   - **Ignoredテスト** (6件): analytics feature関連のテスト（ハンドラー移行待ち）
+   - **APIディレクトリ**: `src/api/`に`AppState`のみ残存（より適切な場所への移動が必要）
+
+3. **オプション改善項目**
+   - `usecases/`ディレクトリの追加検討（現在はorganizationとsecurityのみ実装）
+   - インポートパスの一貫性確保とTODOコメントのクリーンアップ
 
 ### Phase 23: 品質改善
 **目的**: コード品質とテストカバレッジの向上
 
 #### タスク
-1. **Ignoredテストの修正** (6件)
-   - Admin settings削除エンドポイントの実装
+1. **Feature構造の標準化完了** (優先度: 高)
+   - gdpr featureの標準ディレクトリ構造化
+   - storage featureの標準ディレクトリ構造化
+   - auth featureのネストディレクトリ解消とフラットファイルの構造化
+   - analytics featureのハンドラー移行完了
+
+2. **Ignoredテストの修正** (6件)
+   - analytics featureのハンドラー移行後にテストを有効化
    - Feature usage tracking機能の完全実装
 
-2. **Dead Code削除** (約70箇所)
-   - `#[allow(dead_code)]` アノテーションの除去
-   - 未使用関数・構造体の削除
+3. **Dead Code削除** (51ファイル)
+   - security feature (14ファイル)の`#[allow(dead_code)]`除去
+   - organization feature (10ファイル)の未使用コード削除
+   - team feature (8ファイル)の未使用コード削除
+   - その他のfeature (19ファイル)のクリーンアップ
 
-3. **DTOの一貫性確保**
-   - 全featureでrequests/responses構造を統一
+4. **技術的負債の解消**
+   - `src/api/`ディレクトリの`AppState`を適切な場所へ移動
+   - インポートパスの一貫性確保
+   - Phase 19互換性のためのTODOコメントの削除
+
+5. **オプション改善**
+   - 必要に応じて`usecases/`ディレクトリの追加
    - グロブインポートを明示的インポートに変更
 
 ### Phase 24: ワークスペース準備
@@ -265,7 +299,7 @@ handler → service → repository → domain
 
 ---
 最終更新: 2025-07-11
-Phase 21完了: 新規Feature作成（payment, user, system）完了、一部機能は部分的な実装
+Phase 22完了: 残課題の解消完了、レガシーコード完全削除、feature構造の大幅改善
 
 ## 🔄 次回セッション引き継ぎ情報
 
@@ -274,29 +308,28 @@ Phase 21完了: 新規Feature作成（payment, user, system）完了、一部機
 
 ### 現在の状況
 - **作業ディレクトリ**: `task-backend/`内で作業中
-- **ビルド状態**: 正常（エラー・警告なし）
+- **ビルド状態**: 正常（エラー0、警告43件 - すべてdead_code警告）
 - **テスト状態**: 523 passed, 0 failed, 6 ignored
-- **Phase 20進捗**: payment関連の移行完了、他のレガシーファイル移行は未着手
-- **Phase 21進捗**: 3つの新規Feature作成完了（payment完全実装、user/system部分実装）
+- **Phase 22進捗**: 完了 ✅
+  - レガシーディレクトリ（domain/, repository/, service/, api/handlers/）完全削除
+  - features/user/とfeatures/system/の完全化
+  - authとtaskの構造標準化
 
 ### 次の作業内容
-Phase 22: 残課題の解消
-1. **Phase 20残作業の完了**（優先度：高）
-   - `domain/`ディレクトリ内の残り19ファイルを適切なfeatureへ移行
-   - `repository/`ディレクトリ内の残り14ファイルを適切なfeatureへ移行
-   - `service/`ディレクトリ内の残り9ファイルを適切なfeatureへ移行
-   - `api/handlers/`内の残りのハンドラー（3ファイル）を適切なfeatureへ移行
-   - 空になったレガシーディレクトリの削除
+Phase 23: 品質改善
+1. **Feature構造の標準化完了**（優先度：高）
+   - gdpr featureの標準ディレクトリ構造化
+   - storage featureの標準ディレクトリ構造化
+   - auth featureのネストディレクトリ解消
+   - analytics featureのハンドラー移行完了
 
-2. **Phase 21残課題の解消**（優先度：中）
-   - features/user/の完全化（モデル、リポジトリ、DTOの整理）
-   - features/system/の完全化（サービス層の実装）
-   - 既存featureの構造補完
+2. **Ignoredテストの修正**（優先度：高）
+   - analytics feature関連の6テストを有効化
 
-3. **Phase 23への準備**（優先度：低）
-   - ignoredテスト6件の修正計画
-   - dead code警告の調査
+3. **Dead Code削除**（優先度：中）
+   - 51ファイルのdead_code警告を解消
+   - security、organization、teamから優先的に実施
 
 ### 達成見込み
-Phase 22は残課題解消に特化したフェーズとして、2-3セッションで完了可能です。
-特にPhase 20の残作業は機械的な移行作業が中心のため、次回セッションで大部分を完了できる見込みです。
+Phase 23は品質改善に特化したフェーズとして、2-3セッションで完了可能です。
+Feature構造の標準化は機械的な作業が中心のため、次回セッションで大部分を完了できる見込みです。

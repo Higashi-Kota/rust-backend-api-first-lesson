@@ -4,7 +4,7 @@ use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::AuthenticatedUser;
 use crate::features::auth::middleware::AuthenticatedUserWithRole;
-use crate::shared::dto::user::{
+use crate::features::user::dto::{
     AccountStatusUpdateResponse, BulkOperationResponse, BulkUserOperationsRequest,
     EmailVerificationHistoryResponse, EmailVerificationResponse, ProfileUpdateResponse,
     ResendVerificationEmailRequest, SubscriptionAnalyticsResponse, SubscriptionQuery,
@@ -436,7 +436,7 @@ pub async fn update_user_settings_handler(
     }
 
     // DTOをドメインモデルに変換
-    let input = crate::domain::user_settings_model::UserSettingsInput {
+    let input = crate::features::user::models::user_settings::UserSettingsInput {
         language: payload.language,
         timezone: payload.timezone,
         notifications_enabled: payload.notifications_enabled,

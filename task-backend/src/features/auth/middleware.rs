@@ -1,9 +1,9 @@
 // task-backend/src/features/auth/middleware.rs
 
-use crate::domain::role_model::RoleWithPermissions;
-use crate::domain::user_model::UserClaims;
 use crate::error::AppError;
-use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::security::models::role::RoleWithPermissions;
+use crate::features::user::models::user::UserClaims;
+use crate::features::user::repositories::user::UserRepository;
 use crate::infrastructure::jwt::JwtManager;
 use crate::infrastructure::utils::permission::PermissionChecker;
 use axum::{
@@ -249,9 +249,9 @@ pub async fn jwt_auth_middleware(
         if is_test_mode && user_claims.role_name == "admin" {
             info!("Using test mode admin authentication");
             // JWTトークンからロール情報を直接作成（テスト環境用）
-            let admin_role = crate::domain::role_model::RoleWithPermissions {
+            let admin_role = crate::features::security::models::role::RoleWithPermissions {
                 id: uuid::Uuid::new_v4(), // テスト用の仮のID
-                name: crate::domain::role_model::RoleName::Admin,
+                name: crate::features::security::models::role::RoleName::Admin,
                 display_name: "Administrator".to_string(),
                 description: Some("Administrator role for testing".to_string()),
                 is_active: true,
@@ -348,9 +348,9 @@ pub async fn jwt_auth_middleware(
                 .insert(authenticated_user_with_role);
         } else if is_test_mode && user_claims.role_name == "member" {
             // テスト環境での通常ユーザー用AuthenticatedUserWithRole (fallback)
-            let member_role = crate::domain::role_model::RoleWithPermissions {
+            let member_role = crate::features::security::models::role::RoleWithPermissions {
                 id: uuid::Uuid::new_v4(),
-                name: crate::domain::role_model::RoleName::Member,
+                name: crate::features::security::models::role::RoleName::Member,
                 display_name: "Member".to_string(),
                 description: Some("Member role for testing".to_string()),
                 is_active: true,
@@ -691,9 +691,9 @@ where
             if let Some(auth_user) = parts.extensions.get::<AuthenticatedUser>() {
                 if auth_user.claims.role_name == "admin" {
                     // テスト環境で管理者ロールを作成
-                    let admin_role = crate::domain::role_model::RoleWithPermissions {
+                    let admin_role = crate::features::security::models::role::RoleWithPermissions {
                         id: uuid::Uuid::new_v4(),
-                        name: crate::domain::role_model::RoleName::Admin,
+                        name: crate::features::security::models::role::RoleName::Admin,
                         display_name: "Administrator".to_string(),
                         description: Some("Test admin role".to_string()),
                         is_active: true,
@@ -721,16 +721,18 @@ where
                     ));
                 } else if auth_user.claims.role_name == "member" {
                     // テスト環境でメンバーロールを作成
-                    let member_role = crate::domain::role_model::RoleWithPermissions {
-                        id: uuid::Uuid::new_v4(),
-                        name: crate::domain::role_model::RoleName::Member,
-                        display_name: "Member".to_string(),
-                        description: Some("Test member role".to_string()),
-                        is_active: true,
-                        created_at: chrono::Utc::now(),
-                        updated_at: chrono::Utc::now(),
-                        subscription_tier: crate::core::subscription_tier::SubscriptionTier::Free,
-                    };
+                    let member_role =
+                        crate::features::security::models::role::RoleWithPermissions {
+                            id: uuid::Uuid::new_v4(),
+                            name: crate::features::security::models::role::RoleName::Member,
+                            display_name: "Member".to_string(),
+                            description: Some("Test member role".to_string()),
+                            is_active: true,
+                            created_at: chrono::Utc::now(),
+                            updated_at: chrono::Utc::now(),
+                            subscription_tier:
+                                crate::core::subscription_tier::SubscriptionTier::Free,
+                        };
 
                     let user_with_role_claims = UserClaims {
                         user_id: auth_user.claims.user_id,

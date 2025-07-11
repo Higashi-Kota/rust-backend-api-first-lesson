@@ -1,6 +1,6 @@
 // task-backend/src/features/gdpr/dto.rs
 
-use crate::domain::user_consent_model::ConsentType;
+use crate::features::gdpr::models::user_consent::ConsentType;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

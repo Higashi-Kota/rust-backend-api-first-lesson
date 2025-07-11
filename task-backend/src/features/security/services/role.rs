@@ -3,9 +3,9 @@
 
 use super::super::models::role::{RoleName, RoleWithPermissions};
 use super::super::repositories::role::{CreateRoleData, RoleRepository, UpdateRoleData};
-use crate::domain::user_model::{SafeUserWithRole, UserClaims};
 use crate::error::{AppError, AppResult};
-use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::user::models::user::{SafeUserWithRole, UserClaims};
+use crate::features::user::repositories::user::UserRepository;
 use crate::shared::dto::role_types::{CreateRoleInput, UpdateRoleInput};
 use crate::utils::transaction::{execute_with_retry, RetryConfig};
 use sea_orm::DatabaseConnection;
@@ -407,14 +407,14 @@ impl RoleService {
 
         // Convert new RoleWithPermissions to old RoleWithPermissions
         // TODO: Phase 19 - Remove this conversion when types are unified
-        let old_role = crate::domain::role_model::RoleWithPermissions {
+        let old_role = crate::features::security::models::role::RoleWithPermissions {
             id: role.id,
             name: match role.name {
                 super::super::models::role::RoleName::Admin => {
-                    crate::domain::role_model::RoleName::Admin
+                    crate::features::security::models::role::RoleName::Admin
                 }
                 super::super::models::role::RoleName::Member => {
-                    crate::domain::role_model::RoleName::Member
+                    crate::features::security::models::role::RoleName::Member
                 }
             },
             display_name: role.display_name,

@@ -12,7 +12,7 @@ use crate::features::organization::dto::organization_hierarchy::{
     OrganizationAnalyticsQueryDto as AnalyticsQueryParams, UpdateDepartmentDto,
 };
 use crate::shared::types::ApiResponse;
-// use crate::domain::permission_matrix_model::EntityType;
+// use crate::features::security::models::permission_matrix::EntityType;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -155,6 +155,7 @@ pub async fn update_department(
         payload.name,
         payload.description,
         payload.manager_user_id,
+        None, // new_parent_id - not being changed in this handler
         user.user_id(),
     )
     .await?;

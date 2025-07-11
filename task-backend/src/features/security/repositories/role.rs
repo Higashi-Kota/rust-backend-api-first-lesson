@@ -296,7 +296,7 @@ impl RoleRepository {
 
     /// 指定したロールを使用しているユーザー数を取得
     pub async fn count_users_with_role(&self, role_id: Uuid) -> AppResult<u64> {
-        use crate::domain::user_model::{Column as UserColumn, Entity as User};
+        use crate::features::user::models::user::{Column as UserColumn, Entity as User};
 
         let count = User::find()
             .filter(UserColumn::RoleId.eq(role_id))

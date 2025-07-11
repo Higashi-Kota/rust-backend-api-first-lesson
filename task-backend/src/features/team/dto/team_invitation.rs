@@ -1,9 +1,8 @@
 // task-backend/src/api/dto/team_invitation_dto.rs
 
-use crate::domain::team_invitation_model::{
-    Model as DomainTeamInvitationModel, TeamInvitationStatus,
+use crate::features::team::models::team_invitation::{
+    Model as TeamInvitationModel, TeamInvitationStatus,
 };
-use crate::features::team::models::team_invitation::Model as TeamInvitationModel;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -147,32 +146,12 @@ impl From<&TeamInvitationModel> for TeamInvitationResponse {
     }
 }
 
-// Add From implementation for domain model to maintain compatibility
-impl From<DomainTeamInvitationModel> for TeamInvitationResponse {
-    fn from(model: DomainTeamInvitationModel) -> Self {
-        let status = model.get_status();
-        Self {
-            id: model.id,
-            team_id: model.team_id,
-            invited_email: model.invited_email,
-            invited_user_id: model.invited_user_id,
-            invited_by_user_id: model.invited_by_user_id,
-            status,
-            message: model.message,
-            expires_at: model.expires_at,
-            accepted_at: model.accepted_at,
-            declined_at: model.declined_at,
-            decline_reason: model.decline_reason,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
-        }
-    }
-}
-
-impl From<crate::service::team_invitation_service::TeamInvitationStatistics>
+impl From<crate::features::team::services::team_invitation::TeamInvitationStatistics>
     for InvitationStatisticsResponse
 {
-    fn from(stats: crate::service::team_invitation_service::TeamInvitationStatistics) -> Self {
+    fn from(
+        stats: crate::features::team::services::team_invitation::TeamInvitationStatistics,
+    ) -> Self {
         Self {
             total: stats.total,
             pending: stats.pending,
@@ -374,7 +353,7 @@ mod tests {
 
     #[test]
     fn test_invitation_statistics_response_conversion() {
-        let stats = crate::service::team_invitation_service::TeamInvitationStatistics {
+        let stats = crate::features::team::services::team_invitation::TeamInvitationStatistics {
             total: 100,
             pending: 20,
             accepted: 65,

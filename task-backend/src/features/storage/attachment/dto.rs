@@ -1,6 +1,6 @@
 // task-backend/src/features/storage/attachment/dto.rs
 
-use crate::features::task::domain::task_attachment_model;
+use crate::features::task::models::task_attachment_model;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -20,8 +20,8 @@ pub struct AttachmentDto {
     pub updated_at: DateTime<Utc>,
 }
 
-impl From<task_attachment_model::Model> for AttachmentDto {
-    fn from(model: task_attachment_model::Model) -> Self {
+impl From<crate::features::task::models::task_attachment_model::Model> for AttachmentDto {
+    fn from(model: crate::features::task::models::task_attachment_model::Model) -> Self {
         Self {
             id: model.id,
             task_id: model.task_id,
@@ -184,7 +184,7 @@ pub struct ShareLinkDto {
 
 impl ShareLinkDto {
     pub fn from_model(
-        model: crate::domain::attachment_share_link_model::Model,
+        model: crate::features::storage::models::attachment_share_link::Model,
         base_url: &str,
     ) -> Self {
         let share_url = format!("{}/share/{}", base_url, model.share_token);

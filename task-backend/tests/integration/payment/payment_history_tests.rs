@@ -173,7 +173,7 @@ async fn test_subscription_guard_middleware() {
     let _free_user = create_and_authenticate_user(&app).await;
 
     // ユーザーのサブスクリプションをProに更新
-    let _user_repo = task_backend::features::auth::repository::user_repository::UserRepository::new(
+    let _user_repo = task_backend::features::user::repositories::user::UserRepository::new(
         db.connection.clone(),
     );
     let email_service = std::sync::Arc::new(

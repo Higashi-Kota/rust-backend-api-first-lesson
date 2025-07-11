@@ -1,4 +1,4 @@
-// task-backend/src/features/team/models/team.rs
+// task-backend/src/domain/team_model.rs
 
 use crate::core::subscription_tier::SubscriptionTier;
 use chrono::{DateTime, Utc};
@@ -27,36 +27,36 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "crate::domain::user_model::Entity",
+        belongs_to = "crate::features::user::models::user::Entity",
         from = "Column::OwnerId",
-        to = "crate::domain::user_model::Column::Id"
+        to = "crate::features::user::models::user::Column::Id"
     )]
     Owner,
     #[sea_orm(
-        belongs_to = "crate::domain::organization_model::Entity",
+        belongs_to = "crate::features::organization::models::organization::Entity",
         from = "Column::OrganizationId",
-        to = "crate::domain::organization_model::Column::Id"
+        to = "crate::features::organization::models::organization::Column::Id"
     )]
     Organization,
-    #[sea_orm(has_many = "super::team_member::Entity")]
+    #[sea_orm(has_many = "crate::features::team::models::team_member::Entity")]
     TeamMembers,
-    #[sea_orm(has_many = "super::team_invitation::Entity")]
+    #[sea_orm(has_many = "crate::features::team::models::team_invitation::Entity")]
     TeamInvitations,
 }
 
-impl Related<crate::domain::user_model::Entity> for Entity {
+impl Related<crate::features::user::models::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Owner.def()
     }
 }
 
-impl Related<crate::domain::organization_model::Entity> for Entity {
+impl Related<crate::features::organization::models::organization::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Organization.def()
     }
 }
 
-impl Related<super::team_invitation::Entity> for Entity {
+impl Related<crate::features::team::models::team_invitation::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TeamInvitations.def()
     }

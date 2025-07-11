@@ -1,9 +1,9 @@
 // task-backend/src/features/subscription/services/subscription.rs
 
 use crate::db::DbPool;
-use crate::domain::user_model::Model as User;
 use crate::error::{AppError, AppResult};
-use crate::features::auth::repository::user_repository::{SubscriptionTierStats, UserRepository};
+use crate::features::user::models::user::Model as User;
+use crate::features::user::repositories::user::{SubscriptionTierStats, UserRepository};
 use crate::infrastructure::email::EmailService;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;

@@ -9,7 +9,7 @@ use super::super::repositories::{
 #[allow(unused_imports)]
 use super::super::services::hierarchy::OrganizationHierarchyService;
 use crate::error::{AppError, AppResult};
-use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::user::repositories::user::UserRepository;
 use chrono::Utc;
 use sea_orm::{DatabaseConnection, Set};
 use std::sync::Arc;

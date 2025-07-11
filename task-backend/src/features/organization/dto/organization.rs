@@ -1,7 +1,7 @@
 // task-backend/src/api/dto/organization_dto.rs
 
 use crate::core::subscription_tier::SubscriptionTier;
-use crate::domain::organization_model::{
+use crate::features::organization::models::organization::{
     Organization, OrganizationMember, OrganizationRole, OrganizationSettings,
 };
 use chrono::{DateTime, Utc};
@@ -267,8 +267,18 @@ impl From<(Organization, Vec<OrganizationMemberResponse>, u32)> for Organization
 }
 
 // Phase 19互換性のために追加
-impl From<(OrganizationMember, crate::domain::user_model::Model)> for OrganizationMemberResponse {
-    fn from((member, user): (OrganizationMember, crate::domain::user_model::Model)) -> Self {
+impl
+    From<(
+        OrganizationMember,
+        crate::features::user::models::user::Model,
+    )> for OrganizationMemberResponse
+{
+    fn from(
+        (member, user): (
+            OrganizationMember,
+            crate::features::user::models::user::Model,
+        ),
+    ) -> Self {
         Self {
             id: member.id,
             user_id: member.user_id,
@@ -281,10 +291,18 @@ impl From<(OrganizationMember, crate::domain::user_model::Model)> for Organizati
     }
 }
 
-impl From<(OrganizationMember, crate::domain::user_model::Model)>
-    for OrganizationMemberDetailResponse
+impl
+    From<(
+        OrganizationMember,
+        crate::features::user::models::user::Model,
+    )> for OrganizationMemberDetailResponse
 {
-    fn from((member, user): (OrganizationMember, crate::domain::user_model::Model)) -> Self {
+    fn from(
+        (member, user): (
+            OrganizationMember,
+            crate::features::user::models::user::Model,
+        ),
+    ) -> Self {
         let role = member.role.clone();
         Self {
             id: member.id,

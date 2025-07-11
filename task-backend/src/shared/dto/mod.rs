@@ -2,4 +2,3 @@
 
 pub mod auth;
 pub mod role_types;
-pub mod user;

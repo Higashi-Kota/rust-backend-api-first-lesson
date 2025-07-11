@@ -58,10 +58,10 @@ pub async fn get_system_analytics_handler(
     Query(_query): Query<AnalyticsTimeRangeRequest>,
 ) -> AppResult<Json<ApiResponse<SystemStatsResponse>>> {
     // Get user counts using repository directly
-    use crate::domain::user_model;
+    use crate::features::user::models::user;
     use sea_orm::{EntityTrait, PaginatorTrait};
 
-    let total_users = user_model::Entity::find()
+    let total_users = user::Entity::find()
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0);
@@ -74,26 +74,26 @@ pub async fn get_system_analytics_handler(
         .unwrap_or_default();
 
     // Get actual task counts using repository
-    use crate::features::task::domain::task_model;
-    let total_tasks = task_model::Entity::find()
+    use crate::features::task::models::task_model;
+    let total_tasks = crate::features::task::models::task_model::Entity::find()
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0) as u64;
 
-    let completed_tasks = task_model::Entity::find()
-        .filter(task_model::Column::Status.eq("completed"))
+    let completed_tasks = crate::features::task::models::task_model::Entity::find()
+        .filter(crate::features::task::models::task_model::Column::Status.eq("completed"))
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0) as u64;
 
     // Get organization and team counts
-    use crate::domain::{organization_model, team_model};
-    let total_organizations = organization_model::Entity::find()
+    use crate::features::{organization::models::organization, team::models::team};
+    let total_organizations = organization::Entity::find()
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0) as u64;
 
-    let active_teams = team_model::Entity::find()
+    let active_teams = team::Entity::find()
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0) as u64;
@@ -102,11 +102,11 @@ pub async fn get_system_analytics_handler(
     use sea_orm::prelude::*;
     let thirty_days_ago = chrono::Utc::now() - chrono::Duration::days(30);
     // Count active users - include users who have logged in recently OR created recently
-    let active_users = user_model::Entity::find()
+    let active_users = user::Entity::find()
         .filter(
-            user_model::Column::LastLoginAt
+            user::Column::LastLoginAt
                 .gt(thirty_days_ago)
-                .or(user_model::Column::CreatedAt.gt(thirty_days_ago)),
+                .or(user::Column::CreatedAt.gt(thirty_days_ago)),
         )
         .count(app_state.db.as_ref())
         .await
@@ -140,21 +140,21 @@ pub async fn get_system_analytics_handler(
     let one_day_ago = chrono::Utc::now() - chrono::Duration::days(1);
     let seven_days_ago = chrono::Utc::now() - chrono::Duration::days(7);
 
-    response.daily_active_users = user_model::Entity::find()
+    response.daily_active_users = user::Entity::find()
         .filter(
-            user_model::Column::LastLoginAt
+            user::Column::LastLoginAt
                 .gt(one_day_ago)
-                .or(user_model::Column::CreatedAt.gt(one_day_ago)),
+                .or(user::Column::CreatedAt.gt(one_day_ago)),
         )
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0) as u64;
 
-    response.weekly_active_users = user_model::Entity::find()
+    response.weekly_active_users = user::Entity::find()
         .filter(
-            user_model::Column::LastLoginAt
+            user::Column::LastLoginAt
                 .gt(seven_days_ago)
-                .or(user_model::Column::CreatedAt.gt(seven_days_ago)),
+                .or(user::Column::CreatedAt.gt(seven_days_ago)),
         )
         .count(app_state.db.as_ref())
         .await
@@ -316,23 +316,23 @@ pub async fn get_task_stats_handler(
     Query(query): Query<TaskAnalyticsRequest>,
 ) -> AppResult<Json<ApiResponse<TaskStatsDetailResponse>>> {
     // Get actual task counts using repository
-    use crate::features::task::domain::task_model;
+    use crate::features::task::models::task_model;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
-    let todo_count = task_model::Entity::find()
-        .filter(task_model::Column::Status.eq("todo"))
+    let todo_count = crate::features::task::models::task_model::Entity::find()
+        .filter(crate::features::task::models::task_model::Column::Status.eq("todo"))
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0) as u32;
 
-    let in_progress_count = task_model::Entity::find()
-        .filter(task_model::Column::Status.eq("in_progress"))
+    let in_progress_count = crate::features::task::models::task_model::Entity::find()
+        .filter(crate::features::task::models::task_model::Column::Status.eq("in_progress"))
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0) as u32;
 
-    let completed_count = task_model::Entity::find()
-        .filter(task_model::Column::Status.eq("completed"))
+    let completed_count = crate::features::task::models::task_model::Entity::find()
+        .filter(crate::features::task::models::task_model::Column::Status.eq("completed"))
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0) as u32;
@@ -423,8 +423,8 @@ pub async fn get_task_stats_handler(
         },
         user_performance: if query.include_details == Some(true) {
             // Get user performance data (exclude admin users)
-            let users = crate::domain::user_model::Entity::find()
-                .filter(crate::domain::user_model::Column::Email.ne("admin@example.com"))
+            let users = crate::features::user::models::user::Entity::find()
+                .filter(crate::features::user::models::user::Column::Email.ne("admin@example.com"))
                 .all(app_state.db.as_ref())
                 .await
                 .unwrap_or_default();

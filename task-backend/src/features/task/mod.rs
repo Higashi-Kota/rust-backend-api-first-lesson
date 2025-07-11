@@ -1,6 +1,6 @@
 // src/features/task/mod.rs
-pub mod domain;
 pub mod dto;
-pub mod handler;
-pub mod repository;
-pub mod service;
+pub mod handlers;
+pub mod models;
+pub mod repositories;
+pub mod services;

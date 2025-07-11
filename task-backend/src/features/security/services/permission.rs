@@ -4,13 +4,13 @@
 // use super::super::models::role::RoleWithPermissions;
 use super::super::repositories::role::RoleRepository;
 use crate::core::subscription_tier::SubscriptionTier;
-use crate::domain::role_model::RoleWithPermissions;
 use crate::error::AppResult;
+use crate::features::security::models::role::RoleWithPermissions;
 // use crate::repository::permission_repository::PermissionRepository; // TODO: Implement when PermissionRepository is created
 use crate::error::AppError;
-use crate::features::auth::repository::user_repository::UserRepository;
-use crate::repository::organization_repository::OrganizationRepository;
-use crate::repository::team_repository::TeamRepository;
+use crate::features::organization::repositories::organization::OrganizationRepository;
+use crate::features::team::repositories::team::TeamRepository;
+use crate::features::user::repositories::user::UserRepository;
 use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -172,8 +172,14 @@ impl PermissionService {
             .find_member_by_user_and_team(user_id, team_id)
             .await
         {
-            if let Ok(team_role) = member.role.parse::<crate::domain::team_model::TeamRole>() {
-                if matches!(team_role, crate::domain::team_model::TeamRole::Admin) {
+            if let Ok(team_role) = member
+                .role
+                .parse::<crate::features::team::models::team::TeamRole>()
+            {
+                if matches!(
+                    team_role,
+                    crate::features::team::models::team::TeamRole::Admin
+                ) {
                     return Ok(());
                 }
             }
@@ -283,14 +289,14 @@ impl PermissionService {
 
         // Convert from new RoleWithPermissions to old RoleWithPermissions
         // TODO: Phase 19 - Remove this conversion when types are unified
-        let old_role = crate::domain::role_model::RoleWithPermissions {
+        let old_role = crate::features::security::models::role::RoleWithPermissions {
             id: role.id,
             name: match role.name {
                 super::super::models::role::RoleName::Admin => {
-                    crate::domain::role_model::RoleName::Admin
+                    crate::features::security::models::role::RoleName::Admin
                 }
                 super::super::models::role::RoleName::Member => {
-                    crate::domain::role_model::RoleName::Member
+                    crate::features::security::models::role::RoleName::Member
                 }
             },
             display_name: role.display_name,
@@ -357,7 +363,7 @@ impl PermissionService {
 #[cfg(test)]
 mod tests {
     // use super::*;
-    // use crate::domain::role_model::RoleName;
+    // use crate::features::security::models::role::RoleName;
     // use crate::core::subscription_tier::SubscriptionTier;
     // use chrono::Utc;
     // use mockall::predicate::*;

@@ -1,4 +1,4 @@
-// task-backend/src/features/security/models/security_incident.rs
+// task-backend/src/domain/security_incident_model.rs
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
@@ -25,22 +25,21 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    // TODO: Phase 19でUserモデルがfeatures/authに移行後に更新
     #[sea_orm(
-        belongs_to = "crate::domain::user_model::Entity",
+        belongs_to = "crate::features::user::models::user::Entity",
         from = "Column::UserId",
-        to = "crate::domain::user_model::Column::Id"
+        to = "crate::features::user::models::user::Column::Id"
     )]
     User,
     #[sea_orm(
-        belongs_to = "crate::domain::user_model::Entity",
+        belongs_to = "crate::features::user::models::user::Entity",
         from = "Column::ResolvedBy",
-        to = "crate::domain::user_model::Column::Id"
+        to = "crate::features::user::models::user::Column::Id"
     )]
     Resolver,
 }
 
-impl Related<crate::domain::user_model::Entity> for Entity {
+impl Related<crate::features::user::models::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::User.def()
     }

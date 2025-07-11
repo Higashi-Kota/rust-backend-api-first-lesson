@@ -9,7 +9,7 @@ use super::super::dto::team::{
 use super::super::models::team::{Model as TeamModel, TeamRole as ModelsTeamRole};
 use super::super::models::team_member::Model as TeamMemberModel;
 use super::super::repositories::team::TeamRepository;
-use crate::domain::team_model::TeamRole as DomainTeamRole;
+use crate::features::team::models::team::TeamRole as DomainTeamRole;
 use crate::infrastructure::email::EmailService;
 use crate::middleware::subscription_guard::check_feature_limit;
 use std::str::FromStr;
@@ -19,7 +19,7 @@ pub type Team = TeamModel;
 pub type TeamMember = TeamMemberModel;
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
-use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::user::repositories::user::UserRepository;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tracing::{info, warn};

@@ -659,7 +659,7 @@ fn add_security_headers(headers: &mut HeaderMap, security: &SecurityHeaders) {
 pub async fn check_pending_verification_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<crate::shared::dto::user::PendingEmailVerificationResponse>> {
+) -> AppResult<Json<crate::features::user::dto::PendingEmailVerificationResponse>> {
     let response = app_state
         .auth_service
         .check_pending_email_verification(user.claims.user_id)
@@ -685,7 +685,7 @@ pub async fn check_token_status_handler(
     State(app_state): State<AppState>,
     _admin: AuthenticatedUser,
     Json(payload): Json<TokenStatusRequest>,
-) -> AppResult<Json<crate::shared::dto::user::TokenStatusResponse>> {
+) -> AppResult<Json<crate::features::user::dto::TokenStatusResponse>> {
     let response = app_state
         .auth_service
         .check_token_status(&payload.token)

@@ -2,7 +2,6 @@
 #![allow(unused_variables)]
 
 // 一時的に旧DTOを使用（Phase 19の互換性確保のため）
-use crate::domain::organization_model::OrganizationRole;
 use crate::features::organization::dto::organization::{
     CreateOrganizationRequest, InviteOrganizationMemberRequest, OrganizationCapacityResponse,
     OrganizationListResponse, OrganizationMemberDetailResponse, OrganizationMemberResponse,
@@ -10,6 +9,7 @@ use crate::features::organization::dto::organization::{
     UpdateOrganizationMemberRoleRequest, UpdateOrganizationRequest,
     UpdateOrganizationSettingsRequest, UpdateOrganizationSubscriptionRequest,
 };
+use crate::features::organization::models::organization::OrganizationRole;
 // TODO: Phase 19でOrganizationServiceの本来の使用箇所が移行されたら#[allow(unused_imports)]を削除
 #[allow(unused_imports)]
 use super::super::services::OrganizationService;
@@ -17,9 +17,9 @@ use crate::error::AppResult;
 use crate::features::auth::middleware::AuthenticatedUser;
 // TODO: Phase 19でPermissionServiceとSubscriptionServiceの使用箇所が移行されたら#[allow(unused_imports)]を削除
 #[allow(unused_imports)]
-use crate::features::subscription::services::subscription::SubscriptionService;
+use crate::features::security::services::permission::PermissionService;
 #[allow(unused_imports)]
-use crate::service::permission_service::PermissionService;
+use crate::features::subscription::services::subscription::SubscriptionService;
 use crate::shared::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -250,12 +250,15 @@ pub async fn invite_organization_member_handler(
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
     Json(payload): Json<InviteOrganizationMemberRequest>,
-) -> AppResult<(StatusCode, Json<ApiResponse<OrganizationMemberResponse>>)> {
+) -> AppResult<(
+    StatusCode,
+    Json<ApiResponse<OrganizationMemberDetailResponse>>,
+)> {
     payload.validate()?;
 
     let member_response = app_state
         .organization_service
-        .invite_organization_member(organization_id, payload, user.user_id())
+        .invite_member(organization_id, payload, user.user_id())
         .await?;
 
     Ok((

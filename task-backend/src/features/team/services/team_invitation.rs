@@ -5,7 +5,7 @@ use super::super::models::team_invitation::{Model as TeamInvitationModel, TeamIn
 use super::super::repositories::team::TeamRepository;
 use super::super::repositories::team_invitation::TeamInvitationRepository;
 use crate::error::{AppError, AppResult};
-use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::user::repositories::user::UserRepository;
 use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 

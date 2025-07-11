@@ -455,21 +455,24 @@ pub async fn count_user_invitations(
     let pending_invitations = all_invitations
         .iter()
         .filter(|inv| {
-            inv.get_status() == crate::domain::team_invitation_model::TeamInvitationStatus::Pending
+            inv.get_status()
+                == crate::features::team::models::team_invitation::TeamInvitationStatus::Pending
         })
         .count() as u64;
 
     let accepted_invitations = all_invitations
         .iter()
         .filter(|inv| {
-            inv.get_status() == crate::domain::team_invitation_model::TeamInvitationStatus::Accepted
+            inv.get_status()
+                == crate::features::team::models::team_invitation::TeamInvitationStatus::Accepted
         })
         .count() as u64;
 
     let declined_invitations = all_invitations
         .iter()
         .filter(|inv| {
-            inv.get_status() == crate::domain::team_invitation_model::TeamInvitationStatus::Declined
+            inv.get_status()
+                == crate::features::team::models::team_invitation::TeamInvitationStatus::Declined
         })
         .count() as u64;
 
@@ -515,7 +518,7 @@ pub async fn bulk_update_invitation_status(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::team_invitation_model::{
+    use crate::features::team::models::team_invitation::{
         Model as TeamInvitationModel, TeamInvitationStatus,
     };
 

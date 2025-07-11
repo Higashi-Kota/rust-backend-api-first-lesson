@@ -1,5 +1,5 @@
 // task-backend/src/api/dto/role_dto.rs
-use crate::domain::role_model::RoleWithPermissions;
+use crate::features::security::models::role::RoleWithPermissions;
 use crate::shared::dto::role_types::{CreateRoleInput, UpdateRoleInput};
 use crate::shared::types::common::{ApiResponse, OperationResult};
 use chrono::{DateTime, Utc};

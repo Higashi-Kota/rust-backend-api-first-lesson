@@ -24,16 +24,15 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    // TODO: Phase 19でUserモデルがfeatures/authに移行後に更新
     #[sea_orm(
-        belongs_to = "crate::domain::user_model::Entity",
+        belongs_to = "crate::features::user::models::user::Entity",
         from = "Column::UpdatedBy",
-        to = "crate::domain::user_model::Column::Id"
+        to = "crate::features::user::models::user::Column::Id"
     )]
     UpdatedByUser,
 }
 
-impl Related<crate::domain::user_model::Entity> for Entity {
+impl Related<crate::features::user::models::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::UpdatedByUser.def()
     }
@@ -111,12 +110,10 @@ pub struct PermissionMatrix {
 }
 
 impl Model {
-    #[allow(dead_code)] // Utility method for extracting permission matrix from JSON
     pub fn get_permission_matrix(&self) -> Result<PermissionMatrix, serde_json::Error> {
         serde_json::from_value(self.matrix_data.clone())
     }
 
-    #[allow(dead_code)] // Utility method for extracting inheritance settings from JSON
     pub fn get_inheritance_settings(
         &self,
     ) -> Result<Option<InheritanceSettings>, serde_json::Error> {
@@ -126,7 +123,6 @@ impl Model {
         }
     }
 
-    #[allow(dead_code)] // Utility method for extracting compliance settings from JSON
     pub fn get_compliance_settings(&self) -> Result<Option<ComplianceSettings>, serde_json::Error> {
         match &self.compliance_settings {
             Some(settings) => Ok(Some(serde_json::from_value(settings.clone())?)),

@@ -2,20 +2,20 @@
 
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
-use crate::domain::attachment_share_link_model;
 use crate::error::{AppError, AppResult};
-use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::storage::models::attachment_share_link;
 use crate::features::storage::repository::attachment_repository::{
     AttachmentRepository, CreateAttachmentDto,
 };
 use crate::features::storage::repository::attachment_share_link_repository::{
     AttachmentShareLinkRepository, CreateShareLinkDto,
 };
-use crate::features::task::domain::task_attachment_model::{
+use crate::features::task::models::task_attachment_model::{
     self, get_all_allowed_mime_types, is_allowed_mime_type, MAX_FILE_SIZE_ENTERPRISE,
     MAX_FILE_SIZE_FREE, MAX_FILE_SIZE_PRO,
 };
-use crate::features::task::repository::task_repository::TaskRepository;
+use crate::features::task::repositories::task_repository::TaskRepository;
+use crate::features::user::repositories::user::UserRepository;
 use crate::infrastructure::utils::image_optimizer::{
     is_image_mime_type, optimize_image, ImageOptimizationConfig,
 };
@@ -54,7 +54,7 @@ impl AttachmentService {
         file_name: String,
         file_data: Vec<u8>,
         mime_type: String,
-    ) -> AppResult<task_attachment_model::Model> {
+    ) -> AppResult<crate::features::task::models::task_attachment_model::Model> {
         // MIMEタイプが許可されているかチェック
         if !is_allowed_mime_type(&mime_type) {
             let allowed_types = get_all_allowed_mime_types();
@@ -258,7 +258,10 @@ impl AttachmentService {
         per_page: u64,
         sort_by: Option<AttachmentSortBy>,
         sort_order: Option<SortOrder>,
-    ) -> AppResult<(Vec<task_attachment_model::Model>, u64)> {
+    ) -> AppResult<(
+        Vec<crate::features::task::models::task_attachment_model::Model>,
+        u64,
+    )> {
         // アクセス権限チェック
         self.check_task_access(task_id, user_id).await?;
 
@@ -381,7 +384,7 @@ impl AttachmentService {
     async fn check_delete_permission(
         &self,
         user_id: Uuid,
-        attachment: &task_attachment_model::Model,
+        attachment: &crate::features::task::models::task_attachment_model::Model,
     ) -> AppResult<()> {
         // アップロード者の場合は削除可能
         if attachment.uploaded_by == user_id {
@@ -443,7 +446,7 @@ impl AttachmentService {
         description: Option<String>,
         expires_in_hours: u32,
         max_access_count: Option<i32>,
-    ) -> AppResult<attachment_share_link_model::Model> {
+    ) -> AppResult<crate::features::storage::models::attachment_share_link::Model> {
         // アタッチメント情報を取得
         let attachment = self
             .attachment_repo
@@ -541,7 +544,7 @@ impl AttachmentService {
         &self,
         attachment_id: Uuid,
         user_id: Uuid,
-    ) -> AppResult<Vec<attachment_share_link_model::Model>> {
+    ) -> AppResult<Vec<crate::features::storage::models::attachment_share_link::Model>> {
         // アタッチメント情報を取得
         let attachment = self
             .attachment_repo

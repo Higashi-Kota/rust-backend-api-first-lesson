@@ -81,6 +81,14 @@ impl DepartmentRepository {
         Ok(result)
     }
 
+    pub async fn update_by_model(
+        db: &DatabaseConnection,
+        department: department::ActiveModel,
+    ) -> Result<department::Model, AppError> {
+        let result = department.update(db).await?;
+        Ok(result)
+    }
+
     pub async fn delete_by_id(db: &DatabaseConnection, id: Uuid) -> Result<(), AppError> {
         let department = Self::find_by_id(db, id)
             .await?
@@ -175,5 +183,31 @@ impl DepartmentRepository {
             .all(db)
             .await?;
         Ok(result)
+    }
+
+    pub async fn exists_circular_dependency(
+        db: &DatabaseConnection,
+        department_id: Uuid,
+        potential_parent_id: Uuid,
+    ) -> Result<bool, AppError> {
+        // Check if potential_parent_id is a descendant of department_id
+        let department = Self::find_by_id(db, department_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Department not found".to_string()))?;
+
+        let descendants = Self::find_by_hierarchy_path_prefix(
+            db,
+            department.organization_id,
+            &department.hierarchy_path,
+        )
+        .await?;
+
+        for descendant in descendants {
+            if descendant.id == potential_parent_id {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 }

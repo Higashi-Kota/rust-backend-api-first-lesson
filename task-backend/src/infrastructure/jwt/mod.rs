@@ -1,6 +1,6 @@
 // src/utils/jwt.rs
 
-use crate::domain::user_model::UserClaims;
+use crate::features::user::models::user::UserClaims;
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
@@ -342,7 +342,7 @@ impl TokenPair {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::user_model::UserClaims;
+    use crate::features::user::models::user::UserClaims;
 
     fn create_test_config() -> JwtConfig {
         JwtConfig {

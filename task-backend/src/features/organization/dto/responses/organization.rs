@@ -1,9 +1,9 @@
 // TODO: Phase 20で統一後は直接modelsからインポート
 use crate::core::subscription_tier::SubscriptionTier;
-use crate::domain::organization_model::{
+use crate::features::organization::models::organization::{
     Organization, OrganizationMember, OrganizationRole, OrganizationSettings,
 };
-use crate::domain::user_model::Model as User;
+use crate::features::user::models::user::Model as User;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

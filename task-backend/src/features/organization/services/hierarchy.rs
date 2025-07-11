@@ -8,13 +8,13 @@ use super::super::models::{
 use super::super::repositories::{
     AnalyticsRepository, DepartmentMemberRepository, DepartmentRepository,
 };
-use crate::domain::permission_matrix_model::{
+use crate::error::AppError;
+use crate::features::security::models::permission_matrix::{
     self, ComplianceSettings, EntityType, InheritanceSettings,
 };
-use crate::error::AppError;
 // TODO: Phase 19でPermissionMatrixRepositoryを使用するようになったら#[allow(unused_imports)]を削除
 #[allow(unused_imports)]
-use crate::repository::permission_matrix_repository::PermissionMatrixRepository;
+use crate::features::security::repositories::permission_matrix::PermissionMatrixRepository;
 use chrono::{DateTime, Utc};
 use sea_orm::{DatabaseConnection, Set};
 use uuid::Uuid;
@@ -120,6 +120,7 @@ impl OrganizationHierarchyService {
         name: Option<String>,
         description: Option<String>,
         manager_user_id: Option<Uuid>,
+        new_parent_id: Option<Uuid>,
         updated_by: Uuid,
     ) -> Result<department::Model, AppError> {
         let department = DepartmentRepository::find_by_id(db, department_id)
@@ -155,6 +156,39 @@ impl OrganizationHierarchyService {
         if manager_user_id.is_some() {
             active_model.manager_user_id = Set(manager_user_id);
         }
+
+        // 親部門変更時の処理
+        if let Some(parent_id) = new_parent_id {
+            // 循環参照チェック
+            if Self::exists_circular_dependency(db, department_id, parent_id).await? {
+                return Err(AppError::BadRequest(
+                    "Circular dependency detected".to_string(),
+                ));
+            }
+
+            active_model.parent_department_id = Set(Some(parent_id));
+
+            // 階層レベルとパスの再計算
+            let parent = DepartmentRepository::find_by_id(db, parent_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Parent department not found".to_string()))?;
+
+            active_model.hierarchy_level = Set(parent.hierarchy_level + 1);
+            active_model.hierarchy_path =
+                Set(format!("{}/{}", parent.hierarchy_path, department_id));
+
+            // 子部門の階層パス更新
+            let children =
+                DepartmentRepository::find_children_by_parent_id(db, department_id).await?;
+            Self::update_children_hierarchy_paths(
+                db,
+                &children,
+                &format!("{}/{}", parent.hierarchy_path, department_id),
+                parent.hierarchy_level + 1,
+            )
+            .await?;
+        }
+
         active_model.updated_at = Set(Utc::now());
 
         let updated = DepartmentRepository::update_by_id(db, department_id, active_model).await?;
@@ -215,17 +249,45 @@ impl OrganizationHierarchyService {
         Ok(updated)
     }
 
-    // 部門の削除（論理削除）
+    // 部門の削除（子部門を親部門に移動）
     pub async fn delete_department(
         db: &DatabaseConnection,
         department_id: Uuid,
     ) -> Result<(), AppError> {
-        // 子部門の存在チェック
+        let department = DepartmentRepository::find_by_id(db, department_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Department not found".to_string()))?;
+
+        // 子部門を親部門に移動
         let children = DepartmentRepository::find_children_by_parent_id(db, department_id).await?;
-        if !children.is_empty() {
-            return Err(AppError::BadRequest(
-                "Cannot delete department with child departments".to_string(),
-            ));
+        for child in children {
+            let mut child_active: department::ActiveModel = child.into();
+            child_active.parent_department_id = Set(department.parent_department_id);
+
+            // 階層レベルとパスの更新
+            let (new_level, new_path) =
+                if let Some(grandparent_id) = department.parent_department_id {
+                    let grandparent = DepartmentRepository::find_by_id(db, grandparent_id)
+                        .await?
+                        .ok_or_else(|| {
+                            AppError::NotFound("Grandparent department not found".to_string())
+                        })?;
+                    (
+                        grandparent.hierarchy_level + 1,
+                        format!(
+                            "{}/{}",
+                            grandparent.hierarchy_path,
+                            child_active.id.as_ref()
+                        ),
+                    )
+                } else {
+                    (0, format!("/{}", child_active.id.as_ref()))
+                };
+
+            child_active.hierarchy_level = Set(new_level);
+            child_active.hierarchy_path = Set(new_path);
+            child_active.updated_at = Set(Utc::now());
+            DepartmentRepository::update_by_model(db, child_active).await?;
         }
 
         // 部門メンバーの非アクティブ化
@@ -298,14 +360,14 @@ impl OrganizationHierarchyService {
         _inheritance_settings: InheritanceSettings,
         _compliance_settings: ComplianceSettings,
         _updated_by: Uuid,
-    ) -> Result<permission_matrix_model::Model, AppError> {
+    ) -> Result<crate::features::security::models::permission_matrix::Model, AppError> {
         // 一時的にダミー実装
         Err(AppError::InternalServerError(
             "Permission matrix not yet implemented".to_string(),
         ))
 
         // TODO: Phase 19で以下のコメントアウトを解除
-        // let active_model = permission_matrix_model::ActiveModel {
+        // let active_model = crate::features::security::models::permission_matrix::ActiveModel {
         //     id: Set(Uuid::new_v4()),
         //     entity_type: Set(entity_type.to_string()),
         //     entity_id: Set(entity_id),
@@ -423,5 +485,247 @@ impl OrganizationHierarchyService {
         }
 
         Ok(false)
+    }
+
+    // ヘルパー関数：子部門の階層パス更新（非再帰版）
+    async fn update_children_hierarchy_paths(
+        db: &DatabaseConnection,
+        children: &[department::Model],
+        parent_path: &str,
+        parent_level: i32,
+    ) -> Result<(), AppError> {
+        let mut queue = Vec::new();
+
+        // 初期子要素をキューに追加
+        for child in children {
+            let new_path = format!("{}/{}", parent_path, child.id);
+            let new_level = parent_level + 1;
+            queue.push((child.clone(), new_path, new_level));
+        }
+
+        // 幅優先探索で階層パスを更新
+        while let Some((child, new_path, new_level)) = queue.pop() {
+            let mut child_active: department::ActiveModel = child.clone().into();
+            child_active.hierarchy_path = Set(new_path.clone());
+            child_active.hierarchy_level = Set(new_level);
+            child_active.updated_at = Set(Utc::now());
+            DepartmentRepository::update_by_model(db, child_active).await?;
+
+            // 子部門の子要素をキューに追加
+            let grandchildren =
+                DepartmentRepository::find_children_by_parent_id(db, child.id).await?;
+            for grandchild in grandchildren {
+                let grandchild_path = format!("{}/{}", new_path, grandchild.id);
+                let grandchild_level = new_level + 1;
+                queue.push((grandchild, grandchild_path, grandchild_level));
+            }
+        }
+        Ok(())
+    }
+
+    // 子部門の取得
+    pub async fn get_child_departments(
+        db: &DatabaseConnection,
+        department_id: Uuid,
+    ) -> Result<Vec<department::Model>, AppError> {
+        DepartmentRepository::find_children_by_parent_id(db, department_id).await
+    }
+
+    // 組織分析ダッシュボードの取得
+    pub async fn get_organization_analytics(
+        db: &DatabaseConnection,
+        organization_id: Uuid,
+        period: Option<Period>,
+        analytics_type: Option<AnalyticsType>,
+        limit: Option<u64>,
+    ) -> Result<Vec<analytics::Model>, AppError> {
+        match (period, analytics_type) {
+            (Some(p), Some(_t)) => {
+                let end_date = Utc::now();
+                let start_date = match p {
+                    Period::Daily => end_date - chrono::Duration::days(30),
+                    Period::Weekly => end_date - chrono::Duration::weeks(12),
+                    Period::Monthly => end_date - chrono::Duration::days(365),
+                    Period::Quarterly => end_date - chrono::Duration::days(365 * 2),
+                    Period::Yearly => end_date - chrono::Duration::days(365 * 5),
+                };
+                AnalyticsRepository::find_by_organization_and_period(
+                    db,
+                    organization_id,
+                    p,
+                    start_date,
+                    end_date,
+                )
+                .await
+            }
+            (None, Some(t)) => {
+                AnalyticsRepository::find_by_organization_and_type(db, organization_id, t, limit)
+                    .await
+            }
+            _ => AnalyticsRepository::find_by_organization_id(db, organization_id, limit).await,
+        }
+    }
+
+    // 権限マトリックスの取得
+    pub async fn get_permission_matrix(
+        db: &DatabaseConnection,
+        entity_type: EntityType,
+        entity_id: Uuid,
+    ) -> Result<Option<permission_matrix::Model>, AppError> {
+        PermissionMatrixRepository::find_by_entity(db, entity_type, entity_id).await
+    }
+
+    // 実効権限の分析
+    pub async fn analyze_effective_permissions(
+        db: &DatabaseConnection,
+        organization_id: Uuid,
+        user_id: Option<Uuid>,
+    ) -> Result<serde_json::Value, AppError> {
+        let mut permissions_chain = Vec::new();
+
+        // 組織レベルの権限マトリックス
+        if let Some(org_matrix) = PermissionMatrixRepository::find_by_entity(
+            db,
+            EntityType::Organization,
+            organization_id,
+        )
+        .await?
+        {
+            permissions_chain.push(serde_json::json!({
+                "level": "organization",
+                "source": "organization_matrix",
+                "matrix": org_matrix.matrix_data,
+                "inheritance_settings": org_matrix.inheritance_settings
+            }));
+        }
+
+        // ユーザーが指定された場合、そのユーザーの部門権限も取得
+        if let Some(uid) = user_id {
+            let user_departments = DepartmentMemberRepository::find_by_user_id(db, uid).await?;
+            for membership in user_departments {
+                if let Some(dept_matrix) = PermissionMatrixRepository::find_by_entity(
+                    db,
+                    EntityType::Department,
+                    membership.department_id,
+                )
+                .await?
+                {
+                    permissions_chain.push(serde_json::json!({
+                        "level": "department",
+                        "source": format!("dept_{}", membership.department_id),
+                        "role": membership.role,
+                        "matrix": dept_matrix.matrix_data,
+                        "inheritance_settings": dept_matrix.inheritance_settings
+                    }));
+                }
+            }
+        }
+
+        Ok(serde_json::json!({
+            "organization_id": organization_id,
+            "user_id": user_id,
+            "inheritance_chain": permissions_chain,
+            "analyzed_at": Utc::now()
+        }))
+    }
+
+    // 組織データのエクスポート
+    pub async fn export_organization_data(
+        db: &DatabaseConnection,
+        organization_id: Uuid,
+        include_analytics: bool,
+        include_permissions: bool,
+    ) -> Result<serde_json::Value, AppError> {
+        // 組織基本情報
+        let departments = Self::get_organization_hierarchy(db, organization_id).await?;
+
+        let mut export_data = serde_json::json!({
+            "organization_id": organization_id,
+            "departments": departments,
+            "exported_at": Utc::now()
+        });
+
+        // 分析データの追加
+        if include_analytics {
+            let analytics =
+                AnalyticsRepository::find_by_organization_id(db, organization_id, Some(100))
+                    .await?;
+            export_data["analytics"] = serde_json::to_value(analytics).map_err(|e| {
+                AppError::InternalServerError(format!("Serialization error: {}", e))
+            })?;
+        }
+
+        // 権限データの追加
+        if include_permissions {
+            let org_matrix = PermissionMatrixRepository::find_by_entity(
+                db,
+                EntityType::Organization,
+                organization_id,
+            )
+            .await?;
+            export_data["organization_permissions"] =
+                serde_json::to_value(org_matrix).map_err(|e| {
+                    AppError::InternalServerError(format!("Serialization error: {}", e))
+                })?;
+
+            let dept_ids: Vec<Uuid> = departments.iter().map(|d| d.id).collect();
+            let dept_matrices =
+                PermissionMatrixRepository::find_department_matrices(db, dept_ids).await?;
+            export_data["department_permissions"] =
+                serde_json::to_value(dept_matrices).map_err(|e| {
+                    AppError::InternalServerError(format!("Serialization error: {}", e))
+                })?;
+        }
+
+        Ok(export_data)
+    }
+
+    // 組織分析メトリクスの作成
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_analytics_metric(
+        db: &DatabaseConnection,
+        organization_id: Uuid,
+        department_id: Option<Uuid>,
+        analytics_type: AnalyticsType,
+        metric_name: String,
+        metric_value: MetricValue,
+        period: Period,
+        period_start: DateTime<Utc>,
+        period_end: DateTime<Utc>,
+        calculated_by: Uuid,
+    ) -> Result<analytics::Model, AppError> {
+        // 重複チェック
+        if AnalyticsRepository::exists_analytics_for_period(
+            db,
+            organization_id,
+            department_id,
+            analytics_type.clone(),
+            &metric_name,
+            period_start,
+            period_end,
+        )
+        .await?
+        {
+            return Err(AppError::Conflict(
+                "Analytics metric already exists for this period".to_string(),
+            ));
+        }
+
+        let new_analytics = analytics::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            organization_id: Set(organization_id),
+            department_id: Set(department_id),
+            analytics_type: Set(analytics_type.to_string()),
+            metric_name: Set(metric_name),
+            metric_value: Set(serde_json::to_value(metric_value).unwrap_or_default()),
+            period: Set(period.to_string()),
+            period_start: Set(period_start),
+            period_end: Set(period_end),
+            calculated_by: Set(calculated_by),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+        };
+
+        AnalyticsRepository::create(db, new_analytics).await
     }
 }

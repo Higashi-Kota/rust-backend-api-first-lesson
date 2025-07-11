@@ -1,14 +1,14 @@
 // task-backend/src/features/gdpr/service.rs
 
 use crate::db::DbPool;
-use crate::domain::user_consent_model::{self, ConsentType};
 use crate::error::{AppError, AppResult};
-use crate::features::auth::repository::refresh_token_repository::RefreshTokenRepository;
-use crate::features::auth::repository::user_repository::UserRepository;
+use crate::features::auth::repositories::refresh_token_repository::RefreshTokenRepository;
 use crate::features::gdpr::dto::*;
+use crate::features::gdpr::models::user_consent::{self, ConsentType};
 use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
-use crate::features::task::repository::task_repository::TaskRepository;
-use crate::repository::team_repository::TeamRepository;
+use crate::features::task::repositories::task_repository::TaskRepository;
+use crate::features::team::repositories::team::TeamRepository;
+use crate::features::user::repositories::user::UserRepository;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
@@ -294,10 +294,10 @@ impl GdprService {
 
         for consent_type in consent_types {
             // Find existing consent
-            let existing_consent = user_consent_model::Entity::find()
-                .filter(user_consent_model::Column::UserId.eq(user_id))
+            let existing_consent = crate::features::gdpr::models::user_consent::Entity::find()
+                .filter(crate::features::gdpr::models::user_consent::Column::UserId.eq(user_id))
                 .filter(
-                    user_consent_model::Column::ConsentType
+                    crate::features::gdpr::models::user_consent::Column::ConsentType
                         .eq::<String>(consent_type.clone().into()),
                 )
                 .one(&self.db)
@@ -370,10 +370,10 @@ impl GdprService {
         // Update each consent
         for (consent_type, is_granted) in request.consents {
             // Find existing consent
-            let existing_consent = user_consent_model::Entity::find()
-                .filter(user_consent_model::Column::UserId.eq(user_id))
+            let existing_consent = crate::features::gdpr::models::user_consent::Entity::find()
+                .filter(crate::features::gdpr::models::user_consent::Column::UserId.eq(user_id))
                 .filter(
-                    user_consent_model::Column::ConsentType
+                    crate::features::gdpr::models::user_consent::Column::ConsentType
                         .eq::<String>(consent_type.clone().into()),
                 )
                 .one(&self.db)
@@ -395,14 +395,14 @@ impl GdprService {
                 active_model.update(&self.db).await?;
             } else {
                 // Create new consent
-                let new_consent = user_consent_model::Model::new(
+                let new_consent = crate::features::gdpr::models::user_consent::Model::new(
                     user_id,
                     consent_type,
                     is_granted,
                     ip_address.clone(),
                     user_agent.clone(),
                 );
-                user_consent_model::ActiveModel {
+                crate::features::gdpr::models::user_consent::ActiveModel {
                     id: Set(new_consent.id),
                     user_id: Set(new_consent.user_id),
                     consent_type: Set(new_consent.consent_type),
@@ -460,15 +460,15 @@ impl GdprService {
         let limit = limit.unwrap_or(100).min(1000);
 
         // Get consent history
-        let consents = user_consent_model::Entity::find()
-            .filter(user_consent_model::Column::UserId.eq(user_id))
-            .order_by_desc(user_consent_model::Column::UpdatedAt)
+        let consents = crate::features::gdpr::models::user_consent::Entity::find()
+            .filter(crate::features::gdpr::models::user_consent::Column::UserId.eq(user_id))
+            .order_by_desc(crate::features::gdpr::models::user_consent::Column::UpdatedAt)
             .limit(limit)
             .all(&self.db)
             .await?;
 
-        let total_count = user_consent_model::Entity::find()
-            .filter(user_consent_model::Column::UserId.eq(user_id))
+        let total_count = crate::features::gdpr::models::user_consent::Entity::find()
+            .filter(crate::features::gdpr::models::user_consent::Column::UserId.eq(user_id))
             .count(&self.db)
             .await?;
 

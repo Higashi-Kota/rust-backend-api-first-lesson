@@ -1,21 +1,21 @@
 // task-backend/src/features/auth/service.rs
-use crate::domain::email_verification_token_model::TokenValidationError as EmailTokenValidationError;
-use crate::domain::refresh_token_model::CreateRefreshToken;
-use crate::domain::role_model::RoleName;
-use crate::domain::user_model::UserClaims;
 use crate::error::{AppError, AppResult};
+use crate::features::analytics::repositories::activity_log::ActivityLogRepository;
 use crate::features::auth::dto::*;
-use crate::features::auth::repository::email_verification_token_repository::EmailVerificationTokenRepository;
-use crate::features::auth::repository::password_reset_token_repository::PasswordResetTokenRepository;
-use crate::features::auth::repository::refresh_token_repository::RefreshTokenRepository;
-use crate::features::auth::repository::user_repository::{CreateUser, UserRepository};
+use crate::features::auth::models::email_verification_token::TokenValidationError as EmailTokenValidationError;
+use crate::features::auth::models::refresh_token::CreateRefreshToken;
+use crate::features::auth::repositories::email_verification_token_repository::EmailVerificationTokenRepository;
+use crate::features::auth::repositories::login_attempt_repository::LoginAttemptRepository;
+use crate::features::auth::repositories::password_reset_token_repository::PasswordResetTokenRepository;
+use crate::features::auth::repositories::refresh_token_repository::RefreshTokenRepository;
+use crate::features::security::models::role::RoleName;
+use crate::features::security::repositories::role::RoleRepository;
+use crate::features::user::dto::{EmailVerificationHistoryResponse, TokenStatusResponse};
+use crate::features::user::models::user::UserClaims;
+use crate::features::user::repositories::user::{CreateUser, UserRepository};
 use crate::infrastructure::email::EmailService;
 use crate::infrastructure::jwt::{JwtManager, TokenPair};
 use crate::infrastructure::password::{PasswordChangeInput, PasswordManager};
-use crate::repository::activity_log_repository::ActivityLogRepository;
-use crate::repository::login_attempt_repository::LoginAttemptRepository;
-use crate::repository::role_repository::RoleRepository;
-use crate::shared::dto::user::{EmailVerificationHistoryResponse, TokenStatusResponse};
 use crate::utils::error_helper::{
     conflict_error, convert_validation_errors, internal_server_error, not_found_error,
 };
@@ -226,7 +226,7 @@ impl AuthService {
                 );
 
                 // 失敗したログイン試行を記録
-                let login_attempt = crate::domain::login_attempt_model::Model::failed(
+                let login_attempt = crate::features::auth::models::login_attempt::Model::failed(
                     signin_data.identifier.clone(),
                     None,
                     "invalid_credentials".to_string(),
@@ -248,7 +248,7 @@ impl AuthService {
             );
 
             // 失敗したログイン試行を記録
-            let login_attempt = crate::domain::login_attempt_model::Model::failed(
+            let login_attempt = crate::features::auth::models::login_attempt::Model::failed(
                 signin_data.identifier.clone(),
                 Some(user.id),
                 "account_inactive".to_string(),
@@ -281,7 +281,7 @@ impl AuthService {
             );
 
             // 失敗したログイン試行を記録
-            let login_attempt = crate::domain::login_attempt_model::Model::failed(
+            let login_attempt = crate::features::auth::models::login_attempt::Model::failed(
                 signin_data.identifier.clone(),
                 Some(user.id),
                 "invalid_password".to_string(),
@@ -323,7 +323,7 @@ impl AuthService {
         );
 
         // 成功したログイン試行を記録
-        let login_attempt = crate::domain::login_attempt_model::Model::successful(
+        let login_attempt = crate::features::auth::models::login_attempt::Model::successful(
             signin_data.identifier.clone(),
             user.id,
             ip_address.clone().unwrap_or_else(|| "unknown".to_string()),
@@ -332,7 +332,7 @@ impl AuthService {
         let _ = self.login_attempt_repo.create(&login_attempt).await;
 
         // アクティビティログを記録
-        let activity_log = crate::domain::activity_log_model::Model::login(
+        let activity_log = crate::features::analytics::models::activity_log::Model::login(
             user.id,
             ip_address.clone(),
             user_agent.clone(),
@@ -562,7 +562,7 @@ impl AuthService {
             );
 
             // アクティビティログに記録
-            let activity_log = crate::domain::activity_log_model::Model {
+            let activity_log = crate::features::analytics::models::activity_log::Model {
                 id: Uuid::new_v4(),
                 user_id: user.id,
                 action: "password_reset_rate_limit".to_string(),
@@ -599,7 +599,7 @@ impl AuthService {
         );
 
         // アクティビティログに記録
-        let activity_log = crate::domain::activity_log_model::Model {
+        let activity_log = crate::features::analytics::models::activity_log::Model {
             id: Uuid::new_v4(),
             user_id: user.id,
             action: "password_reset_requested".to_string(),
@@ -710,7 +710,7 @@ impl AuthService {
         );
 
         // アクティビティログに記録
-        let activity_log = crate::domain::activity_log_model::Model {
+        let activity_log = crate::features::analytics::models::activity_log::Model {
             id: Uuid::new_v4(),
             user_id: user.id,
             action: "password_reset_completed".to_string(),
@@ -1186,7 +1186,7 @@ impl AuthService {
         &self,
         user_id: Uuid,
     ) -> AppResult<EmailVerificationHistoryResponse> {
-        use crate::shared::dto::user::{
+        use crate::features::user::dto::{
             EmailVerificationHistoryItem, EmailVerificationHistoryResponse,
         };
 
@@ -1233,8 +1233,8 @@ impl AuthService {
     pub async fn check_pending_email_verification(
         &self,
         user_id: Uuid,
-    ) -> AppResult<crate::shared::dto::user::PendingEmailVerificationResponse> {
-        use crate::shared::dto::user::PendingEmailVerificationResponse;
+    ) -> AppResult<crate::features::user::dto::PendingEmailVerificationResponse> {
+        use crate::features::user::dto::PendingEmailVerificationResponse;
 
         // 最新のトークンを取得
         let latest_token = self

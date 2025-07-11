@@ -4,7 +4,7 @@ use crate::core::subscription_tier::SubscriptionTier;
 use crate::features::organization::dto::organization::{
     OrganizationListResponse, OrganizationTierStats,
 };
-use crate::shared::dto::user::UserWithRoleResponse;
+use crate::features::user::dto::UserWithRoleResponse;
 use crate::shared::types::pagination::PaginationMeta;
 use serde::{Deserialize, Serialize};
 

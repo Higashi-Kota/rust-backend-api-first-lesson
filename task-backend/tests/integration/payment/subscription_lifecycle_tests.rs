@@ -165,7 +165,7 @@ async fn test_subscription_cancellation_with_grace_period() {
     }"#;
 
     // ユーザーのStripe顧客IDを設定
-    let user_repo = task_backend::features::auth::repository::user_repository::UserRepository::new(
+    let user_repo = task_backend::features::user::repositories::user::UserRepository::new(
         db.connection.clone(),
     );
     user_repo
@@ -489,7 +489,7 @@ async fn test_subscription_period_end_downgrade() {
     subscription_repo.create(create_sub).await.unwrap();
 
     // ユーザーのStripe顧客IDを設定
-    let user_repo = task_backend::features::auth::repository::user_repository::UserRepository::new(
+    let user_repo = task_backend::features::user::repositories::user::UserRepository::new(
         db.connection.clone(),
     );
     user_repo

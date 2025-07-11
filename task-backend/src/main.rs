@@ -9,35 +9,40 @@ mod api;
 mod config;
 mod core;
 mod db;
-mod domain;
 mod error;
 mod features;
 mod infrastructure;
 mod middleware;
-mod repository;
-mod service;
 mod shared;
 mod utils;
 
 // Import routers - using new feature modules where available
-use crate::api::handlers::organization_hierarchy_handler::organization_hierarchy_router;
 use crate::api::AppState;
 use crate::config::AppConfig;
 use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schema_exists};
+use crate::features::analytics::repositories::activity_log::ActivityLogRepository;
+use crate::features::auth::repositories::login_attempt_repository::LoginAttemptRepository;
 use crate::features::auth::{
     handler::auth_router_with_state,
     middleware::{
         cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
     },
-    repository::{
+    repositories::{
         email_verification_token_repository::EmailVerificationTokenRepository,
         password_reset_token_repository::PasswordResetTokenRepository,
-        refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
-        user_settings_repository::UserSettingsRepository,
+        refresh_token_repository::RefreshTokenRepository,
     },
     service::AuthService,
 };
 use crate::features::gdpr::handler::gdpr_router_with_state;
+use crate::features::organization::handlers::organization_hierarchy_handler::organization_hierarchy_router;
+use crate::features::organization::repositories::organization::OrganizationRepository;
+use crate::features::organization::services::organization::OrganizationService;
+use crate::features::security::repositories::role::RoleRepository;
+use crate::features::security::repositories::security_incident::SecurityIncidentRepository;
+use crate::features::security::services::permission::PermissionService;
+use crate::features::security::services::role::RoleService;
+use crate::features::security::services::security::SecurityService;
 use crate::features::storage::attachment::handler::attachment_routes;
 use crate::features::storage::{
     attachment::service::AttachmentService,
@@ -46,20 +51,15 @@ use crate::features::storage::{
 use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
 use crate::features::subscription::services::subscription::SubscriptionService;
 use crate::features::system::handlers::system_handler::system_router_with_state;
-use crate::features::task::{handler::task_router_with_state, service::TaskService};
+use crate::features::task::{handlers::task::task_router_with_state, services::task::TaskService};
 use crate::features::team::handlers::team_router_with_state;
+use crate::features::team::repositories::team::TeamRepository;
+use crate::features::team::services::team::TeamService;
 use crate::features::user::handlers::user_handler::user_router_with_state;
+use crate::features::user::repositories::{
+    user::UserRepository, user_settings::UserSettingsRepository,
+};
 use crate::features::user::services::user_service::UserService;
-use crate::repository::{
-    activity_log_repository::ActivityLogRepository,
-    login_attempt_repository::LoginAttemptRepository,
-    organization_repository::OrganizationRepository, role_repository::RoleRepository,
-    security_incident_repository::SecurityIncidentRepository, team_repository::TeamRepository,
-};
-use crate::service::{
-    organization_service::OrganizationService, permission_service::PermissionService,
-    role_service::RoleService, security_service::SecurityService, team_service::TeamService,
-};
 use crate::utils::{
     email::{EmailConfig, EmailService},
     jwt::{JwtConfig, JwtManager},
@@ -161,18 +161,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
     let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db_pool.clone()));
     let daily_activity_summary_repo = Arc::new(
-        crate::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
+        crate::features::analytics::repositories::daily_activity_summary::DailyActivitySummaryRepository::new(
             db_pool.clone(),
         ),
     );
     let feature_usage_metrics_repo = Arc::new(
-        crate::repository::feature_usage_metrics_repository::FeatureUsageMetricsRepository::new(
+        crate::features::analytics::repositories::feature_usage_metrics::FeatureUsageMetricsRepository::new(
             db_pool.clone(),
         ),
     );
     let user_settings_repo = Arc::new(UserSettingsRepository::new(db_pool.clone()));
     let bulk_operation_history_repo = Arc::new(
-        crate::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+        crate::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository::new(
             db_pool.clone(),
         ),
     );
@@ -255,8 +255,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
     let team_invitation_service = Arc::new(
-        crate::service::team_invitation_service::TeamInvitationService::new(
-            crate::repository::team_invitation_repository::TeamInvitationRepository::new(
+        crate::features::team::services::team_invitation::TeamInvitationService::new(
+            crate::features::team::repositories::team_invitation::TeamInvitationRepository::new(
                 db_pool.clone(),
             ),
             TeamRepository::new(db_pool.clone()),

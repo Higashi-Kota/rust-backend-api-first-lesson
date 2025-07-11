@@ -1,4 +1,4 @@
-// task-backend/src/features/team/models/team_invitation.rs
+// task-backend/src/domain/team_invitation_model.rs
 
 use chrono::{DateTime, Utc};
 use sea_orm::prelude::*;
@@ -27,32 +27,32 @@ pub struct Model {
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
     #[sea_orm(
-        belongs_to = "super::team::Entity",
+        belongs_to = "crate::features::team::models::team::Entity",
         from = "Column::TeamId",
-        to = "super::team::Column::Id"
+        to = "crate::features::team::models::team::Column::Id"
     )]
     Team,
     #[sea_orm(
-        belongs_to = "crate::domain::user_model::Entity",
+        belongs_to = "crate::features::user::models::user::Entity",
         from = "Column::InvitedUserId",
-        to = "crate::domain::user_model::Column::Id"
+        to = "crate::features::user::models::user::Column::Id"
     )]
     InvitedUser,
     #[sea_orm(
-        belongs_to = "crate::domain::user_model::Entity",
+        belongs_to = "crate::features::user::models::user::Entity",
         from = "Column::InvitedByUserId",
-        to = "crate::domain::user_model::Column::Id"
+        to = "crate::features::user::models::user::Column::Id"
     )]
     InvitedByUser,
 }
 
-impl Related<super::team::Entity> for Entity {
+impl Related<crate::features::team::models::team::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Team.def()
     }
 }
 
-impl Related<crate::domain::user_model::Entity> for Entity {
+impl Related<crate::features::user::models::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::InvitedUser.def()
     }
@@ -177,7 +177,6 @@ impl Model {
         }
     }
 
-    #[allow(dead_code)] // TODO: Phase 19で使用予定
     pub fn update_message(&mut self, message: Option<String>) {
         self.message = message;
         self.updated_at = Utc::now();

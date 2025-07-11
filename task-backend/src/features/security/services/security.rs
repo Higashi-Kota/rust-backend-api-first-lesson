@@ -3,19 +3,18 @@
 // TODO: Phase 19でDTOのインポートパスを更新
 use super::super::repositories::security_incident::SecurityIncidentRepository;
 use crate::error::AppResult;
-use crate::features::auth::repository::{
+use crate::features::analytics::repositories::activity_log::ActivityLogRepository;
+use crate::features::auth::repositories::login_attempt_repository::LoginAttemptRepository;
+use crate::features::auth::repositories::{
     password_reset_token_repository::PasswordResetTokenRepository,
-    refresh_token_repository::RefreshTokenRepository, user_repository::UserRepository,
+    refresh_token_repository::RefreshTokenRepository,
 };
 use crate::features::security::dto::security::{
     AuditFinding, AuditReport, AuditReportRequest, AuditSummary, CleanupResult, DeviceSession,
     GeographicSession, PasswordResetActivity, PasswordResetTokenStats, RefreshTokenStats,
     RevokeAllTokensRequest, RevokeResult, SessionAnalytics,
 };
-use crate::repository::{
-    activity_log_repository::ActivityLogRepository,
-    login_attempt_repository::LoginAttemptRepository,
-};
+use crate::features::user::repositories::user::UserRepository;
 use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;

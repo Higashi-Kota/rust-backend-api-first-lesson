@@ -366,7 +366,7 @@ pub async fn admin_list_organizations_handler(
     _user: AuthenticatedUserWithRole,
     Query(query): Query<OrganizationListQuery>,
 ) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
-    use crate::domain::organization_model;
+    use crate::features::organization::models::organization;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect};
 
     let page = query.page.unwrap_or(1).max(1);
@@ -374,11 +374,11 @@ pub async fn admin_list_organizations_handler(
     let offset = ((page - 1) * page_size) as u64;
 
     // Build query with optional filter
-    let mut query_builder = organization_model::Entity::find();
+    let mut query_builder = organization::Entity::find();
 
     if let Some(subscription_tier) = &query.subscription_tier {
         query_builder = query_builder
-            .filter(organization_model::Column::SubscriptionTier.eq(subscription_tier.clone()));
+            .filter(organization::Column::SubscriptionTier.eq(subscription_tier.clone()));
     }
 
     // Get total count
@@ -458,8 +458,8 @@ pub async fn admin_list_roles_handler(
     _user: AuthenticatedUserWithRole,
     Query(query): Query<crate::shared::types::pagination::PaginationQuery>,
 ) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
-    use crate::domain::role_model;
-    use crate::domain::user_model;
+    use crate::features::security::models::role;
+    use crate::features::user::models::user;
     use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
     let page = query.page.unwrap_or(1).max(1);
@@ -467,7 +467,7 @@ pub async fn admin_list_roles_handler(
     let offset = ((page - 1) * per_page) as u64;
 
     // Get all roles
-    let all_roles = role_model::Entity::find()
+    let all_roles = role::Entity::find()
         .all(app_state.db.as_ref())
         .await
         .unwrap_or_default();
@@ -477,7 +477,7 @@ pub async fn admin_list_roles_handler(
     // Apply pagination manually
     let start = offset as usize;
     let end = (start + per_page as usize).min(all_roles.len());
-    let roles: Vec<role_model::Model> = if start < all_roles.len() {
+    let roles: Vec<role::Model> = if start < all_roles.len() {
         all_roles[start..end].to_vec()
     } else {
         vec![]
@@ -486,8 +486,8 @@ pub async fn admin_list_roles_handler(
     // Count users for each role
     let mut role_responses = vec![];
     for role in roles {
-        let user_count = user_model::Entity::find()
-            .filter(user_model::Column::RoleId.eq(role.id))
+        let user_count = user::Entity::find()
+            .filter(user::Column::RoleId.eq(role.id))
             .count(app_state.db.as_ref())
             .await
             .unwrap_or(0);
@@ -540,11 +540,11 @@ pub async fn admin_get_role_with_subscription_handler(
     _user: AuthenticatedUserWithRole,
     Path(role_id): Path<Uuid>,
 ) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
-    use crate::domain::role_model;
+    use crate::features::security::models::role;
     use sea_orm::EntityTrait;
 
     // Get the role
-    let role = role_model::Entity::find_by_id(role_id)
+    let role = role::Entity::find_by_id(role_id)
         .one(app_state.db.as_ref())
         .await?
         .ok_or_else(|| crate::error::AppError::NotFound("Role not found".to_string()))?;
@@ -645,7 +645,7 @@ pub async fn admin_list_users_with_roles_handler(
     _user: AuthenticatedUserWithRole,
     Query(query): Query<crate::shared::types::pagination::PaginationQuery>,
 ) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
-    use crate::domain::user_model;
+    use crate::features::user::models::user;
     use sea_orm::{EntityTrait, PaginatorTrait, QuerySelect};
     use std::collections::HashMap;
 
@@ -654,13 +654,13 @@ pub async fn admin_list_users_with_roles_handler(
     let offset = ((page - 1) * page_size) as u64;
 
     // Get total count
-    let total_count = user_model::Entity::find()
+    let total_count = user::Entity::find()
         .count(app_state.db.as_ref())
         .await
         .unwrap_or(0);
 
     // Get users
-    let users = user_model::Entity::find()
+    let users = user::Entity::find()
         .limit(page_size as u64)
         .offset(offset)
         .all(app_state.db.as_ref())

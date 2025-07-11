@@ -1,9 +1,11 @@
-use crate::domain::{
-    organization_analytics_model::{AnalyticsType, MetricValue, Period},
-    permission_matrix_model::{ComplianceSettings, InheritanceSettings, PermissionMatrix},
-};
 use crate::features::organization::models::department::Model as Department;
 use crate::features::organization::models::department_member::DepartmentRole;
+use crate::features::{
+    organization::models::organization_analytics::{AnalyticsType, MetricValue, Period},
+    security::models::permission_matrix::{
+        ComplianceSettings, InheritanceSettings, PermissionMatrix,
+    },
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -228,26 +230,29 @@ pub struct AnalyticsQueryParams {
 }
 
 // Conversion implementations
-impl From<crate::domain::organization_department_model::Model> for DepartmentResponseDto {
-    fn from(model: crate::domain::organization_department_model::Model) -> Self {
-        Self {
-            id: model.id,
-            name: model.name,
-            description: model.description,
-            organization_id: model.organization_id,
-            parent_department_id: model.parent_department_id,
-            hierarchy_level: model.hierarchy_level,
-            hierarchy_path: model.hierarchy_path,
-            manager_user_id: model.manager_user_id,
-            is_active: model.is_active,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
-        }
-    }
-}
+// This implementation is now handled by the From<Department> implementation above
+// impl From<crate::features::organization::models::organization_department::Model> for DepartmentResponseDto {
+//     fn from(model: crate::features::organization::models::organization_department::Model) -> Self {
+//         Self {
+//             id: model.id,
+//             name: model.name,
+//             description: model.description,
+//             organization_id: model.organization_id,
+//             parent_department_id: model.parent_department_id,
+//             hierarchy_level: model.hierarchy_level,
+//             hierarchy_path: model.hierarchy_path,
+//             manager_user_id: model.manager_user_id,
+//             is_active: model.is_active,
+//             created_at: model.created_at,
+//             updated_at: model.updated_at,
+//         }
+//     }
+// }
 
-impl From<crate::domain::department_member_model::Model> for DepartmentMemberResponseDto {
-    fn from(model: crate::domain::department_member_model::Model) -> Self {
+impl From<crate::features::organization::models::department_member::Model>
+    for DepartmentMemberResponseDto
+{
+    fn from(model: crate::features::organization::models::department_member::Model) -> Self {
         // Convert old DepartmentRole to new DepartmentRole
         let role_str = model.get_role().to_string();
         let role = match role_str.as_str() {
@@ -271,8 +276,10 @@ impl From<crate::domain::department_member_model::Model> for DepartmentMemberRes
     }
 }
 
-impl From<crate::domain::organization_analytics_model::Model> for OrganizationAnalyticsResponseDto {
-    fn from(model: crate::domain::organization_analytics_model::Model) -> Self {
+impl From<crate::features::organization::models::organization_analytics::Model>
+    for OrganizationAnalyticsResponseDto
+{
+    fn from(model: crate::features::organization::models::organization_analytics::Model) -> Self {
         let analytics_type = model.get_analytics_type();
         let metric_value = model.get_metric_value().unwrap_or_else(|_| MetricValue {
             value: 0.0,
@@ -298,8 +305,10 @@ impl From<crate::domain::organization_analytics_model::Model> for OrganizationAn
     }
 }
 
-impl From<crate::domain::permission_matrix_model::Model> for PermissionMatrixResponseDto {
-    fn from(model: crate::domain::permission_matrix_model::Model) -> Self {
+impl From<crate::features::security::models::permission_matrix::Model>
+    for PermissionMatrixResponseDto
+{
+    fn from(model: crate::features::security::models::permission_matrix::Model) -> Self {
         let matrix_data = model
             .get_permission_matrix()
             .unwrap_or_else(|_| PermissionMatrix {

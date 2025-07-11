@@ -1,17 +1,17 @@
 // task-backend/src/service/user_service.rs
-use crate::domain::bulk_operation_history_model::{
+use super::super::models::user_settings;
+use crate::error::{AppError, AppResult};
+use crate::features::admin::models::bulk_operation_history::{
     BulkOperationError, BulkOperationErrorDetails, BulkOperationType,
 };
-use crate::domain::user_model::{SafeUser, SafeUserWithRole};
-use crate::domain::user_settings_model;
-use crate::error::{AppError, AppResult};
-use crate::features::auth::repository::email_verification_token_repository::EmailVerificationTokenRepository;
-use crate::features::auth::repository::user_repository::UserRepository;
-use crate::features::auth::repository::user_settings_repository::UserSettingsRepository;
-use crate::repository::bulk_operation_history_repository::BulkOperationHistoryRepository;
-use crate::shared::dto::user::{
+use crate::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository;
+use crate::features::auth::repositories::email_verification_token_repository::EmailVerificationTokenRepository;
+use crate::features::user::dto::{
     BulkOperationResult, BulkUserOperation, RoleUserStats, SubscriptionAnalytics,
 };
+use crate::features::user::models::user::{SafeUser, SafeUserWithRole};
+use crate::features::user::repositories::user::UserRepository;
+use crate::features::user::repositories::user_settings::UserSettingsRepository;
 use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -183,7 +183,10 @@ impl UserService {
         &self,
         page: i32,
         per_page: i32,
-    ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
+    ) -> AppResult<(
+        Vec<crate::features::user::models::user::SafeUserWithRole>,
+        usize,
+    )> {
         // データベースレベルでページネーションを適用
         let users = self
             .user_repo
@@ -202,7 +205,10 @@ impl UserService {
         email_verified: Option<bool>,
         page: i32,
         per_page: i32,
-    ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
+    ) -> AppResult<(
+        Vec<crate::features::user::models::user::SafeUserWithRole>,
+        usize,
+    )> {
         let users = self
             .user_repo
             .search_users(query.clone(), is_active, email_verified, page, per_page)
@@ -314,7 +320,10 @@ impl UserService {
         page: i32,
         page_size: i32,
         role_name: Option<&str>,
-    ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
+    ) -> AppResult<(
+        Vec<crate::features::user::models::user::SafeUserWithRole>,
+        usize,
+    )> {
         let (users_with_roles, total_count) = if let Some(role_name) = role_name {
             // 特定のロールでフィルタリング
             let users = self.user_repo.find_by_role_name(role_name).await?;
@@ -411,7 +420,7 @@ impl UserService {
     /// メール認証トークンの検証
     pub async fn verify_email_token(&self, user_id: Uuid, token: &str) -> AppResult<SafeUser> {
         // メール認証を実行
-        use crate::domain::email_verification_token_model::TokenValidationError;
+        use crate::features::auth::models::email_verification_token::TokenValidationError;
 
         let result = self
             .email_verification_token_repo
@@ -476,8 +485,8 @@ impl UserService {
     pub async fn get_user_settings_legacy(
         &self,
         user_id: Uuid,
-    ) -> AppResult<crate::shared::dto::user::UserSettingsResponse> {
-        use crate::shared::dto::user::{SecuritySettings, UserPreferences, UserSettingsResponse};
+    ) -> AppResult<crate::features::user::dto::UserSettingsResponse> {
+        use crate::features::user::dto::{SecuritySettings, UserPreferences, UserSettingsResponse};
 
         // ユーザーの存在確認
         let _user = self
@@ -504,7 +513,7 @@ impl UserService {
 
         let domain_notifications = settings.get_email_notifications();
         // ドメインモデルからDTOへ変換
-        let notifications = crate::shared::dto::user::NotificationSettings {
+        let notifications = crate::features::user::dto::NotificationSettings {
             email_notifications: true, // 汎用的な通知設定
             security_alerts: domain_notifications.security_alerts,
             task_reminders: domain_notifications.task_updates,
@@ -524,7 +533,7 @@ impl UserService {
     pub async fn get_user_settings(
         &self,
         user_id: Uuid,
-    ) -> AppResult<Option<user_settings_model::Model>> {
+    ) -> AppResult<Option<crate::features::user::models::user_settings::Model>> {
         self.user_settings_repo.get_by_user_id(user_id).await
     }
 
@@ -532,8 +541,8 @@ impl UserService {
     pub async fn update_user_settings(
         &self,
         user_id: Uuid,
-        input: user_settings_model::UserSettingsInput,
-    ) -> AppResult<user_settings_model::Model> {
+        input: crate::features::user::models::user_settings::UserSettingsInput,
+    ) -> AppResult<crate::features::user::models::user_settings::Model> {
         self.user_settings_repo.update(user_id, input).await
     }
 

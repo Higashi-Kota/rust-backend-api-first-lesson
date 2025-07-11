@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::core::subscription_tier::SubscriptionTier;
-use crate::domain::user_model::SafeUser;
-use crate::features::auth::repository::user_repository::SubscriptionTierStats;
 use crate::features::subscription::models::history::SubscriptionChangeInfo;
 use crate::features::subscription::repositories::history::UserSubscriptionStats;
+use crate::features::user::models::user::SafeUser;
+use crate::features::user::repositories::user::SubscriptionTierStats;
 use crate::shared::types::common::{ApiResponse, OperationResult};
 use crate::shared::types::pagination::PaginationMeta;
 

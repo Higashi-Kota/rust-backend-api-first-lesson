@@ -1,5 +1,5 @@
-use crate::domain::team_invitation_model::Model as TeamInvitation;
-use crate::domain::user_model::SafeUser;
+use crate::features::team::models::team_invitation::Model as TeamInvitation;
+use crate::features::user::models::user::SafeUser;
 use crate::shared::types::pagination::PaginationMeta;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -168,7 +168,8 @@ mod tests {
             invited_email: "test@example.com".to_string(),
             invited_user_id: None,
             invited_by_user_id: Uuid::new_v4(),
-            status: crate::domain::team_invitation_model::TeamInvitationStatus::Pending.to_string(),
+            status: crate::features::team::models::team_invitation::TeamInvitationStatus::Pending
+                .to_string(),
             message: Some("Welcome to the team!".to_string()),
             expires_at: Some(Utc::now() + chrono::Duration::days(7)),
             created_at: Utc::now(),

@@ -1,9 +1,11 @@
 // task-backend/src/features/storage/repository/attachment_share_link_repository.rs
 
 use crate::db::DbPool;
-use crate::domain::attachment_share_link_model::{self, Entity as AttachmentShareLink};
-use crate::domain::share_link_access_log_model;
 use crate::error::{AppError, AppResult};
+use crate::features::storage::models::attachment_share_link::{
+    self, Entity as AttachmentShareLink,
+};
+use crate::features::storage::models::share_link_access_log;
 use chrono::{DateTime, Utc};
 use sea_orm::{
     entity::*, query::*, ActiveModelTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait,
@@ -23,8 +25,8 @@ impl AttachmentShareLinkRepository {
     pub async fn create(
         &self,
         dto: CreateShareLinkDto,
-    ) -> AppResult<attachment_share_link_model::Model> {
-        let share_link = attachment_share_link_model::ActiveModel {
+    ) -> AppResult<crate::features::storage::models::attachment_share_link::Model> {
+        let share_link = crate::features::storage::models::attachment_share_link::ActiveModel {
             id: Set(dto.id),
             attachment_id: Set(dto.attachment_id),
             created_by: Set(dto.created_by),
@@ -45,9 +47,12 @@ impl AttachmentShareLinkRepository {
     pub async fn find_by_token(
         &self,
         token: &str,
-    ) -> AppResult<Option<attachment_share_link_model::Model>> {
+    ) -> AppResult<Option<crate::features::storage::models::attachment_share_link::Model>> {
         AttachmentShareLink::find()
-            .filter(attachment_share_link_model::Column::ShareToken.eq(token))
+            .filter(
+                crate::features::storage::models::attachment_share_link::Column::ShareToken
+                    .eq(token),
+            )
             .one(&self.db)
             .await
             .map_err(AppError::DbErr)
@@ -57,7 +62,7 @@ impl AttachmentShareLinkRepository {
     pub async fn find_by_id(
         &self,
         id: Uuid,
-    ) -> AppResult<Option<attachment_share_link_model::Model>> {
+    ) -> AppResult<Option<crate::features::storage::models::attachment_share_link::Model>> {
         AttachmentShareLink::find_by_id(id)
             .one(&self.db)
             .await
@@ -68,11 +73,19 @@ impl AttachmentShareLinkRepository {
     pub async fn find_by_attachment_id(
         &self,
         attachment_id: Uuid,
-    ) -> AppResult<Vec<attachment_share_link_model::Model>> {
+    ) -> AppResult<Vec<crate::features::storage::models::attachment_share_link::Model>> {
         AttachmentShareLink::find()
-            .filter(attachment_share_link_model::Column::AttachmentId.eq(attachment_id))
-            .filter(attachment_share_link_model::Column::IsRevoked.eq(false))
-            .order_by_desc(attachment_share_link_model::Column::CreatedAt)
+            .filter(
+                crate::features::storage::models::attachment_share_link::Column::AttachmentId
+                    .eq(attachment_id),
+            )
+            .filter(
+                crate::features::storage::models::attachment_share_link::Column::IsRevoked
+                    .eq(false),
+            )
+            .order_by_desc(
+                crate::features::storage::models::attachment_share_link::Column::CreatedAt,
+            )
             .all(&self.db)
             .await
             .map_err(AppError::DbErr)
@@ -86,7 +99,8 @@ impl AttachmentShareLinkRepository {
             .map_err(AppError::DbErr)?
             .ok_or_else(|| AppError::NotFound("Share link not found".to_string()))?;
 
-        let mut active_model: attachment_share_link_model::ActiveModel = share_link.into();
+        let mut active_model: crate::features::storage::models::attachment_share_link::ActiveModel =
+            share_link.into();
         active_model.is_revoked = Set(true);
         active_model.updated_at = Set(Utc::now());
 
@@ -116,14 +130,15 @@ impl AttachmentShareLinkRepository {
             .map_err(AppError::DbErr)?
             .ok_or_else(|| AppError::NotFound("Share link not found".to_string()))?;
 
-        let mut active_model: attachment_share_link_model::ActiveModel = share_link.into();
+        let mut active_model: crate::features::storage::models::attachment_share_link::ActiveModel =
+            share_link.into();
         active_model.current_access_count = Set(active_model.current_access_count.unwrap() + 1);
         active_model.updated_at = Set(Utc::now());
 
         active_model.update(&txn).await.map_err(AppError::DbErr)?;
 
         // アクセスログを記録
-        let access_log = share_link_access_log_model::ActiveModel {
+        let access_log = crate::features::storage::models::share_link_access_log::ActiveModel {
             id: Set(Uuid::new_v4()),
             share_link_id: Set(share_link_id),
             ip_address: Set(ip_address),

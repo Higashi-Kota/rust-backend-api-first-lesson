@@ -1,4 +1,6 @@
-// task-backend/src/features/security/models/role.rs
+// task-backend/src/domain/role_model.rs
+#![allow(dead_code)] // Model methods and utilities
+
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -28,17 +30,15 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    // TODO: Phase 19でUserモデルがfeatures/authに移行後に更新
-    // #[sea_orm(has_many = "crate::domain::user_model::Entity")]
-    // Users,
+    #[sea_orm(has_many = "crate::features::user::models::user::Entity")]
+    Users,
 }
 
-// TODO: Phase 19でUserモデルとの関連を定義
-// impl Related<crate::domain::user_model::Entity> for Entity {
-//     fn to() -> RelationDef {
-//         Relation::Users.def()
-//     }
-// }
+impl Related<crate::features::user::models::user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Users.def()
+    }
+}
 
 impl ActiveModelBehavior for ActiveModel {}
 
@@ -74,19 +74,16 @@ impl RoleName {
     }
 
     /// 管理者権限があるかチェック
-    #[allow(dead_code)] // Utility method for role type checking
     pub fn is_admin(&self) -> bool {
         matches!(self, RoleName::Admin)
     }
 
     /// 一般ユーザー権限があるかチェック（管理者も含む）
-    #[allow(dead_code)] // Utility method for role type checking
     pub fn is_member(&self) -> bool {
         matches!(self, RoleName::Member | RoleName::Admin)
     }
 
     /// 権限レベルを数値で取得（高いほど強い権限）
-    #[allow(dead_code)] // Model utility method
     pub fn permission_level(&self) -> u8 {
         match self {
             RoleName::Admin => 100,
@@ -123,7 +120,6 @@ pub struct RoleWithPermissions {
     pub subscription_tier: SubscriptionTier,
 }
 
-#[allow(dead_code)] // TODO: Will be used when advanced permission features are integrated
 impl RoleWithPermissions {
     /// Modelから変換
     pub fn from_model(model: Model) -> Result<Self, String> {

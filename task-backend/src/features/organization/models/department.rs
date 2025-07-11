@@ -29,9 +29,9 @@ pub enum Relation {
     )]
     Organization,
     #[sea_orm(
-        belongs_to = "crate::domain::user_model::Entity",
+        belongs_to = "crate::features::user::models::user::Entity",
         from = "Column::ManagerUserId",
-        to = "crate::domain::user_model::Column::Id"
+        to = "crate::features::user::models::user::Column::Id"
     )]
     Manager,
     #[sea_orm(has_many = "super::department_member::Entity")]
@@ -46,7 +46,7 @@ impl Related<super::organization::Entity> for Entity {
     }
 }
 
-impl Related<crate::domain::user_model::Entity> for Entity {
+impl Related<crate::features::user::models::user::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Manager.def()
     }

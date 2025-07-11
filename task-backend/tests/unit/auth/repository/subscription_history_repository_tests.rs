@@ -4,8 +4,8 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use task_backend::{
     core::subscription_tier::SubscriptionTier,
     domain::role_model,
-    features::auth::repository::user_repository::{CreateUser, UserRepository},
     features::subscription::repositories::history::SubscriptionHistoryRepository,
+    features::user::repositories::user::{CreateUser, UserRepository},
 };
 use uuid::Uuid;
 

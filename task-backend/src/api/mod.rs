@@ -1,28 +1,25 @@
 // task-backend/src/api/mod.rs
 use crate::config::AppConfig;
+use crate::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository;
+use crate::features::analytics::repositories::daily_activity_summary::DailyActivitySummaryRepository;
+use crate::features::analytics::repositories::feature_usage_metrics::FeatureUsageMetricsRepository;
+use crate::features::analytics::services::feature_tracking::FeatureTrackingService;
 use crate::features::auth::service::AuthService;
+use crate::features::organization::services::organization::OrganizationService;
 use crate::features::payment::services::payment_service::PaymentService;
+use crate::features::security::services::permission::PermissionService;
+use crate::features::security::services::role::RoleService;
+use crate::features::security::services::security::SecurityService;
 use crate::features::storage::attachment::service::AttachmentService;
 use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
 use crate::features::subscription::services::subscription::SubscriptionService;
-use crate::features::task::service::TaskService;
+use crate::features::task::services::task::TaskService;
+use crate::features::team::services::team::TeamService;
+use crate::features::team::services::team_invitation::TeamInvitationService;
 use crate::features::user::services::user_service::UserService;
 use crate::infrastructure::jwt::JwtManager;
-use crate::repository::{
-    bulk_operation_history_repository::BulkOperationHistoryRepository,
-    daily_activity_summary_repository::DailyActivitySummaryRepository,
-    feature_usage_metrics_repository::FeatureUsageMetricsRepository,
-};
-use crate::service::{
-    feature_tracking_service::FeatureTrackingService, organization_service::OrganizationService,
-    permission_service::PermissionService, role_service::RoleService,
-    security_service::SecurityService, team_invitation_service::TeamInvitationService,
-    team_service::TeamService,
-};
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
-
-pub mod handlers;
 
 /// 統一されたアプリケーション状態
 #[derive(Clone)]

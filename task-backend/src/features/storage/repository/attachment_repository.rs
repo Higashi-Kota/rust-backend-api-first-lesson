@@ -2,7 +2,7 @@
 
 use crate::db;
 use crate::features::storage::attachment::dto::{AttachmentSortBy, SortOrder};
-use crate::features::task::domain::task_attachment_model::{
+use crate::features::task::models::task_attachment_model::{
     self, ActiveModel as AttachmentActiveModel, Entity as AttachmentEntity,
 };
 use chrono::Utc;

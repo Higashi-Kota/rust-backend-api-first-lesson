@@ -1,5 +1,5 @@
-use crate::domain::team_model::Model as Team;
-use crate::domain::user_model::SafeUser;
+use crate::features::team::models::team::Model as Team;
+use crate::features::user::models::user::SafeUser;
 use crate::shared::types::pagination::PaginationMeta;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

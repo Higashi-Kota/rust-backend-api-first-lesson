@@ -7,7 +7,7 @@ use crate::common::stripe_helper::{
 use axum::http::StatusCode;
 use serde_json::json;
 use task_backend::core::subscription_tier::SubscriptionTier;
-use task_backend::features::auth::repository::user_repository::UserRepository;
+use task_backend::features::user::repositories::user::UserRepository;
 use tower::ServiceExt;
 
 #[tokio::test]
