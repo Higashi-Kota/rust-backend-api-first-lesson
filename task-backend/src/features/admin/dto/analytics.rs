@@ -360,28 +360,6 @@ impl Default for SubscriptionMetrics {
     }
 }
 
-impl ActivitySummary {
-    #[allow(dead_code)] // Utility method for analytics calculations
-    pub fn calculate_productivity_score(
-        completion_rate: f64,
-        average_daily_tasks: f64,
-        login_consistency: f64,
-    ) -> f64 {
-        (completion_rate * 0.5) + (average_daily_tasks.min(10.0) * 0.3) + (login_consistency * 0.2)
-    }
-}
-
-impl TaskStatsOverview {
-    #[allow(dead_code)] // Utility method for task statistics
-    pub fn calculate_completion_rate(completed: u64, total: u64) -> f64 {
-        if total == 0 {
-            0.0
-        } else {
-            (completed as f64 / total as f64) * 100.0
-        }
-    }
-}
-
 // --- User Analytics & Management API DTOs ---
 
 /// ユーザー行動分析リクエスト
@@ -905,18 +883,6 @@ impl Default for SessionDuration {
     }
 }
 
-impl BehavioralMetrics {
-    #[allow(dead_code)] // Utility method for engagement analysis
-    pub fn calculate_engagement_level(activity_score: f64) -> EngagementLevel {
-        match activity_score {
-            score if score >= 80.0 => EngagementLevel::VeryHigh,
-            score if score >= 60.0 => EngagementLevel::High,
-            score if score >= 40.0 => EngagementLevel::Medium,
-            _ => EngagementLevel::Low,
-        }
-    }
-}
-
 // --- Tests ---
 
 #[cfg(test)]
@@ -933,28 +899,6 @@ mod tests {
             response.subscription_metrics.conversion_rate_percentage,
             0.0
         );
-    }
-
-    #[test]
-    fn test_completion_rate_calculation() {
-        assert_eq!(TaskStatsOverview::calculate_completion_rate(50, 100), 50.0);
-        assert_eq!(TaskStatsOverview::calculate_completion_rate(0, 100), 0.0);
-        assert_eq!(
-            TaskStatsOverview::calculate_completion_rate(100, 100),
-            100.0
-        );
-        assert_eq!(TaskStatsOverview::calculate_completion_rate(10, 0), 0.0);
-    }
-
-    #[test]
-    fn test_productivity_score_calculation() {
-        let score = ActivitySummary::calculate_productivity_score(0.8, 5.0, 0.9);
-        // 0.8 * 0.5 + 5.0 * 0.3 + 0.9 * 0.2 = 0.4 + 1.5 + 0.18 = 2.08
-        assert!((score - 2.08).abs() < 0.1);
-
-        let max_score = ActivitySummary::calculate_productivity_score(1.0, 15.0, 1.0);
-        // 1.0 * 0.5 + min(15.0, 10.0) * 0.3 + 1.0 * 0.2 = 0.5 + 3.0 + 0.2 = 3.7
-        assert!((max_score - 3.7).abs() < 0.1);
     }
 
     #[test]

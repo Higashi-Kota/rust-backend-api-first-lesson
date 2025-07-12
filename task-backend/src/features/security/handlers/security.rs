@@ -17,8 +17,6 @@ use tracing::{info, warn};
 use validator::Validate;
 
 /// トークン利用統計取得（管理者用）
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
-#[allow(dead_code)]
 pub async fn get_token_stats_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
@@ -58,7 +56,6 @@ pub async fn get_token_stats_handler(
 }
 
 /// リフレッシュトークン監視（管理者用）
-#[allow(dead_code)]
 pub async fn get_refresh_tokens_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
@@ -90,7 +87,6 @@ pub async fn get_refresh_tokens_handler(
 }
 
 /// 期限切れトークン自動削除（管理者用）
-#[allow(dead_code)]
 pub async fn cleanup_tokens_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
@@ -134,7 +130,7 @@ pub async fn cleanup_tokens_handler(
                 .security_service
                 .cleanup_expired_password_reset_tokens()
                 .await?;
-            super::super::dto::CleanupResult {
+            crate::features::security::dto::security::CleanupResult {
                 deleted_count: refresh_result.deleted_count + password_result.deleted_count,
                 cleanup_type: "all".to_string(),
             }
@@ -156,7 +152,6 @@ pub async fn cleanup_tokens_handler(
 }
 
 /// パスワードリセット監視（管理者用）
-#[allow(dead_code)]
 pub async fn get_password_resets_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
@@ -191,7 +186,6 @@ pub async fn get_password_resets_handler(
 }
 
 /// 緊急時全トークン無効化（管理者用）
-#[allow(dead_code)]
 pub async fn revoke_all_tokens_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
@@ -244,7 +238,6 @@ pub async fn revoke_all_tokens_handler(
 }
 
 /// セッション分析（管理者用）
-#[allow(dead_code)]
 pub async fn get_session_analytics_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
@@ -276,7 +269,6 @@ pub async fn get_session_analytics_handler(
 }
 
 /// セキュリティ監査レポート生成（管理者用）
-#[allow(dead_code)]
 pub async fn generate_audit_report_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
@@ -350,5 +342,9 @@ pub fn security_router(app_state: AppState) -> Router {
             "/admin/security/audit-report",
             post(generate_audit_report_handler),
         )
+        // Permission routes (use permission_handler for full functionality)
+        .merge(super::permission::permission_routes())
+        // Full permission routes from permission_handler
+        .merge(super::permission_handler::permission_router())
         .with_state(app_state)
 }

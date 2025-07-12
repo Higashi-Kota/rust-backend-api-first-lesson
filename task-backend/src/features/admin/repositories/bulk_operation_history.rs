@@ -2,7 +2,7 @@
 
 use crate::error::{AppError, AppResult};
 use crate::features::admin::models::bulk_operation_history::{
-    self, BulkOperationErrorDetails, BulkOperationType, Entity as BulkOperationHistory,
+    BulkOperationErrorDetails, BulkOperationType, Entity as BulkOperationHistory,
 };
 use chrono::{DateTime, Utc};
 use sea_orm::{

@@ -180,16 +180,4 @@ impl SubscriptionService {
             .map(|stat| (stat.tier, stat.user_count))
             .collect())
     }
-
-    /// サブスクリプション履歴詳細を取得（find_by_idを活用）
-    #[allow(dead_code)] // Service method for subscription history details
-    pub async fn get_subscription_history_detail(
-        &self,
-        history_id: Uuid,
-    ) -> AppResult<SubscriptionHistory> {
-        self.subscription_history_repo
-            .find_by_id(history_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Subscription history not found".to_string()))
-    }
 }

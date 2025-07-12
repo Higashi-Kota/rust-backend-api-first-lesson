@@ -297,7 +297,7 @@ pub struct TierUserInfo {
 
 // --- Type Aliases for API Responses ---
 
-#[allow(dead_code)] // Type alias for API responses
+#[allow(dead_code)] // Type alias for API response consistency
 pub type ChangeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;
 pub type UpgradeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;
 pub type DowngradeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;

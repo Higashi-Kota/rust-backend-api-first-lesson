@@ -1,4 +1,8 @@
-pub mod attachment;
+pub mod dto;
+pub mod handlers;
 pub mod models;
-pub mod repository;
-pub mod service;
+pub mod repositories;
+pub mod services;
+
+// Re-export for backward compatibility
+pub use services as service;

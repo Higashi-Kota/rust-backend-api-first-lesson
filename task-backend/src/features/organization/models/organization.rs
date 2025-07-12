@@ -260,7 +260,6 @@ impl OrganizationMember {
     }
 
     /// 役割を更新
-    #[allow(dead_code)] // Model utility method
     pub fn update_role(&mut self, role: OrganizationRole) {
         self.role = role;
     }

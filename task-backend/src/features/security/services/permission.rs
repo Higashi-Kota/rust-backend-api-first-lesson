@@ -1,5 +1,4 @@
 // task-backend/src/features/security/services/permission.rs
-#![allow(dead_code)] // Service methods for permission management
 
 // use super::super::models::role::RoleWithPermissions;
 use super::super::repositories::role::RoleRepository;
@@ -16,7 +15,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// 権限管理の統合サービス
-#[allow(dead_code)] // Security feature service - will be used when integrated
 pub struct PermissionService {
     // permission_repository: Arc<PermissionRepository>, // TODO: Implement when PermissionRepository is created
     role_repository: Arc<RoleRepository>,
@@ -191,6 +189,7 @@ impl PermissionService {
     }
 
     /// 権限タイプに基づいた権限チェック
+    #[allow(dead_code)] // Public API for permission checks
     pub async fn check_permission_type(
         &self,
         user_id: Uuid,
@@ -241,19 +240,6 @@ impl PermissionService {
         Ok(())
     }
 
-    /// ユーザーの管理機能へのアクセス権限を確認
-    pub async fn check_admin_features_access(&self, user_id: Uuid) -> AppResult<()> {
-        let role = self.get_user_role(user_id).await?;
-
-        if !PermissionChecker::can_access_admin_features(&role) {
-            return Err(AppError::Forbidden(
-                "Admin features access denied".to_string(),
-            ));
-        }
-
-        Ok(())
-    }
-
     /// ユーザー一覧表示権限を確認
     pub async fn check_list_users_permission(&self, user_id: Uuid) -> AppResult<()> {
         let role = self.get_user_role(user_id).await?;
@@ -288,7 +274,6 @@ impl PermissionService {
             .ok_or_else(|| AppError::NotFound("Role not found".to_string()))?;
 
         // Convert from new RoleWithPermissions to old RoleWithPermissions
-        // TODO: Phase 19 - Remove this conversion when types are unified
         let old_role = crate::features::security::models::role::RoleWithPermissions {
             id: role.id,
             name: match role.name {
@@ -311,6 +296,7 @@ impl PermissionService {
     }
 
     /// 複数の権限を一度にチェック
+    #[allow(dead_code)] // Public API for bulk permission checks
     pub async fn check_multiple_permissions(
         &self,
         user_id: Uuid,

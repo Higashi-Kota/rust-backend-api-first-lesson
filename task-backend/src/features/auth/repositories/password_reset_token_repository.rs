@@ -2,7 +2,7 @@
 
 use crate::db;
 use crate::features::auth::models::password_reset_token::{
-    self, ActiveModel as PasswordResetTokenActiveModel, CleanupResult,
+    ActiveModel as PasswordResetTokenActiveModel, CleanupResult,
     Entity as PasswordResetTokenEntity, PasswordResetTokenStats,
 };
 use chrono::Utc;

@@ -3,13 +3,13 @@
 // ユーザーサービス関連のユニットテスト
 
 use std::sync::Arc;
-use task_backend::features::auth::repository::email_verification_token_repository::EmailVerificationTokenRepository;
+use task_backend::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository;
+use task_backend::features::auth::repositories::email_verification_token_repository::EmailVerificationTokenRepository;
 use task_backend::features::user::dto::{UpdateProfileRequest, UpdateUsernameRequest};
 use task_backend::features::user::repositories::{
     user::UserRepository, user_settings::UserSettingsRepository,
 };
 use task_backend::features::user::services::user_service::UserService;
-use task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository;
 use task_backend::utils::validation::common::validate_username;
 use validator::Validate;
 
@@ -43,8 +43,8 @@ async fn test_update_username_with_actual_service() {
     let connection = db.connection.clone();
 
     // テスト用ユーザーを作成
+    use task_backend::features::security::repositories::role::RoleRepository;
     use task_backend::features::user::repositories::user::{CreateUser, UserRepository};
-    use task_backend::repository::role_repository::RoleRepository;
     let user_repo = UserRepository::new(connection.clone());
     let role_repo = RoleRepository::new(std::sync::Arc::new(connection));
 
@@ -80,8 +80,8 @@ async fn test_update_email_with_actual_service() {
     let connection = db.connection.clone();
 
     // テスト用ユーザーを作成
+    use task_backend::features::security::repositories::role::RoleRepository;
     use task_backend::features::user::repositories::user::{CreateUser, UserRepository};
-    use task_backend::repository::role_repository::RoleRepository;
     let user_repo = UserRepository::new(connection.clone());
     let role_repo = RoleRepository::new(std::sync::Arc::new(connection));
 
@@ -117,8 +117,8 @@ async fn test_toggle_account_status_with_actual_service() {
     let connection = db.connection.clone();
 
     // テスト用ユーザーを作成
+    use task_backend::features::security::repositories::role::RoleRepository;
     use task_backend::features::user::repositories::user::{CreateUser, UserRepository};
-    use task_backend::repository::role_repository::RoleRepository;
     let user_repo = UserRepository::new(connection.clone());
     let role_repo = RoleRepository::new(std::sync::Arc::new(connection));
 
@@ -161,8 +161,8 @@ async fn test_get_user_profile_with_actual_service() {
     let connection = db.connection.clone();
 
     // テスト用ユーザーを作成
+    use task_backend::features::security::repositories::role::RoleRepository;
     use task_backend::features::user::repositories::user::{CreateUser, UserRepository};
-    use task_backend::repository::role_repository::RoleRepository;
     let user_repo = UserRepository::new(connection.clone());
     let role_repo = RoleRepository::new(std::sync::Arc::new(connection));
 
@@ -222,9 +222,9 @@ async fn test_bulk_operation_with_actual_service() {
     let connection = db.connection.clone();
 
     // 複数のテストユーザーを作成
+    use task_backend::features::security::repositories::role::RoleRepository;
     use task_backend::features::user::dto::BulkUserOperation;
     use task_backend::features::user::repositories::user::{CreateUser, UserRepository};
-    use task_backend::repository::role_repository::RoleRepository;
 
     let user_repo = UserRepository::new(connection.clone());
     let role_repo = RoleRepository::new(std::sync::Arc::new(connection));

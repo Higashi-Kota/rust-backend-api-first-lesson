@@ -1,3 +1,3 @@
 pub mod user_consent;
 
-pub use user_consent::*;
+// Re-export specific items to avoid conflicts

@@ -355,10 +355,16 @@ pub struct FeatureUsageCount {
     pub unique_users: u64,
 }
 
+// Simple feature usage statistics response
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FeatureUsageStatsResponse {
+    pub period_days: i32,
+}
+
+// User feature usage response
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserFeatureUsageResponse {
+    pub user_id: Uuid,
+}
+
 // Re-export analytics DTOs from admin module (excluding conflicting types)
-#[allow(unused_imports)]
-pub use crate::features::admin::dto::analytics::{
-    SecurityMetrics, SubscriptionMetrics, SuspiciousIpInfo, SystemOverview, TaskCategoryStats,
-    TaskMetrics, TaskPriorityDistribution, TaskStatusDistribution, TierDistribution,
-    UserActivityResponse, UserMetrics, WeeklyTrend,
-};

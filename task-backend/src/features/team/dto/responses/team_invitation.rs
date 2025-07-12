@@ -74,14 +74,6 @@ pub struct InvitationPaginationResponse {
     pub meta: PaginationMeta,
 }
 
-impl InvitationPaginationResponse {
-    // TODO: Phase 19で本来の使用箇所が移行されたら#[allow(dead_code)]を削除
-    #[allow(dead_code)]
-    pub fn new(invitations: Vec<TeamInvitationResponse>, meta: PaginationMeta) -> Self {
-        Self { invitations, meta }
-    }
-}
-
 /// ユーザー招待統計レスポンス
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserInvitationStatsResponse {
@@ -257,7 +249,10 @@ mod tests {
             has_prev: false,
         };
 
-        let response = InvitationPaginationResponse::new(invitations.clone(), meta.clone());
+        let response = InvitationPaginationResponse {
+            invitations: invitations.clone(),
+            meta: meta.clone(),
+        };
         assert_eq!(response.invitations.len(), 2);
         assert_eq!(response.meta.total_count, 2);
     }

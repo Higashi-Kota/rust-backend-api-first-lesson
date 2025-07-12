@@ -2,9 +2,9 @@
 #![allow(dead_code)] // Repository methods for user management
 
 use crate::db;
-use crate::features::security::models::role::{self, Entity as RoleEntity, RoleWithPermissions};
+use crate::features::security::models::role::{Entity as RoleEntity, RoleWithPermissions};
 use crate::features::user::models::user::{
-    self, ActiveModel as UserActiveModel, Entity as UserEntity, SafeUserWithRole,
+    ActiveModel as UserActiveModel, Entity as UserEntity, SafeUserWithRole,
 };
 use sea_orm::entity::*;
 use sea_orm::{Condition, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};

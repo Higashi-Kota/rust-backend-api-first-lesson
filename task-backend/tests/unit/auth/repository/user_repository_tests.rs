@@ -4,8 +4,8 @@
 
 use chrono::Utc;
 use sea_orm::Set;
-use task_backend::domain::user_model::{self, SafeUser};
 use task_backend::features::auth::dto::SignupRequest;
+use task_backend::features::user::models::user::{self, SafeUser};
 use task_backend::infrastructure::password::{Argon2Config, PasswordManager, PasswordPolicy};
 use task_backend::utils::validation::common::validate_username;
 use uuid::Uuid;
@@ -29,7 +29,7 @@ async fn test_user_model_creation_and_validation() {
         .expect("Password hashing should succeed");
 
     // Act: ユーザーモデルを作成
-    let user_model = user_model::ActiveModel {
+    let user_model = user::ActiveModel {
         id: Set(Uuid::new_v4()),
         email: Set(email.to_string()),
         username: Set(username.to_string()),
@@ -90,7 +90,7 @@ async fn test_safe_user_conversion() {
     // AAAパターン: Arrange-Act-Assert
 
     // Arrange: ユーザーモデルを作成
-    let user = user_model::Model {
+    let user = user::Model {
         id: Uuid::new_v4(),
         email: "user@example.com".to_string(),
         username: "safeuser".to_string(),

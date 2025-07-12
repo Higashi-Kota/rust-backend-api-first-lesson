@@ -1,10 +1,7 @@
 use crate::features::organization::models::department::Model as Department;
 use crate::features::organization::models::department_member::DepartmentRole;
-use crate::features::{
-    organization::models::organization_analytics::{AnalyticsType, MetricValue, Period},
-    security::models::permission_matrix::{
-        ComplianceSettings, InheritanceSettings, PermissionMatrix,
-    },
+use crate::features::organization::models::organization_analytics::{
+    AnalyticsType, MetricValue, Period,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -145,28 +142,7 @@ pub struct OrganizationAnalyticsResponseDto {
     pub created_at: DateTime<Utc>,
 }
 
-// Permission Matrix DTOs
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct SetPermissionMatrixDto {
-    pub matrix_data: PermissionMatrix,
-    pub inheritance_settings: Option<InheritanceSettings>,
-    pub compliance_settings: Option<ComplianceSettings>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PermissionMatrixResponseDto {
-    pub id: Uuid,
-    pub entity_type: String,
-    pub entity_id: Uuid,
-    pub matrix_version: String,
-    pub matrix_data: PermissionMatrix,
-    pub inheritance_settings: Option<InheritanceSettings>,
-    pub compliance_settings: Option<ComplianceSettings>,
-    pub updated_by: Uuid,
-    pub is_active: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
+// Permission Matrix DTOs - Removed (permission_matrix module deleted)
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EffectivePermissionsResponseDto {
@@ -191,8 +167,8 @@ pub struct OrganizationDataExportResponseDto {
     pub organization_id: Uuid,
     pub departments: Vec<DepartmentResponseDto>,
     pub analytics: Option<Vec<OrganizationAnalyticsResponseDto>>,
-    pub organization_permissions: Option<PermissionMatrixResponseDto>,
-    pub department_permissions: Option<Vec<PermissionMatrixResponseDto>>,
+    // pub organization_permissions: Option<PermissionMatrixResponseDto>, // Removed - permission_matrix deleted
+    // pub department_permissions: Option<Vec<PermissionMatrixResponseDto>>, // Removed - permission_matrix deleted
     pub exported_at: DateTime<Utc>,
 }
 
@@ -305,32 +281,4 @@ impl From<crate::features::organization::models::organization_analytics::Model>
     }
 }
 
-impl From<crate::features::security::models::permission_matrix::Model>
-    for PermissionMatrixResponseDto
-{
-    fn from(model: crate::features::security::models::permission_matrix::Model) -> Self {
-        let matrix_data = model
-            .get_permission_matrix()
-            .unwrap_or_else(|_| PermissionMatrix {
-                tasks: std::collections::HashMap::new(),
-                analytics: std::collections::HashMap::new(),
-                administration: std::collections::HashMap::new(),
-            });
-        let inheritance_settings = model.get_inheritance_settings().unwrap_or(None);
-        let compliance_settings = model.get_compliance_settings().unwrap_or(None);
-
-        Self {
-            id: model.id,
-            entity_type: model.entity_type,
-            entity_id: model.entity_id,
-            matrix_version: model.matrix_version,
-            matrix_data,
-            inheritance_settings,
-            compliance_settings,
-            updated_by: model.updated_by,
-            is_active: model.is_active,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
-        }
-    }
-}
+// Removed From impl for PermissionMatrixResponseDto - permission_matrix module deleted

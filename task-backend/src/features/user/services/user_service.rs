@@ -1,5 +1,6 @@
 // task-backend/src/service/user_service.rs
-use super::super::models::user_settings;
+#![allow(dead_code)] // User service methods are public APIs
+
 use crate::error::{AppError, AppResult};
 use crate::features::admin::models::bulk_operation_history::{
     BulkOperationError, BulkOperationErrorDetails, BulkOperationType,
@@ -159,18 +160,6 @@ impl UserService {
         })
     }
 
-    /// IDでユーザーを取得
-    #[allow(dead_code)] // Service method for user retrieval
-    pub async fn get_user_by_id(&self, user_id: Uuid) -> AppResult<SafeUser> {
-        let user = self
-            .user_repo
-            .find_by_id(user_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
-
-        Ok(user.into())
-    }
-
     /// ユーザーの最終ログイン時刻を更新
     pub async fn update_last_login(&self, user_id: Uuid) -> AppResult<()> {
         self.user_repo.update_last_login(user_id).await?;
@@ -243,7 +232,6 @@ pub struct UserStats {
 
 // --- 新規API用のメソッド ---
 
-#[allow(dead_code)] // TODO: Will be used when analytics features are integrated
 impl UserService {
     /// ユーザー統計を取得（分析レスポンス用）
     pub async fn get_user_stats_for_analytics(&self) -> AppResult<UserStats> {

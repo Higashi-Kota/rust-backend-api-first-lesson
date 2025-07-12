@@ -1,7 +1,6 @@
 use crate::error::AppError;
 use sea_orm::prelude::*;
 use sea_orm::DatabaseConnection;
-use std::sync::Arc;
 use sysinfo::{CpuExt, DiskExt, System, SystemExt};
 
 pub struct SystemService;
@@ -10,10 +9,7 @@ impl SystemService {
     /// システムヘルスチェック
     pub async fn health_check(db: &DatabaseConnection) -> Result<HealthStatus, AppError> {
         // データベース接続チェック
-        let db_healthy = match db.ping().await {
-            Ok(_) => true,
-            Err(_) => false,
-        };
+        let db_healthy = db.ping().await.is_ok();
 
         // システムリソースチェック
         let mut sys = System::new_all();
@@ -84,7 +80,7 @@ impl SystemService {
         use crate::features::task::models::task_model::Entity as Task;
         use crate::features::team::models::team::Entity as Team;
         use crate::features::user::models::user::Entity as User;
-        use sea_orm::{EntityTrait, QuerySelect};
+        use sea_orm::EntityTrait;
 
         let total_users = User::find().count(db).await?;
         let total_organizations = Organization::find().count(db).await?;
@@ -97,17 +93,6 @@ impl SystemService {
             total_teams,
             total_tasks,
             timestamp: chrono::Utc::now(),
-        })
-    }
-
-    /// キャッシュ統計の取得（将来の実装用）
-    pub async fn get_cache_stats() -> Result<CacheStats, AppError> {
-        // TODO: Redis等のキャッシュシステムと統合時に実装
-        Ok(CacheStats {
-            hits: 0,
-            misses: 0,
-            evictions: 0,
-            memory_usage: 0,
         })
     }
 }

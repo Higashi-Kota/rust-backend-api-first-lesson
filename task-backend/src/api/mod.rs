@@ -1,7 +1,6 @@
 // task-backend/src/api/mod.rs
 use crate::config::AppConfig;
 use crate::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository;
-use crate::features::analytics::repositories::daily_activity_summary::DailyActivitySummaryRepository;
 use crate::features::analytics::repositories::feature_usage_metrics::FeatureUsageMetricsRepository;
 use crate::features::analytics::services::feature_tracking::FeatureTrackingService;
 use crate::features::auth::service::AuthService;
@@ -10,7 +9,7 @@ use crate::features::payment::services::payment_service::PaymentService;
 use crate::features::security::services::permission::PermissionService;
 use crate::features::security::services::role::RoleService;
 use crate::features::security::services::security::SecurityService;
-use crate::features::storage::attachment::service::AttachmentService;
+use crate::features::storage::services::AttachmentService;
 use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
 use crate::features::subscription::services::subscription::SubscriptionService;
 use crate::features::task::services::task::TaskService;
@@ -29,17 +28,12 @@ pub struct AppState {
     pub role_service: Arc<RoleService>,
     pub team_service: Arc<TeamService>,
     pub team_invitation_service: Arc<TeamInvitationService>,
-    #[allow(dead_code)] // Used by subscription feature module
     pub organization_service: Arc<OrganizationService>,
     pub subscription_service: Arc<SubscriptionService>,
     pub payment_service: Arc<PaymentService>,
-    #[allow(dead_code)] // Used by subscription feature module
     pub subscription_history_repo: Arc<SubscriptionHistoryRepository>,
-    #[allow(dead_code)] // Will be used by admin analytics feature
+    #[allow(dead_code)] // Used via AppState in user_service.rs
     pub bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
-    #[allow(dead_code)] // Will be used by admin analytics feature
-    pub daily_activity_summary_repo: Arc<DailyActivitySummaryRepository>,
-    #[allow(dead_code)] // Will be used by admin analytics feature
     pub feature_usage_metrics_repo: Arc<FeatureUsageMetricsRepository>,
     pub feature_tracking_service: Arc<FeatureTrackingService>,
     pub permission_service: Arc<PermissionService>,
@@ -48,7 +42,6 @@ pub struct AppState {
     pub task_service: Arc<TaskService>,
     pub jwt_manager: Arc<JwtManager>,
     pub db: Arc<DatabaseConnection>,
-    pub db_pool: Arc<DatabaseConnection>,
     pub cookie_config: CookieConfig,
     pub security_headers: SecurityHeaders,
     pub server_addr: String,
@@ -124,14 +117,13 @@ impl AppState {
         payment_service: Arc<PaymentService>,
         subscription_history_repo: Arc<SubscriptionHistoryRepository>,
         bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
-        daily_activity_summary_repo: Arc<DailyActivitySummaryRepository>,
         feature_usage_metrics_repo: Arc<FeatureUsageMetricsRepository>,
         permission_service: Arc<PermissionService>,
         security_service: Arc<SecurityService>,
         attachment_service: Arc<AttachmentService>,
         task_service: Arc<TaskService>,
         jwt_manager: Arc<JwtManager>,
-        db_pool: Arc<DatabaseConnection>,
+        db: Arc<DatabaseConnection>,
         app_config: &AppConfig,
     ) -> Self {
         Self {
@@ -145,7 +137,6 @@ impl AppState {
             payment_service,
             subscription_history_repo,
             bulk_operation_history_repo,
-            daily_activity_summary_repo,
             feature_usage_metrics_repo: feature_usage_metrics_repo.clone(),
             feature_tracking_service: Arc::new(FeatureTrackingService::new(
                 feature_usage_metrics_repo,
@@ -155,8 +146,7 @@ impl AppState {
             attachment_service,
             task_service,
             jwt_manager,
-            db: db_pool.clone(),
-            db_pool,
+            db,
             cookie_config: CookieConfig::from_app_config(app_config),
             security_headers: SecurityHeaders::default(),
             server_addr: format!("{}:{}", app_config.host, app_config.port),

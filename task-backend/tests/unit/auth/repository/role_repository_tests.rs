@@ -5,7 +5,7 @@ mod tests {
     use chrono::Utc;
     use task_backend::core::subscription_tier::SubscriptionTier;
     // Permission types are not needed - using RoleWithPermissions methods directly
-    use task_backend::domain::role_model::{RoleName, RoleWithPermissions};
+    use task_backend::features::security::models::role::{RoleName, RoleWithPermissions};
     use uuid::Uuid;
 
     #[test]

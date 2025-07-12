@@ -3,9 +3,9 @@
 use crate::common::{app_helper, auth_helper};
 use axum::http::StatusCode;
 use serde_json::json;
-use task_backend::features::task::repository::task_repository::TaskRepository;
+use task_backend::features::task::repositories::task_repository::TaskRepository;
+use task_backend::features::team::repositories::team::TeamRepository;
 use task_backend::features::user::repositories::user::UserRepository;
-use task_backend::repository::team_repository::TeamRepository;
 use tower::ServiceExt;
 use uuid::Uuid;
 

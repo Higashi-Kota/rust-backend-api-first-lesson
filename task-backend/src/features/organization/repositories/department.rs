@@ -6,8 +6,6 @@ use sea_orm::prelude::*;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
-// TODO: Phase 19で本来の使用箇所が移行されたら#[allow(dead_code)]を削除
-#[allow(dead_code)]
 pub struct DepartmentRepository;
 
 impl DepartmentRepository {

@@ -5,7 +5,6 @@ pub mod repositories;
 pub mod services;
 
 // 公開APIの再エクスポート
-// TODO: Phase 19で古い参照を削除後、#[allow(unused_imports)]を削除
 
 // ハンドラー
 // pub use handlers::{

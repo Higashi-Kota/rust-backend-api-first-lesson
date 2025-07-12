@@ -4,8 +4,8 @@
 
 use chrono::{Duration, Utc};
 use sea_orm::Set;
-use task_backend::domain::password_reset_token_model;
 use task_backend::features::auth::dto::{PasswordResetRequest, PasswordResetRequestRequest};
+use task_backend::features::auth::models::password_reset_token;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -20,7 +20,7 @@ async fn test_password_reset_token_creation_and_validation() {
     let empty_token = ""; // 空
 
     // Act: トークンモデルを作成
-    let token_model = password_reset_token_model::ActiveModel {
+    let token_model = password_reset_token::ActiveModel {
         id: Set(Uuid::new_v4()),
         user_id: Set(user_id),
         token_hash: Set(valid_token.to_string()),
@@ -101,7 +101,7 @@ async fn test_password_reset_token_expiration() {
     // AAAパターン: Arrange-Act-Assert
 
     // Arrange: 期限切れのトークンを作成
-    let expired_token = password_reset_token_model::ActiveModel {
+    let expired_token = password_reset_token::ActiveModel {
         id: Set(Uuid::new_v4()),
         user_id: Set(Uuid::new_v4()),
         token_hash: Set("expired_token_12345678901234567890".to_string()),
@@ -121,7 +121,7 @@ async fn test_password_reset_token_expiration() {
     );
 
     // Arrange: 使用済みトークンを作成
-    let used_token = password_reset_token_model::ActiveModel {
+    let used_token = password_reset_token::ActiveModel {
         id: Set(Uuid::new_v4()),
         user_id: Set(Uuid::new_v4()),
         token_hash: Set("used_token_1234567890123456789012".to_string()),

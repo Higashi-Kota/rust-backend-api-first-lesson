@@ -1,6 +1,5 @@
 // task-backend/src/features/security/services/security.rs
 
-// TODO: Phase 19でDTOのインポートパスを更新
 use super::super::repositories::security_incident::SecurityIncidentRepository;
 use crate::error::AppResult;
 use crate::features::analytics::repositories::activity_log::ActivityLogRepository;
@@ -20,8 +19,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// セキュリティ管理サービス
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
-#[allow(dead_code)]
 pub struct SecurityService {
     refresh_token_repo: Arc<RefreshTokenRepository>,
     password_reset_repo: Arc<PasswordResetTokenRepository>,
@@ -31,7 +28,6 @@ pub struct SecurityService {
     user_repo: Arc<UserRepository>,
 }
 
-#[allow(dead_code)] // TODO: Will be used when security management features are integrated
 impl SecurityService {
     pub fn new(
         refresh_token_repo: Arc<RefreshTokenRepository>,
@@ -290,6 +286,7 @@ impl SecurityService {
     }
 
     /// 不審なIPアドレス情報を取得
+    #[allow(dead_code)] // Public API for security monitoring
     pub async fn get_suspicious_ips(
         &self,
         failed_attempts_threshold: u32,
@@ -313,6 +310,7 @@ impl SecurityService {
     }
 
     /// 失敗したログイン試行回数を取得
+    #[allow(dead_code)] // Public API for security monitoring
     pub async fn get_failed_login_counts(&self) -> AppResult<(u64, u64)> {
         let today = Utc::now() - chrono::Duration::days(1);
         let this_week = Utc::now() - chrono::Duration::days(7);
@@ -330,6 +328,7 @@ impl SecurityService {
     }
 
     /// セキュリティインシデント数を取得
+    #[allow(dead_code)] // Public API for security monitoring
     pub async fn get_security_incident_count(&self, days: i64) -> AppResult<u64> {
         let start_date = Utc::now() - chrono::Duration::days(days);
         let end_date = Utc::now();

@@ -110,20 +110,6 @@ impl Model {
             None => false, // 初回設定はダウングレードではない
         }
     }
-
-    /// 変更タイプを取得
-    #[allow(dead_code)] // Model utility method
-    pub fn change_type(&self) -> String {
-        if self.is_upgrade() {
-            "upgrade".to_string()
-        } else if self.is_downgrade() {
-            "downgrade".to_string()
-        } else if self.previous_tier.is_none() {
-            "initial".to_string()
-        } else {
-            "admin_change".to_string()
-        }
-    }
 }
 
 /// サブスクリプション階層を数値レベルに変換

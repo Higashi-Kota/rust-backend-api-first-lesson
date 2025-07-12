@@ -4,8 +4,7 @@ use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use task_backend::error::AppResult;
-use task_backend::features::storage::service::StorageService;
-use uuid::Uuid;
+use task_backend::features::storage::services::storage::StorageService;
 
 /// テスト用のモックストレージサービス
 #[derive(Clone)]
@@ -23,14 +22,13 @@ impl MockStorageService {
 
 #[async_trait]
 impl StorageService for MockStorageService {
-    async fn upload(&self, file_data: Vec<u8>, _content_type: &str) -> AppResult<String> {
-        let key = format!("test/images/{}", Uuid::new_v4());
+    async fn store(&self, key: &str, data: &[u8], _content_type: &str) -> AppResult<String> {
         let mut storage = self.storage.lock().unwrap();
-        storage.insert(key.clone(), file_data);
-        Ok(key)
+        storage.insert(key.to_string(), data.to_vec());
+        Ok(key.to_string())
     }
 
-    async fn download(&self, key: &str) -> AppResult<Vec<u8>> {
+    async fn retrieve(&self, key: &str) -> AppResult<Vec<u8>> {
         let storage = self.storage.lock().unwrap();
         storage
             .get(key)
@@ -42,6 +40,11 @@ impl StorageService for MockStorageService {
         let mut storage = self.storage.lock().unwrap();
         storage.remove(key);
         Ok(())
+    }
+
+    async fn exists(&self, key: &str) -> AppResult<bool> {
+        let storage = self.storage.lock().unwrap();
+        Ok(storage.contains_key(key))
     }
 
     async fn generate_download_url(&self, key: &str, expires_in_seconds: u64) -> AppResult<String> {
@@ -58,10 +61,5 @@ impl StorageService for MockStorageService {
             "http://mock-storage.local/upload/{}?X-Amz-Algorithm=AWS4-HMAC-SHA256&expires={}",
             key, expires_in_seconds
         ))
-    }
-
-    async fn exists(&self, key: &str) -> AppResult<bool> {
-        let storage = self.storage.lock().unwrap();
-        Ok(storage.contains_key(key))
     }
 }

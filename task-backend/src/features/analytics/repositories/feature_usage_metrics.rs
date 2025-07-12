@@ -1,9 +1,7 @@
 #![allow(dead_code)] // Repository methods for feature usage analytics
 
 use crate::error::AppResult;
-use crate::features::analytics::models::feature_usage_metrics::{
-    self, Entity as FeatureUsageMetrics,
-};
+use crate::features::analytics::models::feature_usage_metrics::Entity as FeatureUsageMetrics;
 use chrono::{DateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
@@ -102,7 +100,6 @@ impl FeatureUsageMetricsRepository {
         use sea_orm::{FromQueryResult, QuerySelect};
 
         #[derive(Debug, FromQueryResult)]
-        #[allow(dead_code)] // Fields used by FromQueryResult derive
         struct FeatureUsageCount {
             feature_name: String,
             count: i64,
@@ -149,7 +146,6 @@ impl FeatureUsageMetricsRepository {
         use sea_orm::{FromQueryResult, QuerySelect};
 
         #[derive(Debug, FromQueryResult)]
-        #[allow(dead_code)] // Fields used by FromQueryResult derive
         struct ActionCount {
             feature_name: String,
             action_type: String,

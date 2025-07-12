@@ -3,7 +3,7 @@ use task_backend::core::task_status::TaskStatus;
 use chrono::Utc;
 use task_backend::features::task::{
     dto::{BatchUpdateTaskItemDto, CreateTaskDto, TaskFilterDto, UpdateTaskDto},
-    repository::task_repository::TaskRepository,
+    repositories::task_repository::TaskRepository,
 };
 
 use crate::common;

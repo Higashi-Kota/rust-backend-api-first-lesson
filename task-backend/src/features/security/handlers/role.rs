@@ -58,8 +58,6 @@ where
 // --- ロール管理ハンドラー ---
 
 /// ロール一覧取得
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
-#[allow(dead_code)]
 pub async fn list_roles_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUserWithRole,
@@ -93,7 +91,6 @@ pub async fn list_roles_handler(
 }
 
 /// 特定ロール取得
-#[allow(dead_code)]
 pub async fn get_role_handler(
     State(app_state): State<AppState>,
     UuidPath(role_id): UuidPath,
@@ -132,7 +129,6 @@ pub async fn get_role_handler(
 }
 
 /// ロール作成
-#[allow(dead_code)]
 pub async fn create_role_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUserWithRole,
@@ -190,7 +186,6 @@ pub async fn create_role_handler(
 }
 
 /// ロール更新
-#[allow(dead_code)]
 pub async fn update_role_handler(
     State(app_state): State<AppState>,
     UuidPath(role_id): UuidPath,
@@ -269,7 +264,6 @@ pub async fn update_role_handler(
 }
 
 /// ロール削除
-#[allow(dead_code)]
 pub async fn delete_role_handler(
     State(app_state): State<AppState>,
     UuidPath(role_id): UuidPath,
@@ -304,7 +298,6 @@ pub async fn delete_role_handler(
 // --- ユーザーロール管理ハンドラー ---
 
 /// ユーザーにロール割り当て
-#[allow(dead_code)]
 pub async fn assign_role_to_user_handler(
     State(app_state): State<AppState>,
     Path(user_id): Path<Uuid>,
@@ -347,7 +340,6 @@ pub async fn assign_role_to_user_handler(
 // --- ルーター ---
 
 /// ロールルーターを作成
-#[allow(dead_code)] // Router setup function
 fn role_router(app_state: AppState) -> Router {
     let router = Router::new()
         // ロール管理
@@ -368,7 +360,6 @@ fn role_router(app_state: AppState) -> Router {
 }
 
 /// ロールルーターをAppStateから作成
-#[allow(dead_code)] // Public router setup function
 pub fn role_router_with_state(app_state: AppState) -> Router {
     role_router(app_state)
 }

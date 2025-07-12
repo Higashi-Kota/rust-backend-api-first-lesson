@@ -43,10 +43,10 @@ use crate::features::security::repositories::security_incident::SecurityIncident
 use crate::features::security::services::permission::PermissionService;
 use crate::features::security::services::role::RoleService;
 use crate::features::security::services::security::SecurityService;
-use crate::features::storage::attachment::handler::attachment_routes;
+use crate::features::storage::handlers::attachment::attachment_routes;
 use crate::features::storage::{
-    attachment::service::AttachmentService,
     service::{self as storage_service, StorageConfig},
+    services::attachment::AttachmentService,
 };
 use crate::features::subscription::repositories::history::SubscriptionHistoryRepository;
 use crate::features::subscription::services::subscription::SubscriptionService;
@@ -160,11 +160,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
     let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
     let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db_pool.clone()));
-    let daily_activity_summary_repo = Arc::new(
-        crate::features::analytics::repositories::daily_activity_summary::DailyActivitySummaryRepository::new(
-            db_pool.clone(),
-        ),
-    );
     let feature_usage_metrics_repo = Arc::new(
         crate::features::analytics::repositories::feature_usage_metrics::FeatureUsageMetricsRepository::new(
             db_pool.clone(),
@@ -322,7 +317,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         payment_service,
         subscription_history_repo,
         bulk_operation_history_repo,
-        daily_activity_summary_repo,
         feature_usage_metrics_repo,
         permission_service,
         security_service,
@@ -351,10 +345,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         crate::features::payment::handlers::payment_handler::payment_router_with_state(
             app_state.clone(),
         );
-    let permission_router =
-        crate::features::security::handlers::permission::permission_router_with_state(
-            app_state.clone(),
-        );
     let analytics_router =
         crate::features::analytics::handlers::analytics::analytics_router_with_state(
             app_state.clone(),
@@ -378,7 +368,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(organization_router)
         .merge(subscription_router)
         .merge(payment_router)
-        .merge(permission_router)
         .merge(analytics_router)
         .merge(security_router)
         .merge(system_router)

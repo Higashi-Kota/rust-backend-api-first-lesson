@@ -5,25 +5,18 @@ pub mod responses;
 
 // Re-export all request DTOs
 pub use requests::{
-    BulkUserOperation, BulkUserOperationsRequest, ResendVerificationEmailRequest, SortOrder,
+    BulkUserOperation, BulkUserOperationsRequest, ResendVerificationEmailRequest,
     SubscriptionQuery, UpdateAccountStatusRequest, UpdateEmailRequest, UpdateProfileRequest,
-    UpdateUserSettingsRequest, UpdateUsernameRequest, UserSearchQuery, UserSortField,
-    VerifyEmailRequest,
+    UpdateUserSettingsRequest, UpdateUsernameRequest, UserSearchQuery, VerifyEmailRequest,
 };
 
 // Re-export all response DTOs
 pub use responses::{
-    AccountRestriction, AccountStatus, AccountStatusUpdateResponse, BulkOperationResponse,
-    BulkOperationResult, EmailVerificationHistoryItem, EmailVerificationHistoryResponse,
-    EmailVerificationResponse, NotificationSettings, PendingEmailVerificationResponse,
-    ProfileUpdateResponse, RestrictionType, RoleUserStats, SecuritySettings, SubscriptionAnalytics,
-    SubscriptionAnalyticsResponse, TokenStatusResponse, UserActivityStats,
-    UserActivityStatsResponse, UserAdditionalInfo, UserAnalyticsResponse, UserListResponse,
-    UserPermissionsResponse, UserPreferences, UserProfileResponse, UserSettingsDto,
-    UserSettingsResponse, UserStatsResponse, UserSummary, UserWithRoleResponse,
-    UsersByLanguageResponse, UsersWithNotificationResponse,
+    AccountStatusUpdateResponse, BulkOperationResponse, BulkOperationResult,
+    EmailVerificationHistoryItem, EmailVerificationHistoryResponse, EmailVerificationResponse,
+    NotificationSettings, PendingEmailVerificationResponse, ProfileUpdateResponse, RoleUserStats,
+    SecuritySettings, SubscriptionAnalytics, SubscriptionAnalyticsResponse, TokenStatusResponse,
+    UserAdditionalInfo, UserAnalyticsResponse, UserListResponse, UserPermissionsResponse,
+    UserPreferences, UserProfileResponse, UserSettingsResponse, UserStatsResponse, UserSummary,
+    UserWithRoleResponse,
 };
-
-// Re-export test helpers for tests
-#[cfg(test)]
-pub use requests::test_helpers;

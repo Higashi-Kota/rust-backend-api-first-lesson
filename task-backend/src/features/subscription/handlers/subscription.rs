@@ -21,7 +21,6 @@ use validator::Validate;
 use super::super::dto::subscription::*;
 use super::super::dto::SubscriptionOverviewResponse;
 use crate::features::subscription::models::history::SubscriptionChangeInfo;
-use crate::shared::types::pagination::PaginatedResponse;
 
 /// 管理者用統計クエリパラメータ
 #[derive(Debug, Deserialize)]
@@ -573,109 +572,6 @@ pub fn admin_subscription_router() -> Router<AppState> {
 
 // Legacy admin subscription router removed - use new endpoints
 
-/// Get subscription history with filters (admin)
-#[allow(dead_code)]
-async fn get_subscription_history_handler(
-    State(app_state): State<AppState>,
-    _admin: AuthenticatedUserWithRole,
-    Query(query): Query<SubscriptionHistoryQuery>,
-) -> AppResult<Json<ApiResponse<SubscriptionHistoryAdminResponse>>> {
-    let end_date = query.end_date.unwrap_or_else(Utc::now);
-    let start_date = query
-        .start_date
-        .unwrap_or_else(|| end_date - Duration::days(30));
-
-    let mut history = app_state
-        .subscription_service
-        .get_subscription_history_by_date_range(start_date, end_date)
-        .await?;
-
-    // Apply filter if provided
-    if let Some(filter) = query.filter {
-        match filter.as_str() {
-            "upgrades" => {
-                history.retain(|h| {
-                    if let Some(prev) = &h.previous_tier {
-                        get_tier_level(prev) < get_tier_level(&h.new_tier)
-                    } else {
-                        false
-                    }
-                });
-            }
-            "downgrades" => {
-                history.retain(|h| {
-                    if let Some(prev) = &h.previous_tier {
-                        get_tier_level(prev) > get_tier_level(&h.new_tier)
-                    } else {
-                        false
-                    }
-                });
-            }
-            _ => {}
-        }
-    }
-
-    // Calculate tier stats
-    let mut tier_counts = std::collections::HashMap::new();
-    let mut upgrades_count = 0u64;
-    let mut downgrades_count = 0u64;
-
-    for h in &history {
-        // Count changes by new tier
-        *tier_counts.entry(h.new_tier.clone()).or_insert(0u64) += 1;
-
-        // Count upgrades/downgrades
-        if let Some(prev) = &h.previous_tier {
-            let prev_level = get_tier_level(prev);
-            let new_level = get_tier_level(&h.new_tier);
-            match new_level.cmp(&prev_level) {
-                std::cmp::Ordering::Greater => upgrades_count += 1,
-                std::cmp::Ordering::Less => downgrades_count += 1,
-                std::cmp::Ordering::Equal => {}
-            }
-        }
-    }
-
-    let tier_stats: Vec<TierChangeStats> = tier_counts
-        .into_iter()
-        .map(|(tier, count)| TierChangeStats { tier, count })
-        .collect();
-
-    let response = SubscriptionHistoryAdminResponse {
-        histories: history.clone(),
-        tier_stats,
-        change_summary: ChangeSummary {
-            total_changes: history.len() as u64,
-            upgrades_count,
-            downgrades_count,
-        },
-    };
-
-    Ok(Json(ApiResponse::success(
-        "Subscription history retrieved successfully",
-        response,
-    )))
-}
-
-#[allow(dead_code)]
-fn get_tier_level(tier: &str) -> u8 {
-    match tier {
-        "free" => 0,
-        "starter" => 1,
-        "professional" | "pro" => 2,
-        "enterprise" => 3,
-        _ => 0,
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct SubscriptionHistoryQuery {
-    start_date: Option<DateTime<Utc>>,
-    end_date: Option<DateTime<Utc>>,
-    filter: Option<String>,
-}
-
 /// Get subscription history for a specific user - allows both user self-access and admin access
 pub async fn get_user_subscription_history_by_id_handler(
     State(app_state): State<AppState>,
@@ -722,40 +618,6 @@ pub async fn get_user_subscription_history_by_id_handler(
     });
 
     Ok(Json(response))
-}
-
-/// Get all subscription history with pagination (admin)
-#[allow(dead_code)]
-async fn get_all_subscription_history_handler(
-    State(app_state): State<AppState>,
-    _admin: AuthenticatedUserWithRole,
-    Query(query): Query<PaginationQuery>,
-) -> AppResult<Json<ApiResponse<PaginatedResponse<SubscriptionChangeInfo>>>> {
-    let end_date = Utc::now();
-    let start_date = end_date - Duration::days(365); // Default to last year
-
-    let history = app_state
-        .subscription_service
-        .get_subscription_history_by_date_range(start_date, end_date)
-        .await?;
-
-    let total = history.len();
-    let page = query.page.unwrap_or(1);
-    let per_page = query.per_page.unwrap_or(10);
-    let start = ((page - 1) * per_page) as usize;
-    let end = (start + per_page as usize).min(total);
-
-    let paginated_history = history[start..end].to_vec();
-
-    let response = PaginatedResponse {
-        items: paginated_history,
-        pagination: PaginationMeta::new(page, per_page, total as i64),
-    };
-
-    Ok(Json(ApiResponse::success(
-        "All subscription history retrieved successfully",
-        response,
-    )))
 }
 
 /// Search subscription history by tier (admin)
@@ -815,10 +677,6 @@ async fn get_subscription_analytics_handler(
 #[derive(Debug, Deserialize)]
 struct SubscriptionSearchQuery {
     tier: Option<String>,
-    #[allow(dead_code)]
-    user_id: Option<Uuid>,
-    #[allow(dead_code)]
-    organization_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]

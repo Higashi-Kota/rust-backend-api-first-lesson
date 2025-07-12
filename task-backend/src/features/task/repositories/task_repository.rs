@@ -1,11 +1,13 @@
 // src/features/task/repository/task_repository.rs
+#![allow(dead_code)] // Task repository methods are public APIs
+
 use crate::core::task_status::TaskStatus;
 use crate::db;
 use crate::features::task::dto::{
     BatchUpdateTaskItemDto, CreateTaskDto, TaskFilterDto, UpdateTaskDto,
 };
 use crate::features::task::models::task_model::{
-    self, ActiveModel as TaskActiveModel, Entity as TaskEntity,
+    ActiveModel as TaskActiveModel, Entity as TaskEntity,
 };
 use chrono::Utc;
 use sea_orm::{entity::*, query::*, DbConn, DbErr, DeleteResult, Set};
@@ -17,7 +19,6 @@ pub struct TaskRepository {
     schema: Option<String>,
 }
 
-#[allow(dead_code)] // TODO: Will be used when advanced task management features are integrated
 impl TaskRepository {
     pub fn new(db: DbConn) -> Self {
         Self { db, schema: None }

@@ -3,7 +3,7 @@
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use task_backend::{
     core::subscription_tier::SubscriptionTier,
-    domain::role_model,
+    features::security::models::role,
     features::subscription::repositories::history::SubscriptionHistoryRepository,
     features::user::repositories::user::{CreateUser, UserRepository},
 };
@@ -43,8 +43,8 @@ async fn create_test_user(user_repo: &UserRepository, db: &common::db::TestDatab
 
 // メンバーロールのIDを取得するヘルパー関数
 async fn get_member_role_id(db: &common::db::TestDatabase) -> Uuid {
-    role_model::Entity::find()
-        .filter(role_model::Column::Name.eq("member"))
+    role::Entity::find()
+        .filter(role::Column::Name.eq("member"))
         .one(&db.connection)
         .await
         .unwrap()

@@ -33,13 +33,13 @@ async fn test_admin_get_system_analytics() {
         // Update user tier if not free
         if tier != "free" {
             use sea_orm::{ActiveModelTrait, EntityTrait, Set};
-            use task_backend::domain::user_model;
-            let user_entity = user_model::Entity::find_by_id(user.id)
+            use task_backend::features::user::models::user;
+            let user_entity = user::Entity::find_by_id(user.id)
                 .one(&db.connection)
                 .await
                 .unwrap()
                 .unwrap();
-            let mut user_active: user_model::ActiveModel = user_entity.into();
+            let mut user_active: user::ActiveModel = user_entity.into();
             user_active.subscription_tier = Set(tier.to_string());
             user_active.update(&db.connection).await.unwrap();
         }

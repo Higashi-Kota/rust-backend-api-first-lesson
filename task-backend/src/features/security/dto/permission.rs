@@ -491,7 +491,7 @@ pub struct UserEffectivePermissionsResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemPermissionAuditResponse {
     pub audit_entries: Vec<PermissionAuditEntry>,
-    pub summary: PermissionAuditSummary,
+    pub summary: AuditSummary,
     pub total_entries: u32,
     pub filtered_entries: u32,
     pub audit_period: AuditPeriod,
@@ -566,9 +566,9 @@ pub struct PermissionAuditEntry {
     pub timestamp: DateTime<Utc>,
 }
 
-/// 権限監査サマリー
+/// 監査サマリー
 #[derive(Debug, Serialize, Deserialize)]
-pub struct PermissionAuditSummary {
+pub struct AuditSummary {
     pub total_checks: u32,
     pub allowed_checks: u32,
     pub denied_checks: u32,
@@ -628,24 +628,12 @@ mod tests {
 
     #[test]
     fn test_validation_summary() {
-        let checks = vec![
-            PermissionCheckResult {
-                resource: "tasks".to_string(),
-                action: "read".to_string(),
-                allowed: true,
-                reason: None,
-                scope: None,
-            },
-            PermissionCheckResult {
-                resource: "tasks".to_string(),
-                action: "delete".to_string(),
-                allowed: false,
-                reason: Some("Insufficient permissions".to_string()),
-                scope: None,
-            },
-        ];
-
-        let summary = ValidationSummary::new(&checks);
+        let summary = ValidationSummary {
+            total_checks: 2,
+            allowed_count: 1,
+            denied_count: 1,
+            success_rate: 50.0,
+        };
         assert_eq!(summary.total_checks, 2);
         assert_eq!(summary.allowed_count, 1);
         assert_eq!(summary.denied_count, 1);

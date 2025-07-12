@@ -1,5 +1,4 @@
 // task-backend/src/features/security/services/role.rs
-#![allow(dead_code)] // Service methods for role management
 
 use super::super::models::role::{RoleName, RoleWithPermissions};
 use super::super::repositories::role::{CreateRoleData, RoleRepository, UpdateRoleData};
@@ -15,7 +14,6 @@ use uuid::Uuid;
 
 /// ロールサービス
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Security feature service - will be used when integrated
 pub struct RoleService {
     db: Arc<DatabaseConnection>,
     role_repository: Arc<RoleRepository>,
@@ -58,52 +56,6 @@ impl RoleService {
         })
     }
 
-    /// ページネーション付きですべてのロールを取得
-    pub async fn list_all_roles_paginated(
-        &self,
-        page: i32,
-        per_page: i32,
-    ) -> AppResult<(Vec<RoleWithPermissions>, usize)> {
-        info!(page = %page, per_page = %per_page, "Fetching all roles with pagination");
-
-        // 現在の実装では全件取得してからページネーションしているが、
-        // 将来的にロール数が増えた場合はリポジトリ層でページネーションを実装する
-        let all_roles = self.role_repository.find_all().await.map_err(|e| {
-            error!(error = %e, "Failed to fetch all roles");
-            AppError::InternalServerError("Failed to fetch roles".to_string())
-        })?;
-
-        let total_count = all_roles.len();
-        let page_size = std::cmp::min(per_page as usize, 100); // 最大100件に制限
-        let offset = ((page - 1) * per_page) as usize;
-
-        let paginated_roles = all_roles.into_iter().skip(offset).take(page_size).collect();
-
-        Ok((paginated_roles, total_count))
-    }
-
-    /// ページネーション付きでアクティブなロールを取得
-    pub async fn list_active_roles_paginated(
-        &self,
-        page: i32,
-        per_page: i32,
-    ) -> AppResult<(Vec<RoleWithPermissions>, usize)> {
-        info!(page = %page, per_page = %per_page, "Fetching active roles with pagination");
-
-        let all_roles = self.role_repository.find_all_active().await.map_err(|e| {
-            error!(error = %e, "Failed to fetch active roles");
-            AppError::InternalServerError("Failed to fetch active roles".to_string())
-        })?;
-
-        let total_count = all_roles.len();
-        let page_size = std::cmp::min(per_page as usize, 100); // 最大100件に制限
-        let offset = ((page - 1) * per_page) as usize;
-
-        let paginated_roles = all_roles.into_iter().skip(offset).take(page_size).collect();
-
-        Ok((paginated_roles, total_count))
-    }
-
     /// IDでロールを取得
     pub async fn get_role_by_id(&self, id: Uuid) -> AppResult<RoleWithPermissions> {
         info!(role_id = %id, "Fetching role by ID");
@@ -113,27 +65,6 @@ impl RoleService {
             .await
             .map_err(|e| {
                 error!(error = %e, role_id = %id, "Failed to fetch role by ID");
-                AppError::InternalServerError("Failed to fetch role".to_string())
-            })?
-            .ok_or_else(|| {
-                warn!(role_id = %id, "Role not found");
-                AppError::NotFound("Role not found".to_string())
-            })
-    }
-
-    /// サブスクリプション階層を指定してロールを取得
-    pub async fn get_role_by_id_with_subscription(
-        &self,
-        id: Uuid,
-        subscription_tier: crate::core::subscription_tier::SubscriptionTier,
-    ) -> AppResult<RoleWithPermissions> {
-        info!(role_id = %id, subscription_tier = %subscription_tier, "Fetching role by ID with subscription");
-
-        self.role_repository
-            .find_by_id_with_subscription(id, subscription_tier)
-            .await
-            .map_err(|e| {
-                error!(error = %e, role_id = %id, "Failed to fetch role by ID with subscription");
                 AppError::InternalServerError("Failed to fetch role".to_string())
             })?
             .ok_or_else(|| {
@@ -406,7 +337,6 @@ impl RoleService {
         .await?;
 
         // Convert new RoleWithPermissions to old RoleWithPermissions
-        // TODO: Phase 19 - Remove this conversion when types are unified
         let old_role = crate::features::security::models::role::RoleWithPermissions {
             id: role.id,
             name: match role.name {

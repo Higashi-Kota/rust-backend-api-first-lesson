@@ -5,34 +5,13 @@ use axum::{
     body::{self, Body},
     http::{Request, StatusCode},
 };
-// TODO: Analytics handler not yet migrated to features module
-// Temporarily comment out until analytics is migrated
-// use task_backend::api::handlers::analytics_handler::{
-//     FeatureUsageStatsResponse, TrackFeatureUsageRequest, UserFeatureUsageResponse,
-// };
+use task_backend::features::analytics::dto::requests::TrackFeatureUsageRequest;
+use task_backend::features::analytics::dto::responses::{
+    FeatureUsageStatsResponse, UserFeatureUsageResponse,
+};
 use task_backend::shared::types::common::ApiResponse;
 use tower::ServiceExt;
 
-// Temporary struct definitions until analytics is migrated
-#[derive(serde::Serialize, serde::Deserialize)]
-struct TrackFeatureUsageRequest {
-    feature_name: String,
-    action_type: String,
-    metadata: Option<serde_json::Value>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct FeatureUsageStatsResponse {
-    period_days: i32,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct UserFeatureUsageResponse {
-    user_id: uuid::Uuid,
-}
-
-// TODO: Re-enable when analytics handler is migrated
-#[ignore]
 #[tokio::test]
 async fn test_track_feature_usage() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
@@ -58,8 +37,6 @@ async fn test_track_feature_usage() {
     assert_eq!(res.status(), StatusCode::OK);
 }
 
-// TODO: Re-enable when analytics handler is migrated
-#[ignore]
 #[tokio::test]
 async fn test_get_feature_usage_stats_as_admin() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
@@ -84,8 +61,6 @@ async fn test_get_feature_usage_stats_as_admin() {
     assert_eq!(stats.period_days, 30);
 }
 
-// TODO: Re-enable when analytics handler is migrated
-#[ignore]
 #[tokio::test]
 async fn test_get_user_feature_usage_as_admin() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
@@ -113,8 +88,6 @@ async fn test_get_user_feature_usage_as_admin() {
     assert_eq!(usage.user_id, user.id);
 }
 
-// TODO: Re-enable when analytics handler is migrated
-#[ignore]
 #[tokio::test]
 async fn test_get_feature_usage_requires_auth() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
@@ -130,8 +103,6 @@ async fn test_get_feature_usage_requires_auth() {
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
 }
 
-// TODO: Re-enable when analytics handler is migrated
-#[ignore]
 #[tokio::test]
 async fn test_non_admin_cannot_access_analytics() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;

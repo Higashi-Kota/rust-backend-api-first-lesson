@@ -4,7 +4,7 @@
 
 use chrono::{Duration, Utc};
 use sea_orm::Set;
-use task_backend::domain::refresh_token_model;
+use task_backend::features::auth::models::refresh_token;
 use task_backend::infrastructure::jwt::{JwtConfig, JwtManager};
 use uuid::Uuid;
 
@@ -39,7 +39,7 @@ async fn test_refresh_token_lifecycle() {
     let now = Utc::now();
     let expires_at = now + Duration::days(7);
 
-    let refresh_token_model = refresh_token_model::ActiveModel {
+    let refresh_token_model = refresh_token::ActiveModel {
         id: Set(token_id),
         user_id: Set(user_id),
         token_hash: Set(refresh_token_string.clone()),
@@ -118,7 +118,7 @@ async fn test_refresh_token_expiration_validation() {
 
     // Arrange: データベースモデルでの期限確認
     let now = Utc::now();
-    let expired_model = refresh_token_model::ActiveModel {
+    let expired_model = refresh_token::ActiveModel {
         id: Set(Uuid::new_v4()),
         user_id: Set(user_id),
         token_hash: Set("expired_token".to_string()),
@@ -134,7 +134,7 @@ async fn test_refresh_token_expiration_validation() {
         use_count: Set(5),
     };
 
-    let valid_model = refresh_token_model::ActiveModel {
+    let valid_model = refresh_token::ActiveModel {
         id: Set(Uuid::new_v4()),
         user_id: Set(user_id),
         token_hash: Set("valid_token".to_string()),

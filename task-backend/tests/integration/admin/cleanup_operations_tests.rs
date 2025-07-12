@@ -91,9 +91,9 @@ async fn test_admin_cleanup_bulk_operations_success() {
 
     // Get admin user ID from database
     use sea_orm::{ColumnTrait, QueryFilter};
-    use task_backend::domain::user_model;
-    let admin_user = user_model::Entity::find()
-        .filter(user_model::Column::Email.eq("admin@example.com"))
+    use task_backend::features::user::models::user;
+    let admin_user = user::Entity::find()
+        .filter(user::Column::Email.eq("admin@example.com"))
         .one(&db.connection)
         .await
         .unwrap()
@@ -104,11 +104,11 @@ async fn test_admin_cleanup_bulk_operations_success() {
     // Since we can't actually wait 90 days, we'll create operations with old timestamps
     use chrono::{Duration, Utc};
     use sea_orm::{ActiveModelTrait, Set};
-    use task_backend::domain::bulk_operation_history_model;
+    use task_backend::features::admin::models::bulk_operation_history;
 
     // Create operations older than 90 days
     for i in 0..3 {
-        let old_operation = bulk_operation_history_model::ActiveModel {
+        let old_operation = bulk_operation_history::ActiveModel {
             operation_type: Set("bulk_delete".to_string()),
             performed_by: Set(admin_user_id),
             affected_count: Set(10),
@@ -123,7 +123,7 @@ async fn test_admin_cleanup_bulk_operations_success() {
 
     // Create operations within 90 days (should not be deleted)
     for i in 0..2 {
-        let recent_operation = bulk_operation_history_model::ActiveModel {
+        let recent_operation = bulk_operation_history::ActiveModel {
             operation_type: Set("bulk_update".to_string()),
             performed_by: Set(admin_user_id),
             affected_count: Set(5),
@@ -162,10 +162,11 @@ async fn test_admin_cleanup_bulk_operations_success() {
     assert_eq!(json["data"]["deleted_count"], 3); // Should delete 3 old operations
 
     // Verify that recent operations still exist
-    let remaining_count = task_backend::domain::bulk_operation_history_model::Entity::find()
-        .count(&db.connection)
-        .await
-        .unwrap();
+    let remaining_count =
+        task_backend::features::admin::models::bulk_operation_history::Entity::find()
+            .count(&db.connection)
+            .await
+            .unwrap();
     assert_eq!(remaining_count, 2); // Only 2 recent operations should remain
 }
 
@@ -177,11 +178,11 @@ async fn test_admin_cleanup_daily_summaries_success() {
 
     use chrono::{Duration, Utc};
     use sea_orm::{ActiveModelTrait, Set};
-    use task_backend::domain::daily_activity_summary_model;
+    use task_backend::features::analytics::models::daily_activity_summary;
 
     // Create summaries older than 365 days
     for i in 0..5 {
-        let old_summary = daily_activity_summary_model::ActiveModel {
+        let old_summary = daily_activity_summary::ActiveModel {
             date: Set(Utc::now().date_naive() - Duration::days(400 + i)),
             new_users: Set(10 + i as i32),
             active_users: Set(50 + i as i32),
@@ -196,7 +197,7 @@ async fn test_admin_cleanup_daily_summaries_success() {
 
     // Create summaries within 365 days (should not be deleted)
     for i in 0..3 {
-        let recent_summary = daily_activity_summary_model::ActiveModel {
+        let recent_summary = daily_activity_summary::ActiveModel {
             date: Set(Utc::now().date_naive() - Duration::days(100 + i * 50)),
             new_users: Set(5 + i as i32),
             active_users: Set(30 + i as i32),
@@ -235,10 +236,11 @@ async fn test_admin_cleanup_daily_summaries_success() {
     assert_eq!(json["data"]["deleted_count"], 5); // Should delete 5 old summaries
 
     // Verify that recent summaries still exist
-    let remaining_count = task_backend::domain::daily_activity_summary_model::Entity::find()
-        .count(&db.connection)
-        .await
-        .unwrap();
+    let remaining_count =
+        task_backend::features::analytics::models::daily_activity_summary::Entity::find()
+            .count(&db.connection)
+            .await
+            .unwrap();
     assert_eq!(remaining_count, 3); // Only 3 recent summaries should remain
 }
 
@@ -328,7 +330,7 @@ async fn test_admin_cleanup_feature_metrics_success() {
 
     use chrono::{Duration, Utc};
     use sea_orm::{ActiveModelTrait, Set};
-    use task_backend::domain::feature_usage_metrics_model;
+    use task_backend::features::analytics::models::feature_usage_metrics;
 
     // Create a test user to associate metrics with
     let test_user = auth_helper::create_and_authenticate_member(&app).await;
@@ -336,7 +338,7 @@ async fn test_admin_cleanup_feature_metrics_success() {
 
     // Create metrics older than 180 days
     for i in 0..7 {
-        let old_metric = feature_usage_metrics_model::ActiveModel {
+        let old_metric = feature_usage_metrics::ActiveModel {
             user_id: Set(test_user_id),
             feature_name: Set(format!("old_feature_{}", i)),
             action_type: Set("view".to_string()),
@@ -351,7 +353,7 @@ async fn test_admin_cleanup_feature_metrics_success() {
 
     // Create metrics within 180 days (should not be deleted)
     for i in 0..4 {
-        let recent_metric = feature_usage_metrics_model::ActiveModel {
+        let recent_metric = feature_usage_metrics::ActiveModel {
             user_id: Set(test_user_id),
             feature_name: Set(format!("recent_feature_{}", i)),
             action_type: Set("create".to_string()),
@@ -390,10 +392,11 @@ async fn test_admin_cleanup_feature_metrics_success() {
     assert_eq!(json["data"]["deleted_count"], 7); // Should delete 7 old metrics
 
     // Verify that recent metrics still exist
-    let remaining_count = task_backend::domain::feature_usage_metrics_model::Entity::find()
-        .count(&db.connection)
-        .await
-        .unwrap();
+    let remaining_count =
+        task_backend::features::analytics::models::feature_usage_metrics::Entity::find()
+            .count(&db.connection)
+            .await
+            .unwrap();
     assert_eq!(remaining_count, 4); // Only 4 recent metrics should remain
 }
 

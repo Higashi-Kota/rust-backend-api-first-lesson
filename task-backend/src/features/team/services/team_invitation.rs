@@ -9,16 +9,12 @@ use crate::features::user::repositories::user::UserRepository;
 use chrono::{DateTime, Duration, Utc};
 use uuid::Uuid;
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub struct TeamInvitationService {
     team_invitation_repository: TeamInvitationRepository,
     team_repository: TeamRepository,
     user_repository: UserRepository,
 }
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 impl TeamInvitationService {
     pub fn new(
         team_invitation_repository: TeamInvitationRepository,
@@ -523,7 +519,6 @@ pub struct TeamInvitationStatistics {
     pub accepted: u64,
     pub declined: u64,
     pub expired: u64,
-    #[allow(dead_code)] // TODO: Phase 19で使用予定
     pub cancelled: u64,
 }
 

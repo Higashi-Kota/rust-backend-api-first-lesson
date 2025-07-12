@@ -25,16 +25,12 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub struct TeamService {
     team_repository: TeamRepository,
     user_repository: UserRepository,
     email_service: Arc<EmailService>,
 }
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 impl TeamService {
     pub fn new(
         _db: Arc<DatabaseConnection>,
@@ -492,13 +488,6 @@ impl TeamService {
         Ok((team_responses, total))
     }
 
-    /// アクティブなチーム数を取得
-    pub async fn count_active_teams(&self) -> AppResult<u64> {
-        // 現在の実装では全チームがアクティブとみなす
-        // 将来的にはis_activeフラグやactivity_statusなどでフィルタリング可能
-        self.team_repository.count_all_teams().await
-    }
-
     // ヘルパーメソッド
 
     async fn check_team_access(&self, team: &Team, user_id: Uuid) -> AppResult<()> {
@@ -643,7 +632,6 @@ impl TeamService {
 
 #[cfg(test)]
 mod tests {
-    #[allow(unused_imports)]
     use super::*;
 
     // Note: Full integration tests with database are in tests/integration/

@@ -1,25 +1,14 @@
-// TODO: Phase 19で各ハンドラーがサービスを正しく使用するようになったら#[allow(unused_variables)]を削除
-#![allow(unused_variables)]
-
 // 一時的に旧DTOを使用（Phase 19の互換性確保のため）
-use crate::features::organization::dto::organization::{
-    CreateOrganizationRequest, InviteOrganizationMemberRequest, OrganizationCapacityResponse,
-    OrganizationListResponse, OrganizationMemberDetailResponse, OrganizationMemberResponse,
-    OrganizationResponse, OrganizationSearchQuery, OrganizationStatsResponse,
-    UpdateOrganizationMemberRoleRequest, UpdateOrganizationRequest,
-    UpdateOrganizationSettingsRequest, UpdateOrganizationSubscriptionRequest,
-};
-use crate::features::organization::models::organization::OrganizationRole;
-// TODO: Phase 19でOrganizationServiceの本来の使用箇所が移行されたら#[allow(unused_imports)]を削除
-#[allow(unused_imports)]
-use super::super::services::OrganizationService;
 use crate::error::AppResult;
 use crate::features::auth::middleware::AuthenticatedUser;
-// TODO: Phase 19でPermissionServiceとSubscriptionServiceの使用箇所が移行されたら#[allow(unused_imports)]を削除
-#[allow(unused_imports)]
-use crate::features::security::services::permission::PermissionService;
-#[allow(unused_imports)]
-use crate::features::subscription::services::subscription::SubscriptionService;
+use crate::features::organization::dto::organization::{
+    CreateOrganizationRequest, InviteOrganizationMemberRequest, OrganizationCapacityResponse,
+    OrganizationListResponse, OrganizationMemberDetailResponse, OrganizationResponse,
+    OrganizationSearchQuery, OrganizationStatsResponse, UpdateOrganizationMemberRoleRequest,
+    UpdateOrganizationRequest, UpdateOrganizationSettingsRequest,
+    UpdateOrganizationSubscriptionRequest,
+};
+use crate::features::organization::models::organization::OrganizationRole;
 use crate::shared::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -28,9 +17,6 @@ use axum::{
     Json, Router,
 };
 use serde_json::json;
-// TODO: Phase 19でArcの使用箇所が移行されたら#[allow(unused_imports)]を削除
-#[allow(unused_imports)]
-use std::sync::Arc;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -157,7 +143,6 @@ pub async fn update_organization_settings_handler(
 }
 
 /// 組織サブスクリプション更新
-#[allow(dead_code)]
 pub async fn update_organization_subscription_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -197,7 +182,6 @@ pub async fn update_organization_subscription_handler(
 }
 
 /// 組織サブスクリプション履歴取得
-#[allow(dead_code)]
 pub async fn get_organization_subscription_history_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -244,7 +228,6 @@ pub async fn get_organization_subscription_history_handler(
 }
 
 /// 組織メンバー招待
-#[allow(dead_code)]
 pub async fn invite_organization_member_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -271,10 +254,9 @@ pub async fn invite_organization_member_handler(
 }
 
 /// 組織メンバー詳細取得
-#[allow(dead_code)]
 pub async fn get_organization_member_handler(
     State(_app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
 ) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
     // TODO: Phase 19でPermissionServiceが正しく統合後、コメントを解除
@@ -294,11 +276,10 @@ pub async fn get_organization_member_handler(
 }
 
 /// 組織メンバー役割更新
-#[allow(dead_code)]
 pub async fn update_organization_member_role_handler(
     State(_app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
+    Path((_organization_id, member_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdateOrganizationMemberRoleRequest>,
 ) -> AppResult<Json<ApiResponse<OrganizationMemberDetailResponse>>> {
     // TODO: Phase 19でOrganizationServiceが正しいDTOを使用するように更新後、コメントを解除
@@ -330,11 +311,10 @@ pub async fn update_organization_member_role_handler(
 }
 
 /// 組織メンバー削除
-#[allow(dead_code)]
 pub async fn remove_organization_member_handler(
     State(_app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
-    Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
+    _user: AuthenticatedUser,
+    Path((_organization_id, _member_id)): Path<(Uuid, Uuid)>,
 ) -> AppResult<Json<ApiResponse<()>>> {
     // TODO: Phase 19でOrganizationServiceが正しいDTOを使用するように更新後、コメントを解除
     // app_state
@@ -349,7 +329,6 @@ pub async fn remove_organization_member_handler(
 }
 
 /// 組織容量チェック
-#[allow(dead_code)]
 pub async fn get_organization_capacity_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
@@ -385,10 +364,9 @@ pub async fn get_organization_stats_handler(
 }
 
 /// 組織一覧ページネーション付き取得
-#[allow(dead_code)]
 pub async fn get_organizations_paginated_handler(
     State(_app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Query(query): Query<OrganizationSearchQuery>,
 ) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
     // TODO: Phase 19でOrganizationServiceが正しいDTOを使用するように更新後、コメントを解除
@@ -420,8 +398,6 @@ pub async fn get_organizations_paginated_handler(
 }
 
 /// Organization routes
-// TODO: Phase 19で古い参照を削除後、#[allow(unused_imports)]を削除
-#[allow(unused_imports)]
 pub fn organization_routes() -> Router<crate::api::AppState> {
     Router::new()
         .route("/organizations", post(create_organization_handler))
@@ -473,8 +449,6 @@ pub fn organization_routes() -> Router<crate::api::AppState> {
 }
 
 /// Organization router with state
-// TODO: Phase 19で古い参照を削除後、#[allow(unused_imports)]を削除
-#[allow(unused_imports)]
 pub fn organization_router_with_state(app_state: crate::api::AppState) -> Router {
     organization_routes().with_state(app_state)
 }

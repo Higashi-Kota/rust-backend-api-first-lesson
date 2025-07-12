@@ -4,13 +4,12 @@ use validator::Validate;
 
 /// チーム作成リクエスト
 #[derive(Debug, Deserialize, Validate)]
+#[allow(dead_code)] // Fields are used in service layer
 pub struct CreateTeamRequest {
     #[validate(length(min = 1, max = 255))]
     pub name: String,
     #[validate(length(max = 1000))]
     pub description: Option<String>,
-    // TODO: Phase 19で本来の使用箇所が移行されたら#[allow(dead_code)]を削除
-    #[allow(dead_code)]
     pub organization_id: Option<Uuid>,
 }
 
@@ -36,9 +35,8 @@ pub struct InviteTeamMemberRequest {
 
 /// チームメンバーのロール更新リクエスト
 #[derive(Debug, Deserialize, Validate)]
+#[allow(dead_code)] // Fields are used in service layer
 pub struct UpdateTeamMemberRoleRequest {
-    // TODO: Phase 19で本来の使用箇所が移行されたら#[allow(dead_code)]を削除
-    #[allow(dead_code)]
     pub role: String,
 }
 

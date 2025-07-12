@@ -6,7 +6,6 @@ use crate::features::subscription::models::history::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use validator::Validate;
 
 /// サブスクリプション履歴アイテムレスポンス
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,28 +110,6 @@ impl From<SubscriptionChangeInfo> for SubscriptionChangeInfoResponse {
             is_downgrade: info.is_downgrade,
         }
     }
-}
-
-/// サブスクリプション履歴検索クエリ（ページネーション付き）
-#[derive(Debug, Deserialize, Validate)]
-#[allow(dead_code)] // Query parameters used in deserialization
-pub struct SubscriptionHistorySearchQuery {
-    pub tier: Option<String>,
-    pub user_id: Option<Uuid>,
-    pub start_date: Option<DateTime<Utc>>,
-    pub end_date: Option<DateTime<Utc>>,
-    #[serde(default = "default_page")]
-    pub page: i32,
-    #[serde(default = "default_per_page")]
-    pub per_page: i32,
-}
-
-fn default_page() -> i32 {
-    1
-}
-
-fn default_per_page() -> i32 {
-    10
 }
 
 /// サブスクリプション分析レスポンス

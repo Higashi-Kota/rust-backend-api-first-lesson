@@ -11,8 +11,6 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 /// ロールリポジトリ
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct RoleRepository {
     db: Arc<DatabaseConnection>,
@@ -20,7 +18,6 @@ pub struct RoleRepository {
 
 impl RoleRepository {
     /// 新しいロールリポジトリを作成
-    #[allow(dead_code)] // Public API - will be used by external consumers
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
@@ -357,7 +354,6 @@ impl RoleRepository {
 
 /// ロール作成用データ
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Will be used for role creation
 pub struct CreateRoleData {
     pub name: String,
     pub display_name: String,
@@ -367,7 +363,6 @@ pub struct CreateRoleData {
 
 /// ロール更新用データ
 #[derive(Debug, Clone, Default)]
-#[allow(dead_code)] // Will be used for role updates
 pub struct UpdateRoleData {
     pub name: Option<String>,
     pub display_name: Option<String>,

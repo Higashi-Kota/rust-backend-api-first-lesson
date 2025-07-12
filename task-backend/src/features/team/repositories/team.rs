@@ -1,5 +1,4 @@
 // task-backend/src/features/team/repositories/team.rs
-#![allow(dead_code)] // Repository methods for team management
 
 use crate::error::{AppError, AppResult};
 use crate::features::team::models::team::{
@@ -20,14 +19,10 @@ fn map_db_error(err: DbErr) -> AppError {
     AppError::InternalServerError(err.to_string())
 }
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub struct TeamRepository {
     db: DatabaseConnection,
 }
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 impl TeamRepository {
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
@@ -269,15 +264,6 @@ impl TeamRepository {
     pub async fn count_teams_by_organization(&self, org_id: Uuid) -> AppResult<u64> {
         let count = TeamEntity::find()
             .filter(TeamColumn::OrganizationId.eq(org_id))
-            .count(&self.db)
-            .await
-            .map_err(map_db_error)?;
-        Ok(count)
-    }
-
-    /// 全チーム数を取得
-    pub async fn count_all_teams(&self) -> AppResult<u64> {
-        let count = TeamEntity::find()
             .count(&self.db)
             .await
             .map_err(map_db_error)?;

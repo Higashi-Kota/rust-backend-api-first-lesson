@@ -1,6 +1,6 @@
 // tests/unit/organization_hierarchy/repository/organization_analytics_repository_tests.rs
 
-use task_backend::domain::organization_analytics_model::{
+use task_backend::features::organization::models::analytics::{
     AnalyticsType, MetricValue, Model, Period,
 };
 use uuid::Uuid;

@@ -33,21 +33,6 @@ impl<T> ApiResponse<T> {
             metadata: None,
         }
     }
-
-    /// メタデータ付き成功レスポンスを作成
-    #[allow(dead_code)]
-    pub fn success_with_metadata(
-        message: impl Into<String>,
-        data: T,
-        metadata: serde_json::Value,
-    ) -> Self {
-        Self {
-            success: true,
-            message: message.into(),
-            data: Some(data),
-            metadata: Some(metadata),
-        }
-    }
 }
 
 /// 操作結果を表すレスポンス（作成・更新・削除用）
@@ -67,18 +52,13 @@ impl<T> OperationResult<T> {
         }
     }
 
-    #[allow(dead_code)] // Common utility method for creation responses
+    #[cfg(test)]
     pub fn created(item: T) -> Self {
         Self::new(item, vec!["Created".to_string()])
     }
 
     pub fn updated(item: T, changes: Vec<String>) -> Self {
         Self::new(item, changes)
-    }
-
-    #[allow(dead_code)] // Common utility method for deletion responses
-    pub fn deleted(item: T) -> Self {
-        Self::new(item, vec!["Deleted".to_string()])
     }
 }
 

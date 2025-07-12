@@ -16,14 +16,10 @@ fn map_db_error(err: DbErr) -> AppError {
     AppError::InternalServerError(err.to_string())
 }
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 pub struct TeamInvitationRepository {
     db: DatabaseConnection,
 }
 
-// TODO: Phase 19で古い参照を削除後、#[allow(dead_code)]を削除予定
-#[allow(dead_code)]
 impl TeamInvitationRepository {
     pub fn new(db: DatabaseConnection) -> Self {
         Self { db }

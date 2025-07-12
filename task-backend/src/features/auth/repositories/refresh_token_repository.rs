@@ -2,7 +2,7 @@
 
 use crate::db;
 use crate::features::auth::models::refresh_token::{
-    self, ActiveModel as RefreshTokenActiveModel, CleanupResult, CreateRefreshToken,
+    ActiveModel as RefreshTokenActiveModel, CleanupResult, CreateRefreshToken,
     Entity as RefreshTokenEntity, RefreshTokenStats, RevokeAllResult,
 };
 use chrono::Utc;

@@ -93,14 +93,6 @@ pub struct TeamPaginationResponse {
     pub meta: PaginationMeta,
 }
 
-impl TeamPaginationResponse {
-    // TODO: Phase 19で本来の使用箇所が移行されたら#[allow(dead_code)]を削除
-    #[allow(dead_code)]
-    pub fn new(teams: Vec<TeamListResponse>, meta: PaginationMeta) -> Self {
-        Self { teams, meta }
-    }
-}
-
 /// ドメインモデルからの変換実装
 impl From<Team> for TeamListResponse {
     fn from(team: Team) -> Self {
@@ -233,7 +225,10 @@ mod tests {
             has_prev: false,
         };
 
-        let response = TeamPaginationResponse::new(teams.clone(), meta.clone());
+        let response = TeamPaginationResponse {
+            teams: teams.clone(),
+            meta: meta.clone(),
+        };
         assert_eq!(response.teams.len(), 2);
         assert_eq!(response.meta.total_count, 2);
     }
@@ -249,7 +244,10 @@ mod tests {
             has_prev: true,
         };
 
-        let response = TeamPaginationResponse::new(vec![], meta.clone());
+        let response = TeamPaginationResponse {
+            teams: vec![],
+            meta: meta.clone(),
+        };
         assert_eq!(response.meta.page, 2);
         assert_eq!(response.meta.total_pages, 5);
         assert_eq!(response.meta.total_count, 45);

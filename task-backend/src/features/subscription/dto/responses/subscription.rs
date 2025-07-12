@@ -4,12 +4,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::core::subscription_tier::SubscriptionTier;
 use crate::features::subscription::models::history::SubscriptionChangeInfo;
 use crate::features::subscription::repositories::history::UserSubscriptionStats;
 use crate::features::user::models::user::SafeUser;
 use crate::features::user::repositories::user::SubscriptionTierStats;
-use crate::shared::types::common::{ApiResponse, OperationResult};
 use crate::shared::types::pagination::PaginationMeta;
 
 /// 現在のサブスクリプション情報レスポンス
@@ -126,41 +124,8 @@ pub struct RevenueStats {
     pub average_revenue_per_user: f64,
 }
 
-// Response type aliases for handlers
-#[allow(dead_code)] // Type alias for API responses
-pub type UpgradeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;
-#[allow(dead_code)] // Type alias for API responses
-pub type DowngradeSubscriptionResponse = ApiResponse<OperationResult<SubscriptionChangeResponse>>;
-
 // Implementation of response builders
 impl CurrentSubscriptionResponse {
-    #[allow(dead_code)] // DTO constructor method
-    pub fn new(user_id: Uuid, tier: String, subscribed_at: DateTime<Utc>) -> Self {
-        let tier_info = Self::get_tier_info(&tier);
-        let current_tier_obj = SubscriptionTier::from_str(&tier);
-
-        Self {
-            user_id,
-            current_tier: tier.clone(),
-            tier_display_name: tier_info.display_name.clone(),
-            tier_level: tier_info.level,
-            subscribed_at,
-            features: tier_info.features,
-            limits: tier_info.limits,
-            next_available_tiers: SubscriptionTier::all()
-                .into_iter()
-                .filter(|t| {
-                    if let Some(current) = &current_tier_obj {
-                        t.level() > current.level()
-                    } else {
-                        true
-                    }
-                })
-                .map(|t| Self::get_tier_info(t.as_str()))
-                .collect(),
-        }
-    }
-
     pub fn get_tier_info(tier: &str) -> SubscriptionTierInfo {
         match tier {
             "free" => SubscriptionTierInfo {
@@ -244,65 +209,6 @@ impl CurrentSubscriptionResponse {
                     api_rate_limit_per_hour: Some(0),
                 },
             },
-        }
-    }
-}
-
-impl SubscriptionChangeResponse {
-    #[allow(dead_code)] // DTO constructor method
-    pub fn new(
-        user: SafeUser,
-        previous_tier: String,
-        new_tier: String,
-        reason: Option<String>,
-        changed_by: Option<Uuid>,
-    ) -> Self {
-        let change_type = if changed_by.is_some() && changed_by != Some(user.id) {
-            "admin_change".to_string()
-        } else {
-            match (
-                SubscriptionTier::from_str(&previous_tier),
-                SubscriptionTier::from_str(&new_tier),
-            ) {
-                (Some(prev), Some(new)) => {
-                    if new.level() > prev.level() {
-                        "upgrade".to_string()
-                    } else {
-                        "downgrade".to_string()
-                    }
-                }
-                _ => "change".to_string(),
-            }
-        };
-
-        let message = match change_type.as_str() {
-            "upgrade" => format!(
-                "Successfully upgraded from {} to {}",
-                previous_tier, new_tier
-            ),
-            "downgrade" => format!(
-                "Successfully downgraded from {} to {}",
-                previous_tier, new_tier
-            ),
-            "admin_change" => format!(
-                "Subscription changed from {} to {} by administrator",
-                previous_tier, new_tier
-            ),
-            _ => format!(
-                "Subscription changed from {} to {}",
-                previous_tier, new_tier
-            ),
-        };
-
-        Self {
-            user,
-            previous_tier,
-            new_tier,
-            change_type,
-            reason,
-            changed_at: Utc::now(),
-            changed_by,
-            message,
         }
     }
 }

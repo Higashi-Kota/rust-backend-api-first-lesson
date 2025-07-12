@@ -7,18 +7,24 @@ use task_backend::{
     config::AppConfig,
     features::auth::{
         handler as auth_handler,
-        repository::{
+        repositories::{
             email_verification_token_repository::EmailVerificationTokenRepository,
             password_reset_token_repository::PasswordResetTokenRepository,
             refresh_token_repository::RefreshTokenRepository,
         },
         service::AuthService,
     },
+    features::organization::repositories::OrganizationRepository,
     features::payment::services::payment_service::PaymentService,
-    features::storage::{attachment::service::AttachmentService, service::StorageService},
+    features::security::{
+        repositories::role::RoleRepository,
+        services::{permission::PermissionService, role::RoleService},
+    },
+    features::storage::services::{attachment::AttachmentService, storage::StorageService},
     features::subscription::repositories::history::SubscriptionHistoryRepository,
     features::subscription::services::subscription::SubscriptionService,
-    features::task::{handler as task_handler, service::TaskService},
+    features::task::{handlers::task as task_handler, services::task::TaskService},
+    features::team::{repositories::team::TeamRepository, services::team::TeamService},
     features::user::{
         repositories::{user::UserRepository, user_settings::UserSettingsRepository},
         services::user_service::UserService,
@@ -27,13 +33,6 @@ use task_backend::{
         email::{EmailConfig, EmailService},
         jwt::JwtManager,
         password::PasswordManager,
-    },
-    repository::{
-        organization_repository::OrganizationRepository, role_repository::RoleRepository,
-        team_repository::TeamRepository,
-    },
-    service::{
-        permission_service::PermissionService, role_service::RoleService, team_service::TeamService,
     },
 };
 
@@ -58,7 +57,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
     let user_settings_repo = Arc::new(UserSettingsRepository::new(db.connection.clone()));
     let bulk_operation_history_repo = Arc::new(
-        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+        task_backend::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository::new(
             db.connection.clone(),
         ),
     );
@@ -101,12 +100,12 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
 
     // 追加リポジトリの作成
     let activity_log_repo = Arc::new(
-        task_backend::repository::activity_log_repository::ActivityLogRepository::new(
+        task_backend::features::analytics::repositories::activity_log::ActivityLogRepository::new(
             db.connection.clone(),
         ),
     );
     let login_attempt_repo = Arc::new(
-        task_backend::repository::login_attempt_repository::LoginAttemptRepository::new(
+        task_backend::features::auth::repositories::login_attempt_repository::LoginAttemptRepository::new(
             db.connection.clone(),
         ),
     );
@@ -153,7 +152,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     let organization_service = Arc::new(
         task_backend::features::organization::services::organization::OrganizationService::new(
             OrganizationRepository::new(db.connection.clone()),
-            task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
+            task_backend::features::team::repositories::team::TeamRepository::new(db.connection.clone()),
             UserRepository::new(db.connection.clone()),
             task_backend::features::subscription::repositories::history::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
@@ -161,24 +160,24 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
 
     // Security services
     let activity_log_repo_sec = std::sync::Arc::new(
-        task_backend::repository::activity_log_repository::ActivityLogRepository::new(
+        task_backend::features::analytics::repositories::activity_log::ActivityLogRepository::new(
             db.connection.clone(),
         ),
     );
     let login_attempt_repo_sec = std::sync::Arc::new(
-        task_backend::repository::login_attempt_repository::LoginAttemptRepository::new(
+        task_backend::features::auth::repositories::login_attempt_repository::LoginAttemptRepository::new(
             db.connection.clone(),
         ),
     );
     let security_incident_repo_sec = std::sync::Arc::new(
-        task_backend::repository::security_incident_repository::SecurityIncidentRepository::new(
+        task_backend::features::security::repositories::security_incident::SecurityIncidentRepository::new(
             db.connection.clone(),
         ),
     );
     let security_service = std::sync::Arc::new(
-        task_backend::service::security_service::SecurityService::new(
-            std::sync::Arc::new(task_backend::features::auth::repository::refresh_token_repository::RefreshTokenRepository::new(db.connection.clone())),
-            std::sync::Arc::new(task_backend::features::auth::repository::password_reset_token_repository::PasswordResetTokenRepository::new(db.connection.clone())),
+        task_backend::features::security::services::security::SecurityService::new(
+            std::sync::Arc::new(task_backend::features::auth::repositories::refresh_token_repository::RefreshTokenRepository::new(db.connection.clone())),
+            std::sync::Arc::new(task_backend::features::auth::repositories::password_reset_token_repository::PasswordResetTokenRepository::new(db.connection.clone())),
             activity_log_repo_sec,
             security_incident_repo_sec,
             login_attempt_repo_sec,
@@ -188,8 +187,8 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
 
     // Team invitation service
     let team_invitation_service = Arc::new(
-        task_backend::service::team_invitation_service::TeamInvitationService::new(
-            task_backend::repository::team_invitation_repository::TeamInvitationRepository::new(
+        task_backend::features::team::services::team_invitation::TeamInvitationService::new(
+            task_backend::features::team::repositories::team_invitation::TeamInvitationRepository::new(
                 db.connection.clone(),
             ),
             TeamRepository::new(db.connection.clone()),
@@ -199,13 +198,8 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
 
     let subscription_history_repo =
         Arc::new(SubscriptionHistoryRepository::new(db.connection.clone()));
-    let daily_activity_summary_repo = Arc::new(
-        task_backend::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
-            db.connection.clone(),
-        ),
-    );
     let feature_usage_metrics_repo = Arc::new(
-        task_backend::repository::feature_usage_metrics_repository::FeatureUsageMetricsRepository::new(
+        task_backend::features::analytics::repositories::feature_usage_metrics::FeatureUsageMetricsRepository::new(
             db.connection.clone(),
         ),
     );
@@ -219,7 +213,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     ));
 
     let bulk_operation_history_repo = Arc::new(
-        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+        task_backend::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository::new(
             db.connection.clone(),
         ),
     );
@@ -254,7 +248,6 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         payment_service,
         subscription_history_repo,
         bulk_operation_history_repo,
-        daily_activity_summary_repo,
         feature_usage_metrics_repo,
         permission_service,
         security_service,
@@ -279,7 +272,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
                 .with_state(app_state.clone()),
         )
         .merge(
-            task_backend::features::storage::attachment::handler::attachment_routes()
+            task_backend::features::storage::handlers::attachment::attachment_routes()
                 .with_state(app_state),
         );
 
@@ -305,7 +298,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
     let user_settings_repo = Arc::new(UserSettingsRepository::new(db.connection.clone()));
     let bulk_operation_history_repo = Arc::new(
-        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+        task_backend::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository::new(
             db.connection.clone(),
         ),
     );
@@ -348,12 +341,12 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
 
     // 追加リポジトリの作成
     let activity_log_repo = Arc::new(
-        task_backend::repository::activity_log_repository::ActivityLogRepository::new(
+        task_backend::features::analytics::repositories::activity_log::ActivityLogRepository::new(
             db.connection.clone(),
         ),
     );
     let login_attempt_repo = Arc::new(
-        task_backend::repository::login_attempt_repository::LoginAttemptRepository::new(
+        task_backend::features::auth::repositories::login_attempt_repository::LoginAttemptRepository::new(
             db.connection.clone(),
         ),
     );
@@ -396,10 +389,10 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
 
     let organization_service = Arc::new(
         task_backend::features::organization::services::organization::OrganizationService::new(
-            task_backend::repository::organization_repository::OrganizationRepository::new(
+            task_backend::features::organization::repositories::OrganizationRepository::new(
                 db.connection.clone(),
             ),
-            task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
+            task_backend::features::team::repositories::team::TeamRepository::new(db.connection.clone()),
             UserRepository::new(db.connection.clone()),
             task_backend::features::subscription::repositories::history::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
@@ -407,12 +400,12 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
 
     // Security services
     let security_incident_repo = Arc::new(
-        task_backend::repository::security_incident_repository::SecurityIncidentRepository::new(
+        task_backend::features::security::repositories::security_incident::SecurityIncidentRepository::new(
             db.connection.clone(),
         ),
     );
     let security_service = Arc::new(
-        task_backend::service::security_service::SecurityService::new(
+        task_backend::features::security::services::security::SecurityService::new(
             Arc::new(RefreshTokenRepository::new(db.connection.clone())),
             Arc::new(PasswordResetTokenRepository::new(db.connection.clone())),
             activity_log_repo.clone(),
@@ -424,8 +417,8 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
 
     // Team invitation service
     let team_invitation_service = Arc::new(
-        task_backend::service::team_invitation_service::TeamInvitationService::new(
-            task_backend::repository::team_invitation_repository::TeamInvitationRepository::new(
+        task_backend::features::team::services::team_invitation::TeamInvitationService::new(
+            task_backend::features::team::repositories::team_invitation::TeamInvitationRepository::new(
                 db.connection.clone(),
             ),
             TeamRepository::new(db.connection.clone()),
@@ -435,18 +428,13 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
 
     let subscription_history_repo =
         Arc::new(SubscriptionHistoryRepository::new(db.connection.clone()));
-    let daily_activity_summary_repo = Arc::new(
-        task_backend::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
-            db.connection.clone(),
-        ),
-    );
     let feature_usage_metrics_repo = Arc::new(
-        task_backend::repository::feature_usage_metrics_repository::FeatureUsageMetricsRepository::new(
+        task_backend::features::analytics::repositories::feature_usage_metrics::FeatureUsageMetricsRepository::new(
             db.connection.clone(),
         ),
     );
     let bulk_operation_history_repo = Arc::new(
-        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+        task_backend::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository::new(
             db.connection.clone(),
         ),
     );
@@ -490,7 +478,6 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         payment_service,
         subscription_history_repo,
         bulk_operation_history_repo,
-        daily_activity_summary_repo,
         feature_usage_metrics_repo,
         permission_service,
         security_service,
@@ -532,7 +519,6 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         .merge(auth_handler::auth_router(app_state.clone()))
         .merge(task_backend::features::user::handlers::user_handler::user_router(app_state.clone()))
         .merge(task_handler::task_router_with_state(app_state.clone()))
-        .merge(task_backend::api::handlers::role_handler::role_router_with_state(app_state.clone()))
         .merge(task_backend::features::team::handlers::team_router_with_state(app_state.clone()))
         .merge(
             task_backend::features::organization::handlers::organization::organization_router_with_state(
@@ -552,11 +538,6 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
             ),
         )
         .merge(
-            task_backend::api::handlers::permission_handler::permission_router_with_state(
-                app_state.clone(),
-            ),
-        )
-        .merge(
             task_backend::features::analytics::handlers::analytics::analytics_router()
                 .with_state(app_state.clone()),
         )
@@ -568,7 +549,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         )
         .merge(task_backend::features::gdpr::handler::gdpr_router_with_state(app_state.clone()))
         .merge(
-            task_backend::features::storage::attachment::handler::attachment_routes()
+            task_backend::features::storage::handlers::attachment::attachment_routes()
                 .with_state(app_state),
         )
         .layer(axum_middleware::from_fn_with_state(
@@ -598,7 +579,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         Arc::new(EmailVerificationTokenRepository::new(db.connection.clone()));
     let user_settings_repo = Arc::new(UserSettingsRepository::new(db.connection.clone()));
     let bulk_operation_history_repo = Arc::new(
-        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+        task_backend::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository::new(
             db.connection.clone(),
         ),
     );
@@ -641,12 +622,12 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
 
     // 追加リポジトリの作成
     let activity_log_repo = Arc::new(
-        task_backend::repository::activity_log_repository::ActivityLogRepository::new(
+        task_backend::features::analytics::repositories::activity_log::ActivityLogRepository::new(
             db.connection.clone(),
         ),
     );
     let login_attempt_repo = Arc::new(
-        task_backend::repository::login_attempt_repository::LoginAttemptRepository::new(
+        task_backend::features::auth::repositories::login_attempt_repository::LoginAttemptRepository::new(
             db.connection.clone(),
         ),
     );
@@ -689,10 +670,10 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
 
     let organization_service = Arc::new(
         task_backend::features::organization::services::organization::OrganizationService::new(
-            task_backend::repository::organization_repository::OrganizationRepository::new(
+            task_backend::features::organization::repositories::OrganizationRepository::new(
                 db.connection.clone(),
             ),
-            task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
+            task_backend::features::team::repositories::team::TeamRepository::new(db.connection.clone()),
             UserRepository::new(db.connection.clone()),
             task_backend::features::subscription::repositories::history::SubscriptionHistoryRepository::new(db.connection.clone()),
         ),
@@ -700,12 +681,12 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
 
     // Security services
     let security_incident_repo = Arc::new(
-        task_backend::repository::security_incident_repository::SecurityIncidentRepository::new(
+        task_backend::features::security::repositories::security_incident::SecurityIncidentRepository::new(
             db.connection.clone(),
         ),
     );
     let security_service = Arc::new(
-        task_backend::service::security_service::SecurityService::new(
+        task_backend::features::security::services::security::SecurityService::new(
             Arc::new(RefreshTokenRepository::new(db.connection.clone())),
             Arc::new(PasswordResetTokenRepository::new(db.connection.clone())),
             activity_log_repo.clone(),
@@ -717,8 +698,8 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
 
     // Team invitation service
     let team_invitation_service = Arc::new(
-        task_backend::service::team_invitation_service::TeamInvitationService::new(
-            task_backend::repository::team_invitation_repository::TeamInvitationRepository::new(
+        task_backend::features::team::services::team_invitation::TeamInvitationService::new(
+            task_backend::features::team::repositories::team_invitation::TeamInvitationRepository::new(
                 db.connection.clone(),
             ),
             TeamRepository::new(db.connection.clone()),
@@ -728,18 +709,13 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
 
     let subscription_history_repo =
         Arc::new(SubscriptionHistoryRepository::new(db.connection.clone()));
-    let daily_activity_summary_repo = Arc::new(
-        task_backend::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
-            db.connection.clone(),
-        ),
-    );
     let feature_usage_metrics_repo = Arc::new(
-        task_backend::repository::feature_usage_metrics_repository::FeatureUsageMetricsRepository::new(
+        task_backend::features::analytics::repositories::feature_usage_metrics::FeatureUsageMetricsRepository::new(
             db.connection.clone(),
         ),
     );
     let bulk_operation_history_repo = Arc::new(
-        task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
+        task_backend::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository::new(
             db.connection.clone(),
         ),
     );
@@ -783,7 +759,6 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         payment_service,
         subscription_history_repo,
         bulk_operation_history_repo,
-        daily_activity_summary_repo,
         feature_usage_metrics_repo,
         permission_service,
         security_service,
@@ -825,9 +800,6 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         .merge(auth_handler::auth_router(app_state.clone()))
         .merge(task_backend::features::user::handlers::user_handler::user_router(app_state.clone()))
         .merge(task_handler::task_router_with_state(app_state.clone()))
-        .merge(task_backend::api::handlers::role_handler::role_router(
-            app_state.clone(),
-        ))
         .merge(task_backend::features::team::handlers::team_router_with_state(app_state.clone()))
         .merge(
             task_backend::features::organization::handlers::organization::organization_router_with_state(
@@ -839,16 +811,13 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
                 .with_state(app_state.clone()),
         )
         .merge(
-            task_backend::api::handlers::permission_handler::permission_router(app_state.clone()),
-        )
-        .merge(
             task_backend::features::analytics::handlers::analytics::analytics_router()
                 .with_state(app_state.clone()),
         )
         .merge(task_backend::features::security::handlers::security::security_router(app_state.clone()))
         .merge(task_backend::features::gdpr::handler::gdpr_router_with_state(app_state.clone()))
         .merge(
-            task_backend::features::storage::attachment::handler::attachment_routes()
+            task_backend::features::storage::handlers::attachment::attachment_routes()
                 .with_state(app_state),
         )
         .layer(axum_middleware::from_fn_with_state(

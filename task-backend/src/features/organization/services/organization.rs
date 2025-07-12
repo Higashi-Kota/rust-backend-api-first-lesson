@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Service methods for organization management
-
 // 一時的に旧DTOを使用（Phase 19の互換性確保のため）
 use super::super::repositories::OrganizationRepository;
 use crate::core::subscription_tier::SubscriptionTier;
@@ -8,8 +6,8 @@ use crate::features::organization::dto::organization::{
     CreateOrganizationRequest, InviteOrganizationMemberRequest, OrganizationActivity,
     OrganizationCapacityResponse, OrganizationListResponse, OrganizationMemberDetailResponse,
     OrganizationMemberResponse, OrganizationResponse, OrganizationSearchQuery,
-    OrganizationStatsResponse, OrganizationTierStats, UpdateOrganizationMemberRoleRequest,
-    UpdateOrganizationRequest, UpdateOrganizationSettingsRequest,
+    OrganizationStatsResponse, OrganizationTierStats, UpdateOrganizationRequest,
+    UpdateOrganizationSettingsRequest,
 };
 use crate::features::organization::models::organization::{
     Organization, OrganizationMember, OrganizationRole,
@@ -19,8 +17,6 @@ use crate::features::team::repositories::team::TeamRepository;
 use crate::features::user::repositories::user::UserRepository;
 use uuid::Uuid;
 
-// TODO: Phase 19で本来の使用箇所が移行されたら#[allow(dead_code)]を削除
-#[allow(dead_code)]
 pub struct OrganizationService {
     organization_repository: OrganizationRepository,
     team_repository: TeamRepository,
@@ -450,167 +446,6 @@ impl OrganizationService {
         Ok(OrganizationMemberDetailResponse::from((added_member, user)))
     }
 
-    /// 組織メンバーの役割を更新
-    pub async fn update_member_role(
-        &self,
-        organization_id: Uuid,
-        member_id: Uuid,
-        request: UpdateOrganizationMemberRoleRequest,
-        updater_id: Uuid,
-    ) -> AppResult<OrganizationMemberDetailResponse> {
-        let organization = self
-            .organization_repository
-            .find_by_id(organization_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
-
-        // 権限チェック
-        let updater_member = self
-            .organization_repository
-            .find_member_by_user_and_organization(updater_id, organization_id)
-            .await?
-            .ok_or_else(|| AppError::Forbidden("Not an organization member".to_string()))?;
-
-        if !updater_member.role.can_manage() {
-            return Err(AppError::Forbidden(
-                "Insufficient permissions to update member roles".to_string(),
-            ));
-        }
-
-        // メンバーの取得
-        let mut member = self
-            .organization_repository
-            .find_member_by_id(member_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Member not found".to_string()))?;
-
-        if member.organization_id != organization_id {
-            return Err(AppError::BadRequest(
-                "Member not in this organization".to_string(),
-            ));
-        }
-
-        // オーナーの役割は変更不可
-        if member.user_id == organization.owner_id {
-            return Err(AppError::BadRequest(
-                "Cannot change the role of the organization owner".to_string(),
-            ));
-        }
-
-        member.update_role(request.role);
-        let updated_member = self.organization_repository.update_member(&member).await?;
-
-        let user = self
-            .user_repository
-            .find_by_id(updated_member.user_id)
-            .await?
-            .unwrap();
-
-        Ok(OrganizationMemberDetailResponse::from((
-            updated_member,
-            user,
-        )))
-    }
-
-    /// 組織メンバーを削除
-    pub async fn remove_member(
-        &self,
-        organization_id: Uuid,
-        member_id: Uuid,
-        remover_id: Uuid,
-    ) -> AppResult<()> {
-        let organization = self
-            .organization_repository
-            .find_by_id(organization_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
-
-        // 権限チェック
-        let remover_member = self
-            .organization_repository
-            .find_member_by_user_and_organization(remover_id, organization_id)
-            .await?
-            .ok_or_else(|| AppError::Forbidden("Not an organization member".to_string()))?;
-
-        // メンバーの取得
-        let member = self
-            .organization_repository
-            .find_member_by_id(member_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Member not found".to_string()))?;
-
-        if member.organization_id != organization_id {
-            return Err(AppError::BadRequest(
-                "Member not in this organization".to_string(),
-            ));
-        }
-
-        // オーナーは削除不可
-        if member.user_id == organization.owner_id {
-            return Err(AppError::BadRequest(
-                "Cannot remove the organization owner".to_string(),
-            ));
-        }
-
-        // 自分自身を削除する場合または管理権限がある場合のみ可能
-        if member.user_id != remover_id && !remover_member.role.can_manage() {
-            return Err(AppError::Forbidden(
-                "Insufficient permissions to remove members".to_string(),
-            ));
-        }
-
-        self.organization_repository
-            .remove_member(member_id)
-            .await?;
-        Ok(())
-    }
-
-    /// 組織の容量情報を取得
-    pub async fn get_organization_capacity(
-        &self,
-        organization_id: Uuid,
-        user_id: Uuid,
-    ) -> AppResult<OrganizationCapacityResponse> {
-        let organization = self
-            .organization_repository
-            .find_by_id(organization_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
-
-        // アクセス権限チェック
-        self.check_organization_access(&organization, user_id)
-            .await?;
-
-        let current_member_count = self
-            .organization_repository
-            .count_members(organization_id)
-            .await? as u32;
-        let current_team_count = self
-            .team_repository
-            .count_teams_by_organization(organization_id)
-            .await? as u32;
-
-        let utilization_percentage = {
-            let team_utilization = current_team_count as f64 / organization.max_teams as f64;
-            let member_utilization = current_member_count as f64 / organization.max_members as f64;
-            ((team_utilization + member_utilization) / 2.0 * 100.0).round()
-        };
-
-        Ok(OrganizationCapacityResponse {
-            organization_id,
-            organization_name: organization.name.clone(),
-            subscription_tier: organization.subscription_tier,
-            max_teams: organization.max_teams,
-            current_team_count,
-            can_add_teams: organization.can_add_team(current_team_count),
-            max_members: organization.max_members,
-            current_member_count,
-            can_add_members: organization.can_add_member(current_member_count),
-            utilization_percentage,
-        })
-    }
-
-    /// 組織のサブスクリプション階層を更新
     pub async fn update_organization_subscription(
         &self,
         organization_id: Uuid,
@@ -791,11 +626,6 @@ impl OrganizationService {
         })
     }
 
-    /// 全組織数を取得
-    pub async fn count_all_organizations(&self) -> AppResult<u64> {
-        self.organization_repository.count_all_organizations().await
-    }
-
     // ヘルパーメソッド
 
     /// 組織へのアクセス権限をチェック
@@ -867,100 +697,6 @@ impl OrganizationService {
             responses.push(self.build_organization_member_response(member).await?);
         }
         Ok(responses)
-    }
-
-    async fn check_organization_invite_permission(
-        &self,
-        organization: &Organization,
-        user_id: Uuid,
-    ) -> AppResult<()> {
-        let member = self
-            .organization_repository
-            .find_member_by_user_and_organization(user_id, organization.id)
-            .await?
-            .ok_or_else(|| AppError::Forbidden("Not an organization member".to_string()))?;
-
-        if !member.role.can_invite_members() {
-            return Err(AppError::Forbidden(
-                "Insufficient permissions to invite members".to_string(),
-            ));
-        }
-
-        Ok(())
-    }
-
-    // 管理者向けAPIメソッド
-
-    /// 全組織を取得（管理者用）
-    pub async fn get_all_organizations_for_admin(
-        &self,
-        query: OrganizationSearchQuery,
-    ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
-        self.get_organizations_internal(query, None).await
-    }
-
-    /// 組織メンバーの詳細情報を取得（権限情報付き）
-    pub async fn get_organization_member_detail(
-        &self,
-        organization_id: Uuid,
-        member_id: Uuid,
-        user_id: Uuid,
-    ) -> AppResult<OrganizationMemberDetailResponse> {
-        // 組織の存在確認と権限チェック
-        let organization = self
-            .organization_repository
-            .find_by_id(organization_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
-
-        // 組織メンバーかどうかをチェック
-        self.check_organization_access(&organization, user_id)
-            .await?;
-
-        // 対象メンバーの取得
-        let member = self
-            .organization_repository
-            .find_member_by_id(member_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Organization member not found".to_string()))?;
-
-        // メンバーがこの組織に所属しているか確認
-        if member.organization_id != organization_id {
-            return Err(AppError::NotFound(
-                "Organization member not found".to_string(),
-            ));
-        }
-
-        // ユーザー情報の取得
-        let user = self
-            .user_repository
-            .find_by_id(member.user_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
-
-        // 権限情報の生成
-        let is_owner = member.is_owner();
-        let is_admin = member.is_admin();
-        let can_manage = member.can_manage();
-        let can_create_teams = member.role.can_create_teams();
-        let can_invite_members = member.role.can_invite_members();
-        let can_change_settings = member.role.can_change_settings();
-
-        Ok(OrganizationMemberDetailResponse {
-            id: member.id,
-            user_id: member.user_id,
-            username: user.username,
-            email: user.email,
-            role: member.role,
-            is_owner,
-            is_admin,
-            can_manage,
-            can_create_teams,
-            can_invite_members,
-            can_change_settings,
-            joined_at: member.joined_at,
-            invited_by: member.invited_by,
-        })
     }
 
     /// 組織容量チェック  

@@ -12,8 +12,6 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, QueryResult};
 use serde_json;
 use uuid::Uuid;
 
-// TODO: Phase 19で本来の使用箇所が移行されたら#[allow(dead_code)]を削除
-#[allow(dead_code)]
 #[derive(Clone)]
 pub struct OrganizationRepository {
     db: DatabaseConnection,

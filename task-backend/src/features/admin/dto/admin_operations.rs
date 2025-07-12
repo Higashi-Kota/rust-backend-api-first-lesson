@@ -91,26 +91,6 @@ pub struct ChangeUserSubscriptionResponse {
 
 // --- Data Cleanup/Maintenance DTOs ---
 
-fn default_page() -> i32 {
-    1
-}
-
-fn default_per_page() -> i32 {
-    10
-}
-
-/// 一括操作リストクエリ
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)] // Query parameters used in deserialization
-pub struct BulkOperationListQuery {
-    pub start_date: Option<DateTime<Utc>>,
-    pub end_date: Option<DateTime<Utc>>,
-    #[serde(default = "default_page")]
-    pub page: i32,
-    #[serde(default = "default_per_page")]
-    pub per_page: i32,
-}
-
 /// 一括操作履歴レスポンス
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BulkOperationHistoryResponse {

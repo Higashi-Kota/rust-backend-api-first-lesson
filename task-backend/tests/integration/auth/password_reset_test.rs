@@ -69,7 +69,7 @@ async fn test_password_reset_flow() {
         use sea_orm::ColumnTrait;
         use sea_orm::EntityTrait;
         use sea_orm::QueryFilter;
-        use task_backend::domain::password_reset_token_model::{
+        use task_backend::features::auth::models::password_reset_token::{
             Column as TokenColumn, Entity as TokenEntity,
         };
 
@@ -250,7 +250,7 @@ async fn test_password_reset_token_expiry() {
     {
         use chrono::{Duration, Utc};
         use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-        use task_backend::domain::password_reset_token_model::{
+        use task_backend::features::auth::models::password_reset_token::{
             ActiveModel, Column as TokenColumn, Entity as TokenEntity,
         };
 

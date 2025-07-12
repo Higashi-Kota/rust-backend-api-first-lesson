@@ -1,4 +1,5 @@
 // src/features/task/service.rs
+#![allow(dead_code)] // Task service methods are public APIs
 
 use crate::core::permission::{Permission, PermissionResult, PermissionScope, Privilege};
 use crate::core::subscription_tier::SubscriptionTier;
@@ -10,7 +11,6 @@ use crate::features::task::dto::{
     BatchUpdateResponseDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto, CreateTaskDto,
     PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse, UpdateTaskDto,
 };
-use crate::features::task::models::task_model;
 use crate::features::task::repositories::task_repository::TaskRepository;
 use crate::features::user::repositories::user::UserRepository;
 use crate::middleware::subscription_guard::check_feature_limit;
@@ -24,7 +24,6 @@ pub struct TaskService {
     user_repo: Arc<UserRepository>,
 }
 
-#[allow(dead_code)] // TODO: Will be used when task service methods are integrated with handlers
 impl TaskService {
     pub fn new(db_pool: DbPool) -> Self {
         Self {

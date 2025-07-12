@@ -3,7 +3,7 @@ pub mod handlers;
 pub mod models;
 pub mod repositories;
 pub mod services;
-pub mod usecases;
+// pub mod usecases; // TODO: Implement usecases or remove this line
 
 // Re-export commonly used types
 // pub use models::{
@@ -21,5 +21,4 @@ pub mod usecases;
 // };
 
 // Re-export router function
-// TODO: Phase 19で古い参照を削除後、#[allow(unused_imports)]を削除
 // Removed: security_router_with_state was deleted as unused
