@@ -42,7 +42,9 @@ async fn test_email_verification_flow() {
         use sea_orm::ColumnTrait;
         use sea_orm::EntityTrait;
         use sea_orm::QueryFilter;
-        use task_backend::domain::user_model::{Column as UserColumn, Entity as UserEntity};
+        use task_backend::features::user::models::user::{
+            Column as UserColumn, Entity as UserEntity,
+        };
 
         let user = UserEntity::find()
             .filter(UserColumn::Email.eq("testverify@example.com"))
@@ -58,7 +60,7 @@ async fn test_email_verification_flow() {
     // メール認証トークンを生成して保存（テスト用）
     let token = {
         use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-        use task_backend::domain::email_verification_token_model::{
+        use task_backend::features::auth::models::email_verification_token::{
             ActiveModel, Column as TokenColumn, Entity as TokenEntity,
         };
 
@@ -118,7 +120,7 @@ async fn test_email_verification_flow() {
     // ユーザーがメール認証済みになったことを確認
     {
         use sea_orm::EntityTrait;
-        use task_backend::domain::user_model::Entity as UserEntity;
+        use task_backend::features::user::models::user::Entity as UserEntity;
 
         let user = UserEntity::find_by_id(user_id)
             .one(&db.connection)
@@ -225,7 +227,7 @@ async fn test_email_verification_token_expiry() {
     {
         use chrono::{Duration, Utc};
         use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
-        use task_backend::domain::email_verification_token_model::{
+        use task_backend::features::auth::models::email_verification_token::{
             ActiveModel, Column as TokenColumn, Entity as TokenEntity,
         };
 

@@ -1,8 +1,8 @@
 // tests/unit/utils/jwt_tests.rs
 
-use task_backend::domain::subscription_tier::SubscriptionTier;
-use task_backend::domain::user_model::UserClaims;
-use task_backend::utils::jwt::{JwtConfig, JwtManager};
+use task_backend::core::subscription_tier::SubscriptionTier;
+use task_backend::features::user::models::user::UserClaims;
+use task_backend::infrastructure::jwt::{JwtConfig, JwtManager};
 use uuid::Uuid;
 
 // JWT関連のユニットテスト（既存のsrc/utils/jwt.rsのテストを拡張）
@@ -65,7 +65,7 @@ async fn test_jwt_token_generation_and_structure() {
 #[tokio::test]
 async fn test_token_expiration_and_validation() {
     use chrono::{DateTime, Utc};
-    use task_backend::utils::jwt::TokenPair;
+    use task_backend::infrastructure::jwt::TokenPair;
 
     // Arrange: トークン有効期限の検証をテスト
     let config = JwtConfig {

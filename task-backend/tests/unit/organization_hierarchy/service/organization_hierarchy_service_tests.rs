@@ -1,9 +1,8 @@
 // tests/unit/organization_hierarchy/service/organization_hierarchy_service_tests.rs
 
-use task_backend::domain::{
-    department_member_model::DepartmentRole,
-    organization_analytics_model::{AnalyticsType, MetricValue, Period},
-    permission_matrix_model::{EntityType, PermissionMatrix},
+use task_backend::features::organization::models::{
+    analytics::{AnalyticsType, MetricValue, Period},
+    department_member::DepartmentRole,
 };
 use uuid::Uuid;
 
@@ -70,52 +69,6 @@ async fn test_period_enum_logic() {
     for (period, expected) in periods.iter().zip(expected_strings.iter()) {
         assert_eq!(period.to_string(), *expected);
     }
-}
-
-#[tokio::test]
-async fn test_entity_type_enum_logic() {
-    // EntityTypeの列挙型ロジックテスト
-    let entity_types = [
-        EntityType::Organization,
-        EntityType::Department,
-        EntityType::Team,
-        EntityType::User,
-    ];
-
-    let expected_strings = ["organization", "department", "team", "user"];
-
-    for (entity_type, expected) in entity_types.iter().zip(expected_strings.iter()) {
-        assert_eq!(entity_type.to_string(), *expected);
-    }
-}
-
-#[tokio::test]
-async fn test_permission_matrix_structure_logic() {
-    // PermissionMatrixの構造体ロジックテスト
-    let mut tasks = std::collections::HashMap::new();
-    tasks.insert("create".to_string(), true);
-    tasks.insert("read".to_string(), true);
-    tasks.insert("update".to_string(), false);
-
-    let mut analytics = std::collections::HashMap::new();
-    analytics.insert("view".to_string(), true);
-    analytics.insert("export".to_string(), false);
-
-    let administration = std::collections::HashMap::new();
-
-    let matrix = PermissionMatrix {
-        tasks,
-        analytics,
-        administration,
-    };
-
-    // 権限マトリックスの構造検証
-    assert_eq!(matrix.tasks.len(), 3);
-    assert_eq!(matrix.analytics.len(), 2);
-    assert_eq!(matrix.administration.len(), 0);
-    assert_eq!(matrix.tasks.get("create"), Some(&true));
-    assert_eq!(matrix.tasks.get("update"), Some(&false));
-    assert_eq!(matrix.analytics.get("view"), Some(&true));
 }
 
 #[tokio::test]

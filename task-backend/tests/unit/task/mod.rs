@@ -1,3 +1,2 @@
 // tests/unit/task/mod.rs
-pub mod repository_tests;
-pub mod service_tests;
+// Task unit tests have been removed as the tested methods were deleted

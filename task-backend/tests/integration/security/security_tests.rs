@@ -5,7 +5,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use serde_json::json;
-use task_backend::api::dto::security_dto::*;
+use task_backend::features::security::dto::security::*;
 use tower::ServiceExt;
 
 use crate::common::{app_helper, auth_helper};

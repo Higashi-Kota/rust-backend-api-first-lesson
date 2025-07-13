@@ -1,6 +1,6 @@
 // task-backend/tests/integration/user/search_tests.rs
 
-use task_backend::api::dto::user_dto::{SortOrder, UserSearchQuery, UserSortField};
+use task_backend::features::user::dto::requests::{SortOrder, UserSearchQuery, UserSortField};
 use validator::Validate;
 
 #[test]

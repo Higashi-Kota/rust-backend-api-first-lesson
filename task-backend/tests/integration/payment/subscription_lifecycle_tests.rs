@@ -5,7 +5,11 @@ use crate::common::{
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};
 use serde_json::json;
-use task_backend::domain::subscription_tier::SubscriptionTier;
+use task_backend::core::subscription_tier::SubscriptionTier;
+use task_backend::features::subscription::repositories::stripe_subscription::{
+    CreateStripeSubscription, StripeSubscriptionRepository,
+};
+use task_backend::features::subscription::services::subscription::SubscriptionService;
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -16,17 +20,16 @@ async fn test_subscription_cancellation_with_grace_period() {
 
     // まずProにアップグレード
     let email_service = std::sync::Arc::new(
-        task_backend::utils::email::EmailService::new(task_backend::utils::email::EmailConfig {
-            development_mode: true,
-            ..Default::default()
-        })
+        task_backend::infrastructure::email::EmailService::new(
+            task_backend::infrastructure::email::EmailConfig {
+                development_mode: true,
+                ..Default::default()
+            },
+        )
         .unwrap(),
     );
     let subscription_service =
-        task_backend::service::subscription_service::SubscriptionService::new(
-            db.connection.clone(),
-            email_service.clone(),
-        );
+        SubscriptionService::new(db.connection.clone(), email_service.clone());
     subscription_service
         .change_subscription_tier(
             user.id,
@@ -38,21 +41,17 @@ async fn test_subscription_cancellation_with_grace_period() {
         .unwrap();
 
     // Stripeサブスクリプション情報を作成（請求期間終了時にキャンセル）
-    let subscription_repo =
-        task_backend::repository::stripe_subscription_repository::StripeSubscriptionRepository::new(
-            db.connection.clone(),
-        );
-    let create_sub =
-        task_backend::repository::stripe_subscription_repository::CreateStripeSubscription {
-            user_id: user.id,
-            stripe_subscription_id: "sub_test_123".to_string(),
-            stripe_price_id: "price_test_pro".to_string(),
-            status: "active".to_string(),
-            current_period_start: Some(Utc::now() - Duration::days(15)),
-            current_period_end: Some(Utc::now() + Duration::days(15)),
-            cancel_at: Some(Utc::now() + Duration::days(15)),
-            canceled_at: None,
-        };
+    let subscription_repo = StripeSubscriptionRepository::new(db.connection.clone());
+    let create_sub = CreateStripeSubscription {
+        user_id: user.id,
+        stripe_subscription_id: "sub_test_123".to_string(),
+        stripe_price_id: "price_test_pro".to_string(),
+        status: "active".to_string(),
+        current_period_start: Some(Utc::now() - Duration::days(15)),
+        current_period_end: Some(Utc::now() + Duration::days(15)),
+        cancel_at: Some(Utc::now() + Duration::days(15)),
+        canceled_at: None,
+    };
     subscription_repo.create(create_sub).await.unwrap();
 
     // Act - キャンセルWebhookをシミュレート（開発モード用の簡易ペイロード）
@@ -166,8 +165,9 @@ async fn test_subscription_cancellation_with_grace_period() {
     }"#;
 
     // ユーザーのStripe顧客IDを設定
-    let user_repo =
-        task_backend::repository::user_repository::UserRepository::new(db.connection.clone());
+    let user_repo = task_backend::features::user::repositories::user::UserRepository::new(
+        db.connection.clone(),
+    );
     user_repo
         .update_stripe_customer_id(user.id, "cus_test_123")
         .await
@@ -213,17 +213,16 @@ async fn test_team_creation_with_subscription_limits() {
 
     // Proユーザーをアップグレード
     let email_service = std::sync::Arc::new(
-        task_backend::utils::email::EmailService::new(task_backend::utils::email::EmailConfig {
-            development_mode: true,
-            ..Default::default()
-        })
+        task_backend::infrastructure::email::EmailService::new(
+            task_backend::infrastructure::email::EmailConfig {
+                development_mode: true,
+                ..Default::default()
+            },
+        )
         .unwrap(),
     );
     let subscription_service =
-        task_backend::service::subscription_service::SubscriptionService::new(
-            db.connection.clone(),
-            email_service.clone(),
-        );
+        SubscriptionService::new(db.connection.clone(), email_service.clone());
     subscription_service
         .change_subscription_tier(
             pro_user.id,
@@ -455,17 +454,16 @@ async fn test_subscription_period_end_downgrade() {
 
     // Proにアップグレード
     let email_service = std::sync::Arc::new(
-        task_backend::utils::email::EmailService::new(task_backend::utils::email::EmailConfig {
-            development_mode: true,
-            ..Default::default()
-        })
+        task_backend::infrastructure::email::EmailService::new(
+            task_backend::infrastructure::email::EmailConfig {
+                development_mode: true,
+                ..Default::default()
+            },
+        )
         .unwrap(),
     );
     let subscription_service =
-        task_backend::service::subscription_service::SubscriptionService::new(
-            db.connection.clone(),
-            email_service.clone(),
-        );
+        SubscriptionService::new(db.connection.clone(), email_service.clone());
     subscription_service
         .change_subscription_tier(
             user.id,
@@ -477,26 +475,23 @@ async fn test_subscription_period_end_downgrade() {
         .unwrap();
 
     // Stripeサブスクリプション情報を作成（キャンセル済み）
-    let subscription_repo =
-        task_backend::repository::stripe_subscription_repository::StripeSubscriptionRepository::new(
-            db.connection.clone(),
-        );
-    let create_sub =
-        task_backend::repository::stripe_subscription_repository::CreateStripeSubscription {
-            user_id: user.id,
-            stripe_subscription_id: "sub_test_ended".to_string(),
-            stripe_price_id: "price_test_pro".to_string(),
-            status: "canceled".to_string(),
-            current_period_start: Some(Utc::now() - Duration::days(30)),
-            current_period_end: Some(Utc::now() - Duration::days(1)),
-            cancel_at: None,
-            canceled_at: Some(Utc::now() - Duration::days(1)),
-        };
+    let subscription_repo = StripeSubscriptionRepository::new(db.connection.clone());
+    let create_sub = CreateStripeSubscription {
+        user_id: user.id,
+        stripe_subscription_id: "sub_test_ended".to_string(),
+        stripe_price_id: "price_test_pro".to_string(),
+        status: "canceled".to_string(),
+        current_period_start: Some(Utc::now() - Duration::days(30)),
+        current_period_end: Some(Utc::now() - Duration::days(1)),
+        cancel_at: None,
+        canceled_at: Some(Utc::now() - Duration::days(1)),
+    };
     subscription_repo.create(create_sub).await.unwrap();
 
     // ユーザーのStripe顧客IDを設定
-    let user_repo =
-        task_backend::repository::user_repository::UserRepository::new(db.connection.clone());
+    let user_repo = task_backend::features::user::repositories::user::UserRepository::new(
+        db.connection.clone(),
+    );
     user_repo
         .update_stripe_customer_id(user.id, "cus_test_ended")
         .await

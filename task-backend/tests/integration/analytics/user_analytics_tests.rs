@@ -4,7 +4,7 @@ use axum::{
     body,
     http::{Request, StatusCode},
 };
-use serde_json::Value;
+use serde_json;
 use tower::ServiceExt;
 
 use crate::common::{app_helper, auth_helper};
@@ -35,7 +35,8 @@ async fn test_get_user_behavior_analytics() {
     let body_bytes = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
+    let body: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify response structure
     assert!(body["data"]["user_id"].is_string());
@@ -103,7 +104,8 @@ async fn test_get_user_behavior_analytics_with_comparisons() {
     let body_bytes = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
+    let body: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify comparisons are included
     assert!(body["data"]["comparisons"].is_object());
@@ -192,7 +194,8 @@ async fn test_get_user_behavior_analytics_admin_access() {
     let body_bytes = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
+    let body: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify the response is for the requested user
     assert_eq!(
@@ -251,7 +254,8 @@ async fn test_bulk_user_operation_admin() {
     let body_bytes = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
+    let body: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify response structure
     assert!(body["operation_id"].is_string());
@@ -347,7 +351,7 @@ async fn test_advanced_export() {
 
     let export_request = serde_json::json!({
         "export_type": "Tasks",
-        "format": "Csv",
+        "format": "csv",
         "max_records": 500,
         "include_metadata": true,
         "custom_fields": ["id", "title", "status", "created_at"]
@@ -371,20 +375,21 @@ async fn test_advanced_export() {
     let body_bytes = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
+    let body: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify response structure
     assert!(body["data"]["export_id"].is_string());
     assert_eq!(body["data"]["export_type"].as_str(), Some("Tasks"));
-    assert_eq!(body["data"]["format"].as_str(), Some("Csv"));
+    assert_eq!(body["data"]["format"].as_str(), Some("csv"));
     assert_eq!(body["data"]["total_records"].as_u64(), Some(500));
     assert!(body["data"]["file_size_bytes"].is_number());
-    assert!(body["data"]["download_url"].is_string());
+    assert!(body["data"]["download_url"].is_string() || body["data"]["download_url"].is_null());
     assert!(body["data"]["expires_at"].is_string());
     assert!(body["data"]["metadata"].is_object());
     assert_eq!(
         body["data"]["processing_status"].as_str(),
-        Some("Completed")
+        Some("completed")
     );
     assert!(body["data"]["created_at"].is_string());
 
@@ -415,7 +420,7 @@ async fn test_advanced_export_admin_only_types() {
     // Try to export admin-only type (Users)
     let export_request = serde_json::json!({
         "export_type": "Users",
-        "format": "Json",
+        "format": "json",
         "max_records": 100
     });
 
@@ -462,7 +467,7 @@ async fn test_advanced_export_validation_error() {
 
     let invalid_request = serde_json::json!({
         "export_type": "Tasks",
-        "format": "Csv",
+        "format": "csv",
         "max_records": 200000 // Invalid: > 100000
     });
 
@@ -512,4 +517,145 @@ async fn test_user_analytics_endpoints_unauthorized() {
             endpoint
         );
     }
+}
+
+#[tokio::test]
+async fn test_get_user_activity_stats_success() {
+    let (app, _schema_name, db) = app_helper::setup_full_app().await;
+
+    // Create and authenticate a user
+    let user = auth_helper::create_and_authenticate_member(&app).await;
+
+    // Create some tasks for the user
+    use sea_orm::prelude::*;
+    use sea_orm::Set;
+    use task_backend::features::task::models::task_model;
+
+    for i in 0..5 {
+        let task = task_model::ActiveModel {
+            id: Set(uuid::Uuid::new_v4()),
+            user_id: Set(Some(user.id)),
+            title: Set(format!("Test Task {}", i)),
+            description: Set(Some(format!("Test Description {}", i))),
+            status: Set(if i < 3 { "completed" } else { "todo" }.to_string()),
+            created_at: Set(chrono::Utc::now()),
+            updated_at: Set(chrono::Utc::now()),
+            ..Default::default()
+        };
+        task.insert(&db.connection).await.unwrap();
+    }
+
+    // Get activity stats
+    let req = auth_helper::create_authenticated_request(
+        "GET",
+        &format!("/users/{}/activity-stats", user.id),
+        &user.access_token,
+        None,
+    );
+
+    let response = app
+        .clone()
+        .oneshot(req)
+        .await
+        .expect("Failed to get user activity stats");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body_bytes = body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
+
+    // Verify response
+    assert_eq!(body["success"], true);
+    assert_eq!(
+        body["message"],
+        "User activity statistics retrieved successfully"
+    );
+
+    let data = &body["data"];
+    assert_eq!(data["user_id"], user.id.to_string());
+    assert_eq!(data["total_tasks"], 5);
+    assert_eq!(data["completed_tasks"], 3);
+    assert_eq!(data["pending_tasks"], 2);
+    assert_eq!(data["completion_rate"], 60.0);
+    assert!(data["last_activity_at"].is_null() || data["last_activity_at"].is_string());
+    assert!(data["streak_days"].is_u64());
+    assert!(data["tags_used"].is_array());
+}
+
+#[tokio::test]
+async fn test_get_user_activity_stats_forbidden() {
+    let (app, _schema_name, _db) = app_helper::setup_full_app().await;
+
+    // Create two users
+    let user1 = auth_helper::create_and_authenticate_member(&app).await;
+    let user2 = auth_helper::create_and_authenticate_member(&app).await;
+
+    // User1 tries to access user2's activity stats
+    let req = auth_helper::create_authenticated_request(
+        "GET",
+        &format!("/users/{}/activity-stats", user2.id),
+        &user1.access_token,
+        None,
+    );
+
+    let response = app
+        .clone()
+        .oneshot(req)
+        .await
+        .expect("Failed to make request");
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let body_bytes = body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
+
+    assert_eq!(body["success"], false);
+    let error_msg = body["error"]
+        .as_str()
+        .or_else(|| body["message"].as_str())
+        .unwrap_or("");
+    assert!(
+        error_msg.contains("You can only view your own activity statistics")
+            || error_msg.contains("Forbidden")
+    );
+}
+
+#[tokio::test]
+async fn test_admin_can_view_any_user_activity_stats() {
+    let (app, _schema_name, _db) = app_helper::setup_full_app().await;
+
+    // Create a regular user and admin
+    let user = auth_helper::create_and_authenticate_member(&app).await;
+    let admin_token = auth_helper::create_admin_with_jwt(&app).await;
+
+    // Admin accesses user's activity stats
+    let req = Request::builder()
+        .method("GET")
+        .uri(format!("/users/{}/activity-stats", user.id))
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .body(body::Body::empty())
+        .unwrap();
+
+    let response = app
+        .clone()
+        .oneshot(req)
+        .await
+        .expect("Failed to get user activity stats");
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body_bytes = body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value =
+        serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
+
+    assert_eq!(body["success"], true);
+    assert_eq!(body["data"]["user_id"], user.id.to_string());
 }

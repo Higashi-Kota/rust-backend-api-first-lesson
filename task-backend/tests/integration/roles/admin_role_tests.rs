@@ -3,7 +3,7 @@ use axum::{
     body::{self, Body},
     http::{Request, StatusCode},
 };
-use serde_json::Value;
+use serde_json::{json, Value};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -84,7 +84,7 @@ async fn test_admin_list_roles_with_pagination() {
 
     // Make request with pagination
     let request = Request::builder()
-        .uri("/admin/analytics/roles?page=1&page_size=10")
+        .uri("/admin/analytics/roles?page=1&per_page=10")
         .method("GET")
         .header("Authorization", format!("Bearer {}", admin_token))
         .body(Body::empty())
@@ -203,11 +203,8 @@ async fn test_admin_get_role_with_subscription() {
 
     // Verify subscription info
     let sub_info = &data["subscription_info"];
-    assert!(sub_info["applicable_tiers"]
-        .as_array()
-        .unwrap()
-        .contains(&serde_json::json!("all")));
-    assert_eq!(sub_info["tier_independent"], true); // Admin role works for all tiers
+    assert_eq!(sub_info["applicable_tiers"][0], "all");
+    assert_eq!(sub_info["tier"], "enterprise"); // Admin role gets enterprise tier benefits
 }
 
 #[tokio::test]
@@ -238,91 +235,46 @@ async fn test_admin_get_role_with_different_subscription_tiers() {
         .unwrap();
     let member_role_id = member_role["id"].as_str().unwrap();
 
-    // Act & Assert: Test different subscription tiers
-    let tier_expectations = vec![
-        ("free", vec![("max_tasks", 10), ("max_teams", 1)]),
-        (
-            "pro",
-            vec![("max_tasks", 100), ("max_teams", 5), ("bulk_operations", 1)],
-        ),
-        (
-            "enterprise",
-            vec![
-                ("max_tasks", -1),
-                ("max_teams", -1),
-                ("bulk_operations", 1),
-                ("api_access", 1),
-            ],
-        ),
-    ];
+    // Act: Get member role subscription info
+    let request = Request::builder()
+        .uri(format!("/admin/analytics/roles/{}/subscription", member_role_id).as_str())
+        .method("GET")
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .body(Body::empty())
+        .unwrap();
 
-    for (tier, expected_perms) in tier_expectations {
-        let request = Request::builder()
-            .uri(
-                format!(
-                    "/admin/analytics/roles/{}/subscription?tier={}",
-                    member_role_id, tier
-                )
-                .as_str(),
-            )
-            .method("GET")
-            .header("Authorization", format!("Bearer {}", admin_token))
-            .body(Body::empty())
-            .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
 
-        let response = app.clone().oneshot(request).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+    let body = body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: Value = serde_json::from_slice(&body).unwrap();
 
-        let body = body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let json: Value = serde_json::from_slice(&body).unwrap();
+    // Assert: Verify member role has appropriate subscription info
+    let data = &json["data"];
+    assert_eq!(data["name"], "member");
 
-        // Verify subscription-based permissions for this tier
-        let permissions = &json["data"]["permissions"]["subscription_based_permissions"];
-        let tier_perms = permissions
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|p| p["tier"] == tier)
-            .unwrap_or_else(|| panic!("Should have permissions for {} tier", tier));
+    // Member role should have free tier benefits by default
+    let sub_info = &data["subscription_info"];
+    assert_eq!(sub_info["tier"], "free");
+    assert_eq!(sub_info["max_users"], 5);
+    assert_eq!(sub_info["max_tasks"], 100);
 
-        assert_eq!(tier_perms["tier"], tier);
+    let features = sub_info["features"].as_array().unwrap();
+    assert!(features.contains(&json!("basic_analytics")));
+    assert!(features.contains(&json!("task_management")));
 
-        // Verify tier-specific permissions
-        let additional_perms = &tier_perms["additional_permissions"];
-        for (perm_name, expected_value) in expected_perms {
-            if expected_value == -1 {
-                // -1 means unlimited
-                assert_eq!(
-                    additional_perms[perm_name],
-                    serde_json::json!("unlimited"),
-                    "Permission {} should be unlimited for {} tier",
-                    perm_name,
-                    tier
-                );
-            } else if expected_value == 1
-                && (perm_name == "bulk_operations" || perm_name == "api_access")
-            {
-                // These specific features are boolean when value is 1
-                assert_eq!(
-                    additional_perms[perm_name], true,
-                    "Permission {} should be enabled for {} tier",
-                    perm_name, tier
-                );
-            } else {
-                // Numeric limit (including max_teams = 1)
-                assert_eq!(
-                    additional_perms[perm_name].as_i64().unwrap(),
-                    expected_value as i64,
-                    "Permission {} should be {} for {} tier",
-                    perm_name,
-                    expected_value,
-                    tier
-                );
-            }
-        }
-    }
+    // Check base permissions for member role
+    let base_perms = &data["permissions"]["base_permissions"];
+    assert_eq!(base_perms["tasks"]["create"], true);
+    assert_eq!(base_perms["tasks"]["read"], true);
+    assert_eq!(base_perms["tasks"]["update"], true);
+    assert_eq!(base_perms["tasks"]["delete"], false); // Members can't delete
+    assert_eq!(base_perms["teams"]["create"], true);
+    assert_eq!(base_perms["teams"]["manage"], false); // Members can't manage teams
+    assert_eq!(base_perms["users"]["manage"], false); // Members can't manage users
+    assert_eq!(base_perms["admin"]["full_access"], false); // Members don't have admin access
 }
 
 #[tokio::test]
@@ -398,9 +350,9 @@ async fn test_admin_list_roles_pagination_edge_cases() {
     let json: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["data"]["pagination"]["page"], 1);
 
-    // Test with very large page_size (should be clamped to 100)
+    // Test with very large per_page (should be clamped to 100)
     let request = Request::builder()
-        .uri("/admin/analytics/roles?page_size=1000")
+        .uri("/admin/analytics/roles?per_page=1000")
         .method("GET")
         .header("Authorization", format!("Bearer {}", admin_token))
         .body(Body::empty())

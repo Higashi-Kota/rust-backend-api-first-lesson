@@ -16,10 +16,10 @@ async fn test_subscription_history_all_endpoint() {
     // Create admin
     let admin_token = auth_helper::create_admin_with_jwt(&app).await;
 
-    // Test the /admin/subscription/history/all endpoint
+    // Test the /admin/subscription/history endpoint
     let req = auth_helper::create_authenticated_request(
         "GET",
-        "/admin/subscription/history/all?page=1&per_page=10",
+        "/admin/subscription/history",
         &admin_token,
         None,
     );
@@ -32,8 +32,9 @@ async fn test_subscription_history_all_endpoint() {
 
     // Verify response structure
     assert!(response["success"].as_bool().unwrap());
-    assert!(response["data"]["items"].is_array());
-    assert!(response["data"]["pagination"].is_object());
+    assert!(response["data"]["histories"].is_array());
+    assert!(response["data"]["tier_stats"].is_object());
+    assert!(response["data"]["change_summary"].is_object());
 }
 
 #[tokio::test]

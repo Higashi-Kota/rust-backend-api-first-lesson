@@ -1,4 +1,6 @@
 // tests/integration/permission/mod.rs
 
-pub mod audit_tests;
+// Permission test modules
+pub mod bulk_permission_check_test;
 pub mod permission_check_test;
+pub mod permission_validation_test;

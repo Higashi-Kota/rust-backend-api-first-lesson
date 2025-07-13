@@ -1,6 +1,6 @@
 // tests/unit/organization_hierarchy/repository/organization_department_repository_tests.rs
 
-use task_backend::domain::organization_department_model::Model;
+use task_backend::features::organization::models::department::Model;
 use uuid::Uuid;
 
 fn create_test_department_model(

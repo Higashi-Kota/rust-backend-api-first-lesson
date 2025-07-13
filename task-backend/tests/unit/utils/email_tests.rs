@@ -1,6 +1,6 @@
 // tests/unit/utils/email_tests.rs
 
-use task_backend::utils::email::{EmailConfig, EmailMessage, EmailService};
+use task_backend::infrastructure::email::{EmailConfig, EmailMessage, EmailService};
 
 // メール関連のユニットテスト（既存のsrc/utils/email.rsのテストを拡張）
 
