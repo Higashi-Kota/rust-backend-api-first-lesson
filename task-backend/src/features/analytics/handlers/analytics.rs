@@ -299,25 +299,25 @@ pub async fn get_system_analytics_handler(
     let total_tasks = crate::features::task::models::task_model::Entity::find()
         .count(app_state.db.as_ref())
         .await
-        .unwrap_or(0) as u64;
+        .unwrap_or(0);
 
     let completed_tasks = crate::features::task::models::task_model::Entity::find()
         .filter(crate::features::task::models::task_model::Column::Status.eq("completed"))
         .count(app_state.db.as_ref())
         .await
-        .unwrap_or(0) as u64;
+        .unwrap_or(0);
 
     // Get organization and team counts
     use crate::features::{organization::models::organization, team::models::team};
     let total_organizations = organization::Entity::find()
         .count(app_state.db.as_ref())
         .await
-        .unwrap_or(0) as u64;
+        .unwrap_or(0);
 
     let active_teams = team::Entity::find()
         .count(app_state.db.as_ref())
         .await
-        .unwrap_or(0) as u64;
+        .unwrap_or(0);
 
     // Calculate active users (users who logged in within last 30 days)
     use sea_orm::prelude::*;
@@ -331,7 +331,7 @@ pub async fn get_system_analytics_handler(
         )
         .count(app_state.db.as_ref())
         .await
-        .unwrap_or(0) as u64;
+        .unwrap_or(0);
 
     let mut response = SystemStatsResponse::new();
     response.total_users = total_users;
@@ -369,7 +369,7 @@ pub async fn get_system_analytics_handler(
         )
         .count(app_state.db.as_ref())
         .await
-        .unwrap_or(0) as u64;
+        .unwrap_or(0);
 
     response.weekly_active_users = user::Entity::find()
         .filter(
@@ -379,7 +379,7 @@ pub async fn get_system_analytics_handler(
         )
         .count(app_state.db.as_ref())
         .await
-        .unwrap_or(0) as u64;
+        .unwrap_or(0);
 
     Ok(Json(ApiResponse::success(
         "System analytics retrieved successfully",

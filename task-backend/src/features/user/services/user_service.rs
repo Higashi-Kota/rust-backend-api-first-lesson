@@ -841,13 +841,13 @@ impl UserService {
         let total_tasks = task_model::Entity::find()
             .filter(task_model::Column::UserId.eq(user_id))
             .count(db)
-            .await? as u64;
+            .await?;
 
         let completed_tasks = task_model::Entity::find()
             .filter(task_model::Column::UserId.eq(user_id))
             .filter(task_model::Column::Status.eq("completed"))
             .count(db)
-            .await? as u64;
+            .await?;
 
         let pending_tasks = total_tasks - completed_tasks;
 
