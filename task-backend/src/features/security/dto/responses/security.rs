@@ -188,3 +188,96 @@ pub struct AuditFinding {
     pub count: u64,
     pub details: Option<serde_json::Value>,
 }
+
+/// セキュリティアラートレスポンス
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityAlertsResponse {
+    pub alerts: Vec<SecurityAlert>,
+    pub summary: AlertSummary,
+    pub message: String,
+}
+
+/// セキュリティアラート
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityAlert {
+    pub alert_id: Uuid,
+    pub alert_type: String, // "suspicious_ip", "failed_login", "token_anomaly"
+    pub severity: String,   // "low", "medium", "high", "critical"
+    pub title: String,
+    pub description: String,
+    pub detected_at: DateTime<Utc>,
+    pub details: AlertDetails,
+}
+
+/// アラート詳細
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum AlertDetails {
+    SuspiciousIp {
+        ip_address: String,
+        failed_attempts: u64,
+        last_attempt: DateTime<Utc>,
+    },
+    FailedLogins {
+        today_count: u64,
+        week_count: u64,
+        threshold_exceeded: bool,
+    },
+    TokenAnomaly {
+        anomaly_type: String,
+        affected_users: u64,
+        description: String,
+    },
+}
+
+/// アラートサマリー
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlertSummary {
+    pub total_alerts: u32,
+    pub critical_alerts: u32,
+    pub high_alerts: u32,
+    pub medium_alerts: u32,
+    pub low_alerts: u32,
+    pub time_range: DateRange,
+}
+
+/// ログイン試行履歴レスポンス
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginAttemptsResponse {
+    pub attempts: Vec<LoginAttemptDetail>,
+    pub summary: LoginAttemptSummary,
+    pub suspicious_ips: Vec<SuspiciousIpInfo>,
+    pub message: String,
+}
+
+/// ログイン試行詳細
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginAttemptDetail {
+    pub user_id: Option<Uuid>,
+    pub email: Option<String>,
+    pub ip_address: String,
+    pub user_agent: Option<String>,
+    pub success: bool,
+    pub attempted_at: DateTime<Utc>,
+    pub failure_reason: Option<String>,
+}
+
+/// ログイン試行サマリー
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginAttemptSummary {
+    pub total_attempts: u64,
+    pub successful_attempts: u64,
+    pub failed_attempts: u64,
+    pub unique_users: u64,
+    pub unique_ips: u64,
+    pub time_range_hours: u32,
+}
+
+/// 不審なIPアドレス情報
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuspiciousIpInfo {
+    pub ip_address: String,
+    pub failed_attempts: u64,
+    pub last_attempt: DateTime<Utc>,
+    pub risk_level: String, // "low", "medium", "high"
+}

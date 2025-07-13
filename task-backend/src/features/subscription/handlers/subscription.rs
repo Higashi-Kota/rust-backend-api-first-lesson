@@ -566,7 +566,18 @@ pub fn admin_subscription_router() -> Router<AppState> {
         .route("/overview", get(get_subscription_overview_handler))
         .route("/stats/tiers", get(get_subscription_tier_stats_handler))
         .route("/history", get(get_subscription_history_by_period_handler))
+        .route("/history/all", get(get_all_subscription_histories_handler))
+        .route(
+            "/history/tier/{tier}",
+            get(get_subscription_history_by_tier_handler),
+        )
+        .route("/history/{id}", get(get_subscription_history_by_id_handler))
+        .route(
+            "/history/{id}",
+            axum::routing::delete(delete_subscription_history_handler),
+        )
         .route("/history/search", get(search_subscription_history_handler))
+        .route("/metrics/conversions", get(get_conversion_metrics_handler))
         .route("/analytics", get(get_subscription_analytics_handler))
 }
 
@@ -642,6 +653,150 @@ async fn search_subscription_history_handler(
     Ok(Json(ApiResponse::success(
         "Subscription history search completed",
         history,
+    )))
+}
+
+/// Get all subscription histories (admin)
+async fn get_all_subscription_histories_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUserWithRole,
+    Query(query): Query<PaginationQuery>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    let page = query.page.unwrap_or(1) as u64;
+    let per_page = query.per_page.unwrap_or(50) as u64;
+
+    // Get all histories
+    let all_histories = app_state.subscription_history_repo.find_all().await?;
+
+    // Paginate
+    let start = ((page - 1) * per_page) as usize;
+    let end = (start + per_page as usize).min(all_histories.len());
+    let paginated_histories = all_histories[start..end].to_vec();
+
+    let response = serde_json::json!({
+        "histories": paginated_histories,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": all_histories.len(),
+            "total_pages": ((all_histories.len() as f64) / (per_page as f64)).ceil() as u64,
+        }
+    });
+
+    Ok(Json(ApiResponse::success(
+        "All subscription histories retrieved successfully",
+        response,
+    )))
+}
+
+/// Get subscription history by tier (admin)
+async fn get_subscription_history_by_tier_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUserWithRole,
+    Path(tier): Path<String>,
+) -> AppResult<Json<ApiResponse<Vec<SubscriptionChangeInfo>>>> {
+    let histories = app_state
+        .subscription_history_repo
+        .find_by_tier(&tier)
+        .await?;
+
+    let change_infos: Vec<SubscriptionChangeInfo> = histories
+        .into_iter()
+        .map(SubscriptionChangeInfo::from)
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        format!(
+            "Subscription histories for tier '{}' retrieved successfully",
+            tier
+        ),
+        change_infos,
+    )))
+}
+
+/// Get subscription history by ID (admin)
+async fn get_subscription_history_by_id_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUserWithRole,
+    Path(history_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    let history = app_state
+        .subscription_history_repo
+        .find_by_id(history_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Subscription history not found".to_string()))?;
+
+    let response = serde_json::json!({
+        "id": history.id,
+        "user_id": history.user_id,
+        "previous_tier": history.previous_tier,
+        "new_tier": history.new_tier,
+        "changed_by": history.changed_by,
+        "reason": history.reason,
+        "changed_at": history.changed_at,
+        "is_upgrade": history.is_upgrade(),
+        "is_downgrade": history.is_downgrade(),
+    });
+
+    Ok(Json(ApiResponse::success(
+        "Subscription history retrieved successfully",
+        response,
+    )))
+}
+
+/// Delete subscription history by ID (admin) - for GDPR compliance
+async fn delete_subscription_history_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUserWithRole,
+    Path(history_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<()>>> {
+    let deleted = app_state
+        .subscription_history_repo
+        .delete_by_id(history_id)
+        .await?;
+
+    if !deleted {
+        return Err(AppError::NotFound(
+            "Subscription history not found".to_string(),
+        ));
+    }
+
+    Ok(Json(ApiResponse::success(
+        "Subscription history deleted successfully",
+        (),
+    )))
+}
+
+/// Get conversion metrics (admin)
+async fn get_conversion_metrics_handler(
+    State(app_state): State<AppState>,
+    _admin: AuthenticatedUserWithRole,
+    Query(query): Query<PeriodQuery>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    let end_date = query.end_date.unwrap_or_else(Utc::now);
+    let start_date = query
+        .start_date
+        .unwrap_or_else(|| end_date - Duration::days(30));
+
+    let conversions = app_state
+        .subscription_history_repo
+        .count_conversions_in_period(start_date, end_date)
+        .await?;
+
+    let response = serde_json::json!({
+        "period": {
+            "start": start_date,
+            "end": end_date,
+        },
+        "conversions": {
+            "count": conversions,
+            "description": "Number of users who upgraded from free tier to paid tier"
+        }
+    });
+
+    Ok(Json(ApiResponse::success(
+        "Conversion metrics retrieved successfully",
+        response,
     )))
 }
 

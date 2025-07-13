@@ -5,7 +5,6 @@ use crate::features::security::models::role::RoleWithPermissions;
 use crate::features::user::models::user::UserClaims;
 use crate::features::user::repositories::user::UserRepository;
 use crate::infrastructure::jwt::JwtManager;
-use crate::infrastructure::utils::permission::PermissionChecker;
 use axum::{
     extract::{Request, State},
     http::{header, HeaderMap},
@@ -57,28 +56,6 @@ impl AuthenticatedUser {
     pub fn is_admin(&self) -> bool {
         self.claims.is_admin()
     }
-
-    /// 組織管理権限をチェック
-    #[allow(dead_code)] // Public API for organization management
-    pub fn ensure_can_manage_organization(
-        &self,
-        organization_id: uuid::Uuid,
-    ) -> Result<(), AppError> {
-        // 管理者または組織の管理者なら管理可能
-        if self.is_admin() {
-            return Ok(());
-        }
-
-        // 組織管理権限をチェック（簡易実装）
-        // 実際の実装では、organization.owner_idとの比較が必要
-        if self.user_id() == organization_id {
-            Ok(())
-        } else {
-            Err(AppError::Forbidden(
-                "Cannot manage organization".to_string(),
-            ))
-        }
-    }
 }
 
 impl AuthenticatedUserWithRole {
@@ -94,17 +71,10 @@ impl AuthenticatedUserWithRole {
         self.claims.is_admin()
     }
 
-    #[allow(dead_code)] // Public API for authorization checks
-    pub fn can_access_user(&self, target_user_id: uuid::Uuid) -> bool {
-        self.claims.can_access_user(target_user_id)
-    }
-
-    #[allow(dead_code)] // Public API for authorization checks
     pub fn can_create_resource(&self, resource_type: &str) -> bool {
         self.claims.can_create_resource(resource_type)
     }
 
-    #[allow(dead_code)] // Public API for authorization checks
     pub fn can_delete_resource(&self, resource_type: &str, owner_id: Option<uuid::Uuid>) -> bool {
         self.claims.can_delete_resource(resource_type, owner_id)
     }
@@ -512,115 +482,6 @@ pub fn get_authenticated_user_with_role_from_claims(
     AuthenticatedUserWithRole {
         claims: claims.clone(),
     }
-}
-
-/// リソースアクセス権限チェック（統合版を使用）
-#[allow(dead_code)] // Public API for resource access control
-pub fn check_resource_access_permission(
-    user: &AuthenticatedUserWithRole,
-    target_user_id: uuid::Uuid,
-) -> Result<(), AppError> {
-    let has_access = if let Some(role) = user.role() {
-        PermissionChecker::can_access_user(role, user.user_id(), target_user_id)
-    } else {
-        user.can_access_user(target_user_id)
-    };
-
-    if !has_access {
-        warn!(
-            user_id = %user.user_id(),
-            target_user_id = %target_user_id,
-            role = ?user.role().map(|r| &r.name),
-            "Access denied to user resource"
-        );
-        return Err(AppError::Forbidden("Access denied".to_string()));
-    }
-    Ok(())
-}
-
-/// リソース作成権限チェック（統合版を使用）
-#[allow(dead_code)] // Public API for resource creation control
-pub fn check_create_permission(
-    user: &AuthenticatedUserWithRole,
-    resource_type: &str,
-) -> Result<(), AppError> {
-    let can_create = if let Some(role) = user.role() {
-        PermissionChecker::can_create_resource(role, resource_type)
-    } else {
-        user.can_create_resource(resource_type)
-    };
-
-    if !can_create {
-        warn!(
-            user_id = %user.user_id(),
-            resource_type = %resource_type,
-            role = ?user.role().map(|r| &r.name),
-            "Insufficient permissions to create resource"
-        );
-        return Err(AppError::Forbidden(format!(
-            "Cannot create {}",
-            resource_type
-        )));
-    }
-    Ok(())
-}
-
-/// リソース削除権限チェック（統合版を使用）
-#[allow(dead_code)] // Public API for resource deletion control
-pub fn check_delete_permission(
-    user: &AuthenticatedUserWithRole,
-    resource_type: &str,
-    owner_id: Option<uuid::Uuid>,
-) -> Result<(), AppError> {
-    let can_delete = if let Some(role) = user.role() {
-        PermissionChecker::can_delete_resource(role, resource_type, owner_id, user.user_id())
-    } else {
-        user.can_delete_resource(resource_type, owner_id)
-    };
-
-    if !can_delete {
-        warn!(
-            user_id = %user.user_id(),
-            resource_type = %resource_type,
-            owner_id = ?owner_id,
-            role = ?user.role().map(|r| &r.name),
-            "Insufficient permissions to delete resource"
-        );
-        return Err(AppError::Forbidden(format!(
-            "Cannot delete {}",
-            resource_type
-        )));
-    }
-    Ok(())
-}
-
-/// リソース表示権限チェック（新機能）
-#[allow(dead_code)] // Public API for resource viewing control
-pub fn check_view_permission(
-    user: &AuthenticatedUserWithRole,
-    resource_type: &str,
-    owner_id: Option<uuid::Uuid>,
-) -> Result<(), AppError> {
-    let can_view = if let Some(role) = user.role() {
-        PermissionChecker::can_view_resource(role, resource_type, owner_id, user.user_id())
-    } else {
-        user.claims.can_view_resource(resource_type, owner_id)
-    };
-
-    if !can_view {
-        warn!(
-            user_id = %user.user_id(),
-            resource_type = %resource_type,
-            owner_id = ?owner_id,
-            role = ?user.role().map(|r| &r.name),
-            "Insufficient permissions to view resource"
-        );
-        return Err(AppError::Forbidden(format!(
-            "Cannot view {}",
-            resource_type
-        )));
-    }
-    Ok(())
 }
 
 // --- Axum Extractors ---

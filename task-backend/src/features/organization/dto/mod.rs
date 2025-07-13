@@ -6,3 +6,7 @@ pub mod responses;
 // Re-export for backward compatibility
 
 // 新しい構造の再エクスポート
+pub use responses::{
+    AnalyticsData, AnalyticsSummary, DepartmentInfo, OrganizationAnalyticsResponse,
+    OrganizationDepartmentsResponse,
+};

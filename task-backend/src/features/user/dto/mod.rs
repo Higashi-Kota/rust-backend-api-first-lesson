@@ -16,7 +16,7 @@ pub use responses::{
     EmailVerificationHistoryItem, EmailVerificationHistoryResponse, EmailVerificationResponse,
     NotificationSettings, PendingEmailVerificationResponse, ProfileUpdateResponse, RoleUserStats,
     SecuritySettings, SubscriptionAnalytics, SubscriptionAnalyticsResponse, TokenStatusResponse,
-    UserAdditionalInfo, UserAnalyticsResponse, UserListResponse, UserPermissionsResponse,
-    UserPreferences, UserProfileResponse, UserSettingsResponse, UserStatsResponse, UserSummary,
-    UserWithRoleResponse,
+    UserActivityStatsResponse, UserAdditionalInfo, UserAnalyticsResponse, UserListResponse,
+    UserPermissionsResponse, UserPreferences, UserProfileResponse, UserSettingsResponse,
+    UserStatsResponse, UserSummary, UserWithRoleResponse,
 };

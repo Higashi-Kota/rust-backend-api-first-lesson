@@ -1,7 +1,6 @@
 // src/features/task/service.rs
-#![allow(dead_code)] // Task service methods are public APIs
 
-use crate::core::permission::{Permission, PermissionResult, PermissionScope, Privilege};
+use crate::core::permission::{PermissionResult, PermissionScope, Privilege};
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::db::DbPool;
 use crate::error::{AppError, AppResult};
@@ -33,13 +32,6 @@ impl TaskService {
     }
 
     // --- CRUD ---
-    pub async fn create_task(&self, payload: CreateTaskDto) -> AppResult<TaskDto> {
-        // 基本的な書き込み権限の例（実際の使用はハンドラーで行う）
-        let _write_permission = Permission::write_own("tasks");
-        let created_task = self.repo.create(payload).await?;
-        Ok(created_task.into())
-    }
-
     pub async fn create_task_for_user(
         &self,
         user_id: Uuid,
@@ -64,17 +56,6 @@ impl TaskService {
         Ok(created_task.into())
     }
 
-    pub async fn get_task(&self, id: Uuid) -> AppResult<TaskDto> {
-        // 基本的な読み取り権限の例
-        let _read_permission = Permission::read_own("tasks");
-        let task = self
-            .repo
-            .find_by_id(id)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("Task with id {} not found", id)))?;
-        Ok(task.into())
-    }
-
     pub async fn get_task_for_user(&self, user_id: Uuid, id: Uuid) -> AppResult<TaskDto> {
         let task = self
             .repo
@@ -86,23 +67,9 @@ impl TaskService {
         Ok(task.into())
     }
 
-    pub async fn list_tasks(&self) -> AppResult<Vec<TaskDto>> {
-        // 管理者用のグローバル権限の例
-        let _admin_permission = Permission::admin_global("tasks");
-        let tasks = self.repo.find_all().await?;
-        Ok(tasks.into_iter().map(Into::into).collect())
-    }
-
     pub async fn list_tasks_for_user(&self, user_id: Uuid) -> AppResult<Vec<TaskDto>> {
         let tasks = self.repo.find_all_for_user(user_id).await?;
         Ok(tasks.into_iter().map(Into::into).collect())
-    }
-
-    pub async fn update_task(&self, id: Uuid, payload: UpdateTaskDto) -> AppResult<TaskDto> {
-        let updated_task = self.repo.update(id, payload).await?.ok_or_else(|| {
-            AppError::NotFound(format!("Task with id {} not found for update", id))
-        })?;
-        Ok(updated_task.into())
     }
 
     pub async fn update_task_for_user(
@@ -122,18 +89,6 @@ impl TaskService {
                 ))
             })?;
         Ok(updated_task.into())
-    }
-
-    pub async fn delete_task(&self, id: Uuid) -> AppResult<()> {
-        let delete_result = self.repo.delete(id).await?;
-        if delete_result.rows_affected == 0 {
-            Err(AppError::NotFound(format!(
-                "Task with id {} not found for deletion",
-                id
-            )))
-        } else {
-            Ok(())
-        }
     }
 
     pub async fn delete_task_for_user(&self, user_id: Uuid, id: Uuid) -> AppResult<()> {
@@ -247,30 +202,6 @@ impl TaskService {
         let current_page = if limit > 0 { offset / limit + 1 } else { 1 };
 
         let pagination = PaginationMeta::new(current_page as i32, limit as i32, total_count as i64);
-
-        Ok(PaginatedTasksDto {
-            items: task_dtos,
-            pagination,
-        })
-    }
-
-    // ページネーション付きのタスク一覧取得
-    pub async fn list_tasks_paginated(
-        &self,
-        page: u64,
-        page_size: u64,
-    ) -> AppResult<PaginatedTasksDto> {
-        let page = if page == 0 { 1 } else { page };
-        let page_size = if page_size == 0 { 10 } else { page_size };
-
-        let (tasks, total_count) = self.repo.find_all_paginated(page, page_size).await?;
-
-        // タスクモデルをDTOに変換
-        let task_dtos: Vec<TaskDto> = tasks.into_iter().map(Into::into).collect();
-
-        // ページネーション情報を計算
-
-        let pagination = PaginationMeta::new(page as i32, page_size as i32, total_count as i64);
 
         Ok(PaginatedTasksDto {
             items: task_dtos,
@@ -525,24 +456,6 @@ impl TaskService {
             AppError::InternalServerError(format!("Failed to count tasks for user: {}", e))
         })?;
         Ok(count)
-    }
-
-    /// 全タスク数を取得
-    pub async fn count_all_tasks(&self) -> AppResult<u64> {
-        self.repo
-            .count_all_tasks()
-            .await
-            .map_err(|e| AppError::InternalServerError(format!("Failed to count all tasks: {}", e)))
-    }
-
-    /// 完了済みタスク数を取得
-    pub async fn count_completed_tasks(&self) -> AppResult<u64> {
-        self.repo
-            .count_tasks_by_status("completed")
-            .await
-            .map_err(|e| {
-                AppError::InternalServerError(format!("Failed to count completed tasks: {}", e))
-            })
     }
 
     // Analytics methods for admin handlers

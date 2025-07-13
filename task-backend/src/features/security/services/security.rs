@@ -286,7 +286,6 @@ impl SecurityService {
     }
 
     /// 不審なIPアドレス情報を取得
-    #[allow(dead_code)] // Public API for security monitoring
     pub async fn get_suspicious_ips(
         &self,
         failed_attempts_threshold: u32,
@@ -310,7 +309,6 @@ impl SecurityService {
     }
 
     /// 失敗したログイン試行回数を取得
-    #[allow(dead_code)] // Public API for security monitoring
     pub async fn get_failed_login_counts(&self) -> AppResult<(u64, u64)> {
         let today = Utc::now() - chrono::Duration::days(1);
         let this_week = Utc::now() - chrono::Duration::days(7);
@@ -328,7 +326,6 @@ impl SecurityService {
     }
 
     /// セキュリティインシデント数を取得
-    #[allow(dead_code)] // Public API for security monitoring
     pub async fn get_security_incident_count(&self, days: i64) -> AppResult<u64> {
         let start_date = Utc::now() - chrono::Duration::days(days);
         let end_date = Utc::now();
@@ -336,6 +333,77 @@ impl SecurityService {
         self.security_incident_repo
             .count_by_date_range(start_date, end_date)
             .await
+    }
+
+    /// 特定ユーザーのトークンを無効化
+    pub async fn revoke_user_tokens(
+        &self,
+        user_id: Uuid,
+        reason: &str,
+        exclude_current_user_id: Option<Uuid>,
+    ) -> AppResult<RevokeResult> {
+        let mut total_revoked = 0u64;
+        let affected_users = [user_id];
+
+        // リフレッシュトークンを無効化
+        if let Some(current_id) = exclude_current_user_id {
+            if current_id != user_id {
+                let result = self
+                    .refresh_token_repo
+                    .revoke_all_user_tokens(user_id)
+                    .await?;
+                total_revoked += result;
+            }
+        } else {
+            let result = self
+                .refresh_token_repo
+                .revoke_all_user_tokens(user_id)
+                .await?;
+            total_revoked += result;
+        }
+
+        // セキュリティインシデントを記録
+        self.security_incident_repo
+            .create_incident(
+                "token_revocation",
+                &format!("Tokens revoked for user {}: {}", user_id, reason),
+                serde_json::json!({
+                    "user_id": user_id,
+                    "reason": reason,
+                    "tokens_revoked": total_revoked
+                }),
+                "medium",
+                exclude_current_user_id,
+            )
+            .await?;
+
+        Ok(RevokeResult {
+            revoked_count: total_revoked,
+            affected_users: affected_users.len() as u64,
+            revocation_reason: reason.to_string(),
+            revoked_at: chrono::Utc::now(),
+        })
+    }
+
+    /// 監査レポートを生成（オプション付き）
+    pub async fn generate_audit_report_with_options(
+        &self,
+        report_type: &str,
+        date_range: Option<&crate::features::security::dto::requests::security::DateRange>,
+        include_details: bool,
+        generated_by: Uuid,
+    ) -> AppResult<AuditReport> {
+        // 既存のgenerate_audit_reportを呼び出す
+        use crate::features::security::dto::security::DateRange;
+        let request = AuditReportRequest {
+            report_type: report_type.to_string(),
+            date_range: date_range.map(|dr| DateRange {
+                start_date: dr.start_date,
+                end_date: dr.end_date,
+            }),
+            include_details: Some(include_details),
+        };
+        self.generate_audit_report(&request, generated_by).await
     }
 
     /// 監査レポートを生成

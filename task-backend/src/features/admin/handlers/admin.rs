@@ -246,6 +246,97 @@ pub async fn list_bulk_operations_handler(
     )))
 }
 
+/// Admin get bulk operations by user
+pub async fn get_bulk_operations_by_user_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+    Query(query): Query<LimitQuery>,
+) -> AppResult<Json<ApiResponse<Vec<serde_json::Value>>>> {
+    let limit = query.limit.unwrap_or(50).min(100) as u64;
+
+    let operations = app_state
+        .bulk_operation_history_repo
+        .get_by_user(user_id, limit)
+        .await?;
+
+    // Convert to JSON values for compatibility
+    let operations_json: Vec<serde_json::Value> = operations
+        .into_iter()
+        .map(|op| {
+            json!({
+                "id": op.id,
+                "operation_type": op.operation_type,
+                "status": op.status,
+                "affected_count": op.affected_count,
+                "performed_by": op.performed_by,
+                "created_at": op.created_at,
+                "completed_at": op.completed_at,
+                "error_details": op.error_details,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        format!(
+            "Bulk operations for user {} retrieved successfully",
+            user_id
+        ),
+        operations_json,
+    )))
+}
+
+/// Admin get bulk operations by date range
+pub async fn get_bulk_operations_by_date_range_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Query(query): Query<DateRangeQuery>,
+) -> AppResult<Json<ApiResponse<Vec<serde_json::Value>>>> {
+    let start_date = query.start_date.ok_or_else(|| {
+        crate::error::AppError::ValidationError("start_date is required".to_string())
+    })?;
+    let end_date = query.end_date.ok_or_else(|| {
+        crate::error::AppError::ValidationError("end_date is required".to_string())
+    })?;
+
+    if start_date >= end_date {
+        return Err(crate::error::AppError::ValidationError(
+            "start_date must be before end_date".to_string(),
+        ));
+    }
+
+    let operations = app_state
+        .bulk_operation_history_repo
+        .get_by_date_range(start_date, end_date)
+        .await?;
+
+    // Convert to JSON values for compatibility
+    let operations_json: Vec<serde_json::Value> = operations
+        .into_iter()
+        .map(|op| {
+            json!({
+                "id": op.id,
+                "operation_type": op.operation_type,
+                "status": op.status,
+                "affected_count": op.affected_count,
+                "performed_by": op.performed_by,
+                "created_at": op.created_at,
+                "completed_at": op.completed_at,
+                "error_details": op.error_details,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        format!(
+            "Bulk operations from {} to {} retrieved successfully",
+            start_date.format("%Y-%m-%d"),
+            end_date.format("%Y-%m-%d")
+        ),
+        operations_json,
+    )))
+}
+
 /// Admin bulk delete tasks
 pub async fn bulk_delete_tasks_handler(
     State(_app_state): State<crate::api::AppState>,
@@ -1061,6 +1152,17 @@ pub struct OrganizationListQuery {
     pub subscription_tier: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct LimitQuery {
+    pub limit: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DateRangeQuery {
+    pub start_date: Option<DateTime<Utc>>,
+    pub end_date: Option<DateTime<Utc>>,
+}
+
 /// Admin router
 pub fn admin_router() -> Router<crate::api::AppState> {
     Router::new().nest(
@@ -1094,6 +1196,14 @@ pub fn admin_router() -> Router<crate::api::AppState> {
             .route("/cleanup/all", delete(cleanup_all_handler))
             // Bulk operations
             .route("/bulk-operations", get(list_bulk_operations_handler))
+            .route(
+                "/bulk-operations/users/{user_id}",
+                get(get_bulk_operations_by_user_handler),
+            )
+            .route(
+                "/bulk-operations/date-range",
+                get(get_bulk_operations_by_date_range_handler),
+            )
             .route("/tasks/bulk/delete", delete(bulk_delete_tasks_handler))
             // Admin task management
             .route("/tasks", get(admin_list_all_tasks_handler))

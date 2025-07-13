@@ -19,9 +19,6 @@ pub struct DeclineInvitationRequest {
     pub reason: Option<String>,
 }
 
-// ResendInvitationRequest and CreateInvitationRequest removed - unused (YAGNI)
-// The actual DTOs are in dto/team_invitation.rs
-
 /// ユーザー招待クエリ
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UserInvitationQuery {
@@ -35,9 +32,6 @@ pub struct TeamInvitationQuery {
     pub page: Option<i64>,
     pub per_page: Option<i64>,
 }
-
-// BulkUpdateStatusRequest removed - unused (YAGNI)
-// The actual DTO with correct field names is in dto/team_invitation.rs
 
 #[cfg(test)]
 mod tests {
@@ -74,9 +68,6 @@ mod tests {
         assert!(no_reason_request.validate().is_ok());
     }
 
-    // Tests for CreateInvitationRequest and ResendInvitationRequest removed
-    // as the structs were removed (unused - YAGNI)
-
     #[test]
     fn test_team_invitation_query_defaults() {
         let query = TeamInvitationQuery {
@@ -100,7 +91,4 @@ mod tests {
         assert_eq!(query.page, Some(1));
         assert_eq!(query.per_page, Some(100));
     }
-
-    // Test for BulkUpdateStatusRequest removed
-    // as the struct was removed (unused - YAGNI)
 }

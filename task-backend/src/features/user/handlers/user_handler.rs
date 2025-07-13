@@ -9,9 +9,10 @@ use crate::features::user::dto::{
     EmailVerificationHistoryResponse, EmailVerificationResponse, ProfileUpdateResponse,
     ResendVerificationEmailRequest, SubscriptionAnalyticsResponse, SubscriptionQuery,
     UpdateAccountStatusRequest, UpdateEmailRequest, UpdateProfileRequest,
-    UpdateUserSettingsRequest, UpdateUsernameRequest, UserAdditionalInfo, UserAnalyticsResponse,
-    UserListResponse, UserPermissionsResponse, UserProfileResponse, UserSearchQuery,
-    UserSettingsResponse, UserStatsResponse, UserSummary, VerifyEmailRequest,
+    UpdateUserSettingsRequest, UpdateUsernameRequest, UserActivityStatsResponse,
+    UserAdditionalInfo, UserAnalyticsResponse, UserListResponse, UserPermissionsResponse,
+    UserProfileResponse, UserSearchQuery, UserSettingsResponse, UserStatsResponse, UserSummary,
+    VerifyEmailRequest,
 };
 use crate::shared::types::{ApiResponse, OperationResult};
 use crate::utils::permission::PermissionChecker;
@@ -1108,6 +1109,44 @@ pub async fn get_email_verification_history_handler(
     )))
 }
 
+/// ユーザーのアクティビティ統計を取得
+pub async fn get_user_activity_stats_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<UserActivityStatsResponse>>> {
+    // 権限チェック：自分自身または管理者のみ
+    if user.user_id() != user_id && !user.is_admin() {
+        return Err(AppError::Forbidden(
+            "You can only view your own activity statistics".to_string(),
+        ));
+    }
+
+    let stats = app_state
+        .user_service
+        .get_user_activity_stats(user_id)
+        .await?;
+
+    info!(
+        user_id = %user_id,
+        requested_by = %user.user_id(),
+        "User activity stats retrieved"
+    );
+
+    // 機能使用状況を追跡
+    crate::track_feature!(
+        app_state.clone(),
+        user.user_id(),
+        "User Activity Stats",
+        "view"
+    );
+
+    Ok(Json(ApiResponse::success(
+        "User activity statistics retrieved successfully",
+        stats,
+    )))
+}
+
 /// ユーザーサービスのヘルスチェック
 async fn user_health_check_handler() -> &'static str {
     "User service OK"
@@ -1180,6 +1219,335 @@ pub async fn upgrade_user_subscription_handler(
     )))
 }
 
+/// ユーザー統計情報を取得（管理者用）
+pub async fn get_user_statistics_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        "Getting user statistics"
+    );
+
+    // UserRepositoryの未使用メソッドを活用
+    use crate::features::user::repositories::user::UserRepository;
+    let user_repo = UserRepository::new(app_state.db.as_ref().clone());
+
+    let total_users = user_repo
+        .count_all_users()
+        .await
+        .map_err(|e| AppError::InternalServerError(format!("Database error: {}", e)))?;
+
+    let active_users = user_repo
+        .count_active_users()
+        .await
+        .map_err(|e| AppError::InternalServerError(format!("Database error: {}", e)))?;
+
+    let inactive_users = total_users - active_users;
+    let active_percentage = if total_users > 0 {
+        (active_users as f64 / total_users as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    // 各ロール別のユーザー数を取得
+    // TODO: 実際には全ロールIDをリポジトリから取得する必要がある
+    let admin_role_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap_or_default();
+    let member_role_id =
+        Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap_or_default();
+
+    let admin_count = user_repo
+        .count_by_role_id(admin_role_id)
+        .await
+        .map_err(|e| AppError::InternalServerError(format!("Database error: {}", e)))?;
+
+    let member_count = user_repo
+        .count_by_role_id(member_role_id)
+        .await
+        .map_err(|e| AppError::InternalServerError(format!("Database error: {}", e)))?;
+
+    let response = serde_json::json!({
+        "statistics": {
+            "total_users": total_users,
+            "active_users": active_users,
+            "inactive_users": inactive_users,
+            "active_percentage": active_percentage,
+            "role_distribution": {
+                "admin_users": admin_count,
+                "member_users": member_count,
+                "other_users": total_users as i64 - admin_count - member_count,
+            },
+            "calculated_at": chrono::Utc::now(),
+        }
+    });
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        total_users = %total_users,
+        active_users = %active_users,
+        "User statistics retrieved successfully"
+    );
+
+    Ok(Json(ApiResponse::success(
+        "User statistics retrieved successfully",
+        response,
+    )))
+}
+
+/// ロール別ユーザー詳細情報を取得（管理者用）
+pub async fn get_role_based_user_details_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(role_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        role_id = %role_id,
+        "Getting role-based user details"
+    );
+
+    // count_by_role_idを使用してユーザー数を取得
+    use crate::features::user::repositories::user::UserRepository;
+    let user_repo = UserRepository::new(app_state.db.as_ref().clone());
+    let user_count = user_repo
+        .count_by_role_id(role_id)
+        .await
+        .map_err(|e| AppError::InternalServerError(format!("Database error: {}", e)))?;
+
+    // ロールを持つユーザーの詳細を取得
+    let users_with_role = user_repo
+        .find_by_role_id(role_id)
+        .await
+        .map_err(|e| AppError::InternalServerError(format!("Database error: {}", e)))?;
+
+    let users_summary: Vec<serde_json::Value> = users_with_role
+        .iter()
+        .map(|user| {
+            serde_json::json!({
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "is_active": user.is_active,
+                "email_verified": user.email_verified,
+                "subscription_tier": user.subscription_tier,
+                "created_at": user.created_at,
+                "last_login_at": user.last_login_at,
+            })
+        })
+        .collect();
+
+    let response = serde_json::json!({
+        "role_id": role_id,
+        "total_users": user_count,
+        "users": users_summary,
+        "retrieved_at": chrono::Utc::now(),
+    });
+
+    Ok(Json(ApiResponse::success(
+        "Role-based user details retrieved successfully",
+        response,
+    )))
+}
+
+/// 言語別ユーザー一覧取得（管理者用）
+pub async fn get_users_by_language_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(language): Path<String>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        language = %language,
+        "Getting users by language"
+    );
+
+    // UserSettingsRepositoryの未使用メソッドを活用
+    use crate::features::user::repositories::user::UserRepository;
+    use crate::features::user::repositories::user_settings::UserSettingsRepository;
+    let settings_repo = UserSettingsRepository::new(app_state.db.as_ref().clone());
+    let user_ids = settings_repo.get_users_by_language(&language).await?;
+
+    // 各ユーザーの詳細情報を取得
+    let mut users = Vec::new();
+    let user_repo = UserRepository::new(app_state.db.as_ref().clone());
+    for user_id in &user_ids {
+        if let Some(user) = user_repo.find_by_id(*user_id).await? {
+            // get_by_user_idメソッドも活用
+            let settings = settings_repo.get_by_user_id(*user_id).await?;
+
+            users.push(serde_json::json!({
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "language": language,
+                "settings": settings.map(|s| serde_json::json!({
+                    "timezone": s.timezone,
+                    "notifications_enabled": s.notifications_enabled,
+                    "ui_preferences": s.ui_preferences,
+                })),
+                "created_at": user.created_at,
+            }));
+        }
+    }
+
+    let response = serde_json::json!({
+        "language": language,
+        "total_users": user_ids.len(),
+        "users": users,
+        "retrieved_at": chrono::Utc::now(),
+    });
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        language = %language,
+        user_count = %user_ids.len(),
+        "Users by language retrieved successfully"
+    );
+
+    Ok(Json(ApiResponse::success(
+        "Users by language retrieved successfully",
+        response,
+    )))
+}
+
+/// 通知有効ユーザー一覧取得（管理者用）
+pub async fn get_users_with_notifications_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Query(query): Query<serde_json::Value>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    // 管理者権限チェック
+    if !admin_user.is_admin() {
+        return Err(AppError::Forbidden("Admin access required".to_string()));
+    }
+
+    let notification_type = query["notification_type"]
+        .as_str()
+        .unwrap_or("task_updates");
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        notification_type = %notification_type,
+        "Getting users with notifications enabled"
+    );
+
+    // UserSettingsRepositoryの未使用メソッドを活用
+    use crate::features::user::repositories::user::UserRepository;
+    use crate::features::user::repositories::user_settings::UserSettingsRepository;
+    let settings_repo = UserSettingsRepository::new(app_state.db.as_ref().clone());
+    let user_ids = settings_repo
+        .get_users_with_notification_enabled(notification_type)
+        .await?;
+
+    // 各ユーザーの詳細情報を取得
+    let mut users = Vec::new();
+    let user_repo = UserRepository::new(app_state.db.as_ref().clone());
+    for user_id in &user_ids {
+        if let Some(user) = user_repo.find_by_id(*user_id).await? {
+            // get_by_user_idメソッドも活用
+            let settings = settings_repo.get_by_user_id(*user_id).await?;
+
+            users.push(serde_json::json!({
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "notification_settings": settings.map(|s| serde_json::json!({
+                    "notifications_enabled": s.notifications_enabled,
+                    "email_notifications": s.email_notifications,
+                    "language": s.language,
+                    "timezone": s.timezone,
+                })),
+                "last_login_at": user.last_login_at,
+            }));
+        }
+    }
+
+    let response = serde_json::json!({
+        "notification_type": notification_type,
+        "total_users": user_ids.len(),
+        "users": users,
+        "retrieved_at": chrono::Utc::now(),
+    });
+
+    info!(
+        admin_id = %admin_user.user_id(),
+        notification_type = %notification_type,
+        user_count = %user_ids.len(),
+        "Users with notifications retrieved successfully"
+    );
+
+    Ok(Json(ApiResponse::success(
+        "Users with notifications retrieved successfully",
+        response,
+    )))
+}
+
+/// ユーザー設定詳細取得（管理者用）
+pub async fn get_user_settings_details_handler(
+    State(app_state): State<AppState>,
+    admin_user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    // 権限チェック
+    app_state
+        .permission_service
+        .check_user_access(admin_user.user_id(), user_id)
+        .await?;
+
+    info!(
+        accessor_id = %admin_user.user_id(),
+        target_user_id = %user_id,
+        "Getting user settings details"
+    );
+
+    // get_by_user_idメソッドを活用
+    use crate::features::user::repositories::user_settings::UserSettingsRepository;
+    let settings_repo = UserSettingsRepository::new(app_state.db.as_ref().clone());
+    let settings = settings_repo.get_by_user_id(user_id).await?;
+
+    let response = match settings {
+        Some(s) => serde_json::json!({
+            "user_id": user_id,
+            "settings": {
+                "language": s.language,
+                "timezone": s.timezone,
+                "notifications_enabled": s.notifications_enabled,
+                "email_notifications": s.email_notifications,
+                "ui_preferences": s.ui_preferences,
+                "created_at": s.created_at,
+                "updated_at": s.updated_at,
+            },
+            "found": true,
+        }),
+        None => serde_json::json!({
+            "user_id": user_id,
+            "settings": null,
+            "found": false,
+            "message": "No settings found for this user",
+        }),
+    };
+
+    Ok(Json(ApiResponse::success(
+        "User settings details retrieved",
+        response,
+    )))
+}
+
 // --- ルーター ---
 
 /// ユーザールーターを作成
@@ -1191,6 +1559,10 @@ pub fn user_router(app_state: AppState) -> Router {
         .route("/users/profile/email", patch(update_email_handler))
         .route("/users/profile", patch(update_profile_handler))
         .route("/users/stats", get(get_user_stats_handler))
+        .route(
+            "/users/{id}/activity-stats",
+            get(get_user_activity_stats_handler),
+        )
         .route("/users/settings", get(get_user_settings_handler))
         .route("/users/settings", patch(update_user_settings_handler))
         .route("/users/settings", delete(delete_user_settings_handler))
@@ -1219,9 +1591,14 @@ pub fn user_router(app_state: AppState) -> Router {
             get(advanced_search_users_handler),
         )
         .route("/admin/users/analytics", get(get_user_analytics_handler))
+        .route("/admin/users/statistics", get(get_user_statistics_handler))
         .route(
             "/admin/users/by-role/{role}",
             get(get_users_by_role_handler),
+        )
+        .route(
+            "/admin/users/role/{role_id}/details",
+            get(get_role_based_user_details_handler),
         )
         .route(
             "/admin/users/by-subscription",
@@ -1231,10 +1608,22 @@ pub fn user_router(app_state: AppState) -> Router {
             "/admin/users/bulk-operations",
             post(bulk_user_operations_handler),
         )
+        .route(
+            "/admin/users/by-language/{language}",
+            get(get_users_by_language_handler),
+        )
+        .route(
+            "/admin/users/with-notifications",
+            get(get_users_with_notifications_handler),
+        )
         .route("/admin/users/{id}", get(get_user_by_id_handler))
         .route(
             "/admin/users/{id}/status",
             patch(update_account_status_handler),
+        )
+        .route(
+            "/admin/users/{id}/settings-details",
+            get(get_user_settings_details_handler),
         )
         // ヘルスチェック
         .route("/users/health", get(user_health_check_handler))

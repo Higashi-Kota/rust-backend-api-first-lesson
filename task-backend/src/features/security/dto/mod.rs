@@ -25,6 +25,12 @@ pub use security::{
     TokenStatsResponse,
 };
 
+// New security response exports
+pub use responses::security::{
+    AlertDetails, AlertSummary, LoginAttemptDetail, LoginAttemptSummary, LoginAttemptsResponse,
+    SecurityAlert, SecurityAlertsResponse, SuspiciousIpInfo,
+};
+
 // Query module exports
 
 // Requests module exports

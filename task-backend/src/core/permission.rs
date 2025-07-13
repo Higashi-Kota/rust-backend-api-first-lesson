@@ -76,12 +76,6 @@ impl PermissionQuota {
             features: vec!["unlimited_access".to_string()],
         }
     }
-
-    /// 指定した機能が利用可能かチェック
-    #[allow(dead_code)] // Public API that may be used externally
-    pub fn has_feature(&self, feature: &str) -> bool {
-        self.features.contains(&feature.to_string())
-    }
 }
 
 /// 特権

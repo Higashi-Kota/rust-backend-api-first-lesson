@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Repository methods for department members
-
 use super::super::models::department_member::{self, Entity as DepartmentMember};
 use crate::error::AppError;
 use sea_orm::prelude::*;
@@ -39,33 +37,6 @@ impl DepartmentMemberRepository {
         Ok(result)
     }
 
-    pub async fn find_by_user_id(
-        db: &DatabaseConnection,
-        user_id: Uuid,
-    ) -> Result<Vec<department_member::Model>, AppError> {
-        let result = DepartmentMember::find()
-            .filter(department_member::Column::UserId.eq(user_id))
-            .filter(department_member::Column::IsActive.eq(true))
-            .order_by_desc(department_member::Column::JoinedAt)
-            .all(db)
-            .await?;
-        Ok(result)
-    }
-
-    pub async fn find_by_department_and_user(
-        db: &DatabaseConnection,
-        department_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<Option<department_member::Model>, AppError> {
-        let result = DepartmentMember::find()
-            .filter(department_member::Column::DepartmentId.eq(department_id))
-            .filter(department_member::Column::UserId.eq(user_id))
-            .filter(department_member::Column::IsActive.eq(true))
-            .one(db)
-            .await?;
-        Ok(result)
-    }
-
     pub async fn deactivate_by_id(db: &DatabaseConnection, id: Uuid) -> Result<(), AppError> {
         let member = Self::find_by_id(db, id)
             .await?
@@ -77,34 +48,6 @@ impl DepartmentMemberRepository {
         active_model.update(db).await?;
 
         Ok(())
-    }
-
-    pub async fn deactivate_by_department_and_user(
-        db: &DatabaseConnection,
-        department_id: Uuid,
-        user_id: Uuid,
-    ) -> Result<(), AppError> {
-        if let Some(member) = Self::find_by_department_and_user(db, department_id, user_id).await? {
-            let mut active_model: department_member::ActiveModel = member.into();
-            active_model.is_active = sea_orm::Set(false);
-            active_model.updated_at = sea_orm::Set(chrono::Utc::now());
-            active_model.update(db).await?;
-        }
-        Ok(())
-    }
-
-    pub async fn is_member_of_department(
-        db: &DatabaseConnection,
-        user_id: Uuid,
-        department_id: Uuid,
-    ) -> Result<bool, AppError> {
-        let count = DepartmentMember::find()
-            .filter(department_member::Column::UserId.eq(user_id))
-            .filter(department_member::Column::DepartmentId.eq(department_id))
-            .filter(department_member::Column::IsActive.eq(true))
-            .count(db)
-            .await?;
-        Ok(count > 0)
     }
 
     pub async fn count_by_department(

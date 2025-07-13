@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Repository methods for activity summaries
-
 use crate::error::AppResult;
 use crate::features::analytics::models::daily_activity_summary::Entity as DailyActivitySummary;
 use chrono::{NaiveDate, Utc};

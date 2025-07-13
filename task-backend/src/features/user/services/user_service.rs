@@ -1,5 +1,4 @@
 // task-backend/src/service/user_service.rs
-#![allow(dead_code)] // User service methods are public APIs
 
 use crate::error::{AppError, AppResult};
 use crate::features::admin::models::bulk_operation_history::{
@@ -9,6 +8,7 @@ use crate::features::admin::repositories::bulk_operation_history::BulkOperationH
 use crate::features::auth::repositories::email_verification_token_repository::EmailVerificationTokenRepository;
 use crate::features::user::dto::{
     BulkOperationResult, BulkUserOperation, RoleUserStats, SubscriptionAnalytics,
+    UserActivityStatsResponse,
 };
 use crate::features::user::models::user::{SafeUser, SafeUserWithRole};
 use crate::features::user::repositories::user::UserRepository;
@@ -303,53 +303,6 @@ impl UserService {
     }
 
     /// ロール情報付き全ユーザーをページネーション付きで取得（管理者用）
-    pub async fn get_all_users_with_roles_paginated(
-        &self,
-        page: i32,
-        page_size: i32,
-        role_name: Option<&str>,
-    ) -> AppResult<(
-        Vec<crate::features::user::models::user::SafeUserWithRole>,
-        usize,
-    )> {
-        let (users_with_roles, total_count) = if let Some(role_name) = role_name {
-            // 特定のロールでフィルタリング
-            let users = self.user_repo.find_by_role_name(role_name).await?;
-            let total = users.len();
-            let paginated_users = users
-                .into_iter()
-                .skip(((page - 1) * page_size) as usize)
-                .take(page_size as usize)
-                .collect::<Vec<_>>();
-            (paginated_users, total)
-        } else {
-            // 全ユーザーを取得
-            let users = self
-                .user_repo
-                .find_all_with_roles_paginated(page, page_size)
-                .await?;
-            let total_count = self.user_repo.count_all_users_with_roles().await? as usize;
-            (users, total_count)
-        };
-
-        Ok((users_with_roles, total_count))
-    }
-
-    /// 全ユーザー数を取得
-    pub async fn count_all_users(&self) -> AppResult<u64> {
-        self.user_repo
-            .count_all_users()
-            .await
-            .map_err(|e| AppError::InternalServerError(format!("Failed to count all users: {}", e)))
-    }
-
-    /// アクティブユーザー数を取得
-    pub async fn count_active_users(&self) -> AppResult<u64> {
-        self.user_repo.count_active_users().await.map_err(|e| {
-            AppError::InternalServerError(format!("Failed to count active users: {}", e))
-        })
-    }
-
     /// ロール名でユーザーを検索
     pub async fn find_by_role_name(&self, role_name: &str) -> AppResult<Vec<SafeUserWithRole>> {
         let users = self.user_repo.find_by_role_name(role_name).await?;
@@ -517,14 +470,6 @@ impl UserService {
         })
     }
 
-    /// ユーザー設定の取得（新しいDTO用）
-    pub async fn get_user_settings(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<Option<crate::features::user::models::user_settings::Model>> {
-        self.user_settings_repo.get_by_user_id(user_id).await
-    }
-
     /// ユーザー設定の更新
     pub async fn update_user_settings(
         &self,
@@ -532,28 +477,6 @@ impl UserService {
         input: crate::features::user::models::user_settings::UserSettingsInput,
     ) -> AppResult<crate::features::user::models::user_settings::Model> {
         self.user_settings_repo.update(user_id, input).await
-    }
-
-    /// 言語別ユーザー取得
-    pub async fn get_users_by_language(&self, language: &str) -> AppResult<Vec<Uuid>> {
-        self.user_settings_repo
-            .get_users_by_language(language)
-            .await
-    }
-
-    /// 通知有効ユーザー取得
-    pub async fn get_users_with_notification_enabled(
-        &self,
-        notification_type: &str,
-    ) -> AppResult<Vec<Uuid>> {
-        self.user_settings_repo
-            .get_users_with_notification_enabled(notification_type)
-            .await
-    }
-
-    /// ユーザー設定の削除
-    pub async fn delete_user_settings(&self, user_id: Uuid) -> AppResult<bool> {
-        self.user_settings_repo.delete(user_id).await
     }
 
     /// ユーザー設定をデフォルトに戻す
@@ -898,11 +821,70 @@ impl UserService {
         })
     }
 
-    /// ロールごとのユーザー数を取得
-    pub async fn count_users_by_role(&self, role_id: Uuid) -> AppResult<i64> {
-        self.user_repo
-            .count_by_role_id(role_id)
-            .await
-            .map_err(AppError::DbErr)
+    /// ユーザーのアクティビティ統計を取得
+    pub async fn get_user_activity_stats(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<UserActivityStatsResponse> {
+        // Get user to ensure they exist
+        let _user = self
+            .user_repo
+            .find_by_id(user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+        // Get task statistics from task repository
+        use crate::features::task::models::task_model;
+        use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+        let db = self.user_repo.get_connection();
+
+        let total_tasks = task_model::Entity::find()
+            .filter(task_model::Column::UserId.eq(user_id))
+            .count(db)
+            .await? as u64;
+
+        let completed_tasks = task_model::Entity::find()
+            .filter(task_model::Column::UserId.eq(user_id))
+            .filter(task_model::Column::Status.eq("completed"))
+            .count(db)
+            .await? as u64;
+
+        let pending_tasks = total_tasks - completed_tasks;
+
+        let completion_rate = if total_tasks > 0 {
+            (completed_tasks as f64 / total_tasks as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        // Get last activity from user model
+        let user = self.user_repo.find_by_id(user_id).await?.unwrap();
+        let last_activity_at = user.last_login_at;
+
+        // Calculate streak days (simplified - count consecutive days with login)
+        let streak_days = if let Some(last_login) = last_activity_at {
+            let days_since_login = (chrono::Utc::now() - last_login).num_days();
+            if days_since_login <= 1 {
+                // Active streak - would need more logic to calculate actual streak
+                1
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        Ok(UserActivityStatsResponse {
+            user_id,
+            total_tasks,
+            completed_tasks,
+            pending_tasks,
+            completion_rate,
+            average_completion_time_hours: None, // Would need task completion times to calculate
+            last_activity_at,
+            streak_days,
+            most_productive_day: None, // Would need daily activity data
+            tags_used: vec![],         // Would need task tags data
+        })
     }
 }

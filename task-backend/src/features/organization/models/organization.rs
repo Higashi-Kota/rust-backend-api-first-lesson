@@ -1,5 +1,4 @@
 // task-backend/src/domain/organization_model.rs
-#![allow(dead_code)] // Model methods and utilities
 
 use crate::core::subscription_tier::SubscriptionTier;
 use chrono::{DateTime, Utc};

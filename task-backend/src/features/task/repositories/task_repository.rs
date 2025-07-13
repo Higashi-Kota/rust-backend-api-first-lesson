@@ -1,5 +1,4 @@
 // src/features/task/repository/task_repository.rs
-#![allow(dead_code)] // Task repository methods are public APIs
 
 use crate::core::task_status::TaskStatus;
 use crate::db;
@@ -377,22 +376,6 @@ impl TaskRepository {
         Ok((tasks, total_count))
     }
 
-    pub async fn create(
-        &self,
-        payload: CreateTaskDto,
-    ) -> Result<crate::features::task::models::task_model::Model, DbErr> {
-        self.prepare_connection().await?;
-
-        let new_task = TaskActiveModel {
-            title: Set(payload.title),
-            description: Set(payload.description),
-            status: Set(payload.status.unwrap_or(TaskStatus::Todo).to_string()),
-            due_date: Set(payload.due_date),
-            ..Default::default()
-        };
-        new_task.insert(&self.db).await
-    }
-
     pub async fn create_for_user(
         &self,
         user_id: Uuid,
@@ -410,65 +393,6 @@ impl TaskRepository {
             ..Default::default()
         };
         new_task.insert(&self.db).await
-    }
-
-    pub async fn update(
-        &self,
-        id: Uuid,
-        payload: UpdateTaskDto,
-    ) -> Result<Option<crate::features::task::models::task_model::Model>, DbErr> {
-        self.prepare_connection().await?;
-
-        let task = match TaskEntity::find_by_id(id).one(&self.db).await? {
-            Some(t) => t,
-            None => return Ok(None), // タスクが見つからなければ None を返す
-        };
-
-        let mut active_model: TaskActiveModel = task.clone().into(); // 元のデータを元に ActiveModel を作成
-        let mut changed = false;
-
-        if let Some(title_val) = payload.title {
-            active_model.title = Set(title_val);
-            changed = true;
-        }
-
-        if payload.description.is_some() {
-            // is_some() は借用なのでOK
-            active_model.description = Set(payload.description); // ここでムーブが発生
-            changed = true;
-        }
-
-        if let Some(status_val) = payload.status {
-            active_model.status = Set(status_val.to_string());
-            changed = true;
-
-            // タスクが完了状態に変更された場合、完了日時と完了時間を設定
-            if status_val == TaskStatus::Completed && task.status != "completed" {
-                let now = Utc::now();
-                active_model.completed_at = Set(Some(now));
-
-                // 完了までの時間を計算（時間単位）
-                let duration_hours = (now - task.created_at).num_seconds() as f64 / 3600.0;
-                active_model.completion_duration_hours = Set(Some(duration_hours));
-            }
-        }
-
-        if let Some(priority_val) = payload.priority {
-            active_model.priority = Set(priority_val);
-            changed = true;
-        }
-
-        if payload.due_date.is_some() {
-            // is_some() は借用なのでOK
-            active_model.due_date = Set(payload.due_date); // ここでムーブが発生
-            changed = true;
-        }
-
-        if changed {
-            Ok(Some(active_model.update(&self.db).await?))
-        } else {
-            Ok(Some(task)) // 何も変更がなければ元のタスクを返す (updated_at は更新されない)
-        }
     }
 
     pub async fn update_for_user(

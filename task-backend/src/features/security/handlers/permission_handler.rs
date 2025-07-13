@@ -5,32 +5,17 @@ use crate::core::permission::{Permission, PermissionResult, PermissionScope, Pri
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
-use crate::features::security::dto::*;
+use crate::features::security::dto::query::{FeatureQuery, PermissionQuery};
+use crate::features::security::dto::{requests, *};
 use crate::shared::types::common::ApiResponse;
 use axum::{
     extract::{Json, Path, Query, State},
     routing::{get, post},
     Router,
 };
-use serde::Deserialize;
 use tracing::{info, warn};
 use uuid::Uuid;
 use validator::Validate;
-
-// --- Query Parameters ---
-
-/// 権限検索パラメータ
-#[derive(Debug, Deserialize)]
-pub struct PermissionQuery {
-    pub resource: Option<String>,
-    pub action: Option<String>,
-}
-
-/// 機能検索パラメータ
-#[derive(Debug, Deserialize)]
-pub struct FeatureQuery {
-    pub category: Option<String>,
-}
 
 // --- Permission Checking Endpoints ---
 
@@ -495,9 +480,15 @@ pub async fn get_admin_features_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<ApiResponse<AdminFeaturesResponse>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden("Admin access required".to_string()));
+    // 管理者権限チェック - can_access_admin_features を使用
+    if let Some(role) = admin_user.role() {
+        if !crate::utils::permission::PermissionChecker::can_access_admin_features(role) {
+            return Err(AppError::Forbidden(
+                "Admin or Enterprise subscription required for admin features".to_string(),
+            ));
+        }
+    } else {
+        return Err(AppError::Forbidden("Role information required".to_string()));
     }
 
     info!(
@@ -955,6 +946,221 @@ pub async fn get_system_permission_audit_handler(
     )))
 }
 
+// --- Specific Resource Permission Endpoints ---
+
+/// リソース作成権限をチェック
+pub async fn check_create_resource_permission_handler(
+    State(_app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<requests::CreateResourcePermissionRequest>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    payload.validate().map_err(|validation_errors| {
+        warn!(
+            "Create resource permission validation failed: {}",
+            validation_errors
+        );
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!(
+        user_id = %user.user_id(),
+        resource_type = %payload.resource_type,
+        "Checking create resource permission"
+    );
+
+    // can_create_resourceメソッドを活用
+    let allowed = user.claims.can_create_resource(&payload.resource_type);
+
+    let response = serde_json::json!({
+        "user_id": user.user_id(),
+        "resource_type": payload.resource_type,
+        "action": "create",
+        "allowed": allowed,
+        "reason": if !allowed { Some("Insufficient permissions to create this resource type") } else { None },
+        "checked_at": chrono::Utc::now()
+    });
+
+    Ok(Json(ApiResponse::success(
+        "Create resource permission checked",
+        response,
+    )))
+}
+
+/// リソース削除権限をチェック
+pub async fn check_delete_resource_permission_handler(
+    State(_app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<requests::DeleteResourcePermissionRequest>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    payload.validate().map_err(|validation_errors| {
+        warn!(
+            "Delete resource permission validation failed: {}",
+            validation_errors
+        );
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!(
+        user_id = %user.user_id(),
+        resource_type = %payload.resource_type,
+        resource_id = ?payload.resource_id,
+        "Checking delete resource permission"
+    );
+
+    // can_delete_resourceメソッドを活用
+    let allowed = user
+        .claims
+        .can_delete_resource(&payload.resource_type, payload.resource_id);
+
+    let response = serde_json::json!({
+        "user_id": user.user_id(),
+        "resource_type": payload.resource_type,
+        "resource_id": payload.resource_id,
+        "action": "delete",
+        "allowed": allowed,
+        "reason": if !allowed { Some("Insufficient permissions to delete this resource") } else { None },
+        "checked_at": chrono::Utc::now()
+    });
+
+    Ok(Json(ApiResponse::success(
+        "Delete resource permission checked",
+        response,
+    )))
+}
+
+/// ユーザーアクセス権限をチェック
+pub async fn check_user_access_permission_handler(
+    State(_app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<requests::UserAccessPermissionRequest>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    payload.validate().map_err(|validation_errors| {
+        warn!(
+            "User access permission validation failed: {}",
+            validation_errors
+        );
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!(
+        user_id = %user.user_id(),
+        target_user_id = %payload.target_user_id,
+        "Checking user access permission"
+    );
+
+    // can_access_userメソッドを活用
+    let allowed = user.claims.can_access_user(payload.target_user_id);
+
+    let response = serde_json::json!({
+        "user_id": user.user_id(),
+        "target_user_id": payload.target_user_id,
+        "action": "access",
+        "allowed": allowed,
+        "is_self": user.user_id() == payload.target_user_id,
+        "reason": if !allowed { Some("Cannot access other user's data without proper permissions") } else { None },
+        "checked_at": chrono::Utc::now()
+    });
+
+    Ok(Json(ApiResponse::success(
+        "User access permission checked",
+        response,
+    )))
+}
+
+/// リソース表示権限をチェック
+pub async fn check_view_resource_permission_handler(
+    State(_app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<requests::ViewResourcePermissionRequest>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    payload.validate().map_err(|validation_errors| {
+        warn!(
+            "View resource permission validation failed: {}",
+            validation_errors
+        );
+        let errors: Vec<String> = validation_errors
+            .field_errors()
+            .into_iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    format!(
+                        "{}: {}",
+                        field,
+                        error.message.as_ref().unwrap_or(&"Invalid value".into())
+                    )
+                })
+            })
+            .collect();
+        AppError::ValidationErrors(errors)
+    })?;
+
+    info!(
+        user_id = %user.user_id(),
+        resource_type = %payload.resource_type,
+        resource_id = ?payload.resource_id,
+        "Checking view resource permission"
+    );
+
+    // can_view_resourceメソッドを活用
+    let allowed = user
+        .claims
+        .can_view_resource(&payload.resource_type, payload.resource_id);
+
+    let response = serde_json::json!({
+        "user_id": user.user_id(),
+        "resource_type": payload.resource_type,
+        "resource_id": payload.resource_id,
+        "action": "view",
+        "allowed": allowed,
+        "reason": if !allowed { Some("Insufficient permissions to view this resource") } else { None },
+        "checked_at": chrono::Utc::now()
+    });
+
+    Ok(Json(ApiResponse::success(
+        "View resource permission checked",
+        response,
+    )))
+}
+
 // --- Additional Dead Code Utilization ---
 
 /// 権限拒否の詳細チェック
@@ -1184,12 +1390,33 @@ pub fn permission_router() -> Router<AppState> {
             post(bulk_permission_check_handler),
         )
         .route(
+            "/admin/permissions/bulk-check",
+            post(bulk_permission_check_handler),
+        )
+        .route(
             "/permissions/user/{id}/effective",
             get(get_user_effective_permissions_handler),
         )
         .route(
             "/admin/permissions/audit",
             get(get_system_permission_audit_handler),
+        )
+        // Specific permission check endpoints
+        .route(
+            "/permissions/resources/create",
+            post(check_create_resource_permission_handler),
+        )
+        .route(
+            "/permissions/resources/delete",
+            post(check_delete_resource_permission_handler),
+        )
+        .route(
+            "/permissions/users/access",
+            post(check_user_access_permission_handler),
+        )
+        .route(
+            "/permissions/resources/view",
+            post(check_view_resource_permission_handler),
         )
         // Additional endpoints for dead code utilization
         .route(

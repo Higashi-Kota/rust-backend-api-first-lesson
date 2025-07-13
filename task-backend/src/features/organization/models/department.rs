@@ -65,3 +65,12 @@ impl Related<super::analytics::Entity> for Entity {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DepartmentInput {
+    pub organization_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub parent_department_id: Option<Uuid>,
+    pub manager_user_id: Option<Uuid>,
+}

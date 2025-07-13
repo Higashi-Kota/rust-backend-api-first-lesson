@@ -10,7 +10,7 @@ use crate::error::AppError;
 use crate::features::organization::repositories::organization::OrganizationRepository;
 use crate::features::team::repositories::team::TeamRepository;
 use crate::features::user::repositories::user::UserRepository;
-use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
+use crate::utils::permission::PermissionChecker;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -188,58 +188,6 @@ impl PermissionService {
         ))
     }
 
-    /// 権限タイプに基づいた権限チェック
-    #[allow(dead_code)] // Public API for permission checks
-    pub async fn check_permission_type(
-        &self,
-        user_id: Uuid,
-        permission_type: PermissionType,
-        context: Option<ResourceContext>,
-    ) -> AppResult<()> {
-        let role = self.get_user_role(user_id).await?;
-
-        let has_permission = match permission_type {
-            PermissionType::IsAdmin => PermissionChecker::is_admin(&role),
-            PermissionType::IsMember => PermissionChecker::is_member(&role),
-            PermissionType::CanAccessUser => {
-                if let Some(ctx) = context {
-                    if let Some(target_id) = ctx.target_user_id {
-                        PermissionChecker::can_access_user(&role, user_id, target_id)
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            }
-            PermissionType::CanCreateResource => {
-                if let Some(ctx) = context {
-                    PermissionChecker::can_create_resource(&role, &ctx.resource_type)
-                } else {
-                    false
-                }
-            }
-            PermissionType::CanDeleteResource => {
-                if let Some(ctx) = context {
-                    PermissionChecker::can_delete_resource(
-                        &role,
-                        &ctx.resource_type,
-                        ctx.owner_id,
-                        user_id,
-                    )
-                } else {
-                    false
-                }
-            }
-        };
-
-        if !has_permission {
-            return Err(AppError::Forbidden("Permission denied".to_string()));
-        }
-
-        Ok(())
-    }
-
     /// ユーザー一覧表示権限を確認
     pub async fn check_list_users_permission(&self, user_id: Uuid) -> AppResult<()> {
         let role = self.get_user_role(user_id).await?;
@@ -293,56 +241,6 @@ impl PermissionService {
         };
 
         Ok(old_role)
-    }
-
-    /// 複数の権限を一度にチェック
-    #[allow(dead_code)] // Public API for bulk permission checks
-    pub async fn check_multiple_permissions(
-        &self,
-        user_id: Uuid,
-        checks: Vec<(PermissionType, Option<ResourceContext>)>,
-    ) -> AppResult<Vec<bool>> {
-        let role = self.get_user_role(user_id).await?;
-
-        let results = checks
-            .into_iter()
-            .map(|(permission_type, context)| match permission_type {
-                PermissionType::IsAdmin => PermissionChecker::is_admin(&role),
-                PermissionType::IsMember => PermissionChecker::is_member(&role),
-                PermissionType::CanAccessUser => {
-                    if let Some(ctx) = context {
-                        if let Some(target_id) = ctx.target_user_id {
-                            PermissionChecker::can_access_user(&role, user_id, target_id)
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
-                }
-                PermissionType::CanCreateResource => {
-                    if let Some(ctx) = context {
-                        PermissionChecker::can_create_resource(&role, &ctx.resource_type)
-                    } else {
-                        false
-                    }
-                }
-                PermissionType::CanDeleteResource => {
-                    if let Some(ctx) = context {
-                        PermissionChecker::can_delete_resource(
-                            &role,
-                            &ctx.resource_type,
-                            ctx.owner_id,
-                            user_id,
-                        )
-                    } else {
-                        false
-                    }
-                }
-            })
-            .collect();
-
-        Ok(results)
     }
 }
 

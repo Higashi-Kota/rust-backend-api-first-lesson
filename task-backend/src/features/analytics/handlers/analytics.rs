@@ -11,20 +11,22 @@ use crate::features::analytics::dto::requests::{
 };
 use crate::features::analytics::dto::responses::{
     ActivityDistribution, ActivityPatterns, AdvancedExportResponse, AnalysisPeriod,
-    BehavioralMetrics, EngagementLevel, ExportMetadata, ExportStatus, FeatureUsage,
-    FeatureUsageCount, FeatureUsageCountsResponse, FeatureUsageMetrics, FeatureUsageStatsResponse,
-    LoginFrequency, MetricGranularity, PerformanceIndicators, ProficiencyLevel,
-    SatisfactionIndicators, SentimentCategory, SentimentScore, SessionDuration,
+    BehavioralMetrics, DailyActivitySummaryResponse, EngagementLevel, ExportMetadata, ExportStatus,
+    FeatureUsage, FeatureUsageCount, FeatureUsageCountsResponse, FeatureUsageMetrics,
+    FeatureUsageStatsResponse, LoginFrequency, MetricGranularity, PerformanceIndicators,
+    ProficiencyLevel, SatisfactionIndicators, SentimentCategory, SentimentScore, SessionDuration,
     SubscriptionTierDistribution, SubscriptionUtilization, SystemStatsResponse,
     UserBehaviorAnalyticsResponse, UserFeatureUsageResponse,
 };
+use crate::features::analytics::models::daily_activity_summary::DailyActivityInput;
 use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::shared::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
+use chrono::NaiveDate;
 use serde::Deserialize;
 use uuid::Uuid;
 use validator::Validate;
@@ -49,6 +51,225 @@ pub async fn track_feature_usage_handler(
     Ok(Json(ApiResponse::success(
         "Feature usage tracked successfully",
         (),
+    )))
+}
+
+/// Update daily activity summary (admin only)
+pub async fn update_daily_activity_summary_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(date): Path<chrono::NaiveDate>,
+    Json(input): Json<DailyActivityInput>,
+) -> AppResult<Json<ApiResponse<crate::features::analytics::dto::responses::DailyActivitySummary>>>
+{
+    let summary = app_state
+        .activity_summary_service
+        .update_daily_summary(date, input)
+        .await?;
+
+    // Convert model to response DTO
+    let dto = crate::features::analytics::dto::responses::DailyActivitySummary {
+        date: summary.date,
+        total_users: summary.total_users,
+        active_users: summary.active_users,
+        new_users: summary.new_users,
+        tasks_created: summary.tasks_created,
+        tasks_completed: summary.tasks_completed,
+        created_at: summary.created_at,
+        updated_at: summary.updated_at,
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Daily activity summary updated successfully",
+        dto,
+    )))
+}
+
+/// Get single daily activity summary (admin only)
+pub async fn get_single_daily_activity_summary_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(date): Path<chrono::NaiveDate>,
+) -> AppResult<
+    Json<ApiResponse<Option<crate::features::analytics::dto::responses::DailyActivitySummary>>>,
+> {
+    let summary = app_state
+        .activity_summary_service
+        .get_daily_summary(date)
+        .await?;
+
+    // Convert model to response DTO if present
+    let dto =
+        summary.map(
+            |model| crate::features::analytics::dto::responses::DailyActivitySummary {
+                date: model.date,
+                total_users: model.total_users,
+                active_users: model.active_users,
+                new_users: model.new_users,
+                tasks_created: model.tasks_created,
+                tasks_completed: model.tasks_completed,
+                created_at: model.created_at,
+                updated_at: model.updated_at,
+            },
+        );
+
+    Ok(Json(ApiResponse::success(
+        if dto.is_some() {
+            "Daily activity summary retrieved successfully"
+        } else {
+            "No daily activity summary found for the specified date"
+        },
+        dto,
+    )))
+}
+
+/// Get daily activity summaries by date range (admin only)
+pub async fn get_daily_activity_summaries_range_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Query(query): Query<DateRangeQuery>,
+) -> AppResult<Json<ApiResponse<DailyActivitySummaryResponse>>> {
+    let start_date = query.start_date.ok_or_else(|| {
+        crate::error::AppError::ValidationError("start_date is required".to_string())
+    })?;
+    let end_date = query.end_date.ok_or_else(|| {
+        crate::error::AppError::ValidationError("end_date is required".to_string())
+    })?;
+
+    if start_date >= end_date {
+        return Err(crate::error::AppError::ValidationError(
+            "start_date must be before end_date".to_string(),
+        ));
+    }
+
+    // Get summaries
+    let summaries = app_state
+        .activity_summary_service
+        .get_summaries_range(start_date, end_date)
+        .await?;
+
+    // Calculate growth rate based on range
+    let days = (end_date - start_date).num_days() + 1;
+    let growth_rate = app_state
+        .activity_summary_service
+        .calculate_growth_rate(days)
+        .await?;
+
+    // Convert models to response DTOs
+    let dto_summaries = summaries
+        .into_iter()
+        .map(
+            |model| crate::features::analytics::dto::responses::DailyActivitySummary {
+                date: model.date,
+                total_users: model.total_users,
+                active_users: model.active_users,
+                new_users: model.new_users,
+                tasks_created: model.tasks_created,
+                tasks_completed: model.tasks_completed,
+                created_at: model.created_at,
+                updated_at: model.updated_at,
+            },
+        )
+        .collect();
+
+    let response = DailyActivitySummaryResponse {
+        summaries: dto_summaries,
+        growth_rate,
+        period: AnalysisPeriod {
+            start_date: chrono::DateTime::from_naive_utc_and_offset(
+                start_date.and_hms_opt(0, 0, 0).unwrap(),
+                chrono::Utc,
+            ),
+            end_date: chrono::DateTime::from_naive_utc_and_offset(
+                end_date.and_hms_opt(23, 59, 59).unwrap(),
+                chrono::Utc,
+            ),
+            duration_days: days as u32,
+            granularity: MetricGranularity::Daily,
+        },
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Daily activity summaries retrieved successfully",
+        response,
+    )))
+}
+
+/// Cleanup old daily activity summaries (admin only)
+pub async fn cleanup_daily_activity_summaries_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Query(query): Query<CleanupQuery>,
+) -> AppResult<Json<ApiResponse<CleanupResult>>> {
+    let days_to_keep = query.days.unwrap_or(365) as i64; // Default to 365 days
+
+    let deleted_count = app_state
+        .activity_summary_service
+        .cleanup_old_summaries(days_to_keep)
+        .await?;
+
+    let result = CleanupResult {
+        deleted_count: deleted_count as i32,
+        operation_type: "activity_summary_cleanup".to_string(),
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Old activity summaries cleaned up successfully",
+        result,
+    )))
+}
+
+/// Get daily activity summaries (admin only)
+pub async fn get_daily_activity_summary_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Query(query): Query<AnalyticsTimeRangeRequest>,
+) -> AppResult<Json<ApiResponse<DailyActivitySummaryResponse>>> {
+    let days = query.period_days.unwrap_or(7);
+
+    // Get summaries
+    let summaries = app_state
+        .activity_summary_service
+        .get_recent_summaries(days as i64)
+        .await?;
+
+    // Calculate growth rate
+    let growth_rate = app_state
+        .activity_summary_service
+        .calculate_growth_rate(days as i64)
+        .await?;
+
+    // Convert models to response DTOs
+    let dto_summaries = summaries
+        .into_iter()
+        .map(
+            |model| crate::features::analytics::dto::responses::DailyActivitySummary {
+                date: model.date,
+                total_users: model.total_users,
+                active_users: model.active_users,
+                new_users: model.new_users,
+                tasks_created: model.tasks_created,
+                tasks_completed: model.tasks_completed,
+                created_at: model.created_at,
+                updated_at: model.updated_at,
+            },
+        )
+        .collect();
+
+    let response = DailyActivitySummaryResponse {
+        summaries: dto_summaries,
+        growth_rate,
+        period: AnalysisPeriod {
+            start_date: chrono::Utc::now() - chrono::Duration::days(days as i64 - 1),
+            end_date: chrono::Utc::now(),
+            duration_days: days,
+            granularity: MetricGranularity::Daily,
+        },
+    };
+
+    Ok(Json(ApiResponse::success(
+        "Daily activity summaries retrieved successfully",
+        response,
     )))
 }
 
@@ -223,18 +444,47 @@ pub async fn get_feature_usage_stats_handler(
 
 /// Get user feature usage (admin only) - for test compatibility
 pub async fn get_user_feature_usage_handler(
-    State(_app_state): State<crate::api::AppState>,
+    State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
     Query(query): Query<FeatureUsageQuery>,
 ) -> AppResult<Json<ApiResponse<UserFeatureUsageResponse>>> {
-    let _period_days = query.days.unwrap_or(7);
+    let period_days = query.days.unwrap_or(7);
 
+    // Use the feature_tracking_service to get actual feature usage data
+    let _feature_usage_data = app_state
+        .feature_tracking_service
+        .get_user_feature_usage(user_id, period_days as i64)
+        .await?;
+
+    // Convert the data to response format (simplified for now)
     let response = UserFeatureUsageResponse { user_id };
 
     Ok(Json(ApiResponse::success(
         "User feature usage retrieved successfully",
         response,
+    )))
+}
+
+/// Get user action counts (admin only)
+pub async fn get_user_action_counts_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(user_id): Path<Uuid>,
+    Query(query): Query<AnalyticsTimeRangeRequest>,
+) -> AppResult<Json<ApiResponse<std::collections::HashMap<String, i64>>>> {
+    let period_days = query.period_days.unwrap_or(7);
+    let end_date = chrono::Utc::now();
+    let start_date = end_date - chrono::Duration::days(period_days as i64);
+
+    let action_counts = app_state
+        .feature_usage_metrics_repo
+        .get_user_action_counts(user_id, start_date, end_date)
+        .await?;
+
+    Ok(Json(ApiResponse::success(
+        format!("User {} action counts retrieved successfully", user_id),
+        action_counts,
     )))
 }
 
@@ -494,6 +744,23 @@ pub struct BehaviorAnalyticsQuery {
     pub user_id: Option<Uuid>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DateRangeQuery {
+    pub start_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CleanupQuery {
+    pub days: Option<i32>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CleanupResult {
+    pub deleted_count: i32,
+    pub operation_type: String,
+}
+
 /// Get current user's behavior analytics
 pub async fn get_current_user_behavior_analytics_handler(
     State(_app_state): State<crate::api::AppState>,
@@ -720,6 +987,447 @@ pub async fn advanced_export_handler(
     )))
 }
 
+/// Create organization analytics (admin only)
+pub async fn create_organization_analytics_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(organization_id): Path<Uuid>,
+    Json(payload): Json<serde_json::Value>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    use crate::features::organization::models::analytics::{AnalyticsType, Period};
+    use crate::features::organization::repositories::analytics::AnalyticsRepository;
+
+    // Parse analytics data from payload
+    let analytics_type = payload["analytics_type"]
+        .as_str()
+        .and_then(|s| serde_json::from_value::<AnalyticsType>(serde_json::json!(s)).ok())
+        .unwrap_or(AnalyticsType::Performance);
+
+    let period = payload["period"]
+        .as_str()
+        .and_then(|s| serde_json::from_value::<Period>(serde_json::json!(s)).ok())
+        .unwrap_or(Period::Daily);
+
+    let metric_name = payload["metric_name"]
+        .as_str()
+        .unwrap_or("custom_metric")
+        .to_string();
+
+    let metric_value = payload["metric_value"].clone();
+
+    use crate::features::organization::models::analytics;
+    use sea_orm::Set;
+
+    let analytics_model = analytics::ActiveModel {
+        id: Set(Uuid::new_v4()),
+        organization_id: Set(organization_id),
+        department_id: Set(payload["department_id"]
+            .as_str()
+            .and_then(|s| Uuid::parse_str(s).ok())),
+        analytics_type: Set(analytics_type.to_string()),
+        metric_name: Set(metric_name.clone()),
+        metric_value: Set(metric_value),
+        period: Set(period.to_string()),
+        period_start: Set(chrono::Utc::now()),
+        period_end: Set(chrono::Utc::now()),
+        calculated_by: Set(_user.user_id()),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+    };
+
+    let analytics = AnalyticsRepository::create(&app_state.db, analytics_model).await?;
+
+    let response = serde_json::json!({
+        "id": analytics.id,
+        "organization_id": analytics.organization_id,
+        "analytics_type": analytics.analytics_type,
+        "period": analytics.period,
+        "metric_name": analytics.metric_name,
+        "metric_value": analytics.metric_value,
+        "created_at": analytics.created_at,
+    });
+
+    Ok(Json(ApiResponse::success(
+        "Analytics created successfully",
+        response,
+    )))
+}
+
+/// Get analytics by type (admin only)
+pub async fn get_analytics_by_type_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path((organization_id, analytics_type)): Path<(Uuid, String)>,
+) -> AppResult<Json<ApiResponse<Vec<serde_json::Value>>>> {
+    use crate::features::organization::models::analytics::AnalyticsType;
+    use crate::features::organization::repositories::analytics::AnalyticsRepository;
+
+    let analytics_type = serde_json::from_value::<AnalyticsType>(serde_json::json!(analytics_type))
+        .map_err(|_| crate::error::AppError::BadRequest("Invalid analytics type".to_string()))?;
+
+    let analytics_data = AnalyticsRepository::find_by_organization_and_type(
+        &app_state.db,
+        organization_id,
+        analytics_type,
+        Some(100), // Add a default limit
+    )
+    .await?;
+
+    let response: Vec<serde_json::Value> = analytics_data
+        .into_iter()
+        .map(|a| {
+            serde_json::json!({
+                "id": a.id,
+                "analytics_type": a.analytics_type,
+                "period": a.period,
+                "metric_name": a.metric_name,
+                "metric_value": a.metric_value,
+                "period_start": a.period_start,
+                "period_end": a.period_end,
+                "calculated_by": a.calculated_by,
+                "created_at": a.created_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        "Analytics by type retrieved successfully",
+        response,
+    )))
+}
+
+/// Get analytics by period (admin only)
+pub async fn get_analytics_by_period_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(organization_id): Path<Uuid>,
+    Query(query): Query<serde_json::Value>,
+) -> AppResult<Json<ApiResponse<Vec<serde_json::Value>>>> {
+    use crate::features::organization::models::analytics::Period;
+    use crate::features::organization::repositories::analytics::AnalyticsRepository;
+
+    let period = query["period"]
+        .as_str()
+        .and_then(|s| serde_json::from_value::<Period>(serde_json::json!(s)).ok())
+        .unwrap_or(Period::Daily);
+
+    let start_date = query["start_date"]
+        .as_str()
+        .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+        .unwrap_or_else(|| (chrono::Utc::now() - chrono::Duration::days(7)).naive_utc());
+
+    let end_date = query["end_date"]
+        .as_str()
+        .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc());
+
+    let analytics_data = AnalyticsRepository::find_by_organization_id(
+        &app_state.db,
+        organization_id,
+        Some(100), // Default limit
+    )
+    .await?;
+
+    // Filter by period dates
+    let analytics_data: Vec<_> = analytics_data
+        .into_iter()
+        .filter(|a| {
+            a.period == period.to_string()
+                && a.period_start.naive_utc() >= start_date
+                && a.period_end.naive_utc() <= end_date
+        })
+        .collect();
+
+    let response: Vec<serde_json::Value> = analytics_data
+        .into_iter()
+        .map(|a| {
+            serde_json::json!({
+                "id": a.id,
+                "analytics_type": a.analytics_type,
+                "period": a.period,
+                "metric_name": a.metric_name,
+                "metric_value": a.metric_value,
+                "period_start": a.period_start,
+                "period_end": a.period_end,
+                "created_at": a.created_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        "Analytics by period retrieved successfully",
+        response,
+    )))
+}
+
+/// Check if analytics exists for period (admin only)
+pub async fn check_analytics_period_exists_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(organization_id): Path<Uuid>,
+    Query(query): Query<serde_json::Value>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    use crate::features::organization::models::analytics::Period;
+    use crate::features::organization::repositories::analytics::AnalyticsRepository;
+
+    let period = query["period"]
+        .as_str()
+        .and_then(|s| serde_json::from_value::<Period>(serde_json::json!(s)).ok())
+        .unwrap_or(Period::Daily);
+
+    let start_date = query["start_date"]
+        .as_str()
+        .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc());
+
+    let end_date = query["end_date"]
+        .as_str()
+        .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+        .unwrap_or_else(|| chrono::Utc::now().naive_utc());
+
+    use crate::features::organization::models::analytics::AnalyticsType;
+
+    // Get analytics type and metric name from query
+    let analytics_type = query["analytics_type"]
+        .as_str()
+        .and_then(|s| serde_json::from_value::<AnalyticsType>(serde_json::json!(s)).ok())
+        .unwrap_or(AnalyticsType::Performance);
+
+    let metric_name = query["metric_name"]
+        .as_str()
+        .unwrap_or("default_metric")
+        .to_string();
+
+    let department_id = query["department_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok());
+
+    let exists = AnalyticsRepository::exists_analytics_for_period(
+        &app_state.db,
+        organization_id,
+        department_id,
+        analytics_type,
+        &metric_name,
+        chrono::DateTime::from_naive_utc_and_offset(start_date, chrono::Utc),
+        chrono::DateTime::from_naive_utc_and_offset(end_date, chrono::Utc),
+    )
+    .await?;
+
+    let response = serde_json::json!({
+        "organization_id": organization_id,
+        "period": period,
+        "start_date": start_date,
+        "end_date": end_date,
+        "exists": exists,
+    });
+
+    Ok(Json(ApiResponse::success(
+        "Analytics period existence checked",
+        response,
+    )))
+}
+
+/// Get latest metrics (admin only)
+pub async fn get_latest_metrics_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Query(query): Query<serde_json::Value>,
+) -> AppResult<Json<ApiResponse<Vec<serde_json::Value>>>> {
+    use crate::features::organization::repositories::analytics::AnalyticsRepository;
+
+    let organization_id = query["organization_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or_else(|| {
+            crate::error::AppError::BadRequest("organization_id is required".to_string())
+        })?;
+
+    let metric_name = query["metric_name"].as_str().unwrap_or("all").to_string();
+
+    let department_id = query["department_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok());
+
+    let analytics_type = query["analytics_type"]
+        .as_str()
+        .and_then(|s| serde_json::from_value::<AnalyticsType>(serde_json::json!(s)).ok())
+        .unwrap_or(AnalyticsType::Performance);
+
+    use crate::features::organization::models::analytics::AnalyticsType;
+
+    let analytics_data = if let Some(analytics) = AnalyticsRepository::find_latest_by_metric(
+        &app_state.db,
+        organization_id,
+        department_id,
+        analytics_type,
+        &metric_name,
+    )
+    .await?
+    {
+        vec![analytics]
+    } else {
+        vec![]
+    };
+
+    let response: Vec<serde_json::Value> = analytics_data
+        .into_iter()
+        .map(|a| {
+            serde_json::json!({
+                "id": a.id,
+                "analytics_type": a.analytics_type,
+                "metric_name": a.metric_name,
+                "metric_value": a.metric_value,
+                "period": a.period,
+                "created_at": a.created_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        "Latest metrics retrieved successfully",
+        response,
+    )))
+}
+
+/// Get department analytics (admin only)
+pub async fn get_department_analytics_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(department_id): Path<Uuid>,
+) -> AppResult<Json<ApiResponse<Vec<serde_json::Value>>>> {
+    use crate::features::organization::repositories::analytics::AnalyticsRepository;
+
+    let analytics_data = AnalyticsRepository::find_by_department_id(
+        &app_state.db,
+        department_id,
+        Some(100), // Default limit
+    )
+    .await?;
+
+    let response: Vec<serde_json::Value> = analytics_data
+        .into_iter()
+        .map(|a| {
+            serde_json::json!({
+                "id": a.id,
+                "organization_id": a.organization_id,
+                "department_id": a.department_id,
+                "analytics_type": a.analytics_type,
+                "period": a.period,
+                "metric_name": a.metric_name,
+                "metric_value": a.metric_value,
+                "created_at": a.created_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        "Department analytics retrieved successfully",
+        response,
+    )))
+}
+
+/// Get aggregated metrics (admin only)
+pub async fn get_aggregated_metrics_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(organization_id): Path<Uuid>,
+    Query(query): Query<serde_json::Value>,
+) -> AppResult<Json<ApiResponse<Vec<serde_json::Value>>>> {
+    use crate::features::organization::models::analytics::{AnalyticsType, Period};
+    use crate::features::organization::repositories::analytics::AnalyticsRepository;
+
+    let analytics_type = query["analytics_type"]
+        .as_str()
+        .and_then(|s| serde_json::from_value::<AnalyticsType>(serde_json::json!(s)).ok())
+        .unwrap_or(AnalyticsType::Performance);
+
+    let period = query["period"]
+        .as_str()
+        .and_then(|s| serde_json::from_value::<Period>(serde_json::json!(s)).ok())
+        .unwrap_or(Period::Monthly);
+
+    let metric_name = query["metric_name"]
+        .as_str()
+        .unwrap_or("default_metric")
+        .to_string();
+
+    let start_date = query["start_date"]
+        .as_str()
+        .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+        .map_or_else(
+            || chrono::Utc::now() - chrono::Duration::days(30),
+            |dt| chrono::DateTime::from_naive_utc_and_offset(dt, chrono::Utc),
+        );
+
+    let end_date = query["end_date"]
+        .as_str()
+        .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+        .map_or_else(chrono::Utc::now, |dt| {
+            chrono::DateTime::from_naive_utc_and_offset(dt, chrono::Utc)
+        });
+
+    let analytics_data = AnalyticsRepository::find_aggregated_metrics(
+        &app_state.db,
+        organization_id,
+        analytics_type,
+        &metric_name,
+        period,
+        start_date,
+        end_date,
+    )
+    .await?;
+
+    let response: Vec<serde_json::Value> = analytics_data
+        .into_iter()
+        .map(|a| {
+            serde_json::json!({
+                "analytics_type": a.analytics_type,
+                "period": a.period,
+                "metric_name": a.metric_name,
+                "aggregated_value": a.metric_value,
+                "data_points": 1, // In real implementation, this would be the count of aggregated records
+                "created_at": a.created_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(ApiResponse::success(
+        "Aggregated metrics retrieved successfully",
+        response,
+    )))
+}
+
+/// Delete old analytics (admin only)
+pub async fn delete_old_analytics_handler(
+    State(app_state): State<crate::api::AppState>,
+    _user: AuthenticatedUserWithRole,
+    Path(organization_id): Path<Uuid>,
+    Query(query): Query<serde_json::Value>,
+) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+    use crate::features::organization::repositories::analytics::AnalyticsRepository;
+
+    let days_to_keep = query["days_to_keep"].as_i64().unwrap_or(365);
+
+    let before_date = chrono::Utc::now() - chrono::Duration::days(days_to_keep);
+
+    let deleted_count =
+        AnalyticsRepository::delete_old_analytics(&app_state.db, organization_id, before_date)
+            .await?;
+
+    let response = serde_json::json!({
+        "organization_id": organization_id,
+        "deleted_count": deleted_count,
+        "days_kept": days_to_keep,
+        "operation": "delete_old_analytics",
+        "completed_at": chrono::Utc::now(),
+    });
+
+    Ok(Json(ApiResponse::success(
+        "Old analytics deleted successfully",
+        response,
+    )))
+}
+
 /// Analytics router
 pub fn analytics_router() -> Router<crate::api::AppState> {
     Router::new()
@@ -733,6 +1441,26 @@ pub fn analytics_router() -> Router<crate::api::AppState> {
         )
         .route("/admin/analytics/system", get(get_system_analytics_handler))
         .route(
+            "/admin/analytics/daily-summary",
+            get(get_daily_activity_summary_handler),
+        )
+        .route(
+            "/admin/analytics/daily-summary/{date}",
+            get(get_single_daily_activity_summary_handler),
+        )
+        .route(
+            "/admin/analytics/daily-summary/{date}",
+            post(update_daily_activity_summary_handler),
+        )
+        .route(
+            "/admin/analytics/daily-summary/range",
+            get(get_daily_activity_summaries_range_handler),
+        )
+        .route(
+            "/admin/analytics/daily-summary/cleanup",
+            post(cleanup_daily_activity_summaries_handler),
+        )
+        .route(
             "/admin/analytics/feature-usage-counts",
             get(get_feature_usage_counts_handler),
         )
@@ -744,6 +1472,10 @@ pub fn analytics_router() -> Router<crate::api::AppState> {
             "/admin/analytics/users/{user_id}/features",
             get(get_user_feature_usage_handler),
         )
+        .route(
+            "/admin/analytics/users/{user_id}/action-counts",
+            get(get_user_action_counts_handler),
+        )
         .route("/admin/tasks/stats", get(get_task_stats_handler))
         .route(
             "/analytics/users/{user_id}/behavior",
@@ -754,6 +1486,38 @@ pub fn analytics_router() -> Router<crate::api::AppState> {
             get(export_user_analytics_handler),
         )
         .route("/exports/advanced", post(advanced_export_handler))
+        .route(
+            "/admin/analytics/organizations/{organization_id}",
+            post(create_organization_analytics_handler),
+        )
+        .route(
+            "/admin/analytics/organizations/{organization_id}/type/{analytics_type}",
+            get(get_analytics_by_type_handler),
+        )
+        .route(
+            "/admin/analytics/organizations/{organization_id}/period",
+            get(get_analytics_by_period_handler),
+        )
+        .route(
+            "/admin/analytics/organizations/{organization_id}/check-period",
+            get(check_analytics_period_exists_handler),
+        )
+        .route(
+            "/admin/analytics/metrics/latest",
+            get(get_latest_metrics_handler),
+        )
+        .route(
+            "/admin/analytics/departments/{department_id}",
+            get(get_department_analytics_handler),
+        )
+        .route(
+            "/admin/analytics/organizations/{organization_id}/aggregated",
+            get(get_aggregated_metrics_handler),
+        )
+        .route(
+            "/admin/analytics/organizations/{organization_id}/cleanup",
+            delete(delete_old_analytics_handler),
+        )
 }
 
 // Re-export the analytics router for compatibility

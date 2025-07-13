@@ -19,6 +19,13 @@ pub struct CreateTeamRequest {
     pub organization_id: Option<Uuid>,
 }
 
+impl CreateTeamRequest {
+    /// 組織に関連付けられているかチェック
+    pub fn has_organization(&self) -> bool {
+        self.organization_id.is_some()
+    }
+}
+
 /// チーム更新リクエスト
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct UpdateTeamRequest {
@@ -44,6 +51,13 @@ pub struct InviteTeamMemberRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateTeamMemberRoleRequest {
     pub role: TeamRole,
+}
+
+impl UpdateTeamMemberRoleRequest {
+    /// 新しいロールを取得
+    pub fn get_role(&self) -> &TeamRole {
+        &self.role
+    }
 }
 
 /// チーム検索クエリ（ページネーション情報を除く）

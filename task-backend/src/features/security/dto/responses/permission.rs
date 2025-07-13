@@ -140,27 +140,6 @@ pub struct ValidationSummary {
     pub success_rate: f64,
 }
 
-impl ValidationSummary {
-    #[allow(dead_code)] // Used in permission_handler.rs
-    pub fn new(checks: &[PermissionCheckResult]) -> Self {
-        let total_checks = checks.len() as u32;
-        let allowed_count = checks.iter().filter(|c| c.allowed).count() as u32;
-        let denied_count = total_checks - allowed_count;
-        let success_rate = if total_checks > 0 {
-            (allowed_count as f64 / total_checks as f64) * 100.0
-        } else {
-            0.0
-        };
-
-        Self {
-            total_checks,
-            allowed_count,
-            denied_count,
-            success_rate,
-        }
-    }
-}
-
 /// ユーザーロール情報
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserRoleInfo {

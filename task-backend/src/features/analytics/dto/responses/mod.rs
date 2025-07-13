@@ -367,4 +367,24 @@ pub struct UserFeatureUsageResponse {
     pub user_id: Uuid,
 }
 
+// Daily activity summary response
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DailyActivitySummaryResponse {
+    pub summaries: Vec<DailyActivitySummary>,
+    pub growth_rate: f64,
+    pub period: AnalysisPeriod,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DailyActivitySummary {
+    pub date: chrono::NaiveDate,
+    pub total_users: i32,
+    pub active_users: i32,
+    pub new_users: i32,
+    pub tasks_created: i32,
+    pub tasks_completed: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 // Re-export analytics DTOs from admin module (excluding conflicting types)

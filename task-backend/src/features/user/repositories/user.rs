@@ -1,5 +1,4 @@
 // src/repository/user_repository.rs
-#![allow(dead_code)] // Repository methods for user management
 
 use crate::db;
 use crate::features::security::models::role::{Entity as RoleEntity, RoleWithPermissions};
@@ -28,6 +27,11 @@ impl UserRepository {
             db::set_schema(&self.db, schema).await?;
         }
         Ok(())
+    }
+
+    // データベース接続を取得
+    pub fn get_connection(&self) -> &DbConn {
+        &self.db
     }
 
     // --- 基本CRUD操作 ---

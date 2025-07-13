@@ -4,5 +4,8 @@ pub mod permission;
 pub mod security;
 
 // Re-export request types
-// pub use permission::*;
+pub use permission::{
+    CreateResourcePermissionRequest, DeleteResourcePermissionRequest, UserAccessPermissionRequest,
+    ViewResourcePermissionRequest,
+};
 // pub use security::*;

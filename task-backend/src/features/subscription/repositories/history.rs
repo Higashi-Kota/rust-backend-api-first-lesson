@@ -1,5 +1,4 @@
 // task-backend/src/features/subscription/repositories/history.rs
-#![allow(dead_code)] // Repository methods for subscription history
 
 use crate::db::DbPool;
 use crate::error::AppResult;

@@ -76,7 +76,6 @@ impl LoginAttemptRepository {
     }
 
     /// 不審なアクティビティを検出（IPごとの失敗回数と最終試行時刻を含む）
-    #[allow(dead_code)] // Public API for security monitoring
     pub async fn find_suspicious_ips_with_details(
         &self,
         threshold: u64,

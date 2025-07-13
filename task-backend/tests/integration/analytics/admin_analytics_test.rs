@@ -4,7 +4,7 @@ use axum::{
     body::{self, Body},
     http::{Request, StatusCode},
 };
-use serde_json::Value;
+use serde_json;
 use tower::ServiceExt;
 
 use crate::common::{app_helper, auth_helper};
@@ -78,7 +78,7 @@ async fn test_admin_get_system_analytics() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let json: Value = serde_json::from_slice(&body).unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["success"], true);
     assert_eq!(json["message"], "System analytics retrieved successfully");
@@ -204,7 +204,7 @@ async fn test_admin_get_subscription_history() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let json: Value = serde_json::from_slice(&body).unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["success"], true);
 
@@ -257,7 +257,7 @@ async fn test_admin_get_subscription_history_with_date_range() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let json: Value = serde_json::from_slice(&body).unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["success"], true);
     assert!(json["data"]["histories"].is_array());
@@ -343,7 +343,7 @@ async fn test_user_get_own_subscription_history() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let json: Value = serde_json::from_slice(&body).unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     // Verify response structure and data
     assert_eq!(json["user_id"], user.id.to_string());
@@ -420,10 +420,145 @@ async fn test_admin_can_get_any_user_subscription_history() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let json: Value = serde_json::from_slice(&body).unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     // Admin can access user's subscription history - check SubscriptionHistoryResponse structure
     assert!(json["user_id"].is_string());
     assert!(json["history"].is_array());
     assert!(json["stats"].is_object());
+}
+
+#[tokio::test]
+async fn test_admin_get_daily_activity_summary_success() {
+    // Arrange
+    let (app, _schema, db) = app_helper::setup_full_app().await;
+    let admin_token = auth_helper::create_admin_with_jwt(&app).await;
+
+    // Create test data - insert a daily activity summary
+    use chrono::Utc;
+    use task_backend::features::analytics::models::daily_activity_summary::DailyActivityInput;
+
+    let today = Utc::now().date_naive();
+    let input = DailyActivityInput {
+        total_users: 100,
+        active_users: 75,
+        new_users: 10,
+        tasks_created: 50,
+        tasks_completed: 40,
+    };
+
+    let repo = task_backend::features::analytics::repositories::daily_activity_summary::DailyActivitySummaryRepository::new(db.connection.clone());
+    repo.upsert(today, input).await.unwrap();
+
+    // Create another summary for yesterday
+    let yesterday = today - chrono::Duration::days(1);
+    let yesterday_input = DailyActivityInput {
+        total_users: 90,
+        active_users: 70,
+        new_users: 5,
+        tasks_created: 45,
+        tasks_completed: 35,
+    };
+    repo.upsert(yesterday, yesterday_input).await.unwrap();
+
+    // Act
+    let request = Request::builder()
+        .uri("/admin/analytics/daily-summary?period_days=7")
+        .method("GET")
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    // Assert
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(json["success"], true);
+    assert_eq!(
+        json["message"],
+        "Daily activity summaries retrieved successfully"
+    );
+
+    let data = &json["data"];
+    assert!(data["summaries"].is_array());
+    assert!(data["growth_rate"].is_number());
+    assert!(data["period"].is_object());
+
+    let summaries = data["summaries"].as_array().unwrap();
+    assert_eq!(summaries.len(), 2); // Today and yesterday
+
+    // Verify today's summary (should be first due to DESC order)
+    let today_summary = &summaries[0];
+    assert_eq!(today_summary["total_users"], 100);
+    assert_eq!(today_summary["active_users"], 75);
+    assert_eq!(today_summary["new_users"], 10);
+    assert_eq!(today_summary["tasks_created"], 50);
+    assert_eq!(today_summary["tasks_completed"], 40);
+
+    // Verify growth rate calculation
+    let growth_rate = data["growth_rate"].as_f64().unwrap();
+    assert!(growth_rate > 0.0); // Should show positive growth from 90 to 100 users
+}
+
+#[tokio::test]
+async fn test_admin_get_daily_activity_summary_forbidden() {
+    // Arrange
+    let (app, _schema, _db) = app_helper::setup_full_app().await;
+    let regular_user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+
+    // Act - regular user tries to access admin endpoint
+    let request = Request::builder()
+        .uri("/admin/analytics/daily-summary")
+        .method("GET")
+        .header(
+            "Authorization",
+            format!("Bearer {}", regular_user.access_token),
+        )
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    // Assert
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn test_admin_get_daily_activity_summary_empty() {
+    // Arrange
+    let (app, _schema, _db) = app_helper::setup_full_app().await;
+    let admin_token = auth_helper::create_admin_with_jwt(&app).await;
+
+    // Act - request summaries when none exist
+    let request = Request::builder()
+        .uri("/admin/analytics/daily-summary?period_days=30")
+        .method("GET")
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .body(Body::empty())
+        .unwrap();
+
+    let response = app.oneshot(request).await.unwrap();
+
+    // Assert
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(json["success"], true);
+
+    let data = &json["data"];
+    let summaries = data["summaries"].as_array().unwrap();
+    assert_eq!(summaries.len(), 0); // No summaries
+
+    let growth_rate = data["growth_rate"].as_f64().unwrap();
+    assert_eq!(growth_rate, 0.0); // No growth when no data
 }

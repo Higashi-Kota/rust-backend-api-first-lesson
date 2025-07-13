@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Repository methods for organization management
-
 // 一時的に旧モデルを使用（Phase 19の互換性確保のため）
 use crate::core::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};

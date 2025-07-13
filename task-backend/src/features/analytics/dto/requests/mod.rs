@@ -33,6 +33,7 @@ pub struct AnalyticsTimeRangeRequest {
     pub start_date: Option<DateTime<Utc>>,
     pub end_date: Option<DateTime<Utc>>,
     pub granularity: Option<String>,
+    pub period_days: Option<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

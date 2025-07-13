@@ -1,5 +1,4 @@
 // task-backend/src/domain/role_model.rs
-#![allow(dead_code)] // Model methods and utilities
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
@@ -440,12 +439,12 @@ mod tests {
         let quota = PermissionQuota::limited(100, 10);
         assert_eq!(quota.max_items, Some(100));
         assert_eq!(quota.rate_limit, Some(10));
-        assert!(quota.has_feature("basic_access"));
+        assert!(quota.features.contains(&"basic_access".to_string()));
 
         let unlimited = PermissionQuota::unlimited();
         assert_eq!(unlimited.max_items, None);
         assert_eq!(unlimited.rate_limit, None);
-        assert!(unlimited.has_feature("unlimited_access"));
+        assert!(unlimited.features.contains(&"unlimited_access".to_string()));
     }
 
     #[test]
@@ -550,7 +549,7 @@ mod tests {
         assert_eq!(privilege.name, "pro_task_access");
         assert!(privilege.quota.is_some());
         let quota = privilege.quota.unwrap();
-        assert!(quota.has_feature("advanced_filter"));
-        assert!(quota.has_feature("export"));
+        assert!(quota.features.contains(&"advanced_filter".to_string()));
+        assert!(quota.features.contains(&"export".to_string()));
     }
 }

@@ -21,6 +21,21 @@ pub struct UserStatsResponse {
     pub additional_info: UserAdditionalInfo,
 }
 
+/// ユーザーアクティビティ統計レスポンス
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserActivityStatsResponse {
+    pub user_id: Uuid,
+    pub total_tasks: u64,
+    pub completed_tasks: u64,
+    pub pending_tasks: u64,
+    pub completion_rate: f64,
+    pub average_completion_time_hours: Option<f64>,
+    pub last_activity_at: Option<DateTime<Utc>>,
+    pub streak_days: u32,
+    pub most_productive_day: Option<String>,
+    pub tags_used: Vec<String>,
+}
+
 /// ユーザー追加情報
 #[derive(Debug, Clone, Serialize)]
 pub struct UserAdditionalInfo {
@@ -263,13 +278,6 @@ pub struct SubscriptionAnalytics {
     pub pro_users: u64,
     pub enterprise_users: u64,
     pub conversion_rate: f64,
-}
-
-/// ユーザーアクティビティ統計レスポンス
-#[derive(Debug, Clone, Serialize)]
-pub struct UserActivityStatsResponse {
-    pub stats: UserActivityStats,
-    pub message: String,
 }
 
 /// ユーザーアクティビティ統計

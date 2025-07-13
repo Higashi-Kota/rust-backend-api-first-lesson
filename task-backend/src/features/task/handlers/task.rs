@@ -2,12 +2,13 @@
 use crate::api::AppState;
 use crate::core::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
-use crate::features::auth::middleware::AuthenticatedUser;
+use crate::features::auth::middleware::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::features::task::dto::{
     BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto, BatchUpdateResponseDto,
     BatchUpdateTaskDto, CreateTaskDto, PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse,
     UpdateTaskDto,
 };
+use crate::shared::types::pagination::PaginatedResponse;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
@@ -749,6 +750,318 @@ pub async fn bulk_update_status_handler(
 
 // --- Admin functionality moved to admin_handler.rs ---
 
+// --- New Task Analytics and Management Handlers ---
+
+/// Get all tasks (admin only)
+pub async fn get_all_tasks_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+    Query(query): Query<serde_json::Value>,
+) -> AppResult<Json<serde_json::Value>> {
+    let limit = query["limit"].as_u64().unwrap_or(100) as usize;
+    let offset = query["offset"].as_u64().unwrap_or(0) as usize;
+
+    use crate::features::task::repositories::task_repository::TaskRepository;
+    let task_repo = TaskRepository::new(app_state.db.as_ref().clone());
+    let tasks = task_repo.find_all().await?;
+
+    let total_count = tasks.len();
+    let paginated_tasks: Vec<_> = tasks.into_iter().skip(offset).take(limit).collect();
+
+    Ok(Json(serde_json::json!({
+        "tasks": paginated_tasks,
+        "total_count": total_count,
+        "limit": limit,
+        "offset": offset,
+    })))
+}
+
+/// Get all tasks paginated (admin only)
+pub async fn get_all_tasks_paginated_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+    Query(params): Query<PaginationParams>,
+) -> AppResult<Json<PaginatedResponse<TaskDto>>> {
+    let page = params.page.unwrap_or(1);
+    let page_size = params.page_size.unwrap_or(20);
+
+    use crate::features::task::repositories::task_repository::TaskRepository;
+    let task_repo = TaskRepository::new(app_state.db.as_ref().clone());
+    let (tasks, total_count) = task_repo.find_all_paginated(page, page_size).await?;
+
+    use crate::shared::types::pagination::PaginatedResponse;
+    let task_dtos: Vec<TaskDto> = tasks.into_iter().map(|task| task.into()).collect();
+    let paginated_response =
+        PaginatedResponse::new(task_dtos, page as i32, page_size as i32, total_count as i64);
+
+    Ok(Json(paginated_response))
+}
+
+/// Get task count statistics (admin only)
+pub async fn get_task_count_statistics_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+) -> AppResult<Json<serde_json::Value>> {
+    use crate::features::task::repositories::task_repository::TaskRepository;
+    let task_repo = TaskRepository::new(app_state.db.as_ref().clone());
+    let total_tasks = task_repo.count_all_tasks().await?;
+
+    let mut tasks_by_status = serde_json::json!({});
+    let statuses = ["todo", "in_progress", "done", "cancelled"];
+    for status in statuses.iter() {
+        let count = task_repo.count_tasks_by_status(status).await?;
+        tasks_by_status[status] = serde_json::json!(count);
+    }
+
+    Ok(Json(serde_json::json!({
+        "total_tasks": total_tasks,
+        "by_status": tasks_by_status,
+        "generated_at": chrono::Utc::now(),
+    })))
+}
+
+/// Get task priority distribution (admin only)
+pub async fn get_priority_distribution_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+) -> AppResult<Json<serde_json::Value>> {
+    let distribution = app_state.task_service.get_priority_distribution().await?;
+
+    Ok(Json(serde_json::json!({
+        "distribution": distribution,
+        "generated_at": chrono::Utc::now(),
+    })))
+}
+
+/// Get average completion days by priority (admin only)
+pub async fn get_completion_time_by_priority_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+) -> AppResult<Json<serde_json::Value>> {
+    let completion_days = app_state
+        .task_service
+        .get_average_completion_days_by_priority()
+        .await?;
+
+    Ok(Json(serde_json::json!({
+        "average_completion_days": completion_days,
+        "generated_at": chrono::Utc::now(),
+    })))
+}
+
+/// Get weekly task trend data (admin only)
+pub async fn get_weekly_trend_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+    Query(query): Query<serde_json::Value>,
+) -> AppResult<Json<serde_json::Value>> {
+    let weeks = query["weeks"].as_u64().unwrap_or(4) as u32;
+
+    let trend_data = app_state.task_service.get_weekly_trend_data(weeks).await?;
+
+    Ok(Json(serde_json::json!({
+        "trend_data": trend_data,
+        "weeks_analyzed": weeks,
+        "generated_at": chrono::Utc::now(),
+    })))
+}
+
+/// Get user average completion hours
+pub async fn get_user_completion_hours_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Path(user_id): Path<Uuid>,
+) -> AppResult<Json<serde_json::Value>> {
+    // Check if user is accessing their own data or is admin
+    if user.user_id() != user_id && !user.is_admin() {
+        return Err(AppError::Forbidden(
+            "You can only view your own task statistics".to_string(),
+        ));
+    }
+
+    let avg_hours = app_state
+        .task_service
+        .get_user_average_completion_hours(user_id)
+        .await?;
+
+    Ok(Json(serde_json::json!({
+        "user_id": user_id,
+        "average_completion_hours": avg_hours,
+        "generated_at": chrono::Utc::now(),
+    })))
+}
+
+/// Create multiple tasks (admin only)
+pub async fn admin_create_tasks_bulk_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+    Json(payload): Json<Vec<CreateTaskDto>>,
+) -> AppResult<Json<serde_json::Value>> {
+    if payload.is_empty() {
+        return Err(AppError::ValidationError(
+            "At least one task is required".to_string(),
+        ));
+    }
+
+    if payload.len() > 1000 {
+        return Err(AppError::ValidationError(
+            "Maximum 1000 tasks allowed per request".to_string(),
+        ));
+    }
+
+    let created_tasks = app_state
+        .task_service
+        .admin_create_tasks_bulk(payload)
+        .await?;
+
+    Ok(Json(serde_json::json!({
+        "created_count": created_tasks.len(),
+        "tasks": created_tasks,
+    })))
+}
+
+/// Update multiple tasks (admin only)
+pub async fn admin_update_tasks_bulk_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+    Json(payload): Json<Vec<(Uuid, UpdateTaskDto)>>,
+) -> AppResult<Json<serde_json::Value>> {
+    if payload.is_empty() {
+        return Err(AppError::ValidationError(
+            "At least one task update is required".to_string(),
+        ));
+    }
+
+    if payload.len() > 500 {
+        return Err(AppError::ValidationError(
+            "Maximum 500 task updates allowed per request".to_string(),
+        ));
+    }
+
+    use crate::features::task::dto::requests::BatchUpdateTaskItemDto;
+
+    let batch_updates: Vec<BatchUpdateTaskItemDto> = payload
+        .into_iter()
+        .map(|(id, update_dto)| BatchUpdateTaskItemDto {
+            id,
+            title: update_dto.title,
+            description: update_dto.description,
+            due_date: update_dto.due_date,
+            status: update_dto.status,
+        })
+        .collect();
+
+    let updated_tasks = app_state
+        .task_service
+        .admin_update_tasks_bulk(batch_updates)
+        .await?;
+
+    Ok(Json(serde_json::json!({
+        "updated_count": updated_tasks,
+    })))
+}
+
+/// Delete multiple tasks (admin only)
+pub async fn admin_delete_tasks_bulk_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+    Json(task_ids): Json<Vec<Uuid>>,
+) -> AppResult<Json<serde_json::Value>> {
+    if task_ids.is_empty() {
+        return Err(AppError::ValidationError(
+            "At least one task ID is required".to_string(),
+        ));
+    }
+
+    if task_ids.len() > 500 {
+        return Err(AppError::ValidationError(
+            "Maximum 500 task deletions allowed per request".to_string(),
+        ));
+    }
+
+    let deleted_count = app_state
+        .task_service
+        .admin_delete_tasks_bulk(task_ids)
+        .await?;
+
+    Ok(Json(serde_json::json!({
+        "deleted_count": deleted_count,
+        "operation": "bulk_delete",
+        "completed_at": chrono::Utc::now(),
+    })))
+}
+
+/// Get admin task statistics (admin only)
+pub async fn get_admin_task_statistics_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+) -> AppResult<Json<serde_json::Value>> {
+    let stats = app_state.task_service.get_admin_task_statistics().await?;
+
+    Ok(Json(serde_json::json!({
+        "statistics": stats,
+        "generated_at": chrono::Utc::now(),
+    })))
+}
+
+/// Count completed tasks
+pub async fn count_completed_tasks_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<Json<serde_json::Value>> {
+    let user_id = user.user_id();
+
+    // For user-specific count, we need to use repository directly
+    use crate::features::task::repositories::task_repository::TaskRepository;
+    let task_repo = TaskRepository::new(app_state.db.as_ref().clone());
+    let completed_count = task_repo.count_tasks_by_status("done").await?;
+
+    Ok(Json(serde_json::json!({
+        "user_id": user_id,
+        "completed_tasks": completed_count,
+        "retrieved_at": chrono::Utc::now(),
+    })))
+}
+
+/// Get task analytics dashboard
+pub async fn get_task_analytics_dashboard_handler(
+    State(app_state): State<AppState>,
+    _user: AuthenticatedUserWithRole,
+) -> AppResult<Json<serde_json::Value>> {
+    // Gather all analytics data
+    use crate::features::task::repositories::task_repository::TaskRepository;
+    let task_repo = TaskRepository::new(app_state.db.as_ref().clone());
+    let total_tasks = task_repo.count_all_tasks().await?;
+
+    let mut tasks_by_status = serde_json::json!({});
+    let statuses = ["todo", "in_progress", "done", "cancelled"];
+    for status in statuses.iter() {
+        let count = task_repo.count_tasks_by_status(status).await?;
+        tasks_by_status[status] = serde_json::json!(count);
+    }
+    let priority_distribution = app_state.task_service.get_priority_distribution().await?;
+    let completion_days = app_state
+        .task_service
+        .get_average_completion_days_by_priority()
+        .await?;
+    let weekly_trend = app_state.task_service.get_weekly_trend_data(4).await?;
+
+    Ok(Json(serde_json::json!({
+        "overview": {
+            "total_tasks": total_tasks,
+            "by_status": tasks_by_status,
+        },
+        "priority_analysis": {
+            "distribution": priority_distribution,
+            "average_completion_days": completion_days,
+        },
+        "trends": {
+            "weekly_data": weekly_trend,
+        },
+        "generated_at": chrono::Utc::now(),
+    })))
+}
+
 // --- Router Setup ---
 pub fn task_router_with_state(app_state: AppState) -> Router {
     use crate::features::auth::middleware::is_auth_endpoint;
@@ -785,6 +1098,50 @@ pub fn task_router_with_state(app_state: AppState) -> Router {
         .route("/tasks/batch/status", patch(bulk_update_status_handler))
         // 統計情報とユーティリティ
         .route("/tasks/stats", get(get_user_task_stats_handler))
+        // New analytics and management endpoints
+        .route("/admin/tasks/all", get(get_all_tasks_handler))
+        .route(
+            "/admin/tasks/all/paginated",
+            get(get_all_tasks_paginated_handler),
+        )
+        .route(
+            "/admin/tasks/statistics",
+            get(get_admin_task_statistics_handler),
+        )
+        .route(
+            "/admin/tasks/count-statistics",
+            get(get_task_count_statistics_handler),
+        )
+        .route(
+            "/admin/tasks/priority-distribution",
+            get(get_priority_distribution_handler),
+        )
+        .route(
+            "/admin/tasks/completion-time-by-priority",
+            get(get_completion_time_by_priority_handler),
+        )
+        .route("/admin/tasks/weekly-trend", get(get_weekly_trend_handler))
+        .route(
+            "/admin/tasks/analytics/dashboard",
+            get(get_task_analytics_dashboard_handler),
+        )
+        .route(
+            "/admin/tasks/bulk/create",
+            post(admin_create_tasks_bulk_handler),
+        )
+        .route(
+            "/admin/tasks/bulk/update",
+            patch(admin_update_tasks_bulk_handler),
+        )
+        .route(
+            "/admin/tasks/bulk/delete",
+            post(admin_delete_tasks_bulk_handler),
+        )
+        .route(
+            "/tasks/users/{user_id}/completion-hours",
+            get(get_user_completion_hours_handler),
+        )
+        .route("/tasks/completed/count", get(count_completed_tasks_handler))
         // ヘルスチェックエンドポイントを追加
         .route("/health", get(health_check_handler))
         .with_state(app_state)

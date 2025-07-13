@@ -2,6 +2,7 @@
 use crate::config::AppConfig;
 use crate::features::admin::repositories::bulk_operation_history::BulkOperationHistoryRepository;
 use crate::features::analytics::repositories::feature_usage_metrics::FeatureUsageMetricsRepository;
+use crate::features::analytics::services::activity_summary::ActivitySummaryService;
 use crate::features::analytics::services::feature_tracking::FeatureTrackingService;
 use crate::features::auth::service::AuthService;
 use crate::features::organization::services::organization::OrganizationService;
@@ -32,10 +33,10 @@ pub struct AppState {
     pub subscription_service: Arc<SubscriptionService>,
     pub payment_service: Arc<PaymentService>,
     pub subscription_history_repo: Arc<SubscriptionHistoryRepository>,
-    #[allow(dead_code)] // Used via AppState in user_service.rs
     pub bulk_operation_history_repo: Arc<BulkOperationHistoryRepository>,
     pub feature_usage_metrics_repo: Arc<FeatureUsageMetricsRepository>,
     pub feature_tracking_service: Arc<FeatureTrackingService>,
+    pub activity_summary_service: Arc<ActivitySummaryService>,
     pub permission_service: Arc<PermissionService>,
     pub security_service: Arc<SecurityService>,
     pub attachment_service: Arc<AttachmentService>,
@@ -141,6 +142,7 @@ impl AppState {
             feature_tracking_service: Arc::new(FeatureTrackingService::new(
                 feature_usage_metrics_repo,
             )),
+            activity_summary_service: Arc::new(ActivitySummaryService::new(db.as_ref().clone())),
             permission_service,
             security_service,
             attachment_service,

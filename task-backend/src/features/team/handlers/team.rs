@@ -13,6 +13,7 @@ use axum::{
     Json, Router,
 };
 use serde_json::json;
+use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -49,6 +50,16 @@ pub async fn create_team_handler(
         .permission_service
         .check_resource_access(user.user_id(), "team", None, "create")
         .await?;
+
+    // organization_idフィールドを明示的に使用
+    if payload.has_organization() {
+        info!(
+            user_id = %user.user_id(),
+            organization_id = ?payload.organization_id,
+            has_organization = true,
+            "Creating team with organization association"
+        );
+    }
 
     // サブスクリプション制限はTeamServiceで処理されるため、ここでは重複チェックしない
 
@@ -191,6 +202,15 @@ pub async fn update_team_member_role_handler(
     Path((team_id, member_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdateTeamMemberRoleRequest>,
 ) -> AppResult<Json<serde_json::Value>> {
+    // roleフィールドを明示的に使用
+    info!(
+        user_id = %user.user_id(),
+        team_id = %team_id,
+        member_id = %member_id,
+        new_role = %payload.get_role(),
+        "Updating team member role"
+    );
+
     let member_response = app_state
         .team_service
         .update_team_member_role(team_id, member_id, payload, user.user_id())

@@ -134,10 +134,12 @@ pub async fn create_role_handler(
     user: AuthenticatedUserWithRole,
     Json(mut payload): Json<CreateRoleRequest>,
 ) -> AppResult<impl IntoResponse> {
-    // 管理者権限チェック
-    app_state
-        .role_service
-        .check_admin_permission(&user.claims)?;
+    // リソース作成権限チェック（AuthenticatedUserWithRoleのメソッドを活用）
+    if !user.can_create_resource("role") {
+        return Err(AppError::Forbidden(
+            "Insufficient permissions to create roles".to_string(),
+        ));
+    }
 
     // バリデーションとサニタイズ
     payload
@@ -269,10 +271,12 @@ pub async fn delete_role_handler(
     UuidPath(role_id): UuidPath,
     user: AuthenticatedUserWithRole,
 ) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
-    // 管理者権限チェック
-    app_state
-        .role_service
-        .check_admin_permission(&user.claims)?;
+    // リソース削除権限チェック（AuthenticatedUserWithRoleのメソッドを活用）
+    if !user.can_delete_resource("role", Some(role_id)) {
+        return Err(AppError::Forbidden(
+            "Insufficient permissions to delete roles".to_string(),
+        ));
+    }
 
     info!(
         admin_id = %user.user_id(),

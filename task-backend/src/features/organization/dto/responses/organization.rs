@@ -188,3 +188,63 @@ pub struct OrganizationActivity {
     pub user_id: Uuid,
     pub timestamp: DateTime<Utc>,
 }
+
+/// 組織分析レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrganizationAnalyticsResponse {
+    pub organization_id: Uuid,
+    pub organization_name: String,
+    pub analytics_data: Vec<AnalyticsData>,
+    pub summary: AnalyticsSummary,
+    pub message: String,
+}
+
+/// 分析データ
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AnalyticsData {
+    pub analytics_type: String,
+    pub period: String,
+    pub period_start: DateTime<Utc>,
+    pub period_end: DateTime<Utc>,
+    pub metrics: serde_json::Value,
+    pub recorded_at: DateTime<Utc>,
+}
+
+/// 分析サマリー
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AnalyticsSummary {
+    pub total_members: u32,
+    pub active_teams: u32,
+    pub storage_used_mb: u64,
+    pub api_calls_this_month: u64,
+    pub subscription_tier: SubscriptionTier,
+    pub usage_percentage: f32,
+}
+
+/// 組織部門一覧レスポンス
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OrganizationDepartmentsResponse {
+    pub organization_id: Uuid,
+    pub organization_name: String,
+    pub departments: Vec<DepartmentInfo>,
+    pub total_departments: u32,
+    pub message: String,
+}
+
+/// 部門情報
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DepartmentInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub parent_department_id: Option<Uuid>,
+    pub hierarchy_level: i32,
+    pub hierarchy_path: String,
+    pub manager_user_id: Option<Uuid>,
+    pub manager_name: Option<String>,
+    pub member_count: u32,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub children: Vec<DepartmentInfo>,
+}

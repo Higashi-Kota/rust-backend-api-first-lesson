@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Model methods for analytics data
-
 use chrono::{DateTime, Utc};
 use sea_orm::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -164,6 +162,19 @@ impl Model {
     pub fn get_metric_value(&self) -> Result<MetricValue, serde_json::Error> {
         serde_json::from_value(self.metric_value.clone())
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalyticsInput {
+    pub organization_id: Uuid,
+    pub department_id: Option<Uuid>,
+    pub analytics_type: AnalyticsType,
+    pub metric_name: String,
+    pub metric_value: JsonValue,
+    pub period: Period,
+    pub period_start: chrono::NaiveDateTime,
+    pub period_end: chrono::NaiveDateTime,
+    pub calculated_by: Option<Uuid>,
 }
 
 #[cfg(test)]

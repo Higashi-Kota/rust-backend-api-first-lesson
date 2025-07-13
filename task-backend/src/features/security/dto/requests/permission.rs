@@ -142,3 +142,46 @@ pub struct ComplexOperationRequest {
 
     pub resource_id: Option<Uuid>,
 }
+
+/// リソース作成権限チェックリクエスト
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct CreateResourcePermissionRequest {
+    #[validate(length(
+        min = 1,
+        max = 50,
+        message = "Resource type must be between 1 and 50 characters"
+    ))]
+    pub resource_type: String,
+}
+
+/// リソース削除権限チェックリクエスト
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct DeleteResourcePermissionRequest {
+    #[validate(length(
+        min = 1,
+        max = 50,
+        message = "Resource type must be between 1 and 50 characters"
+    ))]
+    pub resource_type: String,
+
+    pub resource_id: Option<Uuid>,
+}
+
+/// ユーザーアクセス権限チェックリクエスト
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct UserAccessPermissionRequest {
+    pub target_user_id: Uuid,
+}
+
+/// リソース表示権限チェックリクエスト
+#[derive(Debug, Serialize, Deserialize, Validate)]
+pub struct ViewResourcePermissionRequest {
+    #[validate(length(
+        min = 1,
+        max = 50,
+        message = "Resource type must be between 1 and 50 characters"
+    ))]
+    pub resource_type: String,
+
+    pub resource_id: Option<Uuid>,
+}

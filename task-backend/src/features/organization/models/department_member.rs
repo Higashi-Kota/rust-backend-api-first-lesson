@@ -127,3 +127,11 @@ mod tests {
         );
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DepartmentMemberInput {
+    pub department_id: Uuid,
+    pub user_id: Uuid,
+    pub role: DepartmentRole,
+    pub assigned_by: Option<Uuid>,
+}

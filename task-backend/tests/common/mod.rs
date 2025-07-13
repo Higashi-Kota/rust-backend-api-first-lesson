@@ -6,11 +6,7 @@ pub mod mock_storage;
 pub mod stripe_helper;
 pub mod test_data;
 
-use chrono::Utc;
 use std::sync::Once;
-use task_backend::core::task_status::TaskStatus;
-use task_backend::features::task::dto::{CreateTaskDto, TaskDto, UpdateTaskDto};
-use uuid::Uuid;
 
 // テスト環境の初期化を一度だけ実行
 static INIT: Once = Once::new();
@@ -35,40 +31,4 @@ pub fn init_test_env() {
             .with_test_writer()
             .try_init();
     });
-}
-
-// テストデータジェネレーター
-pub fn create_test_task() -> CreateTaskDto {
-    CreateTaskDto {
-        title: "Test Task".to_string(),
-        description: Some("Test Description".to_string()),
-        status: Some(TaskStatus::Todo),
-        priority: None,
-        due_date: Some(Utc::now()),
-    }
-}
-
-pub fn create_test_task_with_title(title: &str) -> CreateTaskDto {
-    CreateTaskDto {
-        title: title.to_string(),
-        description: Some("Test Description".to_string()),
-        status: Some(TaskStatus::Todo),
-        priority: None,
-        due_date: Some(Utc::now()),
-    }
-}
-
-pub fn create_update_task() -> UpdateTaskDto {
-    UpdateTaskDto {
-        title: Some("Updated Task".to_string()),
-        description: Some("Updated Description".to_string()),
-        status: Some(TaskStatus::InProgress),
-        priority: None,
-        due_date: Some(Utc::now()),
-    }
-}
-
-// タスクIDの検証用ヘルパー
-pub fn is_valid_uuid(task: &TaskDto) -> bool {
-    task.id != Uuid::nil()
 }

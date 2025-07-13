@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Repository methods for department management
-
 use super::super::models::department::{self, Entity as OrganizationDepartment};
 use crate::error::AppError;
 use sea_orm::prelude::*;
@@ -65,17 +63,6 @@ impl DepartmentRepository {
             .order_by_asc(department::Column::HierarchyPath)
             .all(db)
             .await?;
-        Ok(result)
-    }
-
-    pub async fn update_by_id(
-        db: &DatabaseConnection,
-        id: Uuid,
-        department: department::ActiveModel,
-    ) -> Result<department::Model, AppError> {
-        let mut active_model = department;
-        active_model.id = sea_orm::Set(id);
-        let result = active_model.update(db).await?;
         Ok(result)
     }
 

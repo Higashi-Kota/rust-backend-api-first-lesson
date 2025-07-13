@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Repository methods for feature usage analytics
-
 use crate::error::AppResult;
 use crate::features::analytics::models::feature_usage_metrics::Entity as FeatureUsageMetrics;
 use chrono::{DateTime, Utc};

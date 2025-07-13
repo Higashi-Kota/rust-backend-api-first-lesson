@@ -44,7 +44,6 @@ impl FeatureTrackingService {
     }
 
     /// ユーザーの機能使用状況を取得
-    #[allow(dead_code)] // Public API for analytics feature tracking
     pub async fn get_user_feature_usage(
         &self,
         user_id: Uuid,

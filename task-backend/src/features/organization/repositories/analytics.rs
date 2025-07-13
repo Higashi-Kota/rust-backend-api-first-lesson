@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Repository methods for organization analytics
-
 use super::super::models::analytics::{
     self, AnalyticsType, Entity as OrganizationAnalytics, Period,
 };
@@ -53,24 +51,6 @@ impl AnalyticsRepository {
         }
 
         let result = query.all(db).await?;
-        Ok(result)
-    }
-
-    pub async fn find_by_organization_and_period(
-        db: &DatabaseConnection,
-        organization_id: Uuid,
-        period: Period,
-        start_date: DateTime<Utc>,
-        end_date: DateTime<Utc>,
-    ) -> Result<Vec<analytics::Model>, AppError> {
-        let result = OrganizationAnalytics::find()
-            .filter(analytics::Column::OrganizationId.eq(organization_id))
-            .filter(analytics::Column::Period.eq(period.to_string()))
-            .filter(analytics::Column::PeriodStart.gte(start_date))
-            .filter(analytics::Column::PeriodEnd.lte(end_date))
-            .order_by_desc(analytics::Column::PeriodEnd)
-            .all(db)
-            .await?;
         Ok(result)
     }
 

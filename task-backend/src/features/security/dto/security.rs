@@ -25,6 +25,18 @@ pub struct RevokeAllTokensRequest {
     pub exclude_current_user: bool, // 実行者のトークンを除外するか
 }
 
+impl RevokeAllTokensRequest {
+    /// 特定ユーザーのトークンのみを対象とするかチェック
+    pub fn is_targeted_to_user(&self) -> bool {
+        self.user_id.is_some()
+    }
+
+    /// 実行者を除外するかチェック
+    pub fn should_exclude_current(&self) -> bool {
+        self.exclude_current_user
+    }
+}
+
 /// 監査レポート生成リクエスト
 #[derive(Debug, Clone, Deserialize, Validate)]
 pub struct AuditReportRequest {
@@ -33,6 +45,18 @@ pub struct AuditReportRequest {
 
     pub date_range: Option<DateRange>,
     pub include_details: Option<bool>,
+}
+
+impl AuditReportRequest {
+    /// 日付範囲が指定されているかチェック
+    pub fn has_date_range(&self) -> bool {
+        self.date_range.is_some()
+    }
+
+    /// 詳細を含めるかチェック
+    pub fn should_include_details(&self) -> bool {
+        self.include_details.unwrap_or(false)
+    }
 }
 
 /// 日付範囲
