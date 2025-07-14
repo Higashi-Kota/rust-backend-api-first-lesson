@@ -647,7 +647,7 @@ async fn test_invitation_pagination() {
     let req = auth_helper::create_authenticated_request(
         "GET",
         &format!(
-            "/teams/{}/invitations/paginated?page=1&page_size=10",
+            "/teams/{}/invitations/paginated?page=1&per_page=10",
             team_id
         ),
         &admin_user.access_token,
@@ -664,18 +664,17 @@ async fn test_invitation_pagination() {
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     let data = &response["data"];
-
-    assert_eq!(data["invitations"].as_array().unwrap().len(), 10);
-    assert_eq!(data["total_count"], 25);
-    assert_eq!(data["page"], 1);
-    assert_eq!(data["page_size"], 10);
-    assert_eq!(data["total_pages"], 3);
+    assert_eq!(data["items"].as_array().unwrap().len(), 10);
+    assert_eq!(data["pagination"]["total_count"], 25);
+    assert_eq!(data["pagination"]["page"], 1);
+    assert_eq!(data["pagination"]["per_page"], 10);
+    assert_eq!(data["pagination"]["total_pages"], 3);
 
     // Get second page
     let req2 = auth_helper::create_authenticated_request(
         "GET",
         &format!(
-            "/teams/{}/invitations/paginated?page=2&page_size=10",
+            "/teams/{}/invitations/paginated?page=2&per_page=10",
             team_id
         ),
         &admin_user.access_token,
@@ -690,6 +689,6 @@ async fn test_invitation_pagination() {
 
     let data2 = &response2["data"];
 
-    assert_eq!(data2["invitations"].as_array().unwrap().len(), 10);
-    assert_eq!(data2["page"], 2);
+    assert_eq!(data2["items"].as_array().unwrap().len(), 10);
+    assert_eq!(data2["pagination"]["page"], 2);
 }

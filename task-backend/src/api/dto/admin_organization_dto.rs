@@ -1,6 +1,6 @@
 // task-backend/src/api/dto/admin_organization_dto.rs
 
-use crate::api::dto::common::PaginationMeta;
+use crate::api::dto::common::{PaginationMeta, PaginationQuery};
 use crate::api::dto::organization_dto::{OrganizationListResponse, OrganizationTierStats};
 use crate::api::dto::user_dto::UserWithRoleResponse;
 use crate::domain::subscription_tier::SubscriptionTier;
@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 /// 管理者向け組織一覧リクエスト
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AdminOrganizationsRequest {
-    pub page: Option<i32>,
-    pub page_size: Option<i32>,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
     pub subscription_tier: Option<SubscriptionTier>,
 }
 
@@ -25,8 +25,8 @@ pub struct AdminOrganizationsResponse {
 /// 管理者向けユーザー一覧リクエスト
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AdminUsersWithRolesRequest {
-    pub page: Option<i32>,
-    pub page_size: Option<i32>,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
     pub role_name: Option<String>,
 }
 

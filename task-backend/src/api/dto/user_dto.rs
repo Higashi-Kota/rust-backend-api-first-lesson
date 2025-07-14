@@ -1,6 +1,6 @@
 // task-backend/src/api/dto/user_dto.rs
 
-use crate::api::dto::{ApiResponse, OperationResult, PaginatedResponse};
+use crate::api::dto::common::{ApiResponse, OperationResult, PaginatedResponse, PaginationQuery};
 use crate::domain::user_model::SafeUser;
 use crate::service::user_service::UserStats;
 use crate::utils::validation::common;
@@ -242,11 +242,8 @@ pub struct UserSearchQuery {
     pub is_active: Option<bool>,
     pub email_verified: Option<bool>,
 
-    #[validate(range(min = 1, max = 100, message = "Page must be between 1 and 100"))]
-    pub page: Option<i32>,
-
-    #[validate(range(min = 1, max = 100, message = "Per page must be between 1 and 100"))]
-    pub per_page: Option<i32>,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
 
     pub sort_by: Option<UserSortField>,
     pub sort_order: Option<SortOrder>,
@@ -303,12 +300,15 @@ impl UpdateProfileRequest {
 impl UserSearchQuery {
     /// デフォルト値を適用
     pub fn with_defaults(self) -> Self {
+        let (page, per_page) = self.pagination.get_pagination();
         Self {
             q: self.q,
             is_active: self.is_active,
             email_verified: self.email_verified,
-            page: Some(self.page.unwrap_or(1)),
-            per_page: Some(self.per_page.unwrap_or(20)),
+            pagination: PaginationQuery {
+                page: Some(page),
+                per_page: Some(per_page),
+            },
             sort_by: self.sort_by.or(Some(UserSortField::CreatedAt)),
             sort_order: self.sort_order.or(Some(SortOrder::Descending)),
         }
@@ -727,15 +727,17 @@ mod tests {
             q: None,
             is_active: None,
             email_verified: None,
-            page: None,
-            per_page: None,
+            pagination: PaginationQuery {
+                page: None,
+                per_page: None,
+            },
             sort_by: None,
             sort_order: None,
         };
 
         let query_with_defaults = query.with_defaults();
-        assert_eq!(query_with_defaults.page, Some(1));
-        assert_eq!(query_with_defaults.per_page, Some(20));
+        assert_eq!(query_with_defaults.pagination.page, Some(1));
+        assert_eq!(query_with_defaults.pagination.per_page, Some(20));
         assert!(matches!(
             query_with_defaults.sort_by,
             Some(UserSortField::CreatedAt)
@@ -748,7 +750,7 @@ mod tests {
 
     #[test]
     fn test_pagination_meta() {
-        use crate::api::dto::PaginationMeta;
+        use crate::api::dto::common::PaginationMeta;
         let pagination = PaginationMeta::new(2, 10, 25);
         assert_eq!(pagination.page, 2);
         assert_eq!(pagination.per_page, 10);

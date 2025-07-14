@@ -1,5 +1,5 @@
 // src/api/dto/task_dto.rs
-use crate::api::dto::PaginatedResponse;
+use crate::api::dto::common::PaginatedResponse;
 use crate::domain::task_model;
 use crate::domain::task_status::TaskStatus;
 use crate::utils::validation::common;

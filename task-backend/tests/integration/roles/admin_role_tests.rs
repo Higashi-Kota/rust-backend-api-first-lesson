@@ -84,18 +84,27 @@ async fn test_admin_list_roles_with_pagination() {
 
     // Make request with pagination
     let request = Request::builder()
-        .uri("/admin/analytics/roles?page=1&page_size=10")
+        .uri("/admin/analytics/roles?page=1&per_page=10")
         .method("GET")
         .header("Authorization", format!("Bearer {}", admin_token))
         .body(Body::empty())
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    let status = response.status();
 
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
+
+    if status != StatusCode::OK {
+        let error_text = String::from_utf8_lossy(&body);
+        println!("Error response status: {}", status);
+        println!("Error response body: {}", error_text);
+    }
+
+    assert_eq!(status, StatusCode::OK);
+
     let json: Value = serde_json::from_slice(&body).unwrap();
 
     let pagination = &json["data"]["pagination"];
@@ -400,7 +409,7 @@ async fn test_admin_list_roles_pagination_edge_cases() {
 
     // Test with very large page_size (should be clamped to 100)
     let request = Request::builder()
-        .uri("/admin/analytics/roles?page_size=1000")
+        .uri("/admin/analytics/roles?per_page=1000")
         .method("GET")
         .header("Authorization", format!("Bearer {}", admin_token))
         .body(Body::empty())

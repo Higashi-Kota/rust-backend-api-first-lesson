@@ -13,6 +13,7 @@ mod error;
 mod middleware;
 mod repository;
 mod service;
+mod shared;
 mod utils;
 
 use crate::api::handlers::{

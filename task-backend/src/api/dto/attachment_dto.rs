@@ -1,5 +1,6 @@
 // task-backend/src/api/dto/attachment_dto.rs
 
+use crate::api::dto::common::PaginationQuery;
 use crate::domain::task_attachment_model;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -82,8 +83,8 @@ pub struct AttachmentErrorDetail {
 /// ファイルアップロード時のフィルタ（将来の拡張用）
 #[derive(Deserialize, Debug)]
 pub struct AttachmentFilterDto {
-    pub page: Option<u64>,
-    pub per_page: Option<u64>,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
     pub sort_by: Option<AttachmentSortBy>,
     pub sort_order: Option<SortOrder>,
 }
@@ -91,8 +92,10 @@ pub struct AttachmentFilterDto {
 impl Default for AttachmentFilterDto {
     fn default() -> Self {
         Self {
-            page: Some(1),
-            per_page: Some(20),
+            pagination: PaginationQuery {
+                page: Some(1),
+                per_page: Some(20),
+            },
             sort_by: Some(AttachmentSortBy::CreatedAt),
             sort_order: Some(SortOrder::Desc),
         }

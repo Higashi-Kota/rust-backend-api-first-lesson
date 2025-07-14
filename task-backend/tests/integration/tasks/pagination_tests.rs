@@ -33,7 +33,7 @@ async fn test_paginated_tasks_with_authentication() {
     // 1ページ目を取得（ページサイズ5）
     let page1_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=1&page_size=5",
+        "/tasks/paginated?page=1&per_page=5",
         &user.access_token,
         None,
     );
@@ -90,7 +90,7 @@ async fn test_paginated_tasks_second_page() {
     // 2ページ目を取得（ページサイズ3）
     let page2_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=2&page_size=3",
+        "/tasks/paginated?page=2&per_page=3",
         &user.access_token,
         None,
     );
@@ -140,7 +140,7 @@ async fn test_paginated_tasks_last_page() {
     // 最後のページを取得（ページサイズ3、3ページ目）
     let last_page_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=3&page_size=3",
+        "/tasks/paginated?page=3&per_page=3",
         &user.access_token,
         None,
     );
@@ -208,7 +208,7 @@ async fn test_paginated_tasks_user_isolation() {
     // user1でページネーション取得
     let user1_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=1&page_size=10",
+        "/tasks/paginated?page=1&per_page=10",
         &user1.access_token,
         None,
     );
@@ -233,7 +233,7 @@ async fn test_paginated_tasks_user_isolation() {
     // user2でページネーション取得
     let user2_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=1&page_size=10",
+        "/tasks/paginated?page=1&per_page=10",
         &user2.access_token,
         None,
     );
@@ -262,7 +262,7 @@ async fn test_paginated_tasks_without_authentication() {
 
     // 認証なしでページネーション取得試行
     let req = Request::builder()
-        .uri("/tasks/paginated?page=1&page_size=5")
+        .uri("/tasks/paginated?page=1&per_page=5")
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -298,7 +298,7 @@ async fn test_paginated_tasks_invalid_page_number() {
     // 存在しないページ番号でアクセス
     let invalid_page_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=10&page_size=5",
+        "/tasks/paginated?page=10&per_page=5",
         &user.access_token,
         None,
     );
@@ -332,7 +332,7 @@ async fn test_paginated_tasks_invalid_page_size() {
     // 無効なページサイズ（0またはマイナス）
     let invalid_size_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=1&page_size=0",
+        "/tasks/paginated?page=1&per_page=0",
         &user.access_token,
         None,
     );
@@ -370,7 +370,7 @@ async fn test_paginated_tasks_large_page_size() {
     // 非常に大きなページサイズで取得
     let large_size_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=1&page_size=1000",
+        "/tasks/paginated?page=1&per_page=1000",
         &user.access_token,
         None,
     );
@@ -452,7 +452,7 @@ async fn test_paginated_tasks_empty_result() {
     // タスクなしでページネーション取得
     let empty_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=1&page_size=10",
+        "/tasks/paginated?page=1&per_page=10",
         &user.access_token,
         None,
     );
@@ -505,7 +505,7 @@ async fn test_paginated_tasks_sorting_order() {
     // ページネーション取得
     let sort_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/paginated?page=1&page_size=5",
+        "/tasks/paginated?page=1&per_page=5",
         &user.access_token,
         None,
     );

@@ -5,7 +5,7 @@ use crate::api::dto::attachment_dto::{
     CreateShareLinkResponse, GenerateDownloadUrlRequest, GenerateDownloadUrlResponse,
     GenerateUploadUrlRequest, GenerateUploadUrlResponse, ShareLinkDto, ShareLinkListResponse,
 };
-use crate::api::dto::{ApiResponse, PaginatedResponse};
+use crate::api::dto::common::{ApiResponse, PaginatedResponse};
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
@@ -112,8 +112,9 @@ pub async fn list_attachments_handler(
 
     let attachment_service = &app_state.attachment_service;
 
-    let page = filter.page.unwrap_or(1);
-    let per_page = filter.per_page.unwrap_or(20).min(100); // 最大100件まで
+    let (page, per_page) = filter.pagination.get_pagination();
+    let page = page as u64;
+    let per_page = (per_page as u64).min(100); // 最大100件まで
 
     // ページング付きで取得
     let (attachments, total) = attachment_service

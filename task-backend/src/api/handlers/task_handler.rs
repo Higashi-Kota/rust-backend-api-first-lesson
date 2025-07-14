@@ -1,4 +1,5 @@
 // src/api/handlers/task_handler.rs
+use crate::api::dto::common::PaginationQuery;
 use crate::api::dto::task_dto::{
     BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto, BatchUpdateResponseDto,
     BatchUpdateTaskDto, CreateTaskDto, PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse,
@@ -16,7 +17,6 @@ use axum::{
     Router,
 };
 use chrono::Utc;
-use serde::Deserialize;
 use tracing::info;
 use uuid::Uuid;
 
@@ -43,13 +43,6 @@ where
 
         Ok(UuidPath(uuid))
     }
-}
-
-// ページネーションパラメータ
-#[derive(Deserialize, Debug)]
-pub struct PaginationParams {
-    pub page: Option<u64>,
-    pub page_size: Option<u64>,
 }
 
 // --- CRUD Handlers ---
@@ -535,10 +528,11 @@ pub async fn filter_tasks_dynamic_handler(
 pub async fn list_tasks_paginated_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Query(params): Query<PaginationParams>,
+    Query(params): Query<PaginationQuery>,
 ) -> AppResult<Json<PaginatedTasksDto>> {
-    let page = params.page.unwrap_or(1);
-    let page_size = params.page_size.unwrap_or(10);
+    let (page, per_page) = params.get_pagination();
+    let page = page as u64;
+    let page_size = per_page as u64;
 
     let paginated_tasks = app_state
         .task_service
@@ -551,10 +545,11 @@ pub async fn list_tasks_paginated_handler(
 pub async fn list_tasks_paginated_dynamic_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Query(params): Query<PaginationParams>,
+    Query(params): Query<PaginationQuery>,
 ) -> AppResult<Json<TaskResponse>> {
-    let page = params.page.unwrap_or(1);
-    let page_size = params.page_size.unwrap_or(10);
+    let (page, per_page) = params.get_pagination();
+    let page = page as u64;
+    let page_size = per_page as u64;
 
     // ページネーションパラメータをTaskFilterDtoに変換
     let filter = TaskFilterDto {

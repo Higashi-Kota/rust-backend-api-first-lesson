@@ -858,8 +858,8 @@ pub async fn admin_list_roles(
     let role_service = &app_state.role_service;
 
     // ページネーションパラメータを取得
-    let page = query.page.unwrap_or(1).max(1);
-    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+    let (page, per_page) = query.pagination.get_pagination();
+    let page_size = per_page;
     let active_only = query.active_only.unwrap_or(false);
 
     // ロールを取得
@@ -964,8 +964,8 @@ pub async fn admin_list_organizations(
     let organization_service = &app_state.organization_service;
 
     // ページネーションパラメータ
-    let page = query.page.unwrap_or(1).max(1);
-    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+    let (page, per_page) = query.pagination.get_pagination();
+    let page_size = per_page;
 
     // 検索クエリを構築
     let search_query = crate::api::dto::organization_dto::OrganizationSearchQuery {
@@ -1040,8 +1040,8 @@ pub async fn admin_list_users_with_roles(
     let user_service = &app_state.user_service;
 
     // ページネーションパラメータ
-    let page = query.page.unwrap_or(1).max(1);
-    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+    let (page, per_page) = query.pagination.get_pagination();
+    let page_size = per_page;
 
     // ユーザー一覧を取得
     let (users_with_roles, total_count) = user_service
