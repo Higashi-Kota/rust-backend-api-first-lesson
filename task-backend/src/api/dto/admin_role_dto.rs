@@ -1,5 +1,5 @@
 // task-backend/src/api/dto/admin_role_dto.rs
-use crate::api::dto::common::PaginationMeta;
+use crate::api::dto::common::{PaginationMeta, PaginationQuery};
 use crate::api::dto::role_dto::RoleResponse;
 use crate::domain::role_model::RoleWithPermissions;
 use crate::domain::subscription_tier::SubscriptionTier;
@@ -11,16 +11,18 @@ use uuid::Uuid;
 /// 管理者向けロール一覧クエリパラメータ
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdminRoleListQuery {
-    pub page: Option<i32>,
-    pub page_size: Option<i32>,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
     pub active_only: Option<bool>,
 }
 
 impl Default for AdminRoleListQuery {
     fn default() -> Self {
         Self {
-            page: Some(1),
-            page_size: Some(20),
+            pagination: PaginationQuery {
+                page: Some(1),
+                per_page: Some(20),
+            },
             active_only: None,
         }
     }
@@ -295,8 +297,8 @@ mod tests {
     #[test]
     fn test_admin_role_list_query_default() {
         let query = AdminRoleListQuery::default();
-        assert_eq!(query.page, Some(1));
-        assert_eq!(query.page_size, Some(20));
+        assert_eq!(query.pagination.page, Some(1));
+        assert_eq!(query.pagination.per_page, Some(20));
         assert_eq!(query.active_only, None);
     }
 

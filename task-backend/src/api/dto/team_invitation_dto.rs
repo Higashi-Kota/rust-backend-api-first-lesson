@@ -1,5 +1,6 @@
 // task-backend/src/api/dto/team_invitation_dto.rs
 
+use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::domain::team_invitation_model::{Model as TeamInvitationModel, TeamInvitationStatus};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -65,8 +66,8 @@ pub struct TeamInvitationStatusCounts {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TeamInvitationQuery {
     pub status: Option<TeamInvitationStatus>,
-    pub page: Option<u64>,
-    pub page_size: Option<u64>,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
@@ -157,19 +158,11 @@ impl Default for TeamInvitationQuery {
     fn default() -> Self {
         Self {
             status: None,
-            page: Some(1),
-            page_size: Some(20),
+            pagination: PaginationQuery {
+                page: Some(1),
+                per_page: Some(20),
+            },
         }
-    }
-}
-
-impl TeamInvitationQuery {
-    pub fn get_page(&self) -> u64 {
-        self.page.unwrap_or(1).max(1)
-    }
-
-    pub fn get_page_size(&self) -> u64 {
-        self.page_size.unwrap_or(20).clamp(1, 100)
     }
 }
 
@@ -197,32 +190,7 @@ pub struct CheckInvitationResponse {
 }
 
 /// 招待ページング取得レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct InvitationPaginationResponse {
-    pub invitations: Vec<TeamInvitationResponse>,
-    pub total_count: u64,
-    pub page: u64,
-    pub page_size: u64,
-    pub total_pages: u64,
-}
-
-impl InvitationPaginationResponse {
-    pub fn new(
-        invitations: Vec<TeamInvitationResponse>,
-        total_count: u64,
-        page: u64,
-        page_size: u64,
-    ) -> Self {
-        let total_pages = total_count.div_ceil(page_size);
-        Self {
-            invitations,
-            total_count,
-            page,
-            page_size,
-            total_pages,
-        }
-    }
-}
+pub type InvitationPaginationResponse = PaginatedResponse<TeamInvitationResponse>;
 
 /// ユーザー招待統計レスポンス
 #[derive(Debug, Serialize, Deserialize)]
@@ -301,8 +269,9 @@ mod tests {
     #[test]
     fn test_team_invitation_query_defaults() {
         let query = TeamInvitationQuery::default();
-        assert_eq!(query.get_page(), 1);
-        assert_eq!(query.get_page_size(), 20);
+        let (page, per_page) = query.pagination.get_pagination();
+        assert_eq!(page, 1);
+        assert_eq!(per_page, 20);
         assert!(query.status.is_none());
     }
 
@@ -310,19 +279,25 @@ mod tests {
     fn test_team_invitation_query_boundaries() {
         let query = TeamInvitationQuery {
             status: None,
-            page: Some(0),        // Should be clamped to 1
-            page_size: Some(200), // Should be clamped to 100
+            pagination: PaginationQuery {
+                page: Some(0),       // Should be clamped to 1
+                per_page: Some(200), // Should be clamped to 100
+            },
         };
-        assert_eq!(query.get_page(), 1);
-        assert_eq!(query.get_page_size(), 100);
+        let (page, per_page) = query.pagination.get_pagination();
+        assert_eq!(page, 1);
+        assert_eq!(per_page, 100);
 
         let query2 = TeamInvitationQuery {
             status: None,
-            page: Some(5),
-            page_size: Some(0), // Should be clamped to 1
+            pagination: PaginationQuery {
+                page: Some(5),
+                per_page: Some(0), // Should be clamped to 1
+            },
         };
-        assert_eq!(query2.get_page(), 5);
-        assert_eq!(query2.get_page_size(), 1);
+        let (page2, per_page2) = query2.pagination.get_pagination();
+        assert_eq!(page2, 5);
+        assert_eq!(per_page2, 1);
     }
 
     #[test]
@@ -466,13 +441,13 @@ mod tests {
             },
         ];
 
-        let response = InvitationPaginationResponse::new(invitations.clone(), 2, 1, 10);
+        let response = InvitationPaginationResponse::new(invitations.clone(), 1, 10, 2);
 
-        assert_eq!(response.invitations.len(), 2);
-        assert_eq!(response.total_count, 2);
-        assert_eq!(response.page, 1);
-        assert_eq!(response.page_size, 10);
-        assert_eq!(response.total_pages, 1);
+        assert_eq!(response.items.len(), 2);
+        assert_eq!(response.pagination.total_count, 2);
+        assert_eq!(response.pagination.page, 1);
+        assert_eq!(response.pagination.per_page, 10);
+        assert_eq!(response.pagination.total_pages, 1);
     }
 
     #[test]

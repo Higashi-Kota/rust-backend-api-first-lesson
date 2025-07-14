@@ -1,11 +1,11 @@
 // src/service/task_service.rs
 
+use crate::api::dto::common::PaginationMeta;
 use crate::api::dto::task_dto::{
     BatchCreateResponseDto, BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto,
     BatchUpdateResponseDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto, CreateTaskDto,
     PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse, UpdateTaskDto,
 };
-use crate::api::dto::PaginationMeta;
 use crate::db::DbPool;
 use crate::domain::permission::{Permission, PermissionResult, PermissionScope, Privilege};
 use crate::domain::subscription_tier::SubscriptionTier;

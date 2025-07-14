@@ -400,14 +400,13 @@ pub async fn get_invitations_with_pagination(
 ) -> AppResult<Json<ApiResponse<InvitationPaginationResponse>>> {
     let service = &app_state.team_invitation_service;
 
-    let page = query.get_page();
-    let page_size = query.get_page_size();
+    let (page, page_size) = query.pagination.get_pagination();
 
     let (invitations, total_count) = service
         .get_invitations_with_pagination(
             team_id,
-            page,
-            page_size,
+            page as u64,
+            page_size as u64,
             query.status.clone(),
             user.user_id(),
         )
@@ -418,7 +417,8 @@ pub async fn get_invitations_with_pagination(
         .map(TeamInvitationResponse::from)
         .collect();
 
-    let response = InvitationPaginationResponse::new(responses, total_count, page, page_size);
+    let response =
+        InvitationPaginationResponse::new(responses, page, page_size, total_count as i64);
 
     Ok(Json(ApiResponse::success(
         "Invitations retrieved successfully",

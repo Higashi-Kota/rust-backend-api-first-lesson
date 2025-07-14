@@ -1,6 +1,9 @@
 [build]
-# 並列ジョブ数の最適化（CPU数に応じて調整）
+# CPU コア数に合わせて自動で並列ジョブ数を設定する場合は 0 に
+# jobs = 0
 jobs = 8
+# rustc のラッパーとして sccache を指定
+rustc-wrapper = "sccache"
 
 [registries.crates-io]
 # クレートのダウンロード並列数
@@ -11,3 +14,7 @@ protocol = "sparse"
 inherits = "dev"
 debug = 0
 incremental = false
+
+[env]
+# 環境変数展開を使ってホーム下のキャッシュディレクトリを指定
+SCCACHE_DIR = "${HOME}/.cache/sccache"

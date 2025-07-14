@@ -1,7 +1,7 @@
 // task-backend/src/api/handlers/subscription_handler.rs
 
+use crate::api::dto::common::{ApiResponse, OperationResult, PaginationQuery};
 use crate::api::dto::subscription_dto::*;
-use crate::api::dto::{common::PaginationQuery, ApiResponse, OperationResult};
 use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
@@ -518,8 +518,9 @@ pub async fn get_admin_subscription_history_handler(
         AppError::ValidationErrors(errors)
     })?;
 
-    let page = query.page.unwrap_or(1);
-    let page_size = query.page_size.unwrap_or(50);
+    let (page, per_page) = query.pagination.get_pagination();
+    let page = page as u64;
+    let page_size = per_page as u64;
 
     // 日付範囲の設定（デフォルトは過去30日）
     let end_date = query.end_date.unwrap_or_else(Utc::now);

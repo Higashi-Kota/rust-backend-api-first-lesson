@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::api::dto::{ApiResponse, OperationResult, PaginationMeta};
+use crate::api::dto::common::{ApiResponse, OperationResult, PaginationMeta, PaginationQuery};
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::user_model::SafeUser;
@@ -159,8 +159,8 @@ pub struct SubscriptionHistoryQuery {
     pub end_date: Option<DateTime<Utc>>,
     #[serde(rename = "type")]
     pub change_type: Option<SubscriptionChangeType>,
-    pub page: Option<u64>,
-    pub page_size: Option<u64>,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
 }
 
 /// サブスクリプション変更タイプ

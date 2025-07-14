@@ -7,4 +7,5 @@ pub mod error;
 pub mod middleware;
 pub mod repository;
 pub mod service;
+pub mod shared;
 pub mod utils;

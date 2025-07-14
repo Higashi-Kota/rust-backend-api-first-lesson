@@ -602,10 +602,12 @@ pub async fn advanced_search_users_handler(
 
     let query_with_defaults = query.with_defaults();
 
+    let (page, per_page) = query_with_defaults.pagination.get_pagination();
+
     info!(
         admin_id = %admin_user.user_id(),
-        page = ?query_with_defaults.page,
-        per_page = ?query_with_defaults.per_page,
+        page = page,
+        per_page = per_page,
         query = ?query_with_defaults.q,
         "Advanced user search request"
     );
@@ -613,14 +615,8 @@ pub async fn advanced_search_users_handler(
     // 詳細検索機能付きでユーザー一覧を取得
     let (users_with_roles, total_count) = app_state
         .user_service
-        .list_users_with_roles_paginated(
-            query_with_defaults.page.unwrap_or(1),
-            query_with_defaults.per_page.unwrap_or(20),
-        )
+        .list_users_with_roles_paginated(page, per_page)
         .await?;
-
-    let page = query_with_defaults.page.unwrap_or(1);
-    let per_page = query_with_defaults.per_page.unwrap_or(20);
 
     // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
     let mut user_summaries: Vec<UserSummary> = Vec::new();
@@ -707,8 +703,7 @@ pub async fn get_users_by_role_handler(
     }
 
     let query_with_defaults = query.with_defaults();
-    let page = query_with_defaults.page.unwrap_or(1);
-    let per_page = query_with_defaults.per_page.unwrap_or(20);
+    let (page, per_page) = query_with_defaults.pagination.get_pagination();
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -906,11 +901,12 @@ pub async fn list_users_handler(
     })?;
 
     let query_with_defaults = query.with_defaults();
+    let (page, per_page) = query_with_defaults.pagination.get_pagination();
 
     info!(
         admin_id = %admin_user.user_id(),
-        page = ?query_with_defaults.page,
-        per_page = ?query_with_defaults.per_page,
+        page = page,
+        per_page = per_page,
         query = ?query_with_defaults.q,
         "Admin user search request"
     );
@@ -927,23 +923,17 @@ pub async fn list_users_handler(
                 query_with_defaults.q,
                 query_with_defaults.is_active,
                 query_with_defaults.email_verified,
-                query_with_defaults.page.unwrap_or(1),
-                query_with_defaults.per_page.unwrap_or(20),
+                page,
+                per_page,
             )
             .await?
     } else {
         // 通常の一覧取得
         app_state
             .user_service
-            .list_users_with_roles_paginated(
-                query_with_defaults.page.unwrap_or(1),
-                query_with_defaults.per_page.unwrap_or(20),
-            )
+            .list_users_with_roles_paginated(page, per_page)
             .await?
     };
-
-    let page = query_with_defaults.page.unwrap_or(1);
-    let per_page = query_with_defaults.per_page.unwrap_or(20);
 
     // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
     let mut user_summaries: Vec<UserSummary> = Vec::new();
