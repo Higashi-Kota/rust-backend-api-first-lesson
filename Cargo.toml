@@ -21,7 +21,6 @@ categories = ["web-programming", "database"]
 axum = { version = "0.8", features = ["macros", "json", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower = "0.5"
-hyper = "1.2"
 
 # Database and ORM
 sea-orm = { version = "1.1.12", features = [
@@ -77,9 +76,6 @@ lettre = { version = "0.11", default-features = false, features = [
   "smtp-transport",
   "builder",
 ] }
-
-# Additional security and utilities
-base64 = "0.22"
 hex = "0.4"
 hmac = "0.12"
 sha2 = "0.10"
@@ -107,7 +103,12 @@ image = { version = "0.25", features = ["webp", "jpeg", "png", "gif"] }
 webp = "0.3"
 
 # Payment processing
-async-stripe = { version = "0.39", features = ["runtime-tokio-hyper", "webhook-events", "checkout", "billing"] }
+async-stripe = { version = "0.39", features = [
+  "runtime-tokio-hyper",
+  "webhook-events",
+  "checkout",
+  "billing",
+] }
 
 # Workspace-wide lints and settings
 [workspace.lints.rust]

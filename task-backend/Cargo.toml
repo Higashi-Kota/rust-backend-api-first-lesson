@@ -33,7 +33,6 @@ axum = { workspace = true }
 tokio = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
-hyper = { workspace = true }
 
 # Database and ORM - using workspace dependencies
 sea-orm = { workspace = true }
@@ -67,9 +66,6 @@ validator = { workspace = true }
 # Email sending - using workspace dependencies
 lettre = { workspace = true }
 reqwest = { workspace = true }
-
-# Additional security and utilities - using workspace dependencies
-base64 = { workspace = true }
 hex = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
