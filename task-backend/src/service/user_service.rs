@@ -49,7 +49,7 @@ impl UserService {
 
         if !user.is_active {
             warn!(user_id = %user_id, "Profile access attempt for inactive account");
-            return Err(AppError::ValidationError("Account is inactive".to_string()));
+            return Err(AppError::BadRequest("Account is inactive".to_string()));
         }
 
         Ok(user.into())
@@ -59,7 +59,7 @@ impl UserService {
     pub async fn update_username(&self, user_id: Uuid, new_username: &str) -> AppResult<SafeUser> {
         // ユーザー名の重複チェック
         if self.user_repo.is_username_taken(new_username).await? {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Username is already taken".to_string(),
             ));
         }
@@ -84,7 +84,7 @@ impl UserService {
     pub async fn update_email(&self, user_id: Uuid, new_email: &str) -> AppResult<SafeUser> {
         // メールアドレスの重複チェック
         if self.user_repo.is_email_taken(new_email).await? {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Email address is already registered".to_string(),
             ));
         }
@@ -420,7 +420,7 @@ impl UserService {
             Ok(verification_result) => {
                 // ユーザーIDが一致するか確認
                 if verification_result.user_id != user_id {
-                    return Err(AppError::ValidationError(
+                    return Err(AppError::BadRequest(
                         "Token does not match user".to_string(),
                     ));
                 }
@@ -436,15 +436,15 @@ impl UserService {
                 Ok(user.into())
             }
             Err(TokenValidationError::NotFound) => {
-                Err(AppError::ValidationError("Invalid token".to_string()))
+                Err(AppError::BadRequest("Invalid token".to_string()))
             }
             Err(TokenValidationError::Expired) => {
-                Err(AppError::ValidationError("Token has expired".to_string()))
+                Err(AppError::BadRequest("Token has expired".to_string()))
             }
-            Err(TokenValidationError::AlreadyUsed) => Err(AppError::ValidationError(
+            Err(TokenValidationError::AlreadyUsed) => Err(AppError::BadRequest(
                 "Token has already been used".to_string(),
             )),
-            Err(TokenValidationError::ValidationFailed(msg)) => Err(AppError::ValidationError(msg)),
+            Err(TokenValidationError::ValidationFailed(msg)) => Err(AppError::BadRequest(msg)),
         }
     }
 
@@ -459,7 +459,7 @@ impl UserService {
 
         // メールアドレスの一致確認
         if user.email != email {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Email address does not match the user's current email".to_string(),
             ));
         }

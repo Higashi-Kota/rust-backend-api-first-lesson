@@ -6,9 +6,8 @@ use axum::{
 };
 use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use thiserror::Error;
-use validator::ValidationErrors;
+use validator::{ValidationError, ValidationErrors};
 
 use crate::types::ApiResponse;
 
@@ -20,17 +19,14 @@ pub enum AppError {
     #[error("Item not found: {0}")]
     NotFound(String),
 
-    #[error("Validation error: {0}")]
-    ValidationError(String),
-
-    #[error("Multiple validation errors")]
-    ValidationErrors(Vec<String>),
-
     #[error("Failed to parse UUID: {0}")]
     UuidError(#[from] uuid::Error),
 
     #[error("Validation failed")]
     ValidationFailure(#[from] ValidationErrors),
+
+    #[error("Validation error: {0}")]
+    Validation(#[from] ValidationError),
 
     #[error("Bad request: {0}")]
     BadRequest(String),
@@ -63,10 +59,9 @@ impl IntoResponse for AppError {
                 }
             }
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
-            AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            AppError::ValidationErrors(_) => StatusCode::BAD_REQUEST,
             AppError::UuidError(_) => StatusCode::BAD_REQUEST,
             AppError::ValidationFailure(_) => StatusCode::BAD_REQUEST,
+            AppError::Validation(_) => StatusCode::BAD_REQUEST,
             AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
             AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             AppError::Forbidden(_) => StatusCode::FORBIDDEN,
@@ -89,21 +84,6 @@ impl IntoResponse for AppError {
 // Result 型のエイリアス
 pub type AppResult<T> = Result<T, AppError>;
 
-/// 統一的なエラーレスポンス構造
-#[derive(Debug, Clone, Serialize)]
-pub struct ErrorResponse {
-    pub success: bool,
-    pub error: String,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<serde_json::Value>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub validation_errors: Option<HashMap<String, Vec<String>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub errors: Option<Vec<serde_json::Value>>,
-    pub error_type: String,
-}
-
 /// エラー詳細情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorDetail {
@@ -113,9 +93,9 @@ pub struct ErrorDetail {
     pub field: Option<String>,
 }
 
-impl From<AppError> for ErrorDetail {
-    fn from(error: AppError) -> Self {
-        match &error {
+impl AppError {
+    fn to_error_detail(&self) -> ErrorDetail {
+        match self {
             AppError::DbErr(db_err) => {
                 let message = match db_err {
                     sea_orm::DbErr::RecordNotFound(_) => "The requested resource was not found",
@@ -134,30 +114,28 @@ impl From<AppError> for ErrorDetail {
                 message: msg.clone(),
                 field: None,
             },
-            AppError::ValidationError(msg) => ErrorDetail {
-                code: "VALIDATION_ERROR".to_string(),
-                message: msg.clone(),
-                field: None,
-            },
-            AppError::ValidationErrors(errors) => ErrorDetail {
-                code: "VALIDATION_ERRORS".to_string(),
-                message: format!("Multiple validation errors: {}", errors.join(", ")),
-                field: None,
-            },
             AppError::UuidError(err) => ErrorDetail {
                 code: "UUID_ERROR".to_string(),
                 message: format!("Invalid UUID: {}", err),
                 field: None,
             },
             AppError::ValidationFailure(errors) => {
-                let fields: Vec<String> = errors
+                let messages: Vec<String> = errors
                     .field_errors()
-                    .keys()
-                    .map(|k| (*k).to_string())
+                    .into_iter()
+                    .flat_map(|(field, errors)| {
+                        errors.iter().map(move |error| {
+                            format!(
+                                "{}: {}",
+                                field,
+                                error.message.as_ref().unwrap_or(&"Invalid value".into())
+                            )
+                        })
+                    })
                     .collect();
                 ErrorDetail {
-                    code: "VALIDATION_FAILURE".to_string(),
-                    message: format!("Validation failed for fields: {}", fields.join(", ")),
+                    code: "VALIDATION_ERROR".to_string(),
+                    message: messages.join(", "),
                     field: None,
                 }
             }
@@ -181,16 +159,93 @@ impl From<AppError> for ErrorDetail {
                 message: msg.clone(),
                 field: None,
             },
-            AppError::InternalServerError(_) => ErrorDetail {
-                code: "INTERNAL_SERVER_ERROR".to_string(),
-                message: "An internal server error occurred".to_string(),
-                field: None,
-            },
+            AppError::InternalServerError(_) => ErrorDetail::internal(),
             AppError::ExternalServiceError(msg) => ErrorDetail {
                 code: "EXTERNAL_SERVICE_ERROR".to_string(),
                 message: msg.clone(),
                 field: None,
             },
+            AppError::Validation(err) => ErrorDetail {
+                code: "VALIDATION_ERROR".to_string(),
+                message: err.to_string(),
+                field: None,
+            },
         }
+    }
+}
+
+impl ErrorDetail {
+    pub fn internal() -> Self {
+        ErrorDetail {
+            code: "INTERNAL_SERVER_ERROR".to_string(),
+            message: "An internal server error occurred".to_string(),
+            field: None,
+        }
+    }
+}
+
+impl From<AppError> for ErrorDetail {
+    fn from(error: AppError) -> Self {
+        error.to_error_detail()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use validator::Validate;
+
+    #[derive(Debug, Deserialize, Validate)]
+    struct TestRequest {
+        #[validate(length(min = 1, max = 100))]
+        name: String,
+        #[validate(range(min = 1, max = 5))]
+        priority: i32,
+    }
+
+    #[test]
+    fn test_error_to_detail_conversion() {
+        // Test existing error variants
+        let not_found_err = AppError::NotFound("User not found".to_string());
+        let detail = not_found_err.to_error_detail();
+        assert_eq!(detail.code, "NOT_FOUND");
+        assert_eq!(detail.message, "User not found");
+
+        let unauthorized_err = AppError::Unauthorized("Invalid token".to_string());
+        let detail = unauthorized_err.to_error_detail();
+        assert_eq!(detail.code, "UNAUTHORIZED");
+        assert_eq!(detail.message, "Invalid token");
+
+        let forbidden_err = AppError::Forbidden("Access denied".to_string());
+        let detail = forbidden_err.to_error_detail();
+        assert_eq!(detail.code, "FORBIDDEN");
+        assert_eq!(detail.message, "Access denied");
+
+        let internal_err = AppError::InternalServerError("System failure".to_string());
+        let detail = internal_err.to_error_detail();
+        assert_eq!(detail.code, "INTERNAL_SERVER_ERROR");
+        assert_eq!(detail.message, "An internal server error occurred");
+
+        // Test new unified variants
+        let validation_err = AppError::Validation(ValidationError::new("Invalid field"));
+        let detail = validation_err.to_error_detail();
+        assert_eq!(detail.code, "VALIDATION_ERROR");
+        // ValidationError includes additional formatting
+        assert!(detail.message.contains("Invalid field"));
+    }
+
+    #[test]
+    fn test_validation_with_validator_crate() {
+        let test_data = TestRequest {
+            name: "".to_string(), // Invalid: too short
+            priority: 10,         // Invalid: out of range
+        };
+
+        let result = test_data.validate();
+        assert!(result.is_err());
+
+        let errors = result.unwrap_err();
+        assert!(errors.field_errors().contains_key("name"));
+        assert!(errors.field_errors().contains_key("priority"));
     }
 }

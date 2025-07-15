@@ -85,7 +85,7 @@ impl AuthService {
         // パスワード強度チェック
         self.password_manager
             .validate_password_strength(&signup_data.password)
-            .map_err(|e| AppError::ValidationError(format!("password: {}", e)))?;
+            .map_err(|e| AppError::BadRequest(format!("password: {}", e)))?;
 
         // パスワードハッシュ化
         let password_hash = self
@@ -210,7 +210,7 @@ impl AuthService {
         // バリデーション
         signin_data
             .validate()
-            .map_err(|e| AppError::ValidationError(format!("Validation failed: {}", e)))?;
+            .map_err(|e| AppError::BadRequest(format!("Validation failed: {}", e)))?;
 
         // ユーザー検索（メールアドレスまたはユーザー名）
         let user = match self
@@ -653,12 +653,12 @@ impl AuthService {
         // バリデーション
         reset_data
             .validate()
-            .map_err(|e| AppError::ValidationError(format!("Validation failed: {}", e)))?;
+            .map_err(|e| AppError::BadRequest(format!("Validation failed: {}", e)))?;
 
         // パスワード強度チェック
         self.password_manager
             .validate_password_strength(&reset_data.new_password)
-            .map_err(|e| AppError::ValidationError(e.to_string()))?;
+            .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
         // パスワードリセットトークンの検証と実行（user_idを取得）
         let reset_result = self
@@ -670,7 +670,7 @@ impl AuthService {
             Ok(user_id) => user_id,
             Err(error_msg) => {
                 warn!(error = %error_msg, "Password reset with invalid token");
-                return Err(AppError::ValidationError(
+                return Err(AppError::BadRequest(
                     "Invalid or expired reset token".to_string(),
                 ));
             }
@@ -689,7 +689,7 @@ impl AuthService {
             .user_repo
             .find_by_id(user_id)
             .await?
-            .ok_or_else(|| AppError::ValidationError("User not found".to_string()))?;
+            .ok_or_else(|| AppError::BadRequest("User not found".to_string()))?;
 
         // パスワードを更新
         self.user_repo
@@ -775,7 +775,7 @@ impl AuthService {
         // バリデーション
         change_data
             .validate()
-            .map_err(|e| AppError::ValidationError(format!("Validation failed: {}", e)))?;
+            .map_err(|e| AppError::BadRequest(format!("Validation failed: {}", e)))?;
 
         // ユーザー取得
         let user = self
@@ -802,11 +802,11 @@ impl AuthService {
         // 新しいパスワードの強度チェック
         self.password_manager
             .validate_password_strength(&change_data.new_password)
-            .map_err(|e| AppError::ValidationError(e.to_string()))?;
+            .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
         // 現在のパスワードと同じでないかチェック
         if change_data.current_password == change_data.new_password {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "New password must be different from current password".to_string(),
             ));
         }
@@ -1067,7 +1067,7 @@ impl AuthService {
 
         if valid_token.is_none() {
             warn!("Email verification attempt with invalid token");
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Invalid or expired verification token".to_string(),
             ));
         }
@@ -1084,25 +1084,25 @@ impl AuthService {
             Ok(result) => result,
             Err(EmailTokenValidationError::NotFound) => {
                 warn!("Email verification with invalid token");
-                return Err(AppError::ValidationError(
+                return Err(AppError::BadRequest(
                     "Invalid or expired verification token".to_string(),
                 ));
             }
             Err(EmailTokenValidationError::Expired) => {
                 warn!("Email verification with expired token");
-                return Err(AppError::ValidationError(
+                return Err(AppError::BadRequest(
                     "Verification token has expired".to_string(),
                 ));
             }
             Err(EmailTokenValidationError::AlreadyUsed) => {
                 warn!("Email verification with already used token");
-                return Err(AppError::ValidationError(
+                return Err(AppError::BadRequest(
                     "Verification token has already been used".to_string(),
                 ));
             }
             Err(e) => {
                 error!(error = %e, "Email verification token validation failed");
-                return Err(AppError::ValidationError(
+                return Err(AppError::BadRequest(
                     "Invalid verification token".to_string(),
                 ));
             }
@@ -1170,7 +1170,7 @@ impl AuthService {
         // アカウントがアクティブかチェック
         if !user.is_active {
             warn!(user_id = %user.id, "Verification email resend for inactive account");
-            return Err(AppError::ValidationError("Account is inactive".to_string()));
+            return Err(AppError::BadRequest("Account is inactive".to_string()));
         }
 
         // 認証メールを再送

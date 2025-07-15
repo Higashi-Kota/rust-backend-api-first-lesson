@@ -4,7 +4,7 @@ use crate::api::dto::analytics_dto::*;
 use crate::api::dto::common::OperationResult;
 use crate::api::AppState;
 use crate::domain::{daily_activity_summary_model, subscription_tier::SubscriptionTier};
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
@@ -12,6 +12,7 @@ use crate::repository::{
     subscription_history_repository::SubscriptionHistoryRepository,
 };
 use crate::types::ApiResponse;
+use crate::utils::error_helper::convert_validation_errors;
 use axum::{
     extract::{Json, Path, Query, State},
     routing::{get, post},
@@ -170,26 +171,9 @@ pub async fn get_system_stats_handler(
     }
 
     // バリデーション
-    query.validate().map_err(|validation_errors| {
-        warn!(
-            "System stats query validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    query
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "system_stats_query"))?;
 
     let days = query.days.unwrap_or(30);
     let include_trends = query.include_trends.unwrap_or(false);
@@ -429,26 +413,9 @@ pub async fn get_user_activity_handler(
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<ApiResponse<UserActivityResponse>> {
     // バリデーション
-    query.validate().map_err(|validation_errors| {
-        warn!(
-            "User activity query validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    query
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "user_activity_query"))?;
 
     let days = query.days.unwrap_or(30);
     let period_end = Utc::now();
@@ -558,26 +525,9 @@ pub async fn get_user_activity_admin_handler(
     }
 
     // バリデーション
-    query.validate().map_err(|validation_errors| {
-        warn!(
-            "Admin user activity query validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    query
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "admin_user_activity_query"))?;
 
     let days = query.days.unwrap_or(30);
     let period_end = Utc::now();
@@ -665,23 +615,9 @@ pub async fn get_task_stats_handler(
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<ApiResponse<TaskStatsDetailResponse>> {
     // バリデーション
-    query.validate().map_err(|validation_errors| {
-        warn!("Task stats query validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    query
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "task_stats_query"))?;
 
     let days = query.days.unwrap_or(30);
     let detailed = query.detailed.unwrap_or(false);
@@ -1052,23 +988,9 @@ pub async fn advanced_export_handler(
     Json(payload): Json<AdvancedExportRequest>,
 ) -> AppResult<ApiResponse<AdvancedExportResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Advanced export validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "advanced_export"))?;
 
     // エクスポート権限チェック（実装に応じて調整）
     let needs_admin_features = match payload.export_type {

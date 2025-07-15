@@ -1,6 +1,6 @@
 // tests/unit/utils/email_tests.rs
 
-use task_backend::utils::email::{EmailConfig, EmailMessage, EmailService};
+use task_backend::utils::email::{EmailConfig, EmailMessage, EmailProvider, EmailService};
 
 // メール関連のユニットテスト（既存のsrc/utils/email.rsのテストを拡張）
 
@@ -8,7 +8,7 @@ use task_backend::utils::email::{EmailConfig, EmailMessage, EmailService};
 async fn test_email_format_validation_with_service() {
     // Arrange: メールフォーマットバリデーションをテスト
     let config = EmailConfig {
-        development_mode: true,
+        provider: EmailProvider::Development,
         ..Default::default()
     };
     let email_service = EmailService::new(config).unwrap();
@@ -73,7 +73,7 @@ async fn test_email_format_validation_with_service() {
 async fn test_email_template_generation() {
     // Arrange: メールテンプレート生成をテスト
     let config = EmailConfig {
-        development_mode: true,
+        provider: EmailProvider::Development,
         from_email: "test@example.com".to_string(),
         from_name: "Test System".to_string(),
         ..Default::default()

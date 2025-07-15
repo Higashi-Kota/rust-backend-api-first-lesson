@@ -1,6 +1,231 @@
 ## 実現トピック
 
-TBD
+## 2. エラーハンドリングパターンの統一 ✅✅✅
+
+### 実装完了内容
+
+#### 1. 統一エラー型の実装 ✅
+- `AppError`型から旧バリデーションエラー型を削除
+  - `ValidationError(String)` → 削除完了
+  - `ValidationErrors(Vec<String>)` → 削除完了
+- 新しいバリデーションエラー型を統一使用
+  - `Validation(#[from] ValidationError)` - 単一フィールドエラー
+  - `ValidationFailure(#[from] ValidationErrors)` - 複数フィールドエラー
+  - `BadRequest(String)` - 汎用バリデーションエラー
+
+#### 2. エラーヘルパー関数の全面活用 ✅
+- **全ハンドラーでerror_helperを使用**
+  - `convert_validation_errors()` - 全バリデーションエラーで使用
+  - コンテキスト名を含むログ出力を実現
+- **統一されたエラー処理パターン**
+  ```rust
+  payload.validate()
+      .map_err(|e| convert_validation_errors(e, "context_name"))?;
+  ```
+
+#### 3. エラーレスポンス構造の簡素化 ✅
+- 未使用の`ErrorResponse`構造体を削除
+- `IntoResponse`実装を整理
+- `to_error_detail()`メソッドを適切に実装
+
+#### 4. 全ハンドラー・サービスの移行完了 ✅
+- **103箇所以上のエラー処理を統一**
+  - api/handlers/: 47箇所
+  - repository/: 2箇所  
+  - service/: 49箇所
+  - utils/: 6箇所
+
+### 品質確認結果
+- **cargo clippy**: 警告ゼロ ✅
+- **cargo test**: 全テストパス ✅
+- **cargo fmt**: フォーマット済み ✅
+
+### 今後のメンテナンス方針
+1. 新規エラー処理はerror_helperを必ず使用
+2. バリデーションエラーはconvert_validation_errors経由で変換
+3. コンテキスト情報を含むログ出力を維持
+
+---
+
+## 📢 次回セッションへの引継ぎ事項
+
+### 作業依頼内容：エラーハンドリングの更なる改善
+
+#### 1. error_helper関数の全サービスでの活用
+
+**現状の問題点**:
+- 多くのサービス層で`AppError::InternalServerError(format!())`を直接使用
+- error_helperの`internal_server_error()`, `not_found_error()`, `conflict_error()`関数が活用されていない
+
+**対応箇所の例**:
+```rust
+// 以下のファイルに多数存在
+task-backend/src/service/attachment_service.rs: 6箇所
+task-backend/src/service/task_service.rs: 12箇所  
+task-backend/src/service/auth_service.rs: 9箇所
+task-backend/src/service/payment_service.rs: 3箇所
+task-backend/src/service/user_service.rs: 2箇所
+task-backend/src/service/organization_hierarchy_service.rs: 3箇所
+task-backend/src/service/storage_service.rs: 11箇所
+```
+
+**修正方法**:
+```rust
+// 現状
+.map_err(|e| AppError::InternalServerError(format!("Failed to count tasks: {}", e)))?
+
+// 改善後
+use crate::utils::error_helper::internal_server_error;
+
+.map_err(|e| internal_server_error(
+    e,
+    "task_service::get_task_stats",  // コンテキスト
+    "Failed to count tasks"          // ユーザー向けメッセージ
+))?
+```
+
+#### 2. エラーコンテキストの命名規則統一
+
+**現状の問題点**:
+- コンテキスト名が一貫性なく、エラー発生箇所の特定が困難
+
+**現在のコンテキスト名の例**:
+```rust
+convert_validation_errors(e, "team")  // モジュール情報なし
+convert_validation_errors(e, "signup")  // 関数名のみ
+convert_validation_errors(e, "system_stats_query")  // クエリ名
+```
+
+**統一後の命名規則**:
+```rust
+// 形式: "モジュール名::関数名[:詳細]"
+convert_validation_errors(e, "team_handler::create_team")
+convert_validation_errors(e, "auth_handler::signup") 
+convert_validation_errors(e, "analytics_handler::get_system_stats")
+```
+
+**対応が必要な箇所**:
+- api/handlers/配下の全ハンドラー: 約40箇所以上
+- サービス層でerror_helperを使用する際のコンテキスト名
+
+### 作業手順
+
+1. **Phase 1**: error_helper関数のサービス層での全面活用
+   - 各サービスファイルで`AppError::InternalServerError(format!())`を検索
+   - error_helperの適切な関数に置き換え
+   - コンテキスト名を統一規則に従って設定
+
+2. **Phase 2**: エラーコンテキストの命名規則統一
+   - 全ハンドラーで`convert_validation_errors`のコンテキスト名を更新
+   - "モジュール名::関数名"形式に統一
+
+3. **テスト確認**
+   - `cargo test`で全テストがパスすることを確認
+   - `cargo clippy`で警告がないことを確認
+
+### 期待される成果
+
+1. **エラーログの品質向上**
+   - すべてのエラーが構造化ログとして記録
+   - コンテキスト情報によりデバッグが容易
+
+2. **セキュリティの向上**
+   - 内部エラー詳細がユーザーに漏洩しない
+
+3. **保守性の向上**
+   - エラー処理パターンが完全に統一
+   - 新規開発者も一貫したパターンを学習可能
+
+### 推奨される次のステップ
+
+#### 1. 旧バリデーションエラー型の削除
+```rust
+// AppErrorから以下を削除
+- ValidationError(String),
+- ValidationErrors(Vec<String>),
+```
+
+#### 2. 全ハンドラーでerror_helperを活用
+```rust
+// 例: user_handler.rs
+use crate::utils::error_helper::convert_validation_errors;
+
+// 旧コード
+payload.validate().map_err(|e| {
+    let errors = e.field_errors()
+        .into_iter()
+        .map(|(field, errors)| format!("{}: {}", field, errors.join(", ")))
+        .collect();
+    AppError::ValidationErrors(errors)
+})?;
+
+// 新コード
+payload.validate()
+    .map_err(convert_validation_errors)?;
+```
+
+#### 3. エラーレスポンス構造の簡素化
+```rust
+// IntoResponseの実装をシンプルに
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, message) = match &self {
+            AppError::Validation(e) => (StatusCode::BAD_REQUEST, e.to_string()),
+            AppError::ValidationFailure(e) => (StatusCode::BAD_REQUEST, e.to_string()),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
+            AppError::DbErr(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error".to_string()),
+            AppError::InternalServerError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
+            // 他のエラータイプ
+        };
+        
+        let error_response = json!({
+            "error": message,
+            "status": status.as_u16()
+        });
+        
+        (status, Json(error_response)).into_response()
+    }
+}
+
+// DTOへの自動バリデーション
+#[async_trait]
+impl<T> FromRequest for ValidatedJson<T>
+where
+    T: DeserializeOwned + Validate + Send,
+{
+    type Rejection = AppError;
+    
+    async fn from_request(req: Request, state: &State) -> Result<Self, Self::Rejection> {
+        let Json(value) = Json::<T>::from_request(req, state)
+            .await
+            .map_err(|_| AppError::Validation(ValidationError::new("Invalid JSON")))?;
+        
+        value.validate()?;
+        Ok(ValidatedJson(value))
+    }
+}
+```
+
+#### 4. データベースエラーの統一処理
+```rust
+// 旧コード
+.map_err(|e| AppError::InternalServerError(format!("Failed to create: {}", e)))?;
+
+// 新コード  
+.map_err(|e| {
+    error!("Failed to create organization: {:?}", e);
+    AppError::DbErr(e)
+})?;
+```
+
+#### 5. 移行スケジュール
+1. **Phase 1（即座）**: error_helperの全面活用
+2. **Phase 2（1週間以内）**: 旧バリデーションエラー型の削除
+3. **Phase 3（2週間以内）**: エラーレスポンス構造の統一
+4. **Phase 4（1ヶ月以内）**: 全ハンドラーでの適用完了
+
 
 ## 🧩 実装ガイドライン
 
@@ -14,7 +239,50 @@ TBD
 * **「亜種」API・ドメイン定義の増加は避ける**
   * 新規定義が必要な場合は、**既存の責務・境界に統合**できるか再検討
 
-### 2. **機能追加の原則：実用的で価値の高い機能に集中**
+### 2. **エラーハンドリングのベストプラクティス**
+
+#### エラーコンテキストの命名規則
+
+**形式**: `"モジュール名::関数名[:詳細]"`
+
+```rust
+// ✅ 推奨される命名規則
+convert_validation_errors(e, "user_handler::update_profile")
+convert_validation_errors(e, "auth_handler::signup")
+convert_validation_errors(e, "analytics_handler::get_system_stats")
+
+// ❌ 避けるべき例
+convert_validation_errors(e, "team")  // モジュール情報なし
+convert_validation_errors(e, "validation")  // 汎用的すぎる
+```
+
+#### error_helper関数の活用
+
+**すべてのサービス層でerror_helper関数を使用すること**
+
+```rust
+use crate::utils::error_helper::{internal_server_error, not_found_error, conflict_error};
+
+// ✅ 推奨: error_helper使用
+self.repo.count_tasks()
+    .await
+    .map_err(|e| internal_server_error(
+        e,
+        "task_service::get_stats",  // コンテキスト
+        "Failed to count tasks"      // ユーザー向けメッセージ
+    ))?;
+
+// ❌ 避けるべき: 直接エラー生成
+.map_err(|e| AppError::InternalServerError(format!("Failed to count: {}", e)))?;
+```
+
+#### エラーログの一貫性
+
+- error_helper関数は自動的に構造化ログを出力
+- コンテキスト情報により、エラー発生箇所の特定が容易
+- 本番環境でのデバッグ・監視に有効
+
+### 3. **機能追加の原則：実用的で価値の高い機能に集中**
 
 * **新機能の採用基準**
   * **実用性**: 実際のユーザーニーズに基づいているか

@@ -19,7 +19,7 @@ use validator::ValidationErrors;
 /// * `context` - エラーが発生したコンテキスト（ログ用）
 ///
 /// # Returns
-/// * `AppError::ValidationErrors` - 統一された形式のバリデーションエラー
+/// * `AppError::ValidationFailure` - 統一された形式のバリデーションエラー
 pub fn convert_validation_errors(validation_errors: ValidationErrors, context: &str) -> AppError {
     warn!(
         context = %context,
@@ -27,21 +27,8 @@ pub fn convert_validation_errors(validation_errors: ValidationErrors, context: &
         "Validation failed"
     );
 
-    let errors: Vec<String> = validation_errors
-        .field_errors()
-        .into_iter()
-        .flat_map(|(field, errors)| {
-            errors.iter().map(move |error| {
-                let message = error
-                    .message
-                    .as_ref()
-                    .map_or_else(|| "Invalid value".to_string(), |cow| cow.to_string());
-                format!("{}: {}", field, message)
-            })
-        })
-        .collect();
-
-    AppError::ValidationErrors(errors)
+    // 新しい統一エラーパターンでは ValidationFailure を使用
+    AppError::ValidationFailure(validation_errors)
 }
 
 // =============================================================================
@@ -119,12 +106,13 @@ mod tests {
         let app_error = convert_validation_errors(validation_errors, "test");
 
         match app_error {
-            AppError::ValidationErrors(errors) => {
-                assert!(!errors.is_empty());
-                assert!(errors.iter().any(|e| e.contains("name")));
-                assert!(errors.iter().any(|e| e.contains("email")));
+            AppError::ValidationFailure(errors) => {
+                // Check that validation errors are present
+                assert!(!errors.field_errors().is_empty());
+                assert!(errors.field_errors().contains_key("name"));
+                assert!(errors.field_errors().contains_key("email"));
             }
-            _ => panic!("Expected ValidationErrors"),
+            _ => panic!("Expected ValidationFailure"),
         }
     }
 

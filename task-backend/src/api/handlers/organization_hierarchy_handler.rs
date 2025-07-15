@@ -5,13 +5,13 @@ use crate::{
     middleware::auth::AuthenticatedUser,
     service::organization_hierarchy_service::OrganizationHierarchyService,
     types::ApiResponse,
+    utils::error_helper::convert_validation_errors,
 };
 use axum::{
     extract::{Path, Query, State},
     response::IntoResponse,
     Json,
 };
-use tracing::warn;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -65,23 +65,9 @@ pub async fn create_department(
     Json(payload): Json<CreateDepartmentDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Create department validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "create_department"))?;
 
     // 権限チェック（組織管理者以上）
     user.ensure_can_manage_organization(organization_id)?;
@@ -140,23 +126,9 @@ pub async fn update_department(
     Json(payload): Json<UpdateDepartmentDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Update department validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "update_department"))?;
 
     // 権限チェック（組織管理者またはその部門のマネージャー）
     user.ensure_can_manage_organization_or_department(organization_id, department_id)?;
@@ -217,23 +189,9 @@ pub async fn get_organization_analytics(
     Query(query): Query<OrganizationAnalyticsQueryDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    query.validate().map_err(|validation_errors| {
-        warn!("Analytics query validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    query
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "department_analytics_query"))?;
 
     // 権限チェック（組織メンバー以上）
     user.ensure_can_read_organization(organization_id)?;
@@ -264,23 +222,9 @@ pub async fn set_organization_permission_matrix(
     Json(payload): Json<SetPermissionMatrixDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Permission matrix validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "permission_matrix"))?;
 
     // 権限チェック（組織管理者以上）
     user.ensure_can_manage_organization(organization_id)?;
@@ -373,23 +317,9 @@ pub async fn export_organization_data(
     Query(export_options): Query<ExportOrganizationDataDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    export_options.validate().map_err(|validation_errors| {
-        warn!("Export options validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    export_options
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "export_options"))?;
 
     // 権限チェック（組織管理者以上）
     user.ensure_can_manage_organization(organization_id)?;
@@ -414,26 +344,9 @@ pub async fn add_department_member(
     Json(payload): Json<AddDepartmentMemberDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Add department member validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "add_department_member"))?;
 
     // 権限チェック（組織管理者またはその部門のマネージャー）
     user.ensure_can_manage_organization_or_department(organization_id, department_id)?;
@@ -488,26 +401,9 @@ pub async fn create_analytics_metric(
     Json(payload): Json<CreateAnalyticsMetricDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Create analytics metric validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "create_analytics_metric"))?;
 
     // 権限チェック（組織管理者以上）
     user.ensure_can_manage_organization(organization_id)?;

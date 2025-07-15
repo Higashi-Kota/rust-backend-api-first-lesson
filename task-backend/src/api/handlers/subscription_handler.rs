@@ -7,6 +7,7 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::types::ApiResponse;
+use crate::utils::error_helper::convert_validation_errors;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::request::Parts,
@@ -41,11 +42,10 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let Path(path_str) = Path::<String>::from_request_parts(parts, state)
             .await
-            .map_err(|_| AppError::ValidationErrors(vec!["Invalid path parameter".to_string()]))?;
+            .map_err(|_| AppError::BadRequest("Invalid path parameter".to_string()))?;
 
-        let uuid = Uuid::parse_str(&path_str).map_err(|_| {
-            AppError::ValidationErrors(vec![format!("Invalid UUID format: '{}'", path_str)])
-        })?;
+        let uuid = Uuid::parse_str(&path_str)
+            .map_err(|_| AppError::BadRequest(format!("Invalid UUID format: '{}'", path_str)))?;
 
         Ok(UuidPath(uuid))
     }
@@ -85,26 +85,9 @@ pub async fn upgrade_subscription_handler(
     Json(payload): Json<UpgradeSubscriptionRequest>,
 ) -> AppResult<UpgradeSubscriptionResponse> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Subscription upgrade validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "subscription_upgrade"))?;
 
     // 現在のサブスクリプション階層を取得
     let current_user = app_state
@@ -180,26 +163,9 @@ pub async fn downgrade_subscription_handler(
     Json(payload): Json<DowngradeSubscriptionRequest>,
 ) -> AppResult<DowngradeSubscriptionResponse> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Subscription downgrade validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "subscription_downgrade"))?;
 
     // 現在のサブスクリプション階層を取得
     let current_user = app_state
@@ -212,7 +178,7 @@ pub async fn downgrade_subscription_handler(
 
     // ダウングレード可能かチェック
     if payload.target_tier.level() >= current_tier.level() {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Cannot downgrade to the same or higher tier".to_string(),
         ));
     }
@@ -521,26 +487,9 @@ pub async fn get_admin_subscription_history_handler(
     }
 
     // バリデーション
-    query.validate().map_err(|validation_errors| {
-        warn!(
-            "Admin subscription history query validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    query
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "admin_subscription_history_query"))?;
 
     let (page, per_page) = query.pagination.get_pagination();
     let page = page as u64;
@@ -835,26 +784,9 @@ pub async fn admin_change_subscription_handler(
     }
 
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Admin subscription change validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "admin_subscription_change"))?;
 
     // 対象ユーザーの現在の情報を取得
     let current_user = app_state.user_service.get_user_profile(user_id).await?;

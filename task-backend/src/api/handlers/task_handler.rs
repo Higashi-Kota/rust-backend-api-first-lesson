@@ -35,12 +35,11 @@ where
         // パスパラメータを文字列として最初に抽出
         let Path(path_str) = Path::<String>::from_request_parts(parts, state)
             .await
-            .map_err(|_| AppError::ValidationErrors(vec!["Invalid path parameter".to_string()]))?;
+            .map_err(|_| AppError::BadRequest("Invalid path parameter".to_string()))?;
 
         // UUIDをパースして検証エラー形式で返す
-        let uuid = Uuid::parse_str(&path_str).map_err(|_| {
-            AppError::ValidationErrors(vec![format!("Invalid UUID format: '{}'", path_str)])
-        })?;
+        let uuid = Uuid::parse_str(&path_str)
+            .map_err(|_| AppError::BadRequest(format!("Invalid UUID format: '{}'", path_str)))?;
 
         Ok(UuidPath(uuid))
     }
@@ -86,7 +85,7 @@ pub async fn create_task_handler(
     }
 
     if !validation_errors.is_empty() {
-        return Err(AppError::ValidationErrors(validation_errors));
+        return Err(AppError::BadRequest(validation_errors.join(", ")));
     }
 
     info!(
@@ -233,7 +232,7 @@ pub async fn update_task_handler(
     }
 
     if !validation_errors.is_empty() {
-        return Err(AppError::ValidationErrors(validation_errors));
+        return Err(AppError::BadRequest(validation_errors.join(", ")));
     }
 
     info!(
@@ -292,13 +291,13 @@ pub async fn create_tasks_batch_handler(
 ) -> AppResult<impl IntoResponse> {
     // バリデーション強化
     if payload.tasks.is_empty() {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Batch create requires at least one task".to_string(),
         ));
     }
 
     if payload.tasks.len() > 100 {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Maximum 100 tasks allowed per batch".to_string(),
         ));
     }
@@ -351,7 +350,7 @@ pub async fn create_tasks_batch_handler(
     }
 
     if !validation_errors.is_empty() {
-        return Err(AppError::ValidationErrors(validation_errors));
+        return Err(AppError::BadRequest(validation_errors.join(", ")));
     }
 
     info!(
@@ -381,13 +380,13 @@ pub async fn update_tasks_batch_handler(
 ) -> AppResult<ApiResponse<BatchUpdateResponseDto>> {
     // バリデーション強化
     if payload.tasks.is_empty() {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Batch update requires at least one task".to_string(),
         ));
     }
 
     if payload.tasks.len() > 100 {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Maximum 100 tasks allowed per batch".to_string(),
         ));
     }
@@ -451,7 +450,7 @@ pub async fn update_tasks_batch_handler(
     }
 
     if !validation_errors.is_empty() {
-        return Err(AppError::ValidationErrors(validation_errors));
+        return Err(AppError::BadRequest(validation_errors.join(", ")));
     }
 
     let response_dto = app_state
@@ -468,13 +467,13 @@ pub async fn delete_tasks_batch_handler(
 ) -> AppResult<ApiResponse<BatchDeleteResponseDto>> {
     // バリデーション強化
     if payload.ids.is_empty() {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Batch delete requires at least one task ID".to_string(),
         ));
     }
 
     if payload.ids.len() > 100 {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Maximum 100 tasks allowed per batch delete".to_string(),
         ));
     }
@@ -684,15 +683,15 @@ pub async fn bulk_update_status_handler(
     let task_ids = payload
         .get("task_ids")
         .and_then(|v| v.as_array())
-        .ok_or_else(|| AppError::ValidationError("task_ids array is required".to_string()))?;
+        .ok_or_else(|| AppError::BadRequest("task_ids array is required".to_string()))?;
 
     let new_status = payload
         .get("status")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::ValidationError("status string is required".to_string()))?;
+        .ok_or_else(|| AppError::BadRequest("status string is required".to_string()))?;
 
     if !["pending", "in_progress", "completed"].contains(&new_status) {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "status must be 'pending', 'in_progress', or 'completed'".to_string(),
         ));
     }

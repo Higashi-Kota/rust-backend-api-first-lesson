@@ -5,8 +5,9 @@ use crate::common::{
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};
 use serde_json::json;
-use task_backend::domain::{
-    stripe_payment_history_model::PaymentStatus, subscription_tier::SubscriptionTier,
+use task_backend::{
+    domain::{stripe_payment_history_model::PaymentStatus, subscription_tier::SubscriptionTier},
+    utils::email::EmailProvider,
 };
 use tower::ServiceExt;
 
@@ -173,7 +174,7 @@ async fn test_subscription_guard_middleware() {
         task_backend::repository::user_repository::UserRepository::new(db.connection.clone());
     let email_service = std::sync::Arc::new(
         task_backend::utils::email::EmailService::new(task_backend::utils::email::EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         })
         .unwrap(),

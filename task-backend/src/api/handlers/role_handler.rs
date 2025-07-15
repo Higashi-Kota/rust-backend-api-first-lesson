@@ -43,11 +43,10 @@ where
     ) -> Result<Self, Self::Rejection> {
         let Path(path_str) = Path::<String>::from_request_parts(parts, state)
             .await
-            .map_err(|_| AppError::ValidationErrors(vec!["Invalid path parameter".to_string()]))?;
+            .map_err(|_| AppError::BadRequest("Invalid path parameter".to_string()))?;
 
-        let uuid = Uuid::parse_str(&path_str).map_err(|_| {
-            AppError::ValidationErrors(vec![format!("Invalid UUID format: '{}'", path_str)])
-        })?;
+        let uuid = Uuid::parse_str(&path_str)
+            .map_err(|_| AppError::BadRequest(format!("Invalid UUID format: '{}'", path_str)))?;
 
         Ok(UuidPath(uuid))
     }
@@ -155,7 +154,7 @@ pub async fn create_role_handler(
                     })
                 })
                 .collect();
-            AppError::ValidationErrors(errors)
+            AppError::BadRequest(errors.join(", "))
         })?;
 
     info!(
@@ -197,7 +196,7 @@ pub async fn update_role_handler(
 
     // 更新内容があるかチェック
     if !payload.has_updates() {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "At least one field must be provided for update".to_string(),
         ));
     }
@@ -220,7 +219,7 @@ pub async fn update_role_handler(
                     })
                 })
                 .collect();
-            AppError::ValidationErrors(errors)
+            AppError::BadRequest(errors.join(", "))
         })?;
 
     info!(

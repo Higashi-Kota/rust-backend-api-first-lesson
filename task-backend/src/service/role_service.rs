@@ -166,7 +166,7 @@ impl RoleService {
         // ロール名の形式チェック
         let role_name = create_data.name.to_lowercase();
         if role_name == "admin" || role_name == "member" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Cannot create system roles (admin/member)".to_string(),
             ));
         }
@@ -223,7 +223,7 @@ impl RoleService {
         if existing_role.name == RoleName::Admin || existing_role.name == RoleName::Member {
             if let Some(new_name) = &update_data.name {
                 if new_name.to_lowercase() != existing_role.name.as_str() {
-                    return Err(AppError::ValidationError(
+                    return Err(AppError::BadRequest(
                         "Cannot change system role names".to_string(),
                     ));
                 }
@@ -280,7 +280,7 @@ impl RoleService {
 
         // システムロールの削除を防ぐ
         if existing_role.name == RoleName::Admin || existing_role.name == RoleName::Member {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Cannot delete system roles (admin/member)".to_string(),
             ));
         }
@@ -461,7 +461,7 @@ impl CreateRoleInput {
         }
 
         if !errors.is_empty() {
-            return Err(AppError::ValidationErrors(errors));
+            return Err(AppError::BadRequest(errors.join(", ")));
         }
 
         Ok(())
@@ -515,7 +515,7 @@ impl UpdateRoleInput {
         }
 
         if !errors.is_empty() {
-            return Err(AppError::ValidationErrors(errors));
+            return Err(AppError::BadRequest(errors.join(", ")));
         }
 
         Ok(())

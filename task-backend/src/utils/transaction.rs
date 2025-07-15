@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn test_should_retry() {
         // リトライ不可能なエラー
-        let validation_error = AppError::ValidationError("test".to_string());
+        let validation_error = AppError::BadRequest("test".to_string());
         assert!(!should_retry(&validation_error));
 
         let not_found_error = AppError::NotFound("test".to_string());

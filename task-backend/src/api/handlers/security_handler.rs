@@ -133,7 +133,7 @@ pub async fn cleanup_tokens_handler(
             }
         }
         _ => {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Invalid cleanup type. Use 'refresh_tokens', 'password_reset_tokens', or 'all'"
                     .to_string(),
             ));
@@ -208,7 +208,7 @@ pub async fn revoke_all_tokens_handler(
 
     // リクエストを検証
     if let Err(validation_errors) = payload.validate() {
-        return Err(AppError::ValidationError(format!(
+        return Err(AppError::BadRequest(format!(
             "Invalid revoke request: {:?}",
             validation_errors
         )));
@@ -289,7 +289,7 @@ pub async fn generate_audit_report_handler(
 
     // リクエストを検証
     if let Err(validation_errors) = payload.validate() {
-        return Err(AppError::ValidationError(format!(
+        return Err(AppError::BadRequest(format!(
             "Invalid audit report request: {:?}",
             validation_errors
         )));

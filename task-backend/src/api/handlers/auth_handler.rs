@@ -4,6 +4,7 @@ use crate::api::{AppState, CookieConfig, HasJwtManager, SecurityHeaders};
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::types::ApiResponse;
+use crate::utils::error_helper::convert_validation_errors;
 use axum::{
     extract::{FromRequestParts, Json, State},
     http::{header, request::Parts, HeaderMap, StatusCode},
@@ -85,23 +86,9 @@ pub async fn signup_handler(
     Json(payload): Json<SignupRequest>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Signup validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "signup"))?;
 
     info!(
         email = %payload.email,
@@ -140,23 +127,9 @@ pub async fn signin_handler(
     Json(payload): Json<SigninRequest>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Signin validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "signin"))?;
 
     info!(identifier = %payload.identifier, "User signin attempt");
 
@@ -253,23 +226,9 @@ pub async fn refresh_token_handler(
     Json(payload): Json<RefreshTokenRequest>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Refresh token validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "refresh_token"))?;
 
     let refresh_token = payload.refresh_token;
 
@@ -303,26 +262,9 @@ pub async fn forgot_password_handler(
     Json(payload): Json<PasswordResetRequestRequest>,
 ) -> AppResult<ApiResponse<PasswordResetRequestResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Password reset request validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "password_reset_request"))?;
 
     info!(email = %payload.email, "Password reset requested");
 
@@ -340,23 +282,9 @@ pub async fn reset_password_handler(
     Json(payload): Json<PasswordResetRequest>,
 ) -> AppResult<ApiResponse<PasswordResetResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Password reset validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "password_reset"))?;
 
     info!("Password reset execution attempt");
 
@@ -374,28 +302,14 @@ pub async fn change_password_handler(
     Json(payload): Json<PasswordChangeRequest>,
 ) -> AppResult<ApiResponse<PasswordChangeResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Password change validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "password_change"))?;
 
     // カスタムバリデーション
     payload.validate_password_change().map_err(|e| {
         warn!("Password change custom validation failed: {}", e);
-        AppError::ValidationErrors(vec![e])
+        AppError::BadRequest(e)
     })?;
 
     info!(user_id = %user.claims.user_id, "Password change attempt");
@@ -437,28 +351,14 @@ pub async fn delete_account_handler(
     Json(payload): Json<DeleteAccountRequest>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Account deletion validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "account_deletion"))?;
 
     // カスタムバリデーション
     payload.validate_deletion().map_err(|e| {
         warn!("Account deletion custom validation failed: {}", e);
-        AppError::ValidationErrors(vec![e])
+        AppError::BadRequest(e)
     })?;
 
     warn!(user_id = %user.claims.user_id, "Account deletion attempt");
@@ -501,26 +401,9 @@ pub async fn verify_email_handler(
     Json(payload): Json<EmailVerificationRequest>,
 ) -> AppResult<ApiResponse<EmailVerificationResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Email verification validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "email_verification"))?;
 
     info!("Email verification attempt");
 
@@ -537,26 +420,9 @@ pub async fn resend_verification_email_handler(
     Json(payload): Json<ResendVerificationEmailRequest>,
 ) -> AppResult<ApiResponse<ResendVerificationEmailResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Resend verification email validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "resend_verification"))?;
 
     info!(email = %payload.email, "Resend verification email requested");
 

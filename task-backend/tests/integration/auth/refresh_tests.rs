@@ -120,15 +120,9 @@ async fn test_token_refresh_with_empty_token() {
     assert!(!error["success"].as_bool().unwrap());
     assert!(error["data"].is_null());
     assert!(error["error"].is_object());
-    assert!(
-        (error["error"]["code"] == "VALIDATION_ERROR"
-            || error["error"]["code"] == "VALIDATION_ERRORS")
-    );
-    assert!(error["error"]["message"]
-        .as_str()
-        .unwrap()
-        .to_lowercase()
-        .contains("validation"));
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    // The validation error message will contain the field-specific error
+    assert!(error["error"]["message"].is_string());
 
     // Check validation details if present
     if let Some(details) = error["error"]["details"].as_array() {
