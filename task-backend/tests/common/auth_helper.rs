@@ -62,12 +62,11 @@ pub async fn signup_test_user(
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    let user_id = Uuid::parse_str(response["user"]["id"].as_str().unwrap()).unwrap();
-    let access_token = response["tokens"]["access_token"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let refresh_token = response["tokens"]["refresh_token"]
+    // Handle the new ApiResponse format
+    let data = &response["data"];
+    let user_id = Uuid::parse_str(data["user"]["id"].as_str().unwrap()).unwrap();
+    let access_token = data["tokens"]["access_token"].as_str().unwrap().to_string();
+    let refresh_token = data["tokens"]["refresh_token"]
         .as_str()
         .map(|s| s.to_string());
 
@@ -104,12 +103,11 @@ pub async fn signin_test_user(
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    let user_id = Uuid::parse_str(response["user"]["id"].as_str().unwrap()).unwrap();
-    let access_token = response["tokens"]["access_token"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let refresh_token = response["tokens"]["refresh_token"]
+    // Handle the new ApiResponse format
+    let data = &response["data"];
+    let user_id = Uuid::parse_str(data["user"]["id"].as_str().unwrap()).unwrap();
+    let access_token = data["tokens"]["access_token"].as_str().unwrap().to_string();
+    let refresh_token = data["tokens"]["refresh_token"]
         .as_str()
         .map(|s| s.to_string());
 
@@ -117,7 +115,10 @@ pub async fn signin_test_user(
         id: user_id,
         user_id,
         email: signin_data.identifier.clone(),
-        username: response["user"]["username"].as_str().unwrap().to_string(),
+        username: response["data"]["user"]["username"]
+            .as_str()
+            .unwrap()
+            .to_string(),
         access_token,
         refresh_token,
     })
@@ -187,20 +188,19 @@ pub async fn refresh_token(app: &Router, refresh_token: &str) -> Result<TestUser
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    let user_id = Uuid::parse_str(response["user"]["id"].as_str().unwrap()).unwrap();
-    let access_token = response["tokens"]["access_token"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let new_refresh_token = response["tokens"]["refresh_token"]
+    // Handle the new ApiResponse format
+    let data = &response["data"];
+    let user_id = Uuid::parse_str(data["user"]["id"].as_str().unwrap()).unwrap();
+    let access_token = data["tokens"]["access_token"].as_str().unwrap().to_string();
+    let new_refresh_token = data["tokens"]["refresh_token"]
         .as_str()
         .map(|s| s.to_string());
 
     Ok(TestUser {
         id: user_id,
         user_id,
-        email: response["user"]["email"].as_str().unwrap().to_string(),
-        username: response["user"]["username"].as_str().unwrap().to_string(),
+        email: data["user"]["email"].as_str().unwrap().to_string(),
+        username: data["user"]["username"].as_str().unwrap().to_string(),
         access_token,
         refresh_token: new_refresh_token,
     })

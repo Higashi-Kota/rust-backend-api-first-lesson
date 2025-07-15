@@ -47,7 +47,7 @@ async fn create_comprehensive_user_data(
         // Try to get ID from data field first, then directly from response
         let id_str = response["data"]["id"]
             .as_str()
-            .or_else(|| response["id"].as_str())
+            .or_else(|| response["data"]["id"].as_str())
             .unwrap_or_else(|| panic!("Task creation failed, no id in response: {:?}", response));
         task_ids.push(Uuid::parse_str(id_str).unwrap());
     }
@@ -83,7 +83,7 @@ async fn create_comprehensive_user_data(
     // Try to get ID from data field first, then directly from response
     let id_str = response["data"]["id"]
         .as_str()
-        .or_else(|| response["id"].as_str())
+        .or_else(|| response["data"]["id"].as_str())
         .unwrap_or_else(|| panic!("Team creation failed, no id in response: {:?}", response));
     team_ids.push(Uuid::parse_str(id_str).unwrap());
 
@@ -129,9 +129,9 @@ async fn test_delete_user_data_requires_confirmation() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(response["success"], false);
 
-    let error_message = response["error"]
+    let error_message = response["error"]["message"]
         .as_str()
-        .or_else(|| response["message"].as_str())
+        .or_else(|| response["error"]["message"].as_str())
         .unwrap_or("");
     assert!(
         error_message.contains("Deletion must be confirmed"),
@@ -181,7 +181,7 @@ async fn test_delete_user_data_complete() {
 
     // 2. 削除レスポンスデータの検証
     let data = &response["data"];
-    assert_eq!(data["user_id"], user_id.to_string());
+    assert_eq!(response["data"]["user_id"], user_id.to_string());
     assert!(
         data["deleted_at"].is_string(),
         "deleted_at timestamp should be present"
@@ -343,11 +343,10 @@ async fn test_get_compliance_status() {
 
     assert!(response["success"].as_bool().unwrap());
 
-    let data = &response["data"];
-    assert_eq!(data["user_id"], user.id.to_string());
-    assert_eq!(data["data_retention_days"], 90);
-    assert_eq!(data["deletion_requested"], false);
-    assert!(data["deletion_scheduled_for"].is_null());
+    assert_eq!(response["data"]["user_id"], user.id.to_string());
+    assert_eq!(response["data"]["data_retention_days"], 90);
+    assert_eq!(response["data"]["deletion_requested"], false);
+    assert!(response["data"]["deletion_scheduled_for"].is_null());
 }
 
 #[tokio::test]

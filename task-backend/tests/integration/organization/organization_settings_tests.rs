@@ -144,25 +144,37 @@ async fn test_update_organization_settings_as_owner() {
     let org_data = &response["data"];
 
     // Check if settings are in a separate field or in the organization directly
-    let settings = if org_data["settings"].is_object() {
-        &org_data["settings"]
+    let _settings = if org_data.get("settings").is_some_and(|s| s.is_object()) {
+        org_data.get("settings").unwrap_or(&serde_json::Value::Null)
     } else {
         // Settings might be flattened into the organization object
         org_data
     };
 
     // Also handle the case where these might be in different places
-    if settings["allow_public_teams"].is_null() {
+    if response["data"]["settings"]["allow_public_teams"].is_null() {
         println!(
             "Warning: settings not found in expected location. Response: {:?}",
             response
         );
     }
 
-    assert_eq!(settings["allow_public_teams"], true);
-    assert_eq!(settings["require_approval_for_new_members"], false);
-    assert_eq!(settings["enable_single_sign_on"], true);
-    assert_eq!(settings["default_team_subscription_tier"], "pro");
+    assert_eq!(
+        response["data"]["organization"]["settings"]["allow_public_teams"],
+        true
+    );
+    assert_eq!(
+        response["data"]["organization"]["settings"]["require_approval_for_new_members"],
+        false
+    );
+    assert_eq!(
+        response["data"]["organization"]["settings"]["enable_single_sign_on"],
+        true
+    );
+    assert_eq!(
+        response["data"]["organization"]["settings"]["default_team_subscription_tier"],
+        "pro"
+    );
 
     // Verify settings persist by fetching organization
     let req = auth_helper::create_authenticated_request(
@@ -177,17 +189,14 @@ async fn test_update_organization_settings_as_owner() {
         .unwrap();
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    let fetched_settings = &response["data"]["settings"];
-
     // Debug output
-    if fetched_settings["allow_public_teams"].is_null() {
+    if response["data"]["settings"]["allow_public_teams"].is_null() {
         println!("Debug: Full fetched organization response: {:?}", response);
         println!("Debug: Organization data: {:?}", response["data"]);
-        println!("Debug: Settings: {:?}", fetched_settings);
     }
 
-    assert_eq!(fetched_settings["allow_public_teams"], true);
-    assert_eq!(fetched_settings["enable_single_sign_on"], true);
+    assert_eq!(response["data"]["settings"]["allow_public_teams"], true);
+    assert_eq!(response["data"]["settings"]["enable_single_sign_on"], true);
 }
 
 #[tokio::test]
@@ -230,9 +239,12 @@ async fn test_update_organization_settings_as_admin() {
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert!(response["success"].as_bool().unwrap());
-    assert_eq!(response["data"]["settings"]["allow_public_teams"], false);
     assert_eq!(
-        response["data"]["settings"]["require_approval_for_new_members"],
+        response["data"]["organization"]["settings"]["allow_public_teams"],
+        false
+    );
+    assert_eq!(
+        response["data"]["organization"]["settings"]["require_approval_for_new_members"],
         true
     );
 }
@@ -316,11 +328,22 @@ async fn test_partial_settings_update() {
         .unwrap();
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    let settings = &response["data"]["settings"];
-    assert_eq!(settings["allow_public_teams"], true); // Unchanged
-    assert_eq!(settings["require_approval_for_new_members"], true); // Unchanged
-    assert_eq!(settings["enable_single_sign_on"], true); // Changed
-    assert_eq!(settings["default_team_subscription_tier"], "free"); // Unchanged
+    assert_eq!(
+        response["data"]["organization"]["settings"]["allow_public_teams"],
+        true
+    ); // Unchanged
+    assert_eq!(
+        response["data"]["organization"]["settings"]["require_approval_for_new_members"],
+        true
+    ); // Unchanged
+    assert_eq!(
+        response["data"]["organization"]["settings"]["enable_single_sign_on"],
+        true
+    ); // Changed
+    assert_eq!(
+        response["data"]["organization"]["settings"]["default_team_subscription_tier"],
+        "free"
+    ); // Unchanged
 }
 
 #[tokio::test]
@@ -447,10 +470,12 @@ async fn test_settings_history_audit() {
         .unwrap();
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    let settings = &response["data"]["settings"];
-    assert_eq!(settings["allow_public_teams"], false);
-    assert_eq!(settings["require_approval_for_new_members"], true);
-    assert_eq!(settings["enable_single_sign_on"], true);
+    assert_eq!(response["data"]["settings"]["allow_public_teams"], false);
+    assert_eq!(
+        response["data"]["settings"]["require_approval_for_new_members"],
+        true
+    );
+    assert_eq!(response["data"]["settings"]["enable_single_sign_on"], true);
 }
 
 #[tokio::test]
@@ -500,11 +525,16 @@ async fn test_settings_default_values() {
         .unwrap();
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    let settings = &response["data"]["settings"];
-    assert_eq!(settings["allow_public_teams"], false);
-    assert_eq!(settings["require_approval_for_new_members"], true); // Default is true
-    assert_eq!(settings["enable_single_sign_on"], false);
-    assert_eq!(settings["default_team_subscription_tier"], "pro"); // Matches organization's tier
+    assert_eq!(response["data"]["settings"]["allow_public_teams"], false);
+    assert_eq!(
+        response["data"]["settings"]["require_approval_for_new_members"],
+        true
+    ); // Default is true
+    assert_eq!(response["data"]["settings"]["enable_single_sign_on"], false);
+    assert_eq!(
+        response["data"]["settings"]["default_team_subscription_tier"],
+        "pro"
+    ); // Matches organization's tier
 }
 
 #[tokio::test]
@@ -565,7 +595,7 @@ async fn test_settings_subscription_tier_constraints() {
             .unwrap();
         let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
         // Settings might be saved but features might not be active for free tier
-        assert!(response["data"]["settings"]["enable_single_sign_on"].is_boolean());
+        assert!(response["data"]["organization"]["settings"]["enable_single_sign_on"].is_boolean());
     } else {
         // Or it might be forbidden for free tier
         assert_eq!(status, StatusCode::FORBIDDEN);

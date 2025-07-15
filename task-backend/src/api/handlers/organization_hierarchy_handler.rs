@@ -1,12 +1,10 @@
 use crate::{
-    api::dto::{
-        common::{ApiResponse, OperationResult},
-        organization_hierarchy_dto::*,
-    },
+    api::dto::{common::OperationResult, organization_hierarchy_dto::*},
     domain::permission_matrix_model::EntityType,
     error::AppError,
     middleware::auth::AuthenticatedUser,
     service::organization_hierarchy_service::OrganizationHierarchyService,
+    types::ApiResponse,
 };
 use axum::{
     extract::{Path, Query, State},
@@ -42,9 +40,8 @@ pub async fn get_organization_hierarchy(
     if params.include_children.unwrap_or(false) {
         // 階層構造を構築するロジック
         let hierarchy = build_department_hierarchy(response_data);
-        let api_response =
-            ApiResponse::success("Organization hierarchy retrieved successfully", hierarchy);
-        Ok(Json(api_response))
+        let api_response = ApiResponse::success(hierarchy);
+        Ok(api_response)
     } else {
         // フラットリストの場合は、DepartmentHierarchyDtoに変換して返す
         let hierarchy_list: Vec<DepartmentHierarchyDto> = response_data
@@ -55,9 +52,8 @@ pub async fn get_organization_hierarchy(
                 member_count: None,
             })
             .collect();
-        let api_response =
-            ApiResponse::success("Departments retrieved successfully", hierarchy_list);
-        Ok(Json(api_response))
+        let api_response = ApiResponse::success(hierarchy_list);
+        Ok(api_response)
     }
 }
 
@@ -102,8 +98,8 @@ pub async fn create_department(
     .await?;
 
     let response_data = DepartmentResponseDto::from(department);
-    let api_response = ApiResponse::success("Department created successfully", response_data);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(response_data);
+    Ok(api_response)
 }
 
 // 部門一覧の取得
@@ -132,8 +128,8 @@ pub async fn get_departments(
         response_data.retain(|dept| dept.is_active);
     }
 
-    let api_response = ApiResponse::success("Departments retrieved successfully", response_data);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(response_data);
+    Ok(api_response)
 }
 
 // 部門の更新
@@ -176,8 +172,8 @@ pub async fn update_department(
     .await?;
 
     let response_data = DepartmentResponseDto::from(updated_department);
-    let api_response = ApiResponse::success("Department updated successfully", response_data);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(response_data);
+    Ok(api_response)
 }
 
 // 部門の削除
@@ -209,9 +205,8 @@ pub async fn delete_department(
     // OperationResult::deletedを使用して削除操作の結果を表現
     let deletion_result = OperationResult::deleted(response_data);
 
-    let api_response =
-        ApiResponse::success("Department deleted successfully", deletion_result.item);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(deletion_result.item);
+    Ok(api_response)
 }
 
 // 組織分析ダッシュボードの取得
@@ -257,11 +252,8 @@ pub async fn get_organization_analytics(
         .map(OrganizationAnalyticsResponseDto::from)
         .collect();
 
-    let api_response = ApiResponse::success(
-        "Organization analytics retrieved successfully",
-        response_data,
-    );
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(response_data);
+    Ok(api_response)
 }
 
 // 権限マトリックスの設定
@@ -305,8 +297,8 @@ pub async fn set_organization_permission_matrix(
     .await?;
 
     let response_data = PermissionMatrixResponseDto::from(matrix);
-    let api_response = ApiResponse::success("Permission matrix set successfully", response_data);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(response_data);
+    Ok(api_response)
 }
 
 // 権限マトリックスの取得
@@ -328,9 +320,8 @@ pub async fn get_organization_permission_matrix(
     match matrix {
         Some(matrix) => {
             let response_data = PermissionMatrixResponseDto::from(matrix);
-            let api_response =
-                ApiResponse::success("Permission matrix retrieved successfully", response_data);
-            Ok(Json(api_response))
+            let api_response = ApiResponse::success(response_data);
+            Ok(api_response)
         }
         None => Err(AppError::NotFound(
             "Permission matrix not found".to_string(),
@@ -370,9 +361,8 @@ pub async fn get_effective_permissions(
         analyzed_at: chrono::Utc::now(),
     };
 
-    let api_response =
-        ApiResponse::success("Effective permissions analyzed successfully", response_data);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(response_data);
+    Ok(api_response)
 }
 
 // 組織データのエクスポート
@@ -412,8 +402,8 @@ pub async fn export_organization_data(
     )
     .await?;
 
-    let api_response = ApiResponse::success("Organization data exported successfully", export_data);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(export_data);
+    Ok(api_response)
 }
 
 // 部門メンバーの追加
@@ -458,8 +448,8 @@ pub async fn add_department_member(
     .await?;
 
     let response_data = DepartmentMemberResponseDto::from(member);
-    let api_response = ApiResponse::success("Department member added successfully", response_data);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(response_data);
+    Ok(api_response)
 }
 
 // 部門メンバーの削除
@@ -486,9 +476,8 @@ pub async fn remove_department_member(
         vec!["Department member removed".to_string()],
     );
 
-    let api_response =
-        ApiResponse::success("Department member removed successfully", response_data);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(response_data);
+    Ok(api_response)
 }
 
 // 分析メトリクスの作成
@@ -538,8 +527,8 @@ pub async fn create_analytics_metric(
     .await?;
 
     let response_data = OrganizationAnalyticsResponseDto::from(metric);
-    let api_response = ApiResponse::success("Analytics metric created successfully", response_data);
-    Ok(Json(api_response))
+    let api_response = ApiResponse::success(response_data);
+    Ok(api_response)
 }
 
 // ルーター設定

@@ -127,7 +127,7 @@ async fn test_user_subscription_history_endpoint() {
     let response: Value = serde_json::from_slice(&body).unwrap();
 
     // Verify response structure - note: different structure for user endpoint
-    assert!(response["user_id"].is_string());
-    assert!(response["history"].is_array());
-    assert!(response["stats"].is_object());
+    assert!(response["data"]["user_id"].is_string());
+    assert!(response["data"]["history"].is_array());
+    assert!(response["data"]["stats"].is_object());
 }

@@ -5,7 +5,6 @@ use axum::{
     http::{Request, StatusCode},
 };
 use serde_json::json;
-use task_backend::api::dto::security_dto::*;
 use tower::ServiceExt;
 
 use crate::common::{app_helper, auth_helper};
@@ -40,10 +39,16 @@ async fn test_revoke_all_tokens_integration() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let response_data: RevokeAllTokensResponse = serde_json::from_slice(&body).unwrap();
-    assert!(response_data.message.contains("successfully"));
+    let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(response["success"].as_bool().unwrap());
+
+    let response_data = &response["data"];
+    assert!(response_data["message"]
+        .as_str()
+        .unwrap()
+        .contains("successfully"));
     assert_eq!(
-        response_data.result.revocation_reason,
+        response_data["result"]["revocation_reason"],
         "Security maintenance test"
     );
 }
@@ -68,12 +73,24 @@ async fn test_session_analytics_integration() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let response_data: SessionAnalyticsResponse = serde_json::from_slice(&body).unwrap();
-    assert!(response_data.message.contains("successfully"));
+    let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(response["success"].as_bool().unwrap());
 
-    let analytics = response_data.analytics;
-    assert!(analytics.active_sessions <= analytics.total_sessions);
-    assert!(analytics.unique_users_today <= analytics.unique_users_this_week);
+    let response_data = &response["data"];
+    assert!(response_data["message"]
+        .as_str()
+        .unwrap()
+        .contains("successfully"));
+
+    let analytics = &response_data["analytics"];
+    assert!(
+        analytics["active_sessions"].as_u64().unwrap()
+            <= analytics["total_sessions"].as_u64().unwrap()
+    );
+    assert!(
+        analytics["unique_users_today"].as_u64().unwrap()
+            <= analytics["unique_users_this_week"].as_u64().unwrap()
+    );
 }
 
 #[tokio::test]
@@ -103,10 +120,16 @@ async fn test_audit_report_integration() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let response_data: AuditReportResponse = serde_json::from_slice(&body).unwrap();
-    assert!(response_data.message.contains("successfully"));
+    let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(response["success"].as_bool().unwrap());
 
-    let report = response_data.report;
-    assert_eq!(report.report_type, "security");
-    assert!(!report.recommendations.is_empty());
+    let response_data = &response["data"];
+    assert!(response_data["message"]
+        .as_str()
+        .unwrap()
+        .contains("successfully"));
+
+    let report = &response_data["report"];
+    assert_eq!(report["report_type"], "security");
+    assert!(!report["recommendations"].as_array().unwrap().is_empty());
 }

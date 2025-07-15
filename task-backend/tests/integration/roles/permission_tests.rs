@@ -42,7 +42,7 @@ async fn test_admin_can_access_all_user_tasks() {
         .await
         .unwrap();
     let task_response: Value = serde_json::from_slice(&body).unwrap();
-    let task_id = task_response["id"].as_str().unwrap();
+    let task_id = task_response["data"]["id"].as_str().unwrap();
 
     // User2 creates a task
     let task_data2 = test_data::create_test_task();
@@ -66,7 +66,8 @@ async fn test_admin_can_access_all_user_tasks() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let tasks_response: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    let tasks_response = response["data"].as_array().unwrap();
 
     // Admin should see only their own tasks (since role-based filtering is implemented)
     // In a full admin implementation, they would see all tasks
@@ -119,7 +120,7 @@ async fn test_member_can_only_access_own_tasks() {
         .await
         .unwrap();
     let task_response: Value = serde_json::from_slice(&body).unwrap();
-    let user1_task_id = task_response["id"].as_str().unwrap();
+    let user1_task_id = task_response["data"]["id"].as_str().unwrap();
 
     // User2 creates a task
     let task_data2 = test_data::create_test_task();
@@ -143,7 +144,8 @@ async fn test_member_can_only_access_own_tasks() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let tasks: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    let tasks = response["data"].as_array().unwrap();
 
     // User1 should see only their own tasks
     // Tasks is already an array
@@ -206,7 +208,7 @@ async fn test_member_cannot_modify_other_user_tasks() {
         .await
         .unwrap();
     let task_response: Value = serde_json::from_slice(&body).unwrap();
-    let task_id = task_response["id"].as_str().unwrap();
+    let task_id = task_response["data"]["id"].as_str().unwrap();
 
     // User2 tries to update User1's task
     let update_data = json!({
@@ -258,7 +260,10 @@ async fn test_member_cannot_modify_other_user_tasks() {
     let task_data: Value = serde_json::from_slice(&body).unwrap();
 
     // Task should still have original title, not the modification attempt
-    assert_ne!(task_data["title"].as_str().unwrap(), "Modified by User2");
+    assert_ne!(
+        task_data["data"]["title"].as_str().unwrap(),
+        "Modified by User2"
+    );
 }
 
 #[tokio::test]
@@ -288,7 +293,7 @@ async fn test_member_can_manage_own_tasks() {
         .await
         .unwrap();
     let task_response: Value = serde_json::from_slice(&body).unwrap();
-    let task_id = task_response["id"].as_str().unwrap();
+    let task_id = task_response["data"]["id"].as_str().unwrap();
 
     // User can read their own task
     let get_task_request = auth_helper::create_authenticated_request(
@@ -334,11 +339,11 @@ async fn test_member_can_manage_own_tasks() {
     let updated_task: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(
-        updated_task["title"].as_str().unwrap(),
+        updated_task["data"]["title"].as_str().unwrap(),
         "Updated Task Title"
     );
     assert_eq!(
-        updated_task["description"].as_str().unwrap(),
+        updated_task["data"]["description"].as_str().unwrap(),
         "Updated description"
     );
 
@@ -394,11 +399,9 @@ async fn test_user_profile_access_control() {
     let profile_data: Value = serde_json::from_slice(&body).unwrap();
 
     // Verify user1 gets their own data
-    assert_eq!(
-        profile_data["user"]["id"].as_str().unwrap(),
-        user1.id.to_string()
-    );
-    assert_eq!(profile_data["user"]["email"].as_str().unwrap(), user1.email);
+    let user_data = &profile_data["data"]["user"];
+    assert_eq!(user_data["id"].as_str().unwrap(), user1.id.to_string());
+    assert_eq!(user_data["email"].as_str().unwrap(), user1.email);
 
     // User2 can access their own profile
     let profile_request2 =
@@ -413,11 +416,9 @@ async fn test_user_profile_access_control() {
     let profile_data: Value = serde_json::from_slice(&body).unwrap();
 
     // Verify user2 gets their own data
-    assert_eq!(
-        profile_data["user"]["id"].as_str().unwrap(),
-        user2.id.to_string()
-    );
-    assert_eq!(profile_data["user"]["email"].as_str().unwrap(), user2.email);
+    let user_data = &profile_data["data"]["user"];
+    assert_eq!(user_data["id"].as_str().unwrap(), user2.id.to_string());
+    assert_eq!(user_data["email"].as_str().unwrap(), user2.email);
 
     // Users cannot access each other's profiles directly
     // (This is enforced by the /auth/me endpoint returning the authenticated user's data)
@@ -526,7 +527,8 @@ async fn test_admin_can_list_all_tasks() {
     }
     assert_eq!(status, StatusCode::OK);
 
-    let tasks: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    let tasks = response["data"].as_array().unwrap();
 
     // Admin should see tasks from multiple users
     assert!(tasks.len() >= 2);
@@ -569,7 +571,8 @@ async fn test_admin_can_list_specific_user_tasks() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let tasks: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    let tasks = response["data"].as_array().unwrap();
 
     // Admin should see the user's tasks
     assert!(!tasks.is_empty());
@@ -603,7 +606,7 @@ async fn test_admin_can_delete_any_task() {
         .await
         .unwrap();
     let task_response: Value = serde_json::from_slice(&body).unwrap();
-    let task_id = task_response["id"].as_str().unwrap();
+    let task_id = task_response["data"]["id"].as_str().unwrap();
 
     // Admin can delete any task
     let admin_delete_request = auth_helper::create_authenticated_request(

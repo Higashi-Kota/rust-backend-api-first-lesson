@@ -5,10 +5,11 @@ use crate::api::dto::attachment_dto::{
     CreateShareLinkResponse, GenerateDownloadUrlRequest, GenerateDownloadUrlResponse,
     GenerateUploadUrlRequest, GenerateUploadUrlResponse, ShareLinkDto, ShareLinkListResponse,
 };
-use crate::api::dto::common::{ApiResponse, PaginatedResponse};
+use crate::api::dto::common::PaginatedResponse;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
+use crate::types::ApiResponse;
 use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::{
@@ -87,10 +88,7 @@ pub async fn upload_attachment_handler(
                 message: "File uploaded successfully".to_string(),
             };
 
-            return Ok((
-                StatusCode::CREATED,
-                Json(ApiResponse::success("File uploaded successfully", response)),
-            ));
+            return Ok((StatusCode::CREATED, ApiResponse::success(response)));
         }
     }
 
@@ -133,13 +131,7 @@ pub async fn list_attachments_handler(
     let response =
         PaginatedResponse::new(attachments_dto, page as i32, per_page as i32, total as i64);
 
-    Ok((
-        StatusCode::OK,
-        Json(ApiResponse::success(
-            "Attachments retrieved successfully",
-            response,
-        )),
-    ))
+    Ok((StatusCode::OK, ApiResponse::success(response)))
 }
 
 /// 添付ファイルダウンロードハンドラー
@@ -194,10 +186,7 @@ pub async fn delete_attachment_handler(
         .delete_attachment(attachment_id, user.user_id())
         .await?;
 
-    Ok((
-        StatusCode::OK,
-        Json(ApiResponse::success("Attachment deleted successfully", ())),
-    ))
+    Ok((StatusCode::OK, ApiResponse::success(())))
 }
 
 /// 署名付きダウンロードURL生成ハンドラー
@@ -230,13 +219,7 @@ pub async fn generate_download_url_handler(
         expires_at: Utc::now() + Duration::seconds(expires_in_seconds as i64),
     };
 
-    Ok((
-        StatusCode::OK,
-        Json(ApiResponse::success(
-            "Download URL generated successfully",
-            response,
-        )),
-    ))
+    Ok((StatusCode::OK, ApiResponse::success(response)))
 }
 
 /// 共有リンクを作成
@@ -277,13 +260,7 @@ pub async fn create_share_link_handler(
         message: "Share link created successfully".to_string(),
     };
 
-    Ok((
-        StatusCode::CREATED,
-        Json(ApiResponse::success(
-            "Share link created successfully",
-            response,
-        )),
-    ))
+    Ok((StatusCode::CREATED, ApiResponse::success(response)))
 }
 
 /// 共有リンク一覧を取得
@@ -315,13 +292,7 @@ pub async fn list_share_links_handler(
         share_links: share_link_dtos,
     };
 
-    Ok((
-        StatusCode::OK,
-        Json(ApiResponse::success(
-            "Share links retrieved successfully",
-            response,
-        )),
-    ))
+    Ok((StatusCode::OK, ApiResponse::success(response)))
 }
 
 /// 共有リンクを無効化
@@ -342,10 +313,7 @@ pub async fn revoke_share_link_handler(
         .revoke_share_link(share_link_id, user.user_id())
         .await?;
 
-    Ok((
-        StatusCode::OK,
-        Json(ApiResponse::success("Share link revoked successfully", ())),
-    ))
+    Ok((StatusCode::OK, ApiResponse::success(())))
 }
 
 /// 共有リンクでファイルをダウンロード（認証不要）
@@ -453,7 +421,7 @@ pub async fn generate_upload_url_handler(
     user: AuthenticatedUser,
     Path(task_id): Path<Uuid>,
     Json(request): Json<GenerateUploadUrlRequest>,
-) -> AppResult<Json<ApiResponse<GenerateUploadUrlResponse>>> {
+) -> AppResult<ApiResponse<GenerateUploadUrlResponse>> {
     info!(
         user_id = %user.user_id(),
         task_id = %task_id,
@@ -488,14 +456,11 @@ pub async fn generate_upload_url_handler(
 
     let expires_at = Utc::now() + Duration::seconds(expires_in_seconds as i64);
 
-    Ok(Json(ApiResponse::success(
-        "Upload URL generated successfully",
-        GenerateUploadUrlResponse {
-            upload_url,
-            upload_key,
-            expires_at,
-        },
-    )))
+    Ok(ApiResponse::success(GenerateUploadUrlResponse {
+        upload_url,
+        upload_key,
+        expires_at,
+    }))
 }
 
 // mime_guessクレートの代替実装（既存のmimeクレートを使用）

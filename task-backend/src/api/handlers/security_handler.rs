@@ -4,6 +4,7 @@ use crate::api::dto::security_dto::*;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUserWithRole;
+use crate::types::ApiResponse;
 use axum::{
     extract::{Json, State},
     routing::{get, post},
@@ -16,7 +17,7 @@ use validator::Validate;
 pub async fn get_token_stats_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<TokenStatsResponse>> {
+) -> AppResult<ApiResponse<TokenStatsResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -48,14 +49,14 @@ pub async fn get_token_stats_handler(
         message: "Token statistics retrieved successfully".to_string(),
     };
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// リフレッシュトークン監視（管理者用）
 pub async fn get_refresh_tokens_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<RefreshTokenMonitorResponse>> {
+) -> AppResult<ApiResponse<RefreshTokenMonitorResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -79,7 +80,7 @@ pub async fn get_refresh_tokens_handler(
         message: "Refresh token monitoring data retrieved successfully".to_string(),
     };
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// 期限切れトークン自動削除（管理者用）
@@ -87,7 +88,7 @@ pub async fn cleanup_tokens_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<CleanupTokensRequest>,
-) -> AppResult<Json<CleanupTokensResponse>> {
+) -> AppResult<ApiResponse<CleanupTokensResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -144,14 +145,14 @@ pub async fn cleanup_tokens_handler(
         message: "Token cleanup completed successfully".to_string(),
     };
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// パスワードリセット監視（管理者用）
 pub async fn get_password_resets_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<PasswordResetMonitorResponse>> {
+) -> AppResult<ApiResponse<PasswordResetMonitorResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -178,7 +179,7 @@ pub async fn get_password_resets_handler(
         message: "Password reset monitoring data retrieved successfully".to_string(),
     };
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// 緊急時全トークン無効化（管理者用）
@@ -186,7 +187,7 @@ pub async fn revoke_all_tokens_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<RevokeAllTokensRequest>,
-) -> AppResult<Json<RevokeAllTokensResponse>> {
+) -> AppResult<ApiResponse<RevokeAllTokensResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -230,14 +231,14 @@ pub async fn revoke_all_tokens_handler(
         message: "Token revocation completed successfully".to_string(),
     };
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// セッション分析（管理者用）
 pub async fn get_session_analytics_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<SessionAnalyticsResponse>> {
+) -> AppResult<ApiResponse<SessionAnalyticsResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -261,7 +262,7 @@ pub async fn get_session_analytics_handler(
         message: "Session analytics retrieved successfully".to_string(),
     };
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// セキュリティ監査レポート生成（管理者用）
@@ -269,7 +270,7 @@ pub async fn generate_audit_report_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<AuditReportRequest>,
-) -> AppResult<Json<AuditReportResponse>> {
+) -> AppResult<ApiResponse<AuditReportResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -305,7 +306,7 @@ pub async fn generate_audit_report_handler(
         message: "Audit report generated successfully".to_string(),
     };
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// セキュリティ管理ルーターを作成

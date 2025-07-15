@@ -3,7 +3,7 @@
 use axum::{body, http::StatusCode};
 use serde_json::Value;
 use task_backend::api::dto::analytics_dto::TaskStatsDetailResponse;
-use task_backend::api::dto::common::ApiResponse;
+use task_backend::types::ApiResponse;
 use tower::ServiceExt;
 
 use crate::common::{app_helper, auth_helper};
@@ -46,7 +46,7 @@ async fn test_admin_task_stats_api() {
         .await
         .unwrap();
     let tasks: Value = serde_json::from_slice(&body).unwrap();
-    let task_array = tasks.as_array().unwrap();
+    let task_array = tasks["data"].as_array().unwrap();
 
     // 最初の3つを完了にする
     for (i, task) in task_array.iter().enumerate() {

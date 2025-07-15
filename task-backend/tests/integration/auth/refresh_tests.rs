@@ -33,9 +33,15 @@ async fn test_token_refresh_success() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    // レスポンス構造の検証
-    assert!(response["tokens"].is_object());
-    let tokens = &response["tokens"];
+    // レスポンス構造の検証 - New ApiResponse format
+    assert!(response["success"].as_bool().unwrap());
+    assert!(response["data"].is_object());
+    assert!(response["error"].is_null());
+    assert!(response["meta"].is_object());
+
+    let data = &response["data"];
+    assert!(response["data"]["tokens"].is_object());
+    let tokens = &data["tokens"];
     assert!(tokens["access_token"].is_string());
     assert!(tokens["refresh_token"].is_string());
     assert!(tokens["access_token_expires_in"].is_number());
@@ -76,8 +82,16 @@ async fn test_token_refresh_with_invalid_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
-    assert!(error["error"].as_str().unwrap().contains("Invalid"));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
+    assert!(error["error"]["message"]
+        .as_str()
+        .unwrap()
+        .to_lowercase()
+        .contains("invalid"));
 }
 
 #[tokio::test]
@@ -102,19 +116,31 @@ async fn test_token_refresh_with_empty_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    assert!(error["error"]["message"]
+        .as_str()
+        .unwrap()
+        .to_lowercase()
+        .contains("validation"));
 
-    // リフレッシュトークン関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("refresh") || msg.contains("token") || msg.contains("required")));
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        let error_messages = details
+            .iter()
+            .filter_map(|e| e["message"].as_str())
+            .collect::<Vec<&str>>();
+        assert!(error_messages.iter().any(|msg| msg.contains("refresh")
+            || msg.contains("token")
+            || msg.contains("required")));
+    }
 }
 
 #[tokio::test]
@@ -178,10 +204,22 @@ async fn test_token_refresh_expired_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
     assert!(
-        error["error"].as_str().unwrap().contains("Invalid")
-            || error["error"].as_str().unwrap().contains("expired")
+        error["error"]["message"]
+            .as_str()
+            .unwrap()
+            .to_lowercase()
+            .contains("invalid")
+            || error["error"]["message"]
+                .as_str()
+                .unwrap()
+                .to_lowercase()
+                .contains("expired")
     );
 }
 
@@ -206,11 +244,15 @@ async fn test_token_refresh_malformed_json() {
     // Try to parse as JSON, but handle the case where it might not be JSON
     match serde_json::from_slice::<Value>(&body) {
         Ok(error) => {
-            // JSON パースエラーまたはバリデーションエラーが返されることを確認
+            // Error response format - JSON パースエラーまたはバリデーションエラーが返されることを確認
+            assert!(!error["success"].as_bool().unwrap());
+            assert!(error["data"].is_null());
+            assert!(error["error"].is_object());
+            let error_code = error["error"]["code"].as_str().unwrap();
             assert!(
-                error["error_type"] == "parse_error"
-                    || error["error_type"] == "validation_errors"
-                    || error["error_type"] == "bad_request"
+                error_code == "PARSE_ERROR"
+                    || (error_code == "VALIDATION_ERROR" || error_code == "VALIDATION_ERRORS")
+                    || error_code == "BAD_REQUEST"
             );
         }
         Err(_) => {
@@ -247,9 +289,14 @@ async fn test_token_refresh_new_tokens_are_valid() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    // ユーザー情報が正しく取得できることを確認
-    assert!(response["user"].is_object());
-    let user_info = &response["user"];
+    // ユーザー情報が正しく取得できることを確認 - New ApiResponse format
+    assert!(response["success"].as_bool().unwrap());
+    assert!(response["data"].is_object());
+    assert!(response["error"].is_null());
+    assert!(response["meta"].is_object());
+
+    assert!(response["data"]["user"].is_object());
+    let user_info = &response["data"]["user"];
     assert_eq!(user_info["id"], user.id.to_string());
     assert_eq!(user_info["email"], user.email);
 }
@@ -333,7 +380,9 @@ async fn test_token_refresh_rate_limiting() {
             if res.status() == StatusCode::OK {
                 let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
                 let response: Value = serde_json::from_slice(&body).unwrap();
-                current_refresh_token = response["tokens"]["refresh_token"]
+                // New ApiResponse format
+                let data = &response["data"];
+                current_refresh_token = data["tokens"]["refresh_token"]
                     .as_str()
                     .unwrap()
                     .to_string();
@@ -392,7 +441,9 @@ async fn test_token_refresh_updates_last_activity() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    // ユーザー情報が取得できることを確認
-    assert!(response["user"].is_object());
+    // ユーザー情報が取得できることを確認 - New ApiResponse format
+    assert!(response["success"].as_bool().unwrap());
+    assert!(response["data"].is_object());
+    assert!(response["data"]["user"].is_object());
     // Note: last_activity の更新は実装による
 }

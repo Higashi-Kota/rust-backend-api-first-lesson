@@ -19,4 +19,4 @@ pub mod team_invitation_dto;
 pub mod user_dto;
 
 // Re-export common response types
-pub use common::{ApiResponse, OperationResult, PaginationMeta};
+pub use common::{OperationResult, PaginationMeta};

@@ -3,7 +3,7 @@
 use crate::common::{app_helper, auth_helper};
 use axum::{body, http::StatusCode};
 use serde_json::Value;
-use task_backend::api::dto::common::ApiResponse;
+use task_backend::types::ApiResponse;
 use tower::ServiceExt;
 
 #[tokio::test]

@@ -2,7 +2,7 @@
 
 use crate::api::dto::admin_organization_dto::*;
 use crate::api::dto::admin_role_dto::*;
-use crate::api::dto::common::{ApiResponse, PaginatedResponse, PaginationQuery};
+use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::api::dto::subscription_history_dto::*;
 use crate::api::dto::task_dto::*;
 use crate::api::dto::team_invitation_dto::*;
@@ -13,6 +13,7 @@ use crate::api::dto::user_dto::{
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::types::ApiResponse;
 use crate::utils::permission::{PermissionChecker, PermissionType};
 use axum::{
     extract::{Path, Query, State},
@@ -111,7 +112,7 @@ pub async fn admin_get_task(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path(task_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<TaskResponse>>> {
+) -> AppResult<ApiResponse<TaskResponse>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -128,10 +129,7 @@ pub async fn admin_get_task(
         unlimited_access: true,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Task retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向けタスク一括作成
@@ -139,7 +137,7 @@ pub async fn admin_bulk_create_tasks(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Json(request): Json<AdminBulkCreateTasksRequest>,
-) -> AppResult<Json<ApiResponse<AdminBulkOperationResponse>>> {
+) -> AppResult<ApiResponse<AdminBulkOperationResponse>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -174,10 +172,7 @@ pub async fn admin_bulk_create_tasks(
         errors,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Bulk task creation completed",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向けタスク一括更新
@@ -185,7 +180,7 @@ pub async fn admin_bulk_update_tasks(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Json(request): Json<AdminBulkUpdateTasksRequest>,
-) -> AppResult<Json<ApiResponse<AdminBulkOperationResponse>>> {
+) -> AppResult<ApiResponse<AdminBulkOperationResponse>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -208,10 +203,7 @@ pub async fn admin_bulk_update_tasks(
                 errors: vec![],
             };
 
-            Ok(Json(ApiResponse::success(
-                "Bulk task update completed",
-                response,
-            )))
+            Ok(ApiResponse::success(response))
         }
         Err(e) => {
             let response = AdminBulkOperationResponse {
@@ -221,10 +213,7 @@ pub async fn admin_bulk_update_tasks(
                 errors: vec![format!("Bulk update failed: {}", e)],
             };
 
-            Ok(Json(ApiResponse::success(
-                "Bulk task update failed",
-                response,
-            )))
+            Ok(ApiResponse::success(response))
         }
     }
 }
@@ -234,7 +223,7 @@ pub async fn admin_bulk_delete_tasks(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Json(request): Json<AdminBulkDeleteTasksRequest>,
-) -> AppResult<Json<ApiResponse<AdminBulkOperationResponse>>> {
+) -> AppResult<ApiResponse<AdminBulkOperationResponse>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -257,10 +246,7 @@ pub async fn admin_bulk_delete_tasks(
                 errors: vec![],
             };
 
-            Ok(Json(ApiResponse::success(
-                "Bulk task deletion completed",
-                response,
-            )))
+            Ok(ApiResponse::success(response))
         }
         Err(e) => {
             let response = AdminBulkOperationResponse {
@@ -270,10 +256,7 @@ pub async fn admin_bulk_delete_tasks(
                 errors: vec![format!("Bulk delete failed: {}", e)],
             };
 
-            Ok(Json(ApiResponse::success(
-                "Bulk task deletion failed",
-                response,
-            )))
+            Ok(ApiResponse::success(response))
         }
     }
 }
@@ -284,7 +267,7 @@ pub async fn admin_bulk_delete_tasks(
 pub async fn admin_cleanup_expired_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<Vec<TeamInvitationResponse>>>> {
+) -> AppResult<ApiResponse<Vec<TeamInvitationResponse>>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -299,10 +282,7 @@ pub async fn admin_cleanup_expired_invitations(
         .map(TeamInvitationResponse::from)
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "Expired invitations cleaned up successfully",
-        responses,
-    )))
+    Ok(ApiResponse::success(responses))
 }
 
 /// 管理者向け古い招待削除
@@ -310,7 +290,7 @@ pub async fn admin_delete_old_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -332,13 +312,10 @@ pub async fn admin_delete_old_invitations(
 
     let deleted_count = service.cleanup_old_invitations(days).await?;
 
-    Ok(Json(ApiResponse::success(
-        "Old invitations deleted successfully",
-        serde_json::json!({
-            "deleted_count": deleted_count,
-            "days": days
-        }),
-    )))
+    Ok(ApiResponse::success(serde_json::json!({
+        "deleted_count": deleted_count,
+        "days": days
+    })))
 }
 
 // === 統計・分析API ===
@@ -348,7 +325,7 @@ pub async fn admin_get_task_stats(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUserWithRole,
     Query(query): Query<crate::api::dto::analytics_dto::TaskAnalyticsRequest>,
-) -> AppResult<Json<ApiResponse<crate::api::dto::analytics_dto::TaskStatsDetailResponse>>> {
+) -> AppResult<ApiResponse<crate::api::dto::analytics_dto::TaskStatsDetailResponse>> {
     use crate::api::dto::analytics_dto::*;
 
     // 管理者権限チェック
@@ -676,17 +653,14 @@ pub async fn admin_get_task_stats(
         pagination: None,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Task statistics retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向けタスク統計取得
 pub async fn admin_get_task_statistics(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUserWithRole,
-) -> AppResult<Json<ApiResponse<AdminTaskStatsResponse>>> {
+) -> AppResult<ApiResponse<AdminTaskStatsResponse>> {
     // can_access_admin_featuresを使用して、管理者またはEnterpriseプランユーザーのアクセスを許可
     if let Some(role) = user.role() {
         if !PermissionChecker::can_access_admin_features(role) {
@@ -705,10 +679,7 @@ pub async fn admin_get_task_statistics(
     // 基本統計を取得（実装はサービス層で）
     let stats = task_service.get_admin_task_statistics().await?;
 
-    Ok(Json(ApiResponse::success(
-        "Task statistics retrieved successfully",
-        stats,
-    )))
+    Ok(ApiResponse::success(stats))
 }
 
 /// 管理者向けタスク作成（単一）
@@ -716,7 +687,7 @@ pub async fn admin_create_task(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Json(request): Json<CreateTaskDto>,
-) -> AppResult<Json<ApiResponse<TaskDto>>> {
+) -> AppResult<ApiResponse<TaskDto>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -726,10 +697,7 @@ pub async fn admin_create_task(
     let task_service = &app_state.task_service;
     let created_task = task_service.create_task(request).await?;
 
-    Ok(Json(ApiResponse::success(
-        "Task created successfully",
-        created_task,
-    )))
+    Ok(ApiResponse::success(created_task))
 }
 
 /// 管理者向けタスク更新（単一）
@@ -738,7 +706,7 @@ pub async fn admin_update_task(
     user: AuthenticatedUser,
     Path(task_id): Path<Uuid>,
     Json(request): Json<UpdateTaskDto>,
-) -> AppResult<Json<ApiResponse<TaskDto>>> {
+) -> AppResult<ApiResponse<TaskDto>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -748,10 +716,7 @@ pub async fn admin_update_task(
     let task_service = &app_state.task_service;
     let updated_task = task_service.update_task(task_id, request).await?;
 
-    Ok(Json(ApiResponse::success(
-        "Task updated successfully",
-        updated_task,
-    )))
+    Ok(ApiResponse::success(updated_task))
 }
 
 /// 管理者向けタスク削除（単一）
@@ -776,7 +741,7 @@ pub async fn admin_delete_task(
 pub async fn admin_list_all_tasks(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<Vec<TaskDto>>> {
+) -> AppResult<ApiResponse<Vec<TaskDto>>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -786,7 +751,7 @@ pub async fn admin_list_all_tasks(
     let task_service = &app_state.task_service;
     let tasks = task_service.list_tasks().await?;
 
-    Ok(Json(tasks))
+    Ok(ApiResponse::success(tasks))
 }
 
 /// 管理者向けタスク一覧取得（ページング付き）
@@ -794,7 +759,7 @@ pub async fn admin_list_tasks_paginated(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Query(params): Query<std::collections::HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<PaginatedTasksDto>>> {
+) -> AppResult<ApiResponse<PaginatedTasksDto>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -814,10 +779,7 @@ pub async fn admin_list_tasks_paginated(
     let task_service = &app_state.task_service;
     let paginated_tasks = task_service.list_tasks_paginated(page, page_size).await?;
 
-    Ok(Json(ApiResponse::success(
-        "Paginated tasks retrieved successfully",
-        paginated_tasks,
-    )))
+    Ok(ApiResponse::success(paginated_tasks))
 }
 
 // レガシーバッチAPI削除 - 新形式のadmin_bulk_*に統一
@@ -827,7 +789,7 @@ pub async fn admin_list_user_tasks(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
-) -> AppResult<Json<Vec<TaskDto>>> {
+) -> AppResult<ApiResponse<Vec<TaskDto>>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -837,7 +799,7 @@ pub async fn admin_list_user_tasks(
     let task_service = &app_state.task_service;
     let tasks = task_service.list_tasks_for_user(user_id).await?;
 
-    Ok(Json(tasks))
+    Ok(ApiResponse::success(tasks))
 }
 
 // === ロール管理API ===
@@ -847,7 +809,7 @@ pub async fn admin_list_roles(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUserWithRole,
     Query(query): Query<AdminRoleListQuery>,
-) -> AppResult<Json<ApiResponse<AdminRoleListResponse>>> {
+) -> AppResult<ApiResponse<AdminRoleListResponse>> {
     // 管理者権限チェック
     if !user.is_admin() {
         return Err(AppError::Forbidden(
@@ -904,10 +866,7 @@ pub async fn admin_list_roles(
         pagination,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Roles retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向けロール詳細取得（サブスクリプション情報付き）
@@ -916,7 +875,7 @@ pub async fn admin_get_role_with_subscription(
     user: AuthenticatedUserWithRole,
     Path(role_id): Path<Uuid>,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<RoleWithSubscriptionResponse>>> {
+) -> AppResult<ApiResponse<RoleWithSubscriptionResponse>> {
     // 管理者権限チェック
     if !user.is_admin() {
         return Err(AppError::Forbidden(
@@ -940,10 +899,7 @@ pub async fn admin_get_role_with_subscription(
     // レスポンスを構築
     let response = RoleWithSubscriptionResponse::from_role_with_tier(role, subscription_tier);
 
-    Ok(Json(ApiResponse::success(
-        "Role with subscription info retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 // === 組織管理API ===
@@ -953,7 +909,7 @@ pub async fn admin_list_organizations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUserWithRole,
     Query(query): Query<AdminOrganizationsRequest>,
-) -> AppResult<Json<ApiResponse<AdminOrganizationsResponse>>> {
+) -> AppResult<ApiResponse<AdminOrganizationsResponse>> {
     // 管理者権限チェック
     if !user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1018,10 +974,7 @@ pub async fn admin_list_organizations(
         tier_summary,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Organizations retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向けロール情報付き全ユーザー一覧取得
@@ -1029,7 +982,7 @@ pub async fn admin_list_users_with_roles(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUserWithRole,
     Query(query): Query<AdminUsersWithRolesRequest>,
-) -> AppResult<Json<ApiResponse<AdminUsersWithRolesResponse>>> {
+) -> AppResult<ApiResponse<AdminUsersWithRolesResponse>> {
     // 管理者権限チェック
     if !user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1092,10 +1045,7 @@ pub async fn admin_list_users_with_roles(
         role_summary,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Users with roles retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// ユーザーのメンバーステータスをチェック（IsMemberを活用）
@@ -1103,7 +1053,7 @@ pub async fn admin_check_user_member_status(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1167,10 +1117,7 @@ pub async fn admin_check_user_member_status(
         "User member status checked"
     );
 
-    Ok(Json(ApiResponse::success(
-        "User member status checked successfully",
-        member_info,
-    )))
+    Ok(ApiResponse::success(member_info))
 }
 
 /// ユーザーのサブスクリプションを変更（管理者専用）
@@ -1179,7 +1126,7 @@ pub async fn change_user_subscription(
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
     Json(request): Json<ChangeUserSubscriptionRequest>,
-) -> AppResult<Json<ApiResponse<ChangeUserSubscriptionResponse>>> {
+) -> AppResult<ApiResponse<ChangeUserSubscriptionResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1223,10 +1170,7 @@ pub async fn change_user_subscription(
         "User subscription changed successfully"
     );
 
-    Ok(Json(ApiResponse::success(
-        "User subscription changed successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 // === データクリーンアップ・メンテナンスAPI ===
@@ -1279,7 +1223,7 @@ pub async fn admin_list_bulk_operations(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<BulkOperationListQuery>,
-) -> AppResult<Json<ApiResponse<PaginatedResponse<BulkOperationHistoryResponse>>>> {
+) -> AppResult<ApiResponse<PaginatedResponse<BulkOperationHistoryResponse>>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1342,10 +1286,7 @@ pub async fn admin_list_bulk_operations(
 
     let response = PaginatedResponse::new(paginated_responses, page, per_page, total_count);
 
-    Ok(Json(ApiResponse::success(
-        "Bulk operation history retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向け特定ユーザーのバルク操作履歴取得
@@ -1354,7 +1295,7 @@ pub async fn admin_get_user_bulk_operations(
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<Vec<BulkOperationHistoryResponse>>>> {
+) -> AppResult<ApiResponse<Vec<BulkOperationHistoryResponse>>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1396,10 +1337,7 @@ pub async fn admin_get_user_bulk_operations(
         })
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "User bulk operation history retrieved successfully",
-        responses,
-    )))
+    Ok(ApiResponse::success(responses))
 }
 
 /// 管理者向け古いバルク操作履歴の削除
@@ -1407,7 +1345,7 @@ pub async fn admin_cleanup_bulk_operations(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<CleanupResultResponse>>> {
+) -> AppResult<ApiResponse<CleanupResultResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1446,10 +1384,7 @@ pub async fn admin_cleanup_bulk_operations(
         performed_at: Utc::now(),
     };
 
-    Ok(Json(ApiResponse::success(
-        format!("Deleted {} bulk operation history records", deleted_count),
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向け古い日次アクティビティサマリーの削除
@@ -1457,7 +1392,7 @@ pub async fn admin_cleanup_daily_summaries(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<CleanupResultResponse>>> {
+) -> AppResult<ApiResponse<CleanupResultResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1496,10 +1431,7 @@ pub async fn admin_cleanup_daily_summaries(
         performed_at: Utc::now(),
     };
 
-    Ok(Json(ApiResponse::success(
-        format!("Deleted {} daily activity summary records", deleted_count),
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向けユーザーの機能使用メトリクス取得
@@ -1507,7 +1439,7 @@ pub async fn admin_get_user_feature_metrics(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<UserFeatureMetricsResponse>>> {
+) -> AppResult<ApiResponse<UserFeatureMetricsResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1548,10 +1480,7 @@ pub async fn admin_get_user_feature_metrics(
         end_date,
     };
 
-    Ok(Json(ApiResponse::success(
-        "User feature metrics retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向け古い機能使用メトリクスの削除
@@ -1559,7 +1488,7 @@ pub async fn admin_cleanup_feature_metrics(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<CleanupResultResponse>>> {
+) -> AppResult<ApiResponse<CleanupResultResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1598,10 +1527,7 @@ pub async fn admin_cleanup_feature_metrics(
         performed_at: Utc::now(),
     };
 
-    Ok(Json(ApiResponse::success(
-        format!("Deleted {} feature usage metric records", deleted_count),
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向け機能使用状況のカウント取得
@@ -1609,7 +1535,7 @@ pub async fn admin_get_feature_usage_counts(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     if !user.is_admin() {
         return Err(AppError::Forbidden(
             "Administrator access required".to_string(),
@@ -1632,23 +1558,20 @@ pub async fn admin_get_feature_usage_counts(
     let mut sorted_counts: Vec<_> = counts.into_iter().collect();
     sorted_counts.sort_by(|a, b| b.1.cmp(&a.1));
 
-    Ok(Json(ApiResponse::success(
-        "Feature usage counts retrieved successfully",
-        serde_json::json!({
-            "period_days": days,
-            "start_date": start_date.to_rfc3339(),
-            "end_date": end_date.to_rfc3339(),
-            "feature_counts": sorted_counts
-                .into_iter()
-                .map(|(name, count)| serde_json::json!({
-                    "feature_name": name,
-                    "total_usage": count,
-                    "unique_users": count, // For now, we don't track unique users separately
-                    "usage_count": count
-                }))
-                .collect::<Vec<_>>()
-        }),
-    )))
+    Ok(ApiResponse::success(serde_json::json!({
+        "period_days": days,
+        "start_date": start_date.to_rfc3339(),
+        "end_date": end_date.to_rfc3339(),
+        "feature_counts": sorted_counts
+            .into_iter()
+            .map(|(name, count)| serde_json::json!({
+                "feature_name": name,
+                "total_usage": count,
+                "unique_users": count, // For now, we don't track unique users separately
+                "usage_count": count
+            }))
+            .collect::<Vec<_>>()
+    })))
 }
 
 /// Admin専用ルーター（統廃合済み）
@@ -1701,7 +1624,7 @@ pub fn admin_router(app_state: crate::api::AppState) -> axum::Router {
             "/users/{user_id}/subscription",
             put(change_user_subscription),
         )
-        // サブスクリプション履歴検索・分析
+        // サブスクリプション履歴検索・分析（より具体的なパスを先に定義）
         .route(
             "/admin/subscription/history/all",
             get(get_all_subscription_history_handler),
@@ -2014,7 +1937,7 @@ pub async fn get_all_subscription_history_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(pagination): Query<PaginationQuery>,
-) -> AppResult<Json<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>>> {
+) -> AppResult<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -2044,10 +1967,7 @@ pub async fn get_all_subscription_history_handler(
 
     let response = PaginatedResponse::new(paginated_histories, page, per_page, total_count);
 
-    Ok(Json(ApiResponse::success(
-        "Subscription history retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// サブスクリプション履歴検索（管理者用）
@@ -2055,7 +1975,7 @@ pub async fn search_subscription_history_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(search_query): Query<SubscriptionHistorySearchQuery>,
-) -> AppResult<Json<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>>> {
+) -> AppResult<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -2114,17 +2034,14 @@ pub async fn search_subscription_history_handler(
 
     let response = PaginatedResponse::new(paginated_histories, page, per_page, total_count);
 
-    Ok(Json(ApiResponse::success(
-        "Subscription history search completed",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// サブスクリプション分析データ取得（管理者用）
 pub async fn get_subscription_analytics_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<ApiResponse<SubscriptionAnalyticsResponse>>> {
+) -> AppResult<ApiResponse<SubscriptionAnalyticsResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -2180,10 +2097,7 @@ pub async fn get_subscription_analytics_handler(
         };
     }
 
-    Ok(Json(ApiResponse::success(
-        "Subscription analytics retrieved successfully",
-        analytics,
-    )))
+    Ok(ApiResponse::success(analytics))
 }
 
 /// 特定ユーザーのサブスクリプション履歴削除（GDPR対応）
@@ -2191,7 +2105,7 @@ pub async fn delete_user_subscription_history_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
-) -> AppResult<(StatusCode, Json<ApiResponse<DeleteHistoryResponse>>)> {
+) -> AppResult<(StatusCode, ApiResponse<DeleteHistoryResponse>)> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -2216,13 +2130,7 @@ pub async fn delete_user_subscription_history_handler(
         deleted_at: Utc::now(),
     };
 
-    Ok((
-        StatusCode::OK,
-        Json(ApiResponse::success(
-            format!("Deleted {} subscription history records", deleted_count),
-            response,
-        )),
-    ))
+    Ok((StatusCode::OK, ApiResponse::success(response)))
 }
 
 /// 特定のサブスクリプション履歴を削除（管理者用）
@@ -2230,7 +2138,7 @@ pub async fn delete_subscription_history_by_id_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Path(history_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<bool>>> {
+) -> AppResult<ApiResponse<bool>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden("Admin access required".to_string()));
@@ -2247,14 +2155,7 @@ pub async fn delete_subscription_history_by_id_handler(
         .delete_by_id(history_id)
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        if deleted {
-            "Subscription history record deleted successfully"
-        } else {
-            "Subscription history record not found"
-        },
-        deleted,
-    )))
+    Ok(ApiResponse::success(deleted))
 }
 
 /// サブスクリプション分析レスポンス
@@ -2297,7 +2198,7 @@ pub async fn admin_get_user_settings(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<UserSettingsDto>>> {
+) -> AppResult<ApiResponse<UserSettingsDto>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -2318,10 +2219,7 @@ pub async fn admin_get_user_settings(
         .await?
         .ok_or_else(|| AppError::NotFound("User settings not found".to_string()))?;
 
-    Ok(Json(ApiResponse::success(
-        "User settings retrieved successfully",
-        UserSettingsDto::from(settings),
-    )))
+    Ok(ApiResponse::success(UserSettingsDto::from(settings)))
 }
 
 /// 管理者向けユーザー設定更新
@@ -2330,7 +2228,7 @@ pub async fn admin_update_user_settings(
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
     Json(request): Json<UpdateUserSettingsRequest>,
-) -> AppResult<Json<ApiResponse<UserSettingsDto>>> {
+) -> AppResult<ApiResponse<UserSettingsDto>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -2363,10 +2261,7 @@ pub async fn admin_update_user_settings(
         .update_user_settings(user_id, input)
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "User settings updated successfully",
-        UserSettingsDto::from(settings),
-    )))
+    Ok(ApiResponse::success(UserSettingsDto::from(settings)))
 }
 
 /// 管理者向け言語別ユーザー一覧取得
@@ -2374,7 +2269,7 @@ pub async fn admin_get_users_by_language(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<UsersByLanguageResponse>>> {
+) -> AppResult<ApiResponse<UsersByLanguageResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -2403,10 +2298,7 @@ pub async fn admin_get_users_by_language(
         user_ids,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Users retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向け通知有効ユーザー一覧取得
@@ -2414,7 +2306,7 @@ pub async fn admin_get_users_with_notification(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<UsersWithNotificationResponse>>> {
+) -> AppResult<ApiResponse<UsersWithNotificationResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden(
@@ -2443,10 +2335,7 @@ pub async fn admin_get_users_with_notification(
         user_ids,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Users retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向けユーザー設定削除

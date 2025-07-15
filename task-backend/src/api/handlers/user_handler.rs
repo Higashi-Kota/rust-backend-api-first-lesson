@@ -1,19 +1,20 @@
 // task-backend/src/api/handlers/user_handler.rs
-use crate::api::dto::common::{ApiResponse, OperationResult};
 use crate::api::dto::user_dto::{
     AccountStatusUpdateResponse, BulkOperationResponse, BulkUserOperationsRequest,
-    EmailVerificationHistoryResponse, EmailVerificationResponse, ProfileUpdateResponse,
-    ResendVerificationEmailRequest, SubscriptionAnalyticsResponse, SubscriptionQuery,
-    UpdateAccountStatusRequest, UpdateEmailRequest, UpdateProfileRequest,
-    UpdateUserSettingsRequest, UpdateUsernameRequest, UserAdditionalInfo, UserAnalyticsResponse,
-    UserListResponse, UserPermissionsResponse, UserProfileResponse, UserSearchQuery,
-    UserSettingsResponse, UserStatsResponse, UserSummary, VerifyEmailRequest,
+    EmailVerificationHistoryResponse, EmailVerificationResponse, ResendVerificationEmailRequest,
+    SubscriptionAnalyticsResponse, SubscriptionQuery, UpdateAccountStatusRequest,
+    UpdateEmailRequest, UpdateProfileRequest, UpdateUserSettingsRequest, UpdateUsernameRequest,
+    UserAdditionalInfo, UserAnalyticsResponse, UserListResponse, UserPermissionsResponse,
+    UserProfileResponse, UserSearchQuery, UserSettingsResponse, UserStatsResponse, UserSummary,
+    VerifyEmailRequest,
 };
 use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
+use crate::domain::user_model::SafeUser;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
+use crate::types::ApiResponse;
 use crate::utils::permission::PermissionChecker;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
@@ -55,7 +56,7 @@ where
 pub async fn get_profile_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<UserProfileResponse>> {
+) -> AppResult<ApiResponse<UserProfileResponse>> {
     let user_profile = app_state
         .user_service
         .get_user_profile(user.claims.user_id)
@@ -71,7 +72,9 @@ pub async fn get_profile_handler(
         "view"
     );
 
-    Ok(Json(UserProfileResponse { user: user_profile }))
+    Ok(ApiResponse::success(UserProfileResponse {
+        user: user_profile,
+    }))
 }
 
 /// ユーザー名更新
@@ -79,7 +82,7 @@ pub async fn update_username_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<UpdateUsernameRequest>,
-) -> AppResult<Json<ProfileUpdateResponse>> {
+) -> AppResult<ApiResponse<SafeUser>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!("Username update validation failed: {}", validation_errors);
@@ -116,10 +119,7 @@ pub async fn update_username_handler(
         "Username updated successfully"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Username updated successfully",
-        OperationResult::updated(updated_user, vec!["username".to_string()]),
-    )))
+    Ok(ApiResponse::success(updated_user))
 }
 
 /// メールアドレス更新
@@ -127,7 +127,7 @@ pub async fn update_email_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<UpdateEmailRequest>,
-) -> AppResult<Json<ProfileUpdateResponse>> {
+) -> AppResult<ApiResponse<SafeUser>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!("Email update validation failed: {}", validation_errors);
@@ -164,10 +164,7 @@ pub async fn update_email_handler(
         "Email updated successfully"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Email updated successfully. Please verify your new email address",
-        OperationResult::updated(updated_user, vec!["email".to_string()]),
-    )))
+    Ok(ApiResponse::success(updated_user))
 }
 
 /// プロフィール一括更新
@@ -175,7 +172,7 @@ pub async fn update_profile_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<UpdateProfileRequest>,
-) -> AppResult<Json<ProfileUpdateResponse>> {
+) -> AppResult<ApiResponse<SafeUser>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!("Profile update validation failed: {}", validation_errors);
@@ -231,17 +228,14 @@ pub async fn update_profile_handler(
         "Profile updated successfully"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Profile updated successfully",
-        OperationResult::updated(updated_user, changes),
-    )))
+    Ok(ApiResponse::success(updated_user))
 }
 
 /// ユーザー統計情報取得
 pub async fn get_user_stats_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<UserStatsResponse>> {
+) -> AppResult<ApiResponse<UserStatsResponse>> {
     let stats = app_state
         .user_service
         .get_user_stats(user.claims.user_id)
@@ -251,7 +245,7 @@ pub async fn get_user_stats_handler(
 
     info!(user_id = %user.claims.user_id, "User stats retrieved");
 
-    Ok(Json(UserStatsResponse {
+    Ok(ApiResponse::success(UserStatsResponse {
         stats,
         additional_info,
     }))
@@ -262,7 +256,7 @@ pub async fn verify_email_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<VerifyEmailRequest>,
-) -> AppResult<Json<EmailVerificationResponse>> {
+) -> AppResult<ApiResponse<EmailVerificationResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -312,7 +306,7 @@ pub async fn verify_email_handler(
 
     info!(user_id = %user.claims.user_id, "Email verified successfully");
 
-    Ok(Json(EmailVerificationResponse {
+    Ok(ApiResponse::success(EmailVerificationResponse {
         message: "Email verified successfully".to_string(),
         verified: true,
         user: Some(verified_user),
@@ -324,7 +318,7 @@ pub async fn resend_verification_email_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<ResendVerificationEmailRequest>,
-) -> AppResult<Json<EmailVerificationResponse>> {
+) -> AppResult<ApiResponse<EmailVerificationResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -366,7 +360,7 @@ pub async fn resend_verification_email_handler(
                 email = %payload.email,
                 "Verification email sent successfully"
             );
-            Ok(Json(EmailVerificationResponse {
+            Ok(ApiResponse::success(EmailVerificationResponse {
                 message: "Verification email sent successfully".to_string(),
                 verified: false,
                 user: None,
@@ -390,7 +384,7 @@ pub async fn resend_verification_email_handler(
 pub async fn get_user_settings_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<UserSettingsResponse>>> {
+) -> AppResult<ApiResponse<UserSettingsResponse>> {
     // 実際の設定をデータベースから取得
     let user_settings = app_state
         .user_service
@@ -399,10 +393,7 @@ pub async fn get_user_settings_handler(
 
     info!(user_id = %user.claims.user_id, "User settings retrieved");
 
-    Ok(Json(ApiResponse::success(
-        "User settings retrieved successfully",
-        user_settings,
-    )))
+    Ok(ApiResponse::success(user_settings))
 }
 
 /// ユーザー設定更新
@@ -410,7 +401,7 @@ pub async fn update_user_settings_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<UpdateUserSettingsRequest>,
-) -> AppResult<Json<ApiResponse<()>>> {
+) -> AppResult<ApiResponse<()>> {
     // タイムゾーンのバリデーション
     if let Some(ref tz) = payload.timezone {
         // 基本的なタイムゾーン検証（より詳細な検証も可能）
@@ -456,17 +447,14 @@ pub async fn update_user_settings_handler(
 
     info!(user_id = %user.claims.user_id, "User settings updated");
 
-    Ok(Json(ApiResponse::success(
-        "User settings updated successfully",
-        (),
-    )))
+    Ok(ApiResponse::success(()))
 }
 
 /// ユーザー設定削除（デフォルトに戻す）
 pub async fn delete_user_settings_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<(StatusCode, Json<ApiResponse<()>>)> {
+) -> AppResult<(StatusCode, ApiResponse<()>)> {
     // 設定をデフォルトに戻す
     app_state
         .user_service
@@ -475,13 +463,7 @@ pub async fn delete_user_settings_handler(
 
     info!(user_id = %user.claims.user_id, "User settings reset to default");
 
-    Ok((
-        StatusCode::NO_CONTENT,
-        Json(ApiResponse::success(
-            "User settings reset to default successfully",
-            (),
-        )),
-    ))
+    Ok((StatusCode::NO_CONTENT, ApiResponse::success(())))
 }
 
 /// アカウント状態更新（管理者用）
@@ -490,7 +472,7 @@ pub async fn update_account_status_handler(
     UuidPath(user_id): UuidPath,
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<UpdateAccountStatusRequest>,
-) -> AppResult<Json<AccountStatusUpdateResponse>> {
+) -> AppResult<ApiResponse<AccountStatusUpdateResponse>> {
     // UserClaimsの権限チェックメソッドを活用 - ユーザーリソースの更新権限を確認
     if !admin_user.claims.can_update_resource("user", Some(user_id)) {
         warn!(
@@ -563,7 +545,7 @@ pub async fn update_account_status_handler(
         "Account status updated successfully"
     );
 
-    Ok(Json(AccountStatusUpdateResponse {
+    Ok(ApiResponse::success(AccountStatusUpdateResponse {
         user: updated_user,
         message: format!(
             "Account {} successfully",
@@ -585,7 +567,7 @@ pub async fn advanced_search_users_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
-) -> AppResult<Json<UserListResponse>> {
+) -> AppResult<ApiResponse<UserListResponse>> {
     // ユーザー一覧表示権限チェック（PermissionServiceを使用）
     if let Err(e) = app_state
         .permission_service
@@ -641,7 +623,7 @@ pub async fn advanced_search_users_handler(
         });
     }
 
-    Ok(Json(UserListResponse::new(
+    Ok(ApiResponse::success(UserListResponse::new(
         user_summaries,
         page,
         per_page,
@@ -653,7 +635,7 @@ pub async fn advanced_search_users_handler(
 pub async fn get_user_analytics_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<UserAnalyticsResponse>> {
+) -> AppResult<ApiResponse<UserAnalyticsResponse>> {
     // 管理者権限チェック（PermissionServiceを使用）
     app_state
         .permission_service
@@ -674,7 +656,7 @@ pub async fn get_user_analytics_handler(
     // ロール別統計を取得
     let role_stats = app_state.user_service.get_user_stats_by_role().await?;
 
-    Ok(Json(UserAnalyticsResponse {
+    Ok(ApiResponse::success(UserAnalyticsResponse {
         stats,
         role_stats,
         message: "User analytics retrieved successfully".to_string(),
@@ -687,7 +669,7 @@ pub async fn get_users_by_role_handler(
     Path(role): Path<String>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
-) -> AppResult<Json<UserListResponse>> {
+) -> AppResult<ApiResponse<UserListResponse>> {
     // ユーザー一覧表示権限チェック（PermissionServiceを使用）
     if let Err(e) = app_state
         .permission_service
@@ -747,7 +729,7 @@ pub async fn get_users_by_role_handler(
         });
     }
 
-    Ok(Json(UserListResponse::new(
+    Ok(ApiResponse::success(UserListResponse::new(
         user_summaries,
         page,
         per_page,
@@ -760,7 +742,7 @@ pub async fn get_users_by_subscription_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<SubscriptionQuery>,
-) -> AppResult<Json<SubscriptionAnalyticsResponse>> {
+) -> AppResult<ApiResponse<SubscriptionAnalyticsResponse>> {
     // 管理者権限チェック（PermissionServiceを使用）
     app_state
         .permission_service
@@ -784,7 +766,7 @@ pub async fn get_users_by_subscription_handler(
             .await?
     };
 
-    Ok(Json(SubscriptionAnalyticsResponse {
+    Ok(ApiResponse::success(SubscriptionAnalyticsResponse {
         tier,
         analytics,
         message: "Subscription analytics retrieved successfully".to_string(),
@@ -796,7 +778,7 @@ pub async fn bulk_user_operations_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<BulkUserOperationsRequest>,
-) -> AppResult<Json<BulkOperationResponse>> {
+) -> AppResult<ApiResponse<BulkOperationResponse>> {
     // 管理者権限チェック（PermissionServiceを使用）
     app_state
         .permission_service
@@ -847,7 +829,7 @@ pub async fn bulk_user_operations_handler(
     let execution_time = start_time.elapsed().as_millis() as u64;
     let operation_id = uuid::Uuid::new_v4().to_string();
 
-    Ok(Json(BulkOperationResponse {
+    Ok(ApiResponse::success(BulkOperationResponse {
         operation_id,
         operation: payload.operation.to_string(),
         total_users: payload.user_ids.len(),
@@ -866,7 +848,7 @@ pub async fn list_users_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
-) -> AppResult<Json<UserListResponse>> {
+) -> AppResult<ApiResponse<UserListResponse>> {
     // ユーザー一覧表示権限チェック（PermissionServiceを使用）
     if let Err(e) = app_state
         .permission_service
@@ -965,7 +947,7 @@ pub async fn list_users_handler(
         "Admin user search retrieved successfully"
     );
 
-    Ok(Json(UserListResponse::new(
+    Ok(ApiResponse::success(UserListResponse::new(
         user_summaries,
         page,
         per_page,
@@ -978,7 +960,7 @@ pub async fn get_user_by_id_handler(
     State(app_state): State<AppState>,
     UuidPath(user_id): UuidPath,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<UserProfileResponse>> {
+) -> AppResult<ApiResponse<UserProfileResponse>> {
     // ユーザーアクセス権限チェック（PermissionServiceを使用）
     if let Err(e) = app_state
         .permission_service
@@ -1009,14 +991,16 @@ pub async fn get_user_by_id_handler(
         "Admin user profile retrieved successfully"
     );
 
-    Ok(Json(UserProfileResponse { user: user_profile }))
+    Ok(ApiResponse::success(UserProfileResponse {
+        user: user_profile,
+    }))
 }
 
 /// 最終ログイン時刻更新
 pub async fn update_last_login_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<()>>> {
+) -> AppResult<ApiResponse<()>> {
     app_state
         .user_service
         .update_last_login(user.claims.user_id)
@@ -1025,18 +1009,14 @@ pub async fn update_last_login_handler(
     info!(user_id = %user.claims.user_id, "Last login time updated");
 
     // ApiResponse::success_messageを活用
-    Ok(Json(
-        crate::api::dto::common::ApiResponse::<()>::success_message(
-            "Last login time updated successfully",
-        ),
-    ))
+    Ok(ApiResponse::success(()))
 }
 
 /// ユーザー権限チェック
 pub async fn check_user_permissions_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUserWithRole,
-) -> AppResult<Json<ApiResponse<UserPermissionsResponse>>> {
+) -> AppResult<ApiResponse<UserPermissionsResponse>> {
     // ユーザー情報を取得
     let user_profile = app_state
         .user_service
@@ -1062,10 +1042,7 @@ pub async fn check_user_permissions_handler(
         can_access_analytics: is_admin || user_profile.subscription_tier == "enterprise",
     };
 
-    Ok(Json(ApiResponse::success(
-        "User permissions retrieved successfully",
-        permissions,
-    )))
+    Ok(ApiResponse::success(permissions))
 }
 
 // --- ヘルスチェック ---
@@ -1074,7 +1051,7 @@ pub async fn check_user_permissions_handler(
 pub async fn get_email_verification_history_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<EmailVerificationHistoryResponse>>> {
+) -> AppResult<ApiResponse<EmailVerificationHistoryResponse>> {
     info!(
         user_id = %user.user_id(),
         "Getting email verification history"
@@ -1092,10 +1069,7 @@ pub async fn get_email_verification_history_handler(
         "Email verification history retrieved"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Email verification history retrieved successfully",
-        history_response,
-    )))
+    Ok(ApiResponse::success(history_response))
 }
 
 /// ユーザーサービスのヘルスチェック
@@ -1109,7 +1083,7 @@ pub async fn upgrade_user_subscription_handler(
     user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
     Json(payload): Json<serde_json::Value>,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     // 権限チェック：自分自身または管理者のみ
     if user.user_id() != user_id && !user.is_admin() {
         return Err(AppError::Forbidden(
@@ -1164,10 +1138,7 @@ pub async fn upgrade_user_subscription_handler(
         "upgraded_at": chrono::Utc::now(),
     });
 
-    Ok(Json(ApiResponse::success(
-        "Subscription upgraded successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 // --- ルーター ---

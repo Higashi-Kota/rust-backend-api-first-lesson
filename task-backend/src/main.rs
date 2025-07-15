@@ -14,6 +14,7 @@ mod middleware;
 mod repository;
 mod service;
 mod shared;
+mod types;
 mod utils;
 
 use crate::api::handlers::{

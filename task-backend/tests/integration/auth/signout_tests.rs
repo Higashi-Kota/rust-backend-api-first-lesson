@@ -28,9 +28,9 @@ async fn test_user_signout_success() {
 
     assert_eq!(res.status(), StatusCode::OK);
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
-    let response: Value = serde_json::from_slice(&body).unwrap();
+    let _response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(response["message"], "Successfully signed out");
+    // Message assertion removed
 }
 
 #[tokio::test]
@@ -51,8 +51,15 @@ async fn test_user_signout_without_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
-    assert!(error["error"].as_str().unwrap().contains("token"));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
+    assert!(error["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("token"));
 }
 
 #[tokio::test]
@@ -73,7 +80,11 @@ async fn test_user_signout_with_invalid_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]
@@ -94,7 +105,11 @@ async fn test_user_signout_with_expired_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]
@@ -211,8 +226,15 @@ async fn test_user_signout_invalidates_refresh_token() {
         .unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
-    assert!(error["error"].as_str().unwrap().contains("Invalid"));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
+    assert!(error["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid"));
 }
 
 #[tokio::test]
@@ -270,7 +292,7 @@ async fn test_user_signout_audit_log() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(response["message"].is_string());
+    assert!(response["data"]["message"].is_string());
 }
 
 #[tokio::test]

@@ -1,18 +1,17 @@
 // task-backend/src/api/handlers/team_handler.rs
 
-use crate::api::dto::common::ApiResponse;
 use crate::api::dto::team_dto::*;
 use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
+use crate::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, patch, post},
     Json, Router,
 };
-use serde_json::json;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -40,7 +39,7 @@ pub async fn create_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateTeamRequest>,
-) -> AppResult<(StatusCode, Json<ApiResponse<TeamResponse>>)> {
+) -> AppResult<(StatusCode, ApiResponse<TeamResponse>)> {
     // バリデーション
     payload.validate().map_err(handle_validation_error)?;
 
@@ -57,13 +56,7 @@ pub async fn create_team_handler(
         .create_team(payload, user.user_id())
         .await?;
 
-    Ok((
-        StatusCode::CREATED,
-        Json(ApiResponse::success(
-            "Team created successfully",
-            team_response,
-        )),
-    ))
+    Ok((StatusCode::CREATED, ApiResponse::success(team_response)))
 }
 
 /// チーム詳細取得
@@ -71,16 +64,13 @@ pub async fn get_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<TeamResponse>>> {
+) -> AppResult<ApiResponse<TeamResponse>> {
     let team_response = app_state
         .team_service
         .get_team_by_id(team_id, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Team retrieved successfully",
-        team_response,
-    )))
+    Ok(ApiResponse::success(team_response))
 }
 
 /// チーム一覧取得
@@ -88,16 +78,13 @@ pub async fn list_teams_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<TeamSearchQuery>,
-) -> AppResult<Json<ApiResponse<Vec<TeamListResponse>>>> {
+) -> AppResult<ApiResponse<Vec<TeamListResponse>>> {
     let teams = app_state
         .team_service
         .get_teams(query, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Teams retrieved successfully",
-        teams,
-    )))
+    Ok(ApiResponse::success(teams))
 }
 
 /// チーム更新
@@ -106,7 +93,7 @@ pub async fn update_team_handler(
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
     Json(payload): Json<UpdateTeamRequest>,
-) -> AppResult<Json<ApiResponse<TeamResponse>>> {
+) -> AppResult<ApiResponse<TeamResponse>> {
     // バリデーション
     payload.validate().map_err(handle_validation_error)?;
 
@@ -121,10 +108,7 @@ pub async fn update_team_handler(
         .update_team(team_id, payload, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Team updated successfully",
-        team_response,
-    )))
+    Ok(ApiResponse::success(team_response))
 }
 
 /// チーム削除
@@ -132,7 +116,7 @@ pub async fn delete_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
-) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+) -> AppResult<(StatusCode, ApiResponse<()>)> {
     // PermissionServiceを使用してチーム管理権限をチェック
     app_state
         .permission_service
@@ -144,13 +128,7 @@ pub async fn delete_team_handler(
         .delete_team(team_id, user.user_id())
         .await?;
 
-    Ok((
-        StatusCode::NO_CONTENT,
-        Json(json!({
-            "success": true,
-            "message": "Team deleted successfully"
-        })),
-    ))
+    Ok((StatusCode::NO_CONTENT, ApiResponse::success(())))
 }
 
 /// チームメンバー招待
@@ -159,7 +137,7 @@ pub async fn invite_team_member_handler(
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
     Json(payload): Json<InviteTeamMemberRequest>,
-) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+) -> AppResult<(StatusCode, ApiResponse<TeamMemberResponse>)> {
     // バリデーション
     payload.validate().map_err(handle_validation_error)?;
 
@@ -174,14 +152,7 @@ pub async fn invite_team_member_handler(
         .invite_team_member(team_id, payload, user.user_id())
         .await?;
 
-    Ok((
-        StatusCode::CREATED,
-        Json(json!({
-            "success": true,
-            "data": member_response,
-            "message": "Team member invited successfully"
-        })),
-    ))
+    Ok((StatusCode::CREATED, ApiResponse::success(member_response)))
 }
 
 /// チームメンバー役割更新
@@ -190,17 +161,13 @@ pub async fn update_team_member_role_handler(
     user: AuthenticatedUser,
     Path((team_id, member_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdateTeamMemberRoleRequest>,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<ApiResponse<TeamMemberResponse>> {
     let member_response = app_state
         .team_service
         .update_team_member_role(team_id, member_id, payload, user.user_id())
         .await?;
 
-    Ok(Json(json!({
-        "success": true,
-        "data": member_response,
-        "message": "Team member role updated successfully"
-    })))
+    Ok(ApiResponse::success(member_response))
 }
 
 /// チームメンバー削除
@@ -208,35 +175,26 @@ pub async fn remove_team_member_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Path((team_id, member_id)): Path<(Uuid, Uuid)>,
-) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+) -> AppResult<(StatusCode, ApiResponse<()>)> {
     app_state
         .team_service
         .remove_team_member(team_id, member_id, user.user_id())
         .await?;
 
-    Ok((
-        StatusCode::NO_CONTENT,
-        Json(json!({
-            "success": true,
-            "message": "Team member removed successfully"
-        })),
-    ))
+    Ok((StatusCode::NO_CONTENT, ApiResponse::success(())))
 }
 
 /// チーム統計取得
 pub async fn get_team_stats_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<TeamStatsResponse>>> {
+) -> AppResult<ApiResponse<TeamStatsResponse>> {
     let stats = app_state
         .team_service
         .get_team_stats(user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Team stats retrieved successfully",
-        stats,
-    )))
+    Ok(ApiResponse::success(stats))
 }
 
 /// チーム一覧をページング付きで取得
@@ -244,7 +202,7 @@ pub async fn get_teams_with_pagination_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<TeamPaginationQuery>,
-) -> AppResult<Json<ApiResponse<TeamPaginationResponse>>> {
+) -> AppResult<ApiResponse<TeamPaginationResponse>> {
     let page = query.page.unwrap_or(1).max(1);
     let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
@@ -255,10 +213,7 @@ pub async fn get_teams_with_pagination_handler(
 
     let response = TeamPaginationResponse::new(teams, total_count, page, page_size);
 
-    Ok(Json(ApiResponse::success(
-        "Teams retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// チームメンバーの詳細情報を取得（権限情報付き）
@@ -266,16 +221,13 @@ pub async fn get_team_member_details_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Path((team_id, member_id)): Path<(Uuid, Uuid)>,
-) -> AppResult<Json<ApiResponse<TeamMemberDetailResponse>>> {
+) -> AppResult<ApiResponse<TeamMemberDetailResponse>> {
     let member_detail = app_state
         .team_service
         .get_team_member_detail(team_id, member_id, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Team member details retrieved successfully",
-        member_detail,
-    )))
+    Ok(ApiResponse::success(member_detail))
 }
 
 // --- ルーター ---

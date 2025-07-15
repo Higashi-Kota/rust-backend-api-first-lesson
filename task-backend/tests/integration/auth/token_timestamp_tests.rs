@@ -32,8 +32,8 @@ async fn test_signup_response_contains_token_timestamps() {
     let json: Value = serde_json::from_slice(&body).unwrap();
 
     // tokensオブジェクトが存在することを確認
-    assert!(json.get("tokens").is_some());
-    let tokens = json.get("tokens").unwrap();
+    assert!(json["data"].get("tokens").is_some());
+    let tokens = json["data"].get("tokens").unwrap();
 
     // タイムスタンプフィールドが存在することを確認
     assert!(tokens.get("access_token_expires_at").is_some());
@@ -98,7 +98,7 @@ async fn test_signin_response_contains_token_timestamps() {
         .await
         .unwrap();
     let json: Value = serde_json::from_slice(&body).unwrap();
-    let tokens = json.get("tokens").unwrap();
+    let tokens = json["data"].get("tokens").unwrap();
 
     // タイムスタンプフィールドの検証
     validate_token_timestamps(tokens);

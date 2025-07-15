@@ -3,14 +3,14 @@
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use sea_orm::DbErr;
-use serde::Serialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 use validator::ValidationErrors;
+
+use crate::types::ApiResponse;
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -54,225 +54,35 @@ pub enum AppError {
 // axum でエラーをHTTPレスポンスに変換するための実装
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_response) = match self {
+        let status = match &self {
             AppError::DbErr(db_err) => {
-                eprintln!("Database error: {:?}", db_err); // サーバーログには詳細を出す
-
-                // 具体的なDBエラーのタイプに基づいて適切なステータスコードを返す
-                let status = match db_err {
+                eprintln!("Database error: {:?}", db_err);
+                match db_err {
                     sea_orm::DbErr::RecordNotFound(_) => StatusCode::NOT_FOUND,
                     _ => StatusCode::INTERNAL_SERVER_ERROR,
-                };
-
-                // クライアントへのエラーメッセージをより具体的に
-                let (message, details) = match &db_err {
-                    sea_orm::DbErr::RecordNotFound(entity) => (
-                        "The requested resource was not found".to_string(),
-                        Some(json!({ "entity": entity })),
-                    ),
-                    sea_orm::DbErr::Exec(_msg) => (
-                        "A database operation failed".to_string(),
-                        Some(json!({ "operation": "exec", "hint": "Check database connection" })),
-                    ),
-                    sea_orm::DbErr::Query(_msg) => (
-                        "A database query failed".to_string(),
-                        Some(json!({ "operation": "query", "hint": "Check query syntax" })),
-                    ),
-                    _ => ("A database error occurred".to_string(), None),
-                };
-
-                (
-                    status,
-                    ErrorResponse {
-                        success: false,
-                        error: message.clone(),
-                        message,
-                        details,
-                        validation_errors: None,
-                        errors: None,
-                        error_type: "database_error".to_string(),
-                    },
-                )
-            }
-            AppError::NotFound(message) => (
-                StatusCode::NOT_FOUND,
-                ErrorResponse {
-                    success: false,
-                    error: message.clone(),
-                    message,
-                    details: None,
-                    validation_errors: None,
-                    errors: None,
-                    error_type: "not_found".to_string(),
-                },
-            ),
-            AppError::ValidationError(message) => (
-                StatusCode::BAD_REQUEST,
-                ErrorResponse {
-                    success: false,
-                    error: message.clone(),
-                    message,
-                    details: None,
-                    validation_errors: None,
-                    errors: None,
-                    error_type: "validation_error".to_string(),
-                },
-            ),
-            AppError::ValidationErrors(errors) => {
-                let mut field_errors = HashMap::new();
-                for error in &errors {
-                    if let Some((field, message)) = error.split_once(": ") {
-                        field_errors
-                            .entry(field.to_string())
-                            .or_insert_with(Vec::new)
-                            .push(message.to_string());
-                    }
                 }
-                let errors_array: Vec<serde_json::Value> =
-                    errors.iter().map(|e| json!({"message": e})).collect();
-                (
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse {
-                        success: false,
-                        error: "Validation failed".to_string(),
-                        message: "Validation failed".to_string(),
-                        details: None,
-                        validation_errors: Some(field_errors),
-                        errors: Some(errors_array),
-                        error_type: "validation_errors".to_string(),
-                    },
-                )
             }
-            AppError::UuidError(err) => (
-                StatusCode::BAD_REQUEST,
-                ErrorResponse {
-                    success: false,
-                    error: format!("Invalid UUID: {}", err),
-                    message: format!("Invalid UUID: {}", err),
-                    details: None,
-                    validation_errors: None,
-                    errors: None,
-                    error_type: "invalid_uuid".to_string(),
-                },
-            ),
-            AppError::ValidationFailure(errors) => {
-                let field_errors: HashMap<String, Vec<String>> = errors
-                    .field_errors()
-                    .into_iter()
-                    .map(|(field, errors)| {
-                        let messages = errors
-                            .iter()
-                            .map(|e| {
-                                e.message
-                                    .as_ref()
-                                    .map_or_else(|| "Invalid value".to_string(), |m| m.to_string())
-                            })
-                            .collect();
-                        (field.to_string(), messages)
-                    })
-                    .collect();
-                let errors_array: Vec<serde_json::Value> = field_errors
-                    .iter()
-                    .flat_map(|(field, messages)| {
-                        messages
-                            .iter()
-                            .map(move |msg| json!({"message": format!("{}: {}", field, msg)}))
-                    })
-                    .collect();
-                (
-                    StatusCode::BAD_REQUEST,
-                    ErrorResponse {
-                        success: false,
-                        error: "Validation failed".to_string(),
-                        message: "Validation failed".to_string(),
-                        details: None,
-                        validation_errors: Some(field_errors),
-                        errors: Some(errors_array),
-                        error_type: "validation_errors".to_string(),
-                    },
-                )
-            }
-            AppError::BadRequest(message) => (
-                StatusCode::BAD_REQUEST,
-                ErrorResponse {
-                    success: false,
-                    error: message.clone(),
-                    message,
-                    details: None,
-                    validation_errors: None,
-                    errors: None,
-                    error_type: "bad_request".to_string(),
-                },
-            ),
-            AppError::Unauthorized(message) => (
-                StatusCode::UNAUTHORIZED,
-                ErrorResponse {
-                    success: false,
-                    error: message.clone(),
-                    message,
-                    details: None,
-                    validation_errors: None,
-                    errors: None,
-                    error_type: "unauthorized".to_string(),
-                },
-            ),
-            AppError::Forbidden(message) => (
-                StatusCode::FORBIDDEN,
-                ErrorResponse {
-                    success: false,
-                    error: message.clone(),
-                    message,
-                    details: None,
-                    validation_errors: None,
-                    errors: None,
-                    error_type: "forbidden".to_string(),
-                },
-            ),
-            AppError::Conflict(message) => (
-                StatusCode::CONFLICT,
-                ErrorResponse {
-                    success: false,
-                    error: message.clone(),
-                    message,
-                    details: None,
-                    validation_errors: None,
-                    errors: None,
-                    error_type: "conflict".to_string(),
-                },
-            ),
+            AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
+            AppError::ValidationErrors(_) => StatusCode::BAD_REQUEST,
+            AppError::UuidError(_) => StatusCode::BAD_REQUEST,
+            AppError::ValidationFailure(_) => StatusCode::BAD_REQUEST,
+            AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
+            AppError::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            AppError::Forbidden(_) => StatusCode::FORBIDDEN,
+            AppError::Conflict(_) => StatusCode::CONFLICT,
             AppError::InternalServerError(message) => {
                 eprintln!("Internal server error: {}", message);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    ErrorResponse {
-                        success: false,
-                        error: "An internal server error occurred".to_string(),
-                        message: "An internal server error occurred".to_string(),
-                        details: None,
-                        validation_errors: None,
-                        errors: None,
-                        error_type: "internal_server_error".to_string(),
-                    },
-                )
+                StatusCode::INTERNAL_SERVER_ERROR
             }
             AppError::ExternalServiceError(message) => {
                 eprintln!("External service error: {}", message);
-                (
-                    StatusCode::SERVICE_UNAVAILABLE,
-                    ErrorResponse {
-                        success: false,
-                        error: "External service error".to_string(),
-                        message: message.clone(),
-                        details: None,
-                        validation_errors: None,
-                        errors: None,
-                        error_type: "external_service_error".to_string(),
-                    },
-                )
+                StatusCode::SERVICE_UNAVAILABLE
             }
         };
 
-        (status, Json(error_response)).into_response()
+        let error_response = ApiResponse::<()>::error(self);
+        (status, error_response).into_response()
     }
 }
 
@@ -292,4 +102,95 @@ pub struct ErrorResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub errors: Option<Vec<serde_json::Value>>,
     pub error_type: String,
+}
+
+/// エラー詳細情報
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorDetail {
+    pub code: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+}
+
+impl From<AppError> for ErrorDetail {
+    fn from(error: AppError) -> Self {
+        match &error {
+            AppError::DbErr(db_err) => {
+                let message = match db_err {
+                    sea_orm::DbErr::RecordNotFound(_) => "The requested resource was not found",
+                    sea_orm::DbErr::Exec(_) => "A database operation failed",
+                    sea_orm::DbErr::Query(_) => "A database query failed",
+                    _ => "A database error occurred",
+                };
+                ErrorDetail {
+                    code: "DATABASE_ERROR".to_string(),
+                    message: message.to_string(),
+                    field: None,
+                }
+            }
+            AppError::NotFound(msg) => ErrorDetail {
+                code: "NOT_FOUND".to_string(),
+                message: msg.clone(),
+                field: None,
+            },
+            AppError::ValidationError(msg) => ErrorDetail {
+                code: "VALIDATION_ERROR".to_string(),
+                message: msg.clone(),
+                field: None,
+            },
+            AppError::ValidationErrors(errors) => ErrorDetail {
+                code: "VALIDATION_ERRORS".to_string(),
+                message: format!("Multiple validation errors: {}", errors.join(", ")),
+                field: None,
+            },
+            AppError::UuidError(err) => ErrorDetail {
+                code: "UUID_ERROR".to_string(),
+                message: format!("Invalid UUID: {}", err),
+                field: None,
+            },
+            AppError::ValidationFailure(errors) => {
+                let fields: Vec<String> = errors
+                    .field_errors()
+                    .keys()
+                    .map(|k| (*k).to_string())
+                    .collect();
+                ErrorDetail {
+                    code: "VALIDATION_FAILURE".to_string(),
+                    message: format!("Validation failed for fields: {}", fields.join(", ")),
+                    field: None,
+                }
+            }
+            AppError::BadRequest(msg) => ErrorDetail {
+                code: "BAD_REQUEST".to_string(),
+                message: msg.clone(),
+                field: None,
+            },
+            AppError::Unauthorized(msg) => ErrorDetail {
+                code: "UNAUTHORIZED".to_string(),
+                message: msg.clone(),
+                field: None,
+            },
+            AppError::Forbidden(msg) => ErrorDetail {
+                code: "FORBIDDEN".to_string(),
+                message: msg.clone(),
+                field: None,
+            },
+            AppError::Conflict(msg) => ErrorDetail {
+                code: "CONFLICT".to_string(),
+                message: msg.clone(),
+                field: None,
+            },
+            AppError::InternalServerError(_) => ErrorDetail {
+                code: "INTERNAL_SERVER_ERROR".to_string(),
+                message: "An internal server error occurred".to_string(),
+                field: None,
+            },
+            AppError::ExternalServiceError(msg) => ErrorDetail {
+                code: "EXTERNAL_SERVICE_ERROR".to_string(),
+                message: msg.clone(),
+                field: None,
+            },
+        }
+    }
 }

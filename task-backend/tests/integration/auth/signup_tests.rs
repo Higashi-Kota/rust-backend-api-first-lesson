@@ -28,14 +28,20 @@ async fn test_user_signup_success() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    // レスポンス構造の検証
-    assert!(response["user"].is_object());
-    assert!(response["tokens"].is_object());
-    assert!(response["tokens"]["access_token"].is_string());
-    assert!(response["tokens"]["refresh_token"].is_string());
+    // レスポンス構造の検証 - New ApiResponse format
+    assert!(response["success"].as_bool().unwrap());
+    assert!(response["data"].is_object());
+    assert!(response["error"].is_null());
+    assert!(response["meta"].is_object());
+
+    let data = &response["data"];
+    assert!(response["data"]["user"].is_object());
+    assert!(response["data"]["tokens"].is_object());
+    assert!(response["data"]["tokens"]["access_token"].is_string());
+    assert!(response["data"]["tokens"]["refresh_token"].is_string());
 
     // ユーザー情報の検証
-    let user = &response["user"];
+    let user = &data["user"];
     assert_eq!(user["email"], signup_data.email);
     assert_eq!(user["username"], signup_data.username);
     assert!(user["id"].is_string());
@@ -46,8 +52,8 @@ async fn test_user_signup_success() {
     assert!(user["password"].is_null() || !user.as_object().unwrap().contains_key("password"));
 
     // トークンが有効な形式であることを確認
-    let access_token = response["tokens"]["access_token"].as_str().unwrap();
-    let refresh_token = response["tokens"]["refresh_token"].as_str().unwrap();
+    let access_token = data["tokens"]["access_token"].as_str().unwrap();
+    let refresh_token = data["tokens"]["refresh_token"].as_str().unwrap();
     assert!(!access_token.is_empty());
     assert!(!refresh_token.is_empty());
 }
@@ -95,8 +101,12 @@ async fn test_user_signup_duplicate_email() {
     let body = body::to_bytes(res2.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "conflict");
-    assert!(error["error"]
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "CONFLICT");
+    assert!(error["error"]["message"]
         .as_str()
         .unwrap()
         .to_lowercase()
@@ -146,8 +156,12 @@ async fn test_user_signup_duplicate_username() {
     let body = body::to_bytes(res2.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "conflict");
-    assert!(error["error"]
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "CONFLICT");
+    assert!(error["error"]["message"]
         .as_str()
         .unwrap()
         .to_lowercase()
@@ -173,17 +187,29 @@ async fn test_user_signup_validation_empty_email() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // メール関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages.iter().any(|msg| msg.contains("email")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // メール関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages.iter().any(|msg| msg.contains("email")));
+    }
 }
 
 #[tokio::test]
@@ -205,19 +231,31 @@ async fn test_user_signup_validation_invalid_email() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // メール形式エラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("email") || msg.contains("format")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // メール形式エラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages
+            .iter()
+            .any(|msg| msg.contains("email") || msg.contains("format")));
+    }
 }
 
 #[tokio::test]
@@ -239,19 +277,31 @@ async fn test_user_signup_validation_weak_password() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // パスワード関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("password") || msg.contains("characters")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // パスワード関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages
+            .iter()
+            .any(|msg| msg.contains("password") || msg.contains("characters")));
+    }
 }
 
 #[tokio::test]
@@ -273,19 +323,31 @@ async fn test_user_signup_validation_empty_username() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // ユーザー名関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("username") || msg.contains("characters")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // ユーザー名関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages
+            .iter()
+            .any(|msg| msg.contains("username") || msg.contains("characters")));
+    }
 }
 
 #[tokio::test]
@@ -312,9 +374,10 @@ async fn test_user_signup_malformed_json() {
         Ok(error) => {
             // JSON パースエラーまたはバリデーションエラーが返されることを確認
             assert!(
-                error["error_type"] == "parse_error"
-                    || error["error_type"] == "validation_errors"
-                    || error["error_type"] == "bad_request"
+                error["error"]["code"] == "PARSE_ERROR"
+                    || (error["error"]["code"] == "VALIDATION_ERROR"
+                        || error["error"]["code"] == "VALIDATION_ERRORS")
+                    || error["error"]["code"] == "BAD_REQUEST"
             );
         }
         Err(_) => {
@@ -371,20 +434,29 @@ async fn test_user_signup_multiple_validation_errors() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
 
-    // 複数のエラーが返されることを確認
-    assert!(errors.len() >= 3); // email, username, password のエラー
+        // 複数のエラーが返されることを確認
+        assert!(errors.len() >= 3); // email, username, password のエラー
 
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
+        let error_messages = errors
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
 
-    // 各フィールドのエラーが含まれていることを確認
-    assert!(error_messages.iter().any(|msg| msg.contains("email")));
-    assert!(error_messages.iter().any(|msg| msg.contains("username")));
-    assert!(error_messages.iter().any(|msg| msg.contains("password")));
+        // 各フィールドのエラーが含まれていることを確認
+        assert!(error_messages.iter().any(|msg| msg.contains("email")));
+        assert!(error_messages.iter().any(|msg| msg.contains("username")));
+        assert!(error_messages.iter().any(|msg| msg.contains("password")));
+    }
 }

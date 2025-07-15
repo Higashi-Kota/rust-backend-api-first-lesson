@@ -9,6 +9,7 @@ use crate::api::AppState;
 use crate::domain::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
+use crate::types::ApiResponse;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
@@ -114,14 +115,14 @@ pub async fn create_task_handler(
         "create"
     );
 
-    Ok((StatusCode::CREATED, Json(task_dto)))
+    Ok((StatusCode::CREATED, ApiResponse::success(task_dto)))
 }
 
 pub async fn get_task_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     UuidPath(id): UuidPath,
-) -> AppResult<Json<TaskDto>> {
+) -> AppResult<ApiResponse<TaskDto>> {
     info!(
         user_id = %user.claims.user_id,
         task_id = %id,
@@ -134,13 +135,13 @@ pub async fn get_task_handler(
         .get_task_for_user(user.claims.user_id, id)
         .await?;
 
-    Ok(Json(task_dto))
+    Ok(ApiResponse::success(task_dto))
 }
 
 pub async fn list_tasks_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<Vec<TaskDto>>> {
+) -> AppResult<ApiResponse<Vec<TaskDto>>> {
     info!(
         user_id = %user.user_id(),
         "Listing user tasks"
@@ -157,14 +158,14 @@ pub async fn list_tasks_handler(
         "Tasks retrieved successfully"
     );
 
-    Ok(Json(tasks))
+    Ok(ApiResponse::success(tasks))
 }
 
 /// 動的権限を使用するタスク一覧取得（新エンドポイント）
 pub async fn list_tasks_dynamic_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<TaskResponse>> {
+) -> AppResult<ApiResponse<TaskResponse>> {
     info!(
         user_id = %user.claims.user_id,
         subscription_tier = %user.claims.get_subscription_tier().as_str(),
@@ -183,7 +184,7 @@ pub async fn list_tasks_dynamic_handler(
         "Tasks retrieved successfully with dynamic permissions"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 pub async fn update_task_handler(
@@ -191,7 +192,7 @@ pub async fn update_task_handler(
     user: AuthenticatedUser,
     UuidPath(id): UuidPath,
     Json(payload): Json<UpdateTaskDto>,
-) -> AppResult<Json<TaskDto>> {
+) -> AppResult<ApiResponse<TaskDto>> {
     // The task service will check ownership
 
     // バリデーション強化
@@ -252,7 +253,7 @@ pub async fn update_task_handler(
         "Task updated successfully"
     );
 
-    Ok(Json(task_dto))
+    Ok(ApiResponse::success(task_dto))
 }
 
 pub async fn delete_task_handler(
@@ -370,14 +371,14 @@ pub async fn create_tasks_batch_handler(
         "Batch tasks created successfully"
     );
 
-    Ok((StatusCode::CREATED, Json(response_dto)))
+    Ok((StatusCode::CREATED, ApiResponse::success(response_dto)))
 }
 
 pub async fn update_tasks_batch_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<BatchUpdateTaskDto>,
-) -> AppResult<Json<BatchUpdateResponseDto>> {
+) -> AppResult<ApiResponse<BatchUpdateResponseDto>> {
     // バリデーション強化
     if payload.tasks.is_empty() {
         return Err(AppError::ValidationError(
@@ -457,14 +458,14 @@ pub async fn update_tasks_batch_handler(
         .task_service
         .update_tasks_batch_for_user(user.claims.user_id, payload)
         .await?;
-    Ok(Json(response_dto))
+    Ok(ApiResponse::success(response_dto))
 }
 
 pub async fn delete_tasks_batch_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<BatchDeleteTaskDto>,
-) -> AppResult<Json<BatchDeleteResponseDto>> {
+) -> AppResult<ApiResponse<BatchDeleteResponseDto>> {
     // バリデーション強化
     if payload.ids.is_empty() {
         return Err(AppError::ValidationError(
@@ -482,7 +483,7 @@ pub async fn delete_tasks_batch_handler(
         .task_service
         .delete_tasks_batch_for_user(user.claims.user_id, payload)
         .await?;
-    Ok(Json(response_dto))
+    Ok(ApiResponse::success(response_dto))
 }
 
 // フィルタリング用ハンドラー
@@ -490,12 +491,12 @@ pub async fn filter_tasks_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(filter): Query<TaskFilterDto>,
-) -> AppResult<Json<PaginatedTasksDto>> {
+) -> AppResult<ApiResponse<PaginatedTasksDto>> {
     let paginated_tasks = app_state
         .task_service
         .filter_tasks_for_user(user.claims.user_id, filter)
         .await?;
-    Ok(Json(paginated_tasks))
+    Ok(ApiResponse::success(paginated_tasks))
 }
 
 /// 動的権限を使用するフィルタリング（新エンドポイント）
@@ -503,7 +504,7 @@ pub async fn filter_tasks_dynamic_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(filter): Query<TaskFilterDto>,
-) -> AppResult<Json<TaskResponse>> {
+) -> AppResult<ApiResponse<TaskResponse>> {
     info!(
         user_id = %user.claims.user_id,
         subscription_tier = %user.claims.get_subscription_tier().as_str(),
@@ -521,7 +522,7 @@ pub async fn filter_tasks_dynamic_handler(
         "Tasks filtered successfully with dynamic permissions"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 // ページネーション付きタスク一覧ハンドラー
@@ -529,7 +530,7 @@ pub async fn list_tasks_paginated_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(params): Query<PaginationQuery>,
-) -> AppResult<Json<PaginatedTasksDto>> {
+) -> AppResult<ApiResponse<PaginatedTasksDto>> {
     let (page, per_page) = params.get_pagination();
     let page = page as u64;
     let page_size = per_page as u64;
@@ -538,7 +539,7 @@ pub async fn list_tasks_paginated_handler(
         .task_service
         .list_tasks_paginated_for_user(user.claims.user_id, page, page_size)
         .await?;
-    Ok(Json(paginated_tasks))
+    Ok(ApiResponse::success(paginated_tasks))
 }
 
 /// 動的権限を使用するページネーション（新エンドポイント）
@@ -546,7 +547,7 @@ pub async fn list_tasks_paginated_dynamic_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(params): Query<PaginationQuery>,
-) -> AppResult<Json<TaskResponse>> {
+) -> AppResult<ApiResponse<TaskResponse>> {
     let (page, per_page) = params.get_pagination();
     let page = page as u64;
     let page_size = per_page as u64;
@@ -577,7 +578,7 @@ pub async fn list_tasks_paginated_dynamic_handler(
         "Paginated tasks retrieved successfully"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 // ヘルスチェックハンドラーを追加
@@ -591,7 +592,7 @@ async fn health_check_handler() -> &'static str {
 pub async fn get_user_task_stats_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     use crate::middleware::auth::{
         extract_client_ip, get_authenticated_user_from_claims,
         get_authenticated_user_with_role_from_claims,
@@ -670,7 +671,7 @@ pub async fn get_user_task_stats_handler(
         "User task statistics retrieved"
     );
 
-    Ok(Json(stats))
+    Ok(ApiResponse::success(stats))
 }
 
 /// タスクのステータスを一括更新
@@ -678,7 +679,7 @@ pub async fn bulk_update_status_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<serde_json::Value>,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     // ペイロードの検証
     let task_ids = payload
         .get("task_ids")
@@ -735,7 +736,7 @@ pub async fn bulk_update_status_handler(
         "Bulk status update completed"
     );
 
-    Ok(Json(serde_json::json!({
+    Ok(ApiResponse::success(serde_json::json!({
         "updated_count": updated_count,
         "errors": errors,
         "new_status": new_status

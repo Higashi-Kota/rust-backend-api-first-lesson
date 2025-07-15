@@ -144,8 +144,14 @@ async fn test_upload_unsupported_file_type_rejected() {
     let json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["success"], false);
-    assert!(json["message"].as_str().unwrap().contains("File type"));
-    assert!(json["message"].as_str().unwrap().contains("not allowed"));
+    assert!(json["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("File type"));
+    assert!(json["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("not allowed"));
 }
 
 /// 異常系テスト: ファイルサイズ制限超過
@@ -178,7 +184,7 @@ async fn test_upload_file_size_exceeded() {
     let json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["success"], false);
-    assert!(json["message"].as_str().unwrap().contains("size"));
+    assert!(json["error"]["message"].as_str().unwrap().contains("size"));
 }
 
 /// 権限エラーテスト: 他のユーザーのタスクにアップロード
@@ -211,7 +217,10 @@ async fn test_upload_to_other_users_task_forbidden() {
     let json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["success"], false);
-    assert!(json["message"].as_str().unwrap().contains("permission"));
+    assert!(json["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("permission"));
 }
 
 /// 正常系テスト: 添付ファイル一覧の取得

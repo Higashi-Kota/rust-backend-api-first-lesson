@@ -42,13 +42,19 @@ async fn test_user_signin_success_with_email() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    // レスポンス構造の検証
-    assert!(response["user"].is_object());
-    assert!(response["tokens"]["access_token"].is_string());
-    assert!(response["tokens"]["refresh_token"].is_string());
+    // レスポンス構造の検証 - New ApiResponse format
+    assert!(response["success"].as_bool().unwrap());
+    assert!(response["data"].is_object());
+    assert!(response["error"].is_null());
+    assert!(response["meta"].is_object());
+
+    let data = &response["data"];
+    assert!(response["data"]["user"].is_object());
+    assert!(response["data"]["tokens"]["access_token"].is_string());
+    assert!(response["data"]["tokens"]["refresh_token"].is_string());
 
     // ユーザー情報の検証
-    let user = &response["user"];
+    let user = &data["user"];
     assert_eq!(user["email"], signup_data.email);
     assert_eq!(user["username"], signup_data.username);
     assert!(user["id"].is_string());
@@ -57,8 +63,8 @@ async fn test_user_signin_success_with_email() {
     assert!(user["password"].is_null() || !user.as_object().unwrap().contains_key("password"));
 
     // トークンが有効な形式であることを確認
-    let access_token = response["tokens"]["access_token"].as_str().unwrap();
-    let refresh_token = response["tokens"]["refresh_token"].as_str().unwrap();
+    let access_token = data["tokens"]["access_token"].as_str().unwrap();
+    let refresh_token = data["tokens"]["refresh_token"].as_str().unwrap();
     assert!(!access_token.is_empty());
     assert!(!refresh_token.is_empty());
 }
@@ -97,7 +103,7 @@ async fn test_user_signin_success_with_username() {
     let response: Value = serde_json::from_slice(&body).unwrap();
 
     // ユーザー情報の検証
-    let user = &response["user"];
+    let user = &response["data"]["user"];
     assert_eq!(user["email"], signup_data.email);
     assert_eq!(user["username"], signup_data.username);
 }
@@ -135,8 +141,15 @@ async fn test_user_signin_invalid_credentials() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
-    assert!(error["error"].as_str().unwrap().contains("Invalid"));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
+    assert!(error["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid"));
 }
 
 #[tokio::test]
@@ -164,8 +177,15 @@ async fn test_user_signin_nonexistent_user() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
-    assert!(error["error"].as_str().unwrap().contains("Invalid"));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
+    assert!(error["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Invalid"));
 }
 
 #[tokio::test]
@@ -190,20 +210,32 @@ async fn test_user_signin_validation_empty_identifier() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // 識別子関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages.iter().any(|msg| msg.contains("identifier")
-        || msg.contains("Email")
-        || msg.contains("username")
-        || msg.contains("required")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // 識別子関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages.iter().any(|msg| msg.contains("identifier")
+            || msg.contains("Email")
+            || msg.contains("username")
+            || msg.contains("required")));
+    }
 }
 
 #[tokio::test]
@@ -228,19 +260,31 @@ async fn test_user_signin_validation_empty_password() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // パスワード関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages.iter().any(|msg| msg.contains("password")
-        || msg.contains("Password")
-        || msg.contains("required")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // パスワード関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages.iter().any(|msg| msg.contains("password")
+            || msg.contains("Password")
+            || msg.contains("required")));
+    }
 }
 
 #[tokio::test]
@@ -266,9 +310,10 @@ async fn test_user_signin_malformed_json() {
         Ok(error) => {
             // JSON パースエラーまたはバリデーションエラーが返されることを確認
             assert!(
-                error["error_type"] == "parse_error"
-                    || error["error_type"] == "validation_errors"
-                    || error["error_type"] == "bad_request"
+                error["error"]["code"] == "PARSE_ERROR"
+                    || (error["error"]["code"] == "VALIDATION_ERROR"
+                        || error["error"]["code"] == "VALIDATION_ERRORS")
+                    || error["error"]["code"] == "BAD_REQUEST"
             );
         }
         Err(_) => {
@@ -342,7 +387,9 @@ async fn test_user_signin_refresh_token_generation() {
     let response: Value = serde_json::from_slice(&body).unwrap();
 
     // リフレッシュトークンが生成されていることを確認
-    let refresh_token = response["tokens"]["refresh_token"].as_str().unwrap();
+    let refresh_token = response["data"]["tokens"]["refresh_token"]
+        .as_str()
+        .unwrap();
     assert!(!refresh_token.is_empty());
 
     // リフレッシュトークンのフォーマット検証（UUIDである可能性が高い）
@@ -385,11 +432,11 @@ async fn test_user_signin_multiple_sessions() {
         let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
         let response: Value = serde_json::from_slice(&body).unwrap();
 
-        let access_token = response["tokens"]["access_token"]
+        let access_token = response["data"]["tokens"]["access_token"]
             .as_str()
             .unwrap()
             .to_string();
-        let refresh_token = response["tokens"]["refresh_token"]
+        let refresh_token = response["data"]["tokens"]["refresh_token"]
             .as_str()
             .unwrap()
             .to_string();
