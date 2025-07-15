@@ -518,10 +518,7 @@ async fn test_task_validation_with_authentication() {
     assert!(!error["success"].as_bool().unwrap());
     assert!(error["data"].is_null());
     assert!(error["error"].is_object());
-    assert!(
-        (error["error"]["code"] == "VALIDATION_ERROR"
-            || error["error"]["code"] == "VALIDATION_ERRORS")
-    );
+    assert_eq!(error["error"]["code"], "BAD_REQUEST");
 
     // Check validation details if present
     if let Some(details) = error["error"]["details"].as_array() {
@@ -554,8 +551,5 @@ async fn test_task_with_invalid_uuid() {
     assert!(!error["success"].as_bool().unwrap());
     assert!(error["data"].is_null());
     assert!(error["error"].is_object());
-    assert!(
-        (error["error"]["code"] == "VALIDATION_ERROR"
-            || error["error"]["code"] == "VALIDATION_ERRORS")
-    );
+    assert_eq!(error["error"]["code"], "BAD_REQUEST");
 }

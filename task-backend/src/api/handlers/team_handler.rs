@@ -3,9 +3,10 @@
 use crate::api::dto::team_dto::*;
 use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
-use crate::error::{AppError, AppResult};
+use crate::error::AppResult;
 use crate::middleware::auth::AuthenticatedUser;
 use crate::types::ApiResponse;
+use crate::utils::error_helper::convert_validation_errors;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -15,25 +16,6 @@ use axum::{
 use uuid::Uuid;
 use validator::Validate;
 
-// Helper function to handle validation errors
-fn handle_validation_error(err: validator::ValidationErrors) -> AppError {
-    let error_messages: Vec<String> = err
-        .field_errors()
-        .into_iter()
-        .flat_map(|(field, errors)| {
-            errors
-                .iter()
-                .filter_map(move |e| e.message.clone().map(|m| format!("{}: {}", field, m)))
-        })
-        .collect();
-
-    if error_messages.is_empty() {
-        AppError::ValidationError("Validation failed".to_string())
-    } else {
-        AppError::ValidationErrors(error_messages)
-    }
-}
-
 /// チーム作成
 pub async fn create_team_handler(
     State(app_state): State<AppState>,
@@ -41,7 +23,9 @@ pub async fn create_team_handler(
     Json(payload): Json<CreateTeamRequest>,
 ) -> AppResult<(StatusCode, ApiResponse<TeamResponse>)> {
     // バリデーション
-    payload.validate().map_err(handle_validation_error)?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "team_handler::create_team"))?;
 
     // PermissionServiceを使用してチーム作成権限をチェック
     app_state
@@ -95,7 +79,9 @@ pub async fn update_team_handler(
     Json(payload): Json<UpdateTeamRequest>,
 ) -> AppResult<ApiResponse<TeamResponse>> {
     // バリデーション
-    payload.validate().map_err(handle_validation_error)?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "team_handler::update_team"))?;
 
     // PermissionServiceを使用してチーム管理権限をチェック
     app_state
@@ -139,7 +125,9 @@ pub async fn invite_team_member_handler(
     Json(payload): Json<InviteTeamMemberRequest>,
 ) -> AppResult<(StatusCode, ApiResponse<TeamMemberResponse>)> {
     // バリデーション
-    payload.validate().map_err(handle_validation_error)?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "team_handler::invite_team_member"))?;
 
     // PermissionServiceを使用してチーム管理権限をチェック
     app_state

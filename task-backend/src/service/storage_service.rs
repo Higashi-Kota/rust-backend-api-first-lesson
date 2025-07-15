@@ -10,6 +10,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::error::AppResult;
+use crate::utils::error_helper::internal_server_error;
 use std::sync::Arc;
 
 /// ストレージプロバイダーの種類
@@ -131,7 +132,7 @@ impl StorageService for S3StorageService {
             .send()
             .await
             .map_err(|e| {
-                crate::error::AppError::InternalServerError(format!("Failed to upload file: {}", e))
+                internal_server_error(e, "s3_storage_service::upload", "Failed to upload file")
             })?;
 
         Ok(key)
@@ -148,7 +149,11 @@ impl StorageService for S3StorageService {
             .map_err(|e| crate::error::AppError::NotFound(format!("File not found: {}", e)))?;
 
         let data = response.body.collect().await.map_err(|e| {
-            crate::error::AppError::InternalServerError(format!("Failed to read file data: {}", e))
+            internal_server_error(
+                e,
+                "s3_storage_service::download",
+                "Failed to read file data",
+            )
         })?;
 
         Ok(data.to_vec())
@@ -162,7 +167,7 @@ impl StorageService for S3StorageService {
             .send()
             .await
             .map_err(|e| {
-                crate::error::AppError::InternalServerError(format!("Failed to delete file: {}", e))
+                internal_server_error(e, "s3_storage_service::delete", "Failed to delete file")
             })?;
 
         Ok(())
@@ -183,10 +188,11 @@ impl StorageService for S3StorageService {
                 if e.to_string().contains("NoSuchKey") || e.to_string().contains("404") {
                     Ok(false)
                 } else {
-                    Err(crate::error::AppError::InternalServerError(format!(
-                        "Failed to check file existence: {}",
-                        e
-                    )))
+                    Err(internal_server_error(
+                        e,
+                        "s3_storage_service::exists",
+                        "Failed to check file existence",
+                    ))
                 }
             }
         }
@@ -195,10 +201,11 @@ impl StorageService for S3StorageService {
     async fn generate_download_url(&self, key: &str, expires_in_seconds: u64) -> AppResult<String> {
         let expires_in = Duration::from_secs(expires_in_seconds);
         let presigning_config = PresigningConfig::expires_in(expires_in).map_err(|e| {
-            crate::error::AppError::InternalServerError(format!(
-                "Failed to create presigning config: {}",
-                e
-            ))
+            internal_server_error(
+                e,
+                "s3_storage_service::generate_download_url",
+                "Failed to create presigning config",
+            )
         })?;
 
         let presigned_request = self
@@ -209,10 +216,11 @@ impl StorageService for S3StorageService {
             .presigned(presigning_config)
             .await
             .map_err(|e| {
-                crate::error::AppError::InternalServerError(format!(
-                    "Failed to generate presigned URL: {}",
-                    e
-                ))
+                internal_server_error(
+                    e,
+                    "s3_storage_service::generate_download_url",
+                    "Failed to generate presigned URL",
+                )
             })?;
 
         Ok(presigned_request.uri().to_string())
@@ -221,10 +229,11 @@ impl StorageService for S3StorageService {
     async fn generate_upload_url(&self, key: &str, expires_in_seconds: u64) -> AppResult<String> {
         let expires_in = Duration::from_secs(expires_in_seconds);
         let presigning_config = PresigningConfig::expires_in(expires_in).map_err(|e| {
-            crate::error::AppError::InternalServerError(format!(
-                "Failed to create presigning config: {}",
-                e
-            ))
+            internal_server_error(
+                e,
+                "s3_storage_service::generate_upload_url",
+                "Failed to create presigning config",
+            )
         })?;
 
         let presigned_request = self
@@ -235,10 +244,11 @@ impl StorageService for S3StorageService {
             .presigned(presigning_config)
             .await
             .map_err(|e| {
-                crate::error::AppError::InternalServerError(format!(
-                    "Failed to generate presigned upload URL: {}",
-                    e
-                ))
+                internal_server_error(
+                    e,
+                    "s3_storage_service::generate_upload_url",
+                    "Failed to generate presigned upload URL",
+                )
             })?;
 
         Ok(presigned_request.uri().to_string())

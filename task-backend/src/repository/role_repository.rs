@@ -259,7 +259,7 @@ impl RoleRepository {
 
         // システムロール（admin/member）の削除を防ぐ
         if role.name == "admin" || role.name == "member" {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Cannot delete system roles (admin/member)".to_string(),
             ));
         }
@@ -273,7 +273,7 @@ impl RoleRepository {
                 users_count = users_with_role,
                 "Cannot delete role: still in use by users"
             );
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::BadRequest(format!(
                 "Cannot delete role '{}': {} users are still assigned to this role",
                 role.name, users_with_role
             )));

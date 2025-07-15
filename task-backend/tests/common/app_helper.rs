@@ -24,7 +24,7 @@ use task_backend::{
         team_service::TeamService, user_service::UserService,
     },
     utils::{
-        email::{EmailConfig, EmailService},
+        email::{EmailConfig, EmailProvider, EmailService},
         jwt::JwtManager,
         password::PasswordManager,
     },
@@ -90,7 +90,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     let jwt_manager = Arc::new(JwtManager::new(jwt_config).unwrap());
     let email_service = Arc::new(
         EmailService::new(EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         })
         .unwrap(),
@@ -333,7 +333,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
     let jwt_manager = Arc::new(JwtManager::new(jwt_config).unwrap());
     let email_service = Arc::new(
         EmailService::new(EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         })
         .unwrap(),
@@ -630,7 +630,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
     let jwt_manager = Arc::new(JwtManager::new(jwt_config).unwrap());
     let email_service = Arc::new(
         EmailService::new(EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         })
         .unwrap(),

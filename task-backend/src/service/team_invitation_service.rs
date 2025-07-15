@@ -67,7 +67,7 @@ impl TeamInvitationService {
         }
 
         if invitations.is_empty() {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "No valid invitations to create".to_string(),
             ));
         }
@@ -117,13 +117,13 @@ impl TeamInvitationService {
             .ok_or_else(|| AppError::NotFound("Invitation not found".to_string()))?;
 
         if invitation.team_id != team_id {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Invitation does not belong to the specified team".to_string(),
             ));
         }
 
         if !invitation.can_decline() {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Invitation cannot be declined".to_string(),
             ));
         }
@@ -151,7 +151,7 @@ impl TeamInvitationService {
             .ok_or_else(|| AppError::NotFound("Invitation not found".to_string()))?;
 
         if !invitation.can_accept() {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Invitation cannot be accepted".to_string(),
             ));
         }
@@ -180,7 +180,7 @@ impl TeamInvitationService {
             .ok_or_else(|| AppError::NotFound("Invitation not found".to_string()))?;
 
         if invitation.team_id != team_id {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Invitation does not belong to the specified team".to_string(),
             ));
         }
@@ -319,7 +319,7 @@ impl TeamInvitationService {
         }
 
         if !invitation.is_pending() {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Only pending invitations can be resent".to_string(),
             ));
         }
@@ -460,7 +460,7 @@ impl TeamInvitationService {
             .await?
             .is_some()
         {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Pending invitation already exists for this email".to_string(),
             ));
         }
@@ -503,7 +503,7 @@ impl TeamInvitationService {
                 let role = member
                     .role
                     .parse::<crate::domain::team_model::TeamRole>()
-                    .map_err(|_| AppError::ValidationError("Invalid team role".to_string()))?;
+                    .map_err(|_| AppError::BadRequest("Invalid team role".to_string()))?;
                 Ok(role.can_invite())
             }
             None => Ok(team.owner_id == requester_id),

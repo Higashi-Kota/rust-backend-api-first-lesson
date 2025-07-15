@@ -20,7 +20,7 @@ pub async fn bulk_member_invite(
     let service = &app_state.team_invitation_service;
     request
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     if !service
         .validate_invitation_permissions(team_id, user.user_id())
@@ -117,7 +117,7 @@ pub async fn decline_invitation(
     let service = &app_state.team_invitation_service;
     request
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     let updated_invitation = service
         .decline_invitation(team_id, invitation_id, request.reason)
@@ -164,7 +164,7 @@ pub async fn resend_invitation(
     let service = &app_state.team_invitation_service;
     request
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     let updated_invitation = service
         .resend_invitation(invitation_id, request.message, user.user_id())
@@ -263,7 +263,7 @@ pub async fn delete_old_invitations(
         .unwrap_or(30);
 
     if days < 7 {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Cannot delete invitations less than 7 days old".to_string(),
         ));
     }
@@ -286,7 +286,7 @@ pub async fn create_single_invitation(
     let service = &app_state.team_invitation_service;
     request
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     let invitation = service
         .create_single_invitation(team_id, request.email, request.message, user.user_id())
@@ -441,7 +441,7 @@ pub async fn bulk_update_invitation_status(
     let service = &app_state.team_invitation_service;
     request
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     let updated_count = service
         .bulk_update_invitation_status(&request.invitation_ids, request.new_status, user.user_id())

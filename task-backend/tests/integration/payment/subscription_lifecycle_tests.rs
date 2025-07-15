@@ -5,7 +5,7 @@ use crate::common::{
 use axum::http::StatusCode;
 use chrono::{Duration, Utc};
 use serde_json::json;
-use task_backend::domain::subscription_tier::SubscriptionTier;
+use task_backend::{domain::subscription_tier::SubscriptionTier, utils::email::EmailProvider};
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -17,7 +17,7 @@ async fn test_subscription_cancellation_with_grace_period() {
     // まずProにアップグレード
     let email_service = std::sync::Arc::new(
         task_backend::utils::email::EmailService::new(task_backend::utils::email::EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         })
         .unwrap(),
@@ -214,7 +214,7 @@ async fn test_team_creation_with_subscription_limits() {
     // Proユーザーをアップグレード
     let email_service = std::sync::Arc::new(
         task_backend::utils::email::EmailService::new(task_backend::utils::email::EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         })
         .unwrap(),
@@ -459,7 +459,7 @@ async fn test_subscription_period_end_downgrade() {
     // Proにアップグレード
     let email_service = std::sync::Arc::new(
         task_backend::utils::email::EmailService::new(task_backend::utils::email::EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         })
         .unwrap(),

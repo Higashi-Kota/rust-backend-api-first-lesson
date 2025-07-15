@@ -9,6 +9,7 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::types::ApiResponse;
+use crate::utils::error_helper::convert_validation_errors;
 use crate::utils::permission::PermissionType;
 use axum::{
     extract::{Json, Path, Query, State},
@@ -44,23 +45,9 @@ pub async fn check_permission_handler(
     Json(payload): Json<CheckPermissionRequest>,
 ) -> AppResult<ApiResponse<PermissionCheckResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Permission check validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "permission_handler::check_permission"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -139,23 +126,9 @@ pub async fn validate_permissions_handler(
     Json(payload): Json<ValidatePermissionRequest>,
 ) -> AppResult<ApiResponse<PermissionValidationResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Permission validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "permission_handler::grant_permission"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -1031,40 +1004,19 @@ pub async fn bulk_permission_check_handler(
     Json(payload): Json<BulkPermissionCheckRequest>,
 ) -> AppResult<ApiResponse<BulkPermissionCheckResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Bulk permission check validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "permission_handler::check_bulk_permissions"))?;
 
     // 追加の手動バリデーション
     for check in &payload.checks {
         if check.resource.trim().is_empty() {
             warn!("Empty resource in bulk permission check");
-            return Err(AppError::ValidationErrors(vec![
-                "Resource cannot be empty".to_string()
-            ]));
+            return Err(AppError::BadRequest("Resource cannot be empty".to_string()));
         }
         if check.action.trim().is_empty() {
             warn!("Empty action in bulk permission check");
-            return Err(AppError::ValidationErrors(vec![
-                "Action cannot be empty".to_string()
-            ]));
+            return Err(AppError::BadRequest("Action cannot be empty".to_string()));
         }
     }
 
@@ -1495,26 +1447,9 @@ pub async fn check_permission_denial_handler(
     Json(payload): Json<CheckPermissionRequest>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Permission denial check validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "permission_handler::check_permission_denial"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -1574,26 +1509,9 @@ pub async fn check_privilege_feature_handler(
     Json(payload): Json<FeatureAccessRequest>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Feature access check validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "permission_handler::check_feature_access"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -1693,22 +1611,8 @@ pub async fn check_complex_operation_permissions_handler(
     use crate::utils::permission::{PermissionType, ResourceContext};
 
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Complex operation validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "permission_handler::create_complex_operation")
     })?;
 
     info!(

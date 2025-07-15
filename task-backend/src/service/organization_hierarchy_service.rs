@@ -13,6 +13,7 @@ use crate::repository::{
     organization_department_repository::OrganizationDepartmentRepository,
     permission_matrix_repository::PermissionMatrixRepository,
 };
+use crate::utils::error_helper::internal_server_error;
 use chrono::{DateTime, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use uuid::Uuid;
@@ -399,7 +400,11 @@ impl OrganizationHierarchyService {
             )
             .await?;
             export_data["analytics"] = serde_json::to_value(analytics).map_err(|e| {
-                AppError::InternalServerError(format!("Serialization error: {}", e))
+                internal_server_error(
+                    e,
+                    "organization_hierarchy_service::export_organization_data",
+                    "Serialization error",
+                )
             })?;
         }
 
@@ -413,7 +418,11 @@ impl OrganizationHierarchyService {
             .await?;
             export_data["organization_permissions"] =
                 serde_json::to_value(org_matrix).map_err(|e| {
-                    AppError::InternalServerError(format!("Serialization error: {}", e))
+                    internal_server_error(
+                        e,
+                        "organization_hierarchy_service::export_organization_data",
+                        "Serialization error",
+                    )
                 })?;
 
             let dept_ids: Vec<Uuid> = departments.iter().map(|d| d.id).collect();
@@ -421,7 +430,11 @@ impl OrganizationHierarchyService {
                 PermissionMatrixRepository::find_department_matrices(db, dept_ids).await?;
             export_data["department_permissions"] =
                 serde_json::to_value(dept_matrices).map_err(|e| {
-                    AppError::InternalServerError(format!("Serialization error: {}", e))
+                    internal_server_error(
+                        e,
+                        "organization_hierarchy_service::export_organization_data",
+                        "Serialization error",
+                    )
                 })?;
         }
 

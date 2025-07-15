@@ -155,7 +155,7 @@ impl GdprService {
         request: DataDeletionRequest,
     ) -> AppResult<DataDeletionResponse> {
         if !request.confirm_deletion {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Deletion must be confirmed".to_string(),
             ));
         }
@@ -362,7 +362,7 @@ impl GdprService {
 
         // Validate required consents
         if let Some(&false) = request.consents.get(&ConsentType::DataProcessing) {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Data processing consent is required and cannot be revoked".to_string(),
             ));
         }

@@ -163,27 +163,13 @@ async fn test_delete_account_wrong_confirmation() {
     assert!(!error["success"].as_bool().unwrap());
     assert!(error["data"].is_null());
     assert!(error["error"].is_object());
-    assert!(
-        (error["error"]["code"] == "VALIDATION_ERROR"
-            || error["error"]["code"] == "VALIDATION_ERRORS")
-    );
-    // Check validation details if present
-    if let Some(details) = error["error"]["details"].as_array() {
-        let errors = details;
-        assert!(!errors.is_empty());
-    }
-    // Check validation details
-    if let Some(details) = error["error"]["details"].as_array() {
-        assert!(!details.is_empty());
-        // 確認文字列関連のエラーが含まれていることを確認
-        let error_messages = details
-            .iter()
-            .map(|e| e["message"].as_str().unwrap_or(""))
-            .collect::<Vec<&str>>();
-        assert!(error_messages
-            .iter()
-            .any(|msg| msg.contains("confirmation") || msg.contains("CONFIRM_DELETE")));
-    }
+    assert_eq!(error["error"]["code"], "BAD_REQUEST");
+    // BadRequest errors don't have details field
+    // Check that the error message contains expected content
+    assert!(error["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("CONFIRM_DELETE"));
 }
 
 #[tokio::test]
@@ -375,27 +361,19 @@ async fn test_change_password_mismatch_confirmation() {
     assert!(!error["success"].as_bool().unwrap());
     assert!(error["data"].is_null());
     assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    // ValidationFailure errors have a combined message from field errors
+    // Check that the error message contains expected content
     assert!(
-        (error["error"]["code"] == "VALIDATION_ERROR"
-            || error["error"]["code"] == "VALIDATION_ERRORS")
+        error["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("match")
+            || error["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("confirmation")
     );
-    // Check validation details if present
-    if let Some(details) = error["error"]["details"].as_array() {
-        let errors = details;
-        assert!(!errors.is_empty());
-    }
-    // Check validation details
-    if let Some(details) = error["error"]["details"].as_array() {
-        assert!(!details.is_empty());
-        // パスワード確認関連のエラーが含まれていることを確認
-        let error_messages = details
-            .iter()
-            .map(|e| e["message"].as_str().unwrap_or(""))
-            .collect::<Vec<&str>>();
-        assert!(error_messages
-            .iter()
-            .any(|msg| msg.contains("confirmation") || msg.contains("match")));
-    }
 }
 
 #[tokio::test]
@@ -429,27 +407,16 @@ async fn test_change_password_weak_new_password() {
     assert!(!error["success"].as_bool().unwrap());
     assert!(error["data"].is_null());
     assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "VALIDATION_ERROR");
+    // ValidationFailure errors have a combined message from field errors
+    // Check that the error message contains expected content about password length
     assert!(
-        (error["error"]["code"] == "VALIDATION_ERROR"
-            || error["error"]["code"] == "VALIDATION_ERRORS")
+        error["error"]["message"].as_str().unwrap().contains("8")
+            || error["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("characters")
     );
-    // Check validation details if present
-    if let Some(details) = error["error"]["details"].as_array() {
-        let errors = details;
-        assert!(!errors.is_empty());
-    }
-    // Check validation details
-    if let Some(details) = error["error"]["details"].as_array() {
-        assert!(!details.is_empty());
-        // パスワード強度関連のエラーが含まれていることを確認
-        let error_messages = details
-            .iter()
-            .map(|e| e["message"].as_str().unwrap_or(""))
-            .collect::<Vec<&str>>();
-        assert!(error_messages.iter().any(
-            |msg| msg.contains("password") && (msg.contains("8") || msg.contains("characters"))
-        ));
-    }
 }
 
 #[tokio::test]
@@ -483,27 +450,13 @@ async fn test_change_password_same_as_current() {
     assert!(!error["success"].as_bool().unwrap());
     assert!(error["data"].is_null());
     assert!(error["error"].is_object());
-    assert!(
-        (error["error"]["code"] == "VALIDATION_ERROR"
-            || error["error"]["code"] == "VALIDATION_ERRORS")
-    );
-    // Check validation details if present
-    if let Some(details) = error["error"]["details"].as_array() {
-        let errors = details;
-        assert!(!errors.is_empty());
-    }
-    // Check validation details
-    if let Some(details) = error["error"]["details"].as_array() {
-        assert!(!details.is_empty());
-        // 同一パスワード関連のエラーが含まれていることを確認
-        let error_messages = details
-            .iter()
-            .map(|e| e["message"].as_str().unwrap_or(""))
-            .collect::<Vec<&str>>();
-        assert!(error_messages.iter().any(|msg| msg.contains("different")
-            || msg.contains("same")
-            || msg.contains("current")));
-    }
+    assert_eq!(error["error"]["code"], "BAD_REQUEST");
+    // BadRequest errors don't have details field
+    // Check that the error message contains expected content
+    assert!(error["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("different"));
 }
 
 #[tokio::test]

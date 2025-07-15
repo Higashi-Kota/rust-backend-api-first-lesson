@@ -46,9 +46,7 @@ impl TeamService {
     ) -> AppResult<TeamResponse> {
         // チーム名の重複チェック
         if let Some(_existing) = self.team_repository.find_by_name(&request.name).await? {
-            return Err(AppError::ValidationError(
-                "Team name already exists".to_string(),
-            ));
+            return Err(AppError::BadRequest("Team name already exists".to_string()));
         }
 
         // ユーザーのサブスクリプションティアを取得
@@ -177,9 +175,7 @@ impl TeamService {
             // 名前の重複チェック（異なるチームで）
             if let Some(existing) = self.team_repository.find_by_name(&name).await? {
                 if existing.id != team_id {
-                    return Err(AppError::ValidationError(
-                        "Team name already exists".to_string(),
-                    ));
+                    return Err(AppError::BadRequest("Team name already exists".to_string()));
                 }
             }
             team.name = name;
@@ -269,7 +265,7 @@ impl TeamService {
                 .ok_or_else(|| AppError::NotFound("User not found".to_string()))?
                 .id
         } else {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "Either user_id or email is required".to_string(),
             ));
         };
@@ -280,7 +276,7 @@ impl TeamService {
             .find_member_by_user_and_team(user_id, team_id)
             .await?
         {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "User is already a team member".to_string(),
             ));
         }
@@ -346,9 +342,7 @@ impl TeamService {
 
         // オーナーの役割変更は禁止
         if member.get_role() == TeamRole::Owner {
-            return Err(AppError::ValidationError(
-                "Cannot change owner role".to_string(),
-            ));
+            return Err(AppError::BadRequest("Cannot change owner role".to_string()));
         }
 
         member.role = request.role.to_string();
@@ -377,9 +371,7 @@ impl TeamService {
 
         // オーナーは削除不可
         if member.get_role() == TeamRole::Owner {
-            return Err(AppError::ValidationError(
-                "Cannot remove team owner".to_string(),
-            ));
+            return Err(AppError::BadRequest("Cannot remove team owner".to_string()));
         }
 
         // 削除権限チェック（管理者または本人）

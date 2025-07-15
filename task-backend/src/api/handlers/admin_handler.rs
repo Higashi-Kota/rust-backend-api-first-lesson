@@ -146,7 +146,7 @@ pub async fn admin_bulk_create_tasks(
 
     request
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     let task_service = &app_state.task_service;
     let mut success_count = 0;
@@ -189,7 +189,7 @@ pub async fn admin_bulk_update_tasks(
 
     request
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     let task_service = &app_state.task_service;
     let total_requested = request.updates.len();
@@ -232,7 +232,7 @@ pub async fn admin_bulk_delete_tasks(
 
     request
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     let task_service = &app_state.task_service;
     let total_requested = request.task_ids.len();
@@ -305,7 +305,7 @@ pub async fn admin_delete_old_invitations(
         .unwrap_or(30);
 
     if days < 7 {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Cannot delete invitations less than 7 days old".to_string(),
         ));
     }
@@ -1359,7 +1359,7 @@ pub async fn admin_cleanup_bulk_operations(
         .unwrap_or(90);
 
     if days < 30 {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Cannot delete bulk operation history less than 30 days old".to_string(),
         ));
     }
@@ -1406,7 +1406,7 @@ pub async fn admin_cleanup_daily_summaries(
         .unwrap_or(365);
 
     if days < 90 {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Cannot delete daily summaries less than 90 days old".to_string(),
         ));
     }
@@ -1502,7 +1502,7 @@ pub async fn admin_cleanup_feature_metrics(
         .unwrap_or(180);
 
     if days < 30 {
-        return Err(AppError::ValidationError(
+        return Err(AppError::BadRequest(
             "Cannot delete feature metrics less than 30 days old".to_string(),
         ));
     }
@@ -1985,7 +1985,7 @@ pub async fn search_subscription_history_handler(
 
     search_query
         .validate()
-        .map_err(|e| AppError::ValidationError(e.to_string()))?;
+        .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     info!(
         admin_id = %admin_user.user_id(),

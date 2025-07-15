@@ -93,7 +93,7 @@ pub async fn create_checkout_handler(
                 })
             })
             .collect();
-        AppError::ValidationErrors(errors)
+        AppError::BadRequest(errors.join(", "))
     })?;
 
     let tier = SubscriptionTier::from_str(&payload.tier)

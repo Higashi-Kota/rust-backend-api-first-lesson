@@ -15,6 +15,7 @@ use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
 use crate::types::ApiResponse;
+use crate::utils::error_helper::convert_validation_errors;
 use crate::utils::permission::PermissionChecker;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
@@ -39,12 +40,11 @@ where
         // パスパラメータを文字列として最初に抽出
         let Path(path_str) = Path::<String>::from_request_parts(parts, state)
             .await
-            .map_err(|_| AppError::ValidationErrors(vec!["Invalid path parameter".to_string()]))?;
+            .map_err(|_| AppError::BadRequest("Invalid path parameter".to_string()))?;
 
         // UUIDをパースして検証エラー形式で返す
-        let uuid = Uuid::parse_str(&path_str).map_err(|_| {
-            AppError::ValidationErrors(vec![format!("Invalid UUID format: '{}'", path_str)])
-        })?;
+        let uuid = Uuid::parse_str(&path_str)
+            .map_err(|_| AppError::BadRequest(format!("Invalid UUID format: '{}'", path_str)))?;
 
         Ok(UuidPath(uuid))
     }
@@ -84,23 +84,9 @@ pub async fn update_username_handler(
     Json(payload): Json<UpdateUsernameRequest>,
 ) -> AppResult<ApiResponse<SafeUser>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Username update validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "user_handler::update_username"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -129,23 +115,9 @@ pub async fn update_email_handler(
     Json(payload): Json<UpdateEmailRequest>,
 ) -> AppResult<ApiResponse<SafeUser>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Email update validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "user_handler::update_email"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -174,28 +146,14 @@ pub async fn update_profile_handler(
     Json(payload): Json<UpdateProfileRequest>,
 ) -> AppResult<ApiResponse<SafeUser>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Profile update validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "user_handler::update_profile"))?;
 
     // カスタムバリデーション
     payload.validate_update().map_err(|e| {
         warn!("Profile update custom validation failed: {}", e);
-        AppError::ValidationErrors(vec![e])
+        AppError::BadRequest(e)
     })?;
 
     info!(user_id = %user.claims.user_id, "Profile update attempt");
@@ -258,26 +216,9 @@ pub async fn verify_email_handler(
     Json(payload): Json<VerifyEmailRequest>,
 ) -> AppResult<ApiResponse<EmailVerificationResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Email verification validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "user_handler::admin_verify_email"))?;
 
     info!(user_id = %user.claims.user_id, "Email verification attempt");
 
@@ -320,25 +261,8 @@ pub async fn resend_verification_email_handler(
     Json(payload): Json<ResendVerificationEmailRequest>,
 ) -> AppResult<ApiResponse<EmailVerificationResponse>> {
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Resend verification email validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "user_handler::admin_resend_verification_email")
     })?;
 
     info!(
@@ -419,10 +343,7 @@ pub async fn update_user_settings_handler(
         ];
 
         if !valid_timezones.contains(&tz.as_str()) && !tz.starts_with("UTC") {
-            return Err(AppError::ValidationError(format!(
-                "Invalid timezone: {}",
-                tz
-            )));
+            return Err(AppError::BadRequest(format!("Invalid timezone: {}", tz)));
         }
     }
 
@@ -487,26 +408,9 @@ pub async fn update_account_status_handler(
     }
 
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!(
-            "Account status update validation failed: {}",
-            validation_errors
-        );
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "user_handler::admin_update_account_status"))?;
 
     // 自分自身のアカウント状態変更を防ぐ
     if admin_user.user_id() == user_id {
@@ -786,23 +690,9 @@ pub async fn bulk_user_operations_handler(
         .await?;
 
     // バリデーション
-    payload.validate().map_err(|validation_errors| {
-        warn!("Bulk operations validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "user_handler::admin_bulk_user_operations"))?;
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -864,23 +754,9 @@ pub async fn list_users_handler(
     }
 
     // バリデーション
-    query.validate().map_err(|validation_errors| {
-        warn!("User search validation failed: {}", validation_errors);
-        let errors: Vec<String> = validation_errors
-            .field_errors()
-            .into_iter()
-            .flat_map(|(field, errors)| {
-                errors.iter().map(move |error| {
-                    format!(
-                        "{}: {}",
-                        field,
-                        error.message.as_ref().unwrap_or(&"Invalid value".into())
-                    )
-                })
-            })
-            .collect();
-        AppError::ValidationErrors(errors)
-    })?;
+    query
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "user_handler::search_users"))?;
 
     let query_with_defaults = query.with_defaults();
     let (page, per_page) = query_with_defaults.pagination.get_pagination();
@@ -1095,10 +971,10 @@ pub async fn upgrade_user_subscription_handler(
     let new_tier_str = payload
         .get("new_tier")
         .and_then(|v| v.as_str())
-        .ok_or_else(|| AppError::ValidationError("new_tier is required".to_string()))?;
+        .ok_or_else(|| AppError::BadRequest("new_tier is required".to_string()))?;
 
     let new_tier = SubscriptionTier::from_str(new_tier_str).ok_or_else(|| {
-        AppError::ValidationError(format!("Invalid subscription tier: {}", new_tier_str))
+        AppError::BadRequest(format!("Invalid subscription tier: {}", new_tier_str))
     })?;
 
     // Get current user info

@@ -35,9 +35,6 @@ pub struct EmailConfig {
     pub mailgun_api_key: Option<String>,
     /// Mailgun ドメイン
     pub mailgun_domain: Option<String>,
-    /// 開発モードかどうか（コンソール出力のみ）
-    #[allow(dead_code)]
-    pub development_mode: bool,
 }
 
 impl Default for EmailConfig {
@@ -50,7 +47,6 @@ impl Default for EmailConfig {
             from_name: "Task Backend".to_string(),
             mailgun_api_key: None,
             mailgun_domain: None,
-            development_mode: true, // 開発環境ではデフォルトで true
         }
     }
 }
@@ -83,9 +79,6 @@ impl EmailConfig {
             }
         };
 
-        // development_modeはproviderがDevelopmentの場合のみtrueに
-        let development_mode = matches!(provider, EmailProvider::Development);
-
         // メール設定を構築
         let config = Self {
             provider: provider.clone(),
@@ -101,7 +94,6 @@ impl EmailConfig {
             from_name: env::var("FROM_NAME").unwrap_or_else(|_| "Task Backend".to_string()),
             mailgun_api_key: env::var("MAILGUN_API_KEY").ok(),
             mailgun_domain: env::var("MAILGUN_DOMAIN").ok(),
-            development_mode,
         };
 
         // 設定を検証
@@ -126,7 +118,7 @@ impl EmailConfig {
                     ));
                 }
                 if !is_valid_email(&self.from_email) {
-                    return Err(crate::error::AppError::ValidationError(format!(
+                    return Err(crate::error::AppError::BadRequest(format!(
                         "Invalid from email address: {}",
                         self.from_email
                     )));
@@ -145,7 +137,7 @@ impl EmailConfig {
                     ));
                 }
                 if !is_valid_email(&self.from_email) {
-                    return Err(crate::error::AppError::ValidationError(format!(
+                    return Err(crate::error::AppError::BadRequest(format!(
                         "Invalid from email address: {}",
                         self.from_email
                     )));
@@ -202,7 +194,7 @@ impl EmailService {
     pub async fn send_email(&self, message: EmailMessage) -> AppResult<()> {
         // メールアドレスの検証
         if !is_valid_email(&message.to_email) {
-            return Err(AppError::ValidationError(format!(
+            return Err(AppError::BadRequest(format!(
                 "Invalid email address: {}",
                 message.to_email
             )));
@@ -511,7 +503,7 @@ impl EmailService {
         // 送信者のメールボックスを構築
         let from = format!("{} <{}>", self.config.from_name, self.config.from_email)
             .parse()
-            .map_err(|e| AppError::ValidationError(format!("Invalid from email address: {}", e)))?;
+            .map_err(|e| AppError::BadRequest(format!("Invalid from email address: {}", e)))?;
 
         // 受信者のメールボックスを構築
         let to = if let Some(to_name) = &message.to_name {
@@ -520,7 +512,7 @@ impl EmailService {
             message.to_email.clone()
         }
         .parse()
-        .map_err(|e| AppError::ValidationError(format!("Invalid to email address: {}", e)))?;
+        .map_err(|e| AppError::BadRequest(format!("Invalid to email address: {}", e)))?;
 
         // メッセージビルダーを開始
         let mut email_builder = Message::builder()
@@ -531,7 +523,7 @@ impl EmailService {
         // 返信先が指定されている場合は追加
         if let Some(reply_to) = &message.reply_to {
             let reply_to_mailbox = reply_to.parse().map_err(|e| {
-                AppError::ValidationError(format!("Invalid reply-to email address: {}", e))
+                AppError::BadRequest(format!("Invalid reply-to email address: {}", e))
             })?;
             email_builder = email_builder.reply_to(reply_to_mailbox);
         }
@@ -1214,7 +1206,7 @@ mod tests {
     #[tokio::test]
     async fn test_email_service_development_mode() {
         let config = EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         };
 
@@ -1237,7 +1229,7 @@ mod tests {
     #[tokio::test]
     async fn test_account_deletion_confirmation_email() {
         let config = EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         };
 
@@ -1254,7 +1246,7 @@ mod tests {
     #[test]
     fn test_account_deletion_confirmation_template() {
         let config = EmailConfig {
-            development_mode: true,
+            provider: EmailProvider::Development,
             ..Default::default()
         };
 

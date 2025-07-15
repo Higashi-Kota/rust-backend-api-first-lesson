@@ -14,7 +14,50 @@ TBD
 * **「亜種」API・ドメイン定義の増加は避ける**
   * 新規定義が必要な場合は、**既存の責務・境界に統合**できるか再検討
 
-### 2. **機能追加の原則：実用的で価値の高い機能に集中**
+### 2. **エラーハンドリングのベストプラクティス**
+
+#### エラーコンテキストの命名規則
+
+**形式**: `"モジュール名::関数名[:詳細]"`
+
+```rust
+// ✅ 推奨される命名規則
+convert_validation_errors(e, "user_handler::update_profile")
+convert_validation_errors(e, "auth_handler::signup")
+convert_validation_errors(e, "analytics_handler::get_system_stats")
+
+// ❌ 避けるべき例
+convert_validation_errors(e, "team")  // モジュール情報なし
+convert_validation_errors(e, "validation")  // 汎用的すぎる
+```
+
+#### error_helper関数の活用
+
+**すべてのサービス層でerror_helper関数を使用すること**
+
+```rust
+use crate::utils::error_helper::{internal_server_error, not_found_error, conflict_error};
+
+// ✅ 推奨: error_helper使用
+self.repo.count_tasks()
+    .await
+    .map_err(|e| internal_server_error(
+        e,
+        "task_service::get_stats",  // コンテキスト
+        "Failed to count tasks"      // ユーザー向けメッセージ
+    ))?;
+
+// ❌ 避けるべき: 直接エラー生成
+.map_err(|e| AppError::InternalServerError(format!("Failed to count: {}", e)))?;
+```
+
+#### エラーログの一貫性
+
+- error_helper関数は自動的に構造化ログを出力
+- コンテキスト情報により、エラー発生箇所の特定が容易
+- 本番環境でのデバッグ・監視に有効
+
+### 3. **機能追加の原則：実用的で価値の高い機能に集中**
 
 * **新機能の採用基準**
   * **実用性**: 実際のユーザーニーズに基づいているか

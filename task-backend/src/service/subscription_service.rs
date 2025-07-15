@@ -53,7 +53,7 @@ impl SubscriptionService {
 
         // 同じ階層の場合は変更しない
         if current_user.subscription_tier == new_tier {
-            return Err(AppError::ValidationError(
+            return Err(AppError::BadRequest(
                 "New subscription tier is the same as current tier".to_string(),
             ));
         }
@@ -134,7 +134,7 @@ impl SubscriptionService {
     fn validate_subscription_tier(&self, tier: &str) -> AppResult<()> {
         match tier.to_lowercase().as_str() {
             "free" | "pro" | "enterprise" => Ok(()),
-            _ => Err(AppError::ValidationError(format!(
+            _ => Err(AppError::BadRequest(format!(
                 "Invalid subscription tier: {}. Valid tiers are: free, pro, enterprise",
                 tier
             ))),

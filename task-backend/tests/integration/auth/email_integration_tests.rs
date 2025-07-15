@@ -4,6 +4,7 @@ use crate::common;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use serde_json::json;
+use task_backend::utils::email::EmailProvider;
 use tower::ServiceExt;
 
 /// パスワードリセット機能のメール送信統合テスト
@@ -123,7 +124,7 @@ async fn test_email_service_development_mode() {
 
     // 開発モード（デフォルト）のEmailServiceを作成
     let email_service = EmailService::new(EmailConfig {
-        development_mode: true,
+        provider: EmailProvider::Development,
         ..Default::default()
     })
     .unwrap();
@@ -150,7 +151,7 @@ async fn test_password_reset_email_content() {
 
     // 開発モードのEmailServiceを作成
     let email_service = EmailService::new(EmailConfig {
-        development_mode: true,
+        provider: EmailProvider::Development,
         ..Default::default()
     })
     .unwrap();
@@ -174,7 +175,7 @@ async fn test_welcome_email_sending() {
     use task_backend::utils::email::{EmailConfig, EmailService};
 
     let email_service = EmailService::new(EmailConfig {
-        development_mode: true,
+        provider: EmailProvider::Development,
         ..Default::default()
     })
     .unwrap();
@@ -192,7 +193,7 @@ async fn test_email_verification_sending() {
     use task_backend::utils::email::{EmailConfig, EmailService};
 
     let email_service = EmailService::new(EmailConfig {
-        development_mode: true,
+        provider: EmailProvider::Development,
         ..Default::default()
     })
     .unwrap();
@@ -215,7 +216,7 @@ async fn test_security_notification_sending() {
     use task_backend::utils::email::{EmailConfig, EmailService};
 
     let email_service = EmailService::new(EmailConfig {
-        development_mode: true,
+        provider: EmailProvider::Development,
         ..Default::default()
     })
     .unwrap();
@@ -238,7 +239,6 @@ async fn test_email_config_from_environment() {
     use task_backend::utils::email::EmailConfig;
 
     let config = EmailConfig::default();
-    assert!(config.development_mode);
     assert_eq!(
         config.provider,
         task_backend::utils::email::EmailProvider::Development
