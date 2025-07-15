@@ -1,6 +1,65 @@
 ## 実現トピック
 
-TBD
+## 3. 日時処理の統一 🟡
+
+### 現状の課題
+- DateTime型とOption型、文字列が混在
+- シリアライゼーションフォーマットが不統一
+
+### 解決方法: カスタム日時型とシリアライザーの実装
+
+```rust
+// src/types/datetime.rs
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Timestamp(#[serde(with = "chrono::serde::ts_seconds")] DateTime<Utc>);
+
+impl Timestamp {
+    pub fn now() -> Self {
+        Self(Utc::now())
+    }
+    
+    pub fn inner(&self) -> DateTime<Utc> {
+        self.0
+    }
+}
+
+// オプショナル日時用のヘルパー
+pub mod optional_timestamp {
+    use super::*;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    
+    pub fn serialize<S>(date: &Option<DateTime<Utc>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match date {
+            Some(dt) => dt.timestamp().serialize(serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+    
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DateTime<Utc>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<i64>::deserialize(deserializer)?
+            .map(|ts| DateTime::from_timestamp(ts, 0))
+            .transpose()
+            .ok_or_else(|| serde::de::Error::custom("Invalid timestamp"))?
+    }
+}
+
+// 統一されたDTOでの使用
+#[derive(Serialize, Deserialize)]
+pub struct TaskResponse {
+    pub id: Uuid,
+    pub title: String,
+    pub created_at: Timestamp,
+    #[serde(with = "optional_timestamp")]
+    pub completed_at: Option<DateTime<Utc>>,
+}
+```
 
 ## 🧩 実装ガイドライン
 

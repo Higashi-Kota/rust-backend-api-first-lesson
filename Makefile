@@ -54,11 +54,11 @@ test:
 
 # Run the application
 run:
-	cargo run --package task-backend
+	RUSTC_WRAPPER="" cargo run --package task-backend --bin task-backend
 
 # Run database migrations
 migrate:
-	cargo run --package migration -- up
+	RUSTC_WRAPPER="" cargo run --package migration -- up
 
 # Check migration status
 migrate-status:
@@ -132,10 +132,10 @@ dev:
 	docker-compose up postgres mailhog minio minio-mc -d
 	@echo "Waiting for services to be ready..."
 	@sleep 10
-	$(MAKE) migrate
+	RUSTC_WRAPPER="" $(MAKE) migrate
 	@echo "📧 MailHog Web UI: http://localhost:8025"
 	@echo "🗄️  MinIO Console: http://localhost:9001"
-	$(MAKE) run
+	RUSTC_WRAPPER="" $(MAKE) run
 
 # Run CI checks locally
 ci-check:
