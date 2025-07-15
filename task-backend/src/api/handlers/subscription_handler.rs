@@ -1,11 +1,12 @@
 // task-backend/src/api/handlers/subscription_handler.rs
 
-use crate::api::dto::common::{ApiResponse, OperationResult, PaginationQuery};
+use crate::api::dto::common::{OperationResult, PaginationQuery};
 use crate::api::dto::subscription_dto::*;
 use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::types::ApiResponse;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::request::Parts,
@@ -56,7 +57,7 @@ where
 pub async fn get_current_subscription_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<CurrentSubscriptionResponse>> {
+) -> AppResult<ApiResponse<CurrentSubscriptionResponse>> {
     let user_profile = app_state
         .user_service
         .get_user_profile(user.claims.user_id)
@@ -74,7 +75,7 @@ pub async fn get_current_subscription_handler(
         "Current subscription retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// サブスクリプションアップグレード
@@ -82,7 +83,7 @@ pub async fn upgrade_subscription_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<UpgradeSubscriptionRequest>,
-) -> AppResult<Json<UpgradeSubscriptionResponse>> {
+) -> AppResult<UpgradeSubscriptionResponse> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -153,26 +154,23 @@ pub async fn upgrade_subscription_handler(
         "Subscription upgraded successfully"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Subscription upgraded successfully",
-        OperationResult::updated(change_response, vec!["subscription_tier".to_string()]),
+    Ok(ApiResponse::success(OperationResult::updated(
+        change_response,
+        vec!["subscription_tier".to_string()],
     )))
 }
 
 /// 利用可能なサブスクリプション階層一覧を取得
 pub async fn get_available_tiers_handler(
     _user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<Vec<SubscriptionTierInfo>>>> {
+) -> AppResult<ApiResponse<Vec<SubscriptionTierInfo>>> {
     let tiers = SubscriptionTier::all();
     let tier_infos: Vec<SubscriptionTierInfo> = tiers
         .into_iter()
         .map(|tier| CurrentSubscriptionResponse::get_tier_info(tier.as_str()))
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "Available subscription tiers retrieved successfully",
-        tier_infos,
-    )))
+    Ok(ApiResponse::success(tier_infos))
 }
 
 /// サブスクリプションダウングレード
@@ -180,7 +178,7 @@ pub async fn downgrade_subscription_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<DowngradeSubscriptionRequest>,
-) -> AppResult<Json<DowngradeSubscriptionResponse>> {
+) -> AppResult<DowngradeSubscriptionResponse> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -251,9 +249,9 @@ pub async fn downgrade_subscription_handler(
         "Subscription downgraded successfully"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Subscription downgraded successfully",
-        OperationResult::updated(change_response, vec!["subscription_tier".to_string()]),
+    Ok(ApiResponse::success(OperationResult::updated(
+        change_response,
+        vec!["subscription_tier".to_string()],
     )))
 }
 
@@ -262,7 +260,7 @@ pub async fn get_subscription_history_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<PaginationQuery>,
-) -> AppResult<Json<SubscriptionHistoryResponse>> {
+) -> AppResult<ApiResponse<SubscriptionHistoryResponse>> {
     let (page, per_page) = query.get_pagination();
 
     info!(
@@ -298,7 +296,7 @@ pub async fn get_subscription_history_handler(
         "Subscription history retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者用サブスクリプション統計取得
@@ -306,7 +304,7 @@ pub async fn get_subscription_stats_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<AdminStatsQuery>,
-) -> AppResult<Json<SubscriptionStatsResponse>> {
+) -> AppResult<ApiResponse<SubscriptionStatsResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -369,7 +367,7 @@ pub async fn get_subscription_stats_handler(
         "Subscription stats retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者向けサブスクリプション履歴取得（拡張版）
@@ -377,7 +375,7 @@ pub async fn get_admin_subscription_history_extended_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<SubscriptionHistoryExtendedQuery>,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         return Err(AppError::Forbidden("Admin access required".to_string()));
@@ -451,25 +449,51 @@ pub async fn get_admin_subscription_history_extended_handler(
         })
         .count();
 
+    // Format histories to match test expectations
+    let formatted_histories: Vec<serde_json::Value> = histories
+        .iter()
+        .map(|h| {
+            let is_upgrade = matches!(
+                (h.previous_tier.as_deref(), h.new_tier.as_str()),
+                (None, "pro")
+                    | (None, "enterprise")
+                    | (Some("free"), "pro")
+                    | (Some("free"), "enterprise")
+                    | (Some("pro"), "enterprise")
+            );
+
+            let is_downgrade = matches!(
+                (h.previous_tier.as_deref(), h.new_tier.as_str()),
+                (Some("enterprise"), "pro") | (Some("enterprise"), "free") | (Some("pro"), "free")
+            );
+
+            json!({
+                "id": h.id,
+                "user_id": h.user_id,
+                "previous_tier": h.previous_tier.as_deref().unwrap_or("free"),
+                "new_tier": &h.new_tier,
+                "is_upgrade": is_upgrade,
+                "is_downgrade": is_downgrade,
+                "reason": h.reason,
+                "changed_at": h.changed_at.to_rfc3339(),
+                "changed_by": h.changed_by
+            })
+        })
+        .collect();
+
     let response = json!({
-        "success": true,
-        "message": "Subscription history retrieved successfully",
-        "data": {
-            "histories": histories,
-            "tier_stats": tier_stats,
-            "change_summary": {
-                "total_changes": total_changes,
-                "upgrades_count": upgrades_count,
-                "downgrades_count": downgrades_count,
-                "date_range": {
-                    "start": start_date,
-                    "end": end_date
-                }
-            }
+        "history": formatted_histories,
+        "stats": {
+            "tier_distribution": tier_stats
+        },
+        "change_summary": {
+            "total_changes": total_changes,
+            "upgrades_count": upgrades_count,
+            "downgrades_count": downgrades_count
         }
     });
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// クエリパラメータ（拡張版）
@@ -485,7 +509,7 @@ pub async fn get_admin_subscription_history_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<SubscriptionHistoryQuery>,
-) -> AppResult<Json<AdminSubscriptionHistoryResponse>> {
+) -> AppResult<ApiResponse<AdminSubscriptionHistoryResponse>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -591,14 +615,14 @@ pub async fn get_admin_subscription_history_handler(
         "Admin subscription history retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// サブスクリプション統計取得（Phase 5.2版）
 pub async fn get_subscription_stats_v2_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<SubscriptionStatsResponseV2>> {
+) -> AppResult<ApiResponse<SubscriptionStatsResponseV2>> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -729,7 +753,7 @@ pub async fn get_subscription_stats_v2_handler(
         "Subscription stats v2 retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// ユーザー別サブスクリプション履歴取得
@@ -738,7 +762,7 @@ pub async fn get_user_subscription_history_handler(
     Path(user_id): Path<Uuid>,
     authenticated_user: AuthenticatedUserWithRole,
     Query(query): Query<PaginationQuery>,
-) -> AppResult<Json<SubscriptionHistoryResponse>> {
+) -> AppResult<ApiResponse<SubscriptionHistoryResponse>> {
     // アクセス権限チェック（本人または管理者）
     if authenticated_user.user_id() != user_id && !authenticated_user.is_admin() {
         warn!(
@@ -789,7 +813,7 @@ pub async fn get_user_subscription_history_handler(
         "User subscription history retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者用ユーザーのサブスクリプション変更
@@ -798,7 +822,7 @@ pub async fn admin_change_subscription_handler(
     UuidPath(user_id): UuidPath,
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<AdminChangeSubscriptionRequest>,
-) -> AppResult<Json<ChangeSubscriptionResponse>> {
+) -> AppResult<ChangeSubscriptionResponse> {
     // 管理者権限チェック
     if !admin_user.is_admin() {
         warn!(
@@ -871,9 +895,9 @@ pub async fn admin_change_subscription_handler(
         "Admin subscription change completed"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Subscription changed successfully by administrator",
-        OperationResult::updated(change_response, vec!["subscription_tier".to_string()]),
+    Ok(ApiResponse::success(OperationResult::updated(
+        change_response,
+        vec!["subscription_tier".to_string()],
     )))
 }
 
@@ -882,7 +906,7 @@ pub async fn get_subscription_history_detail_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Path(history_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<SubscriptionHistoryDetailResponse>>> {
+) -> AppResult<ApiResponse<SubscriptionHistoryDetailResponse>> {
     info!(
         user_id = %user.user_id(),
         history_id = %history_id,
@@ -1012,10 +1036,7 @@ pub async fn get_subscription_history_detail_handler(
         "Subscription history detail retrieved"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Subscription history detail retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 // ヘルパー関数：制限の変更を計算

@@ -31,7 +31,7 @@ async fn test_get_consent_status_no_prior_consents() {
     assert!(response["success"].as_bool().unwrap());
 
     let data = &response["data"];
-    assert_eq!(data["user_id"], user.id.to_string());
+    assert_eq!(response["data"]["user_id"], user.id.to_string());
 
     let consents = data["consents"].as_array().unwrap();
     assert_eq!(consents.len(), 4); // Four consent types
@@ -201,9 +201,9 @@ async fn test_cannot_revoke_required_consent() {
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(response["success"], false);
-    let error_message = response["error"]
+    let error_message = response["error"]["message"]["message"]
         .as_str()
-        .or_else(|| response["message"].as_str())
+        .or_else(|| response["error"]["message"].as_str())
         .unwrap_or("");
     assert!(error_message.contains("Data processing consent is required"));
 }
@@ -269,7 +269,7 @@ async fn test_get_consent_history() {
     assert!(response["success"].as_bool().unwrap());
 
     let data = &response["data"];
-    assert_eq!(data["user_id"], user.id.to_string());
+    assert_eq!(response["data"]["user_id"], user.id.to_string());
 
     let history = data["history"].as_array().unwrap();
     assert!(history.len() >= 3); // At least 3 consent changes from our updates

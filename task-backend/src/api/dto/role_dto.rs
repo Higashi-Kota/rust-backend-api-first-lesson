@@ -1,7 +1,7 @@
 // task-backend/src/api/dto/role_dto.rs
-use crate::api::dto::{ApiResponse, OperationResult};
 use crate::domain::role_model::RoleWithPermissions;
 use crate::service::role_service::{CreateRoleInput, UpdateRoleInput};
+use crate::types::ApiResponse;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -183,7 +183,7 @@ pub struct CreateRoleResponse {
 
 impl CreateRoleResponse {
     pub fn build(role: RoleWithPermissions) -> ApiResponse<RoleResponse> {
-        ApiResponse::success("Role created successfully", RoleResponse::from(role))
+        ApiResponse::success(RoleResponse::from(role))
     }
 }
 
@@ -195,32 +195,11 @@ pub struct UpdateRoleResponse {
     pub changes: Vec<String>,
 }
 
-impl UpdateRoleResponse {
-    pub fn build(
-        role: RoleWithPermissions,
-        changes: Vec<String>,
-    ) -> ApiResponse<OperationResult<RoleResponse>> {
-        ApiResponse::success(
-            "Role updated successfully",
-            OperationResult::updated(RoleResponse::from(role), changes),
-        )
-    }
-}
-
 /// ロール削除レスポンス
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteRoleResponse {
     pub message: String,
     pub deleted_role_id: Uuid,
-}
-
-impl DeleteRoleResponse {
-    pub fn build(role_id: Uuid) -> ApiResponse<serde_json::Value> {
-        ApiResponse::success(
-            "Role deleted successfully",
-            serde_json::json!({ "deleted_role_id": role_id }),
-        )
-    }
 }
 
 /// ユーザーロール割り当てレスポンス

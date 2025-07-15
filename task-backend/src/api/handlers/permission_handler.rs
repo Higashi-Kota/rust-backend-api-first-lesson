@@ -1,7 +1,6 @@
 // task-backend/src/api/handlers/permission_handler.rs
 
 use crate::api::dto::permission_dto::*;
-use crate::api::dto::ApiResponse;
 use crate::api::AppState;
 use crate::domain::permission::{
     Permission, PermissionQuota, PermissionResult, PermissionScope, Privilege,
@@ -9,6 +8,7 @@ use crate::domain::permission::{
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::types::ApiResponse;
 use crate::utils::permission::PermissionType;
 use axum::{
     extract::{Json, Path, Query, State},
@@ -42,7 +42,7 @@ pub async fn check_permission_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<CheckPermissionRequest>,
-) -> AppResult<Json<ApiResponse<PermissionCheckResponse>>> {
+) -> AppResult<ApiResponse<PermissionCheckResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!("Permission check validation failed: {}", validation_errors);
@@ -129,10 +129,7 @@ pub async fn check_permission_handler(
         "Permission check completed with detailed information"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Permission check completed",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 複数の権限を一括検証
@@ -140,7 +137,7 @@ pub async fn validate_permissions_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<ValidatePermissionRequest>,
-) -> AppResult<Json<ApiResponse<PermissionValidationResponse>>> {
+) -> AppResult<ApiResponse<PermissionValidationResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!("Permission validation failed: {}", validation_errors);
@@ -240,10 +237,7 @@ pub async fn validate_permissions_handler(
         "Permission validation completed"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Permission validation completed",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// ユーザーの権限情報を取得
@@ -251,7 +245,7 @@ pub async fn get_user_permissions_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
     Path(target_user_id): Path<Uuid>,
-) -> AppResult<Json<UserPermissionsResponse>> {
+) -> AppResult<ApiResponse<UserPermissionsResponse>> {
     // アクセス権限チェック（自分の情報または管理者のみ）
     if user.claims.user_id != target_user_id && !user.claims.is_admin() {
         warn!(
@@ -306,7 +300,7 @@ pub async fn get_user_permissions_handler(
         "User permissions retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// 利用可能なリソース一覧を取得
@@ -314,7 +308,7 @@ pub async fn get_available_resources_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<PermissionQuery>,
-) -> AppResult<Json<AvailableResourcesResponse>> {
+) -> AppResult<ApiResponse<AvailableResourcesResponse>> {
     info!(
         user_id = %user.claims.user_id,
         resource_filter = ?query.resource,
@@ -354,7 +348,7 @@ pub async fn get_available_resources_handler(
         "Available resources retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 // --- Feature Access Endpoints ---
@@ -364,7 +358,7 @@ pub async fn get_feature_access_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<FeatureQuery>,
-) -> AppResult<Json<FeatureAccessResponse>> {
+) -> AppResult<ApiResponse<FeatureAccessResponse>> {
     info!(
         user_id = %user.claims.user_id,
         subscription_tier = %user.claims.subscription_tier,
@@ -414,14 +408,14 @@ pub async fn get_feature_access_handler(
         "Feature access information retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者機能アクセス情報を取得
 pub async fn get_admin_features_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<AdminFeaturesResponse>> {
+) -> AppResult<ApiResponse<AdminFeaturesResponse>> {
     use crate::middleware::auth::{
         check_create_permission, check_delete_permission, check_resource_access_permission,
         check_view_permission,
@@ -464,14 +458,14 @@ pub async fn get_admin_features_handler(
         "Admin features retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// アナリティクス機能アクセス情報を取得
 pub async fn get_analytics_features_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<AnalyticsFeaturesResponse>> {
+) -> AppResult<ApiResponse<AnalyticsFeaturesResponse>> {
     info!(
         user_id = %user.claims.user_id,
         subscription_tier = %user.claims.subscription_tier,
@@ -501,7 +495,7 @@ pub async fn get_analytics_features_handler(
         "Analytics features retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 // --- Helper Functions ---
@@ -953,7 +947,7 @@ pub async fn check_resource_permission_handler(
     user: AuthenticatedUser,
     Path((resource, action)): Path<(String, String)>,
     Query(query): Query<UserEffectivePermissionsQuery>,
-) -> AppResult<Json<ResourcePermissionResponse>> {
+) -> AppResult<ApiResponse<ResourcePermissionResponse>> {
     info!(
         user_id = %user.claims.user_id,
         resource = %resource,
@@ -1027,7 +1021,7 @@ pub async fn check_resource_permission_handler(
         "Resource permission check completed"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// バルク権限チェック
@@ -1035,7 +1029,7 @@ pub async fn bulk_permission_check_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<BulkPermissionCheckRequest>,
-) -> AppResult<Json<BulkPermissionCheckResponse>> {
+) -> AppResult<ApiResponse<BulkPermissionCheckResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -1146,7 +1140,7 @@ pub async fn bulk_permission_check_handler(
         "Bulk permission check completed"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// ユーザー有効権限取得
@@ -1155,7 +1149,7 @@ pub async fn get_user_effective_permissions_handler(
     user: AuthenticatedUser,
     Path(target_user_id): Path<Uuid>,
     Query(query): Query<UserEffectivePermissionsQuery>,
-) -> AppResult<Json<UserEffectivePermissionsResponse>> {
+) -> AppResult<ApiResponse<UserEffectivePermissionsResponse>> {
     // アクセス権限チェック（自分の情報または管理者のみ）
     if user.claims.user_id != target_user_id && !user.claims.is_admin() {
         warn!(
@@ -1242,7 +1236,7 @@ pub async fn get_user_effective_permissions_handler(
         "User effective permissions retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// システム権限監査（管理者のみ）
@@ -1250,7 +1244,7 @@ pub async fn get_system_permission_audit_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<SystemPermissionAuditQuery>,
-) -> AppResult<Json<SystemPermissionAuditResponse>> {
+) -> AppResult<ApiResponse<SystemPermissionAuditResponse>> {
     // 管理者権限チェック（check_permission_typeを使用）
     app_state
         .permission_service
@@ -1320,7 +1314,7 @@ pub async fn get_system_permission_audit_handler(
         "System permission audit retrieved"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 // --- Helper Functions for Permission Audit ---
@@ -1499,7 +1493,7 @@ pub async fn check_permission_denial_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<CheckPermissionRequest>,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -1570,10 +1564,7 @@ pub async fn check_permission_denial_handler(
         "Permission denial check completed"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Permission denial check completed",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 特権の機能チェック
@@ -1581,7 +1572,7 @@ pub async fn check_privilege_feature_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<FeatureAccessRequest>,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -1653,10 +1644,7 @@ pub async fn check_privilege_feature_handler(
         "Privilege feature check completed"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Feature access check completed",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 // Helper functions for denial suggestions
@@ -1701,7 +1689,7 @@ pub async fn check_complex_operation_permissions_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<ComplexOperationRequest>,
-) -> AppResult<Json<ApiResponse<ComplexOperationPermissionResponse>>> {
+) -> AppResult<ApiResponse<ComplexOperationPermissionResponse>> {
     use crate::utils::permission::{PermissionType, ResourceContext};
 
     // バリデーション
@@ -1809,10 +1797,7 @@ pub async fn check_complex_operation_permissions_handler(
         "Complex operation permission check completed"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Complex operation permission check completed",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 // --- Health Check ---

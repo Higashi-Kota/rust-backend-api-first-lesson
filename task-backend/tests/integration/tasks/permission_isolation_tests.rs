@@ -63,7 +63,7 @@ async fn test_user_task_isolation_strict() {
         .await
         .unwrap();
     let alice_task_response: Value = serde_json::from_slice(&body).unwrap();
-    let alice_task_id = alice_task_response["id"].as_str().unwrap();
+    let alice_task_id = alice_task_response["data"]["id"].as_str().unwrap();
 
     // Bob creates his task
     let bob_create_request = auth_helper::create_authenticated_request(
@@ -80,7 +80,7 @@ async fn test_user_task_isolation_strict() {
         .await
         .unwrap();
     let bob_task_response: Value = serde_json::from_slice(&body).unwrap();
-    let bob_task_id = bob_task_response["id"].as_str().unwrap();
+    let bob_task_id = bob_task_response["data"]["id"].as_str().unwrap();
 
     // Charlie creates his task
     let charlie_create_request = auth_helper::create_authenticated_request(
@@ -97,7 +97,7 @@ async fn test_user_task_isolation_strict() {
         .await
         .unwrap();
     let charlie_task_response: Value = serde_json::from_slice(&body).unwrap();
-    let _charlie_task_id = charlie_task_response["id"].as_str().unwrap();
+    let _charlie_task_id = charlie_task_response["data"]["id"].as_str().unwrap();
 
     // Test 1: Each user can only see their own tasks in list
     let alice_list_request =
@@ -109,7 +109,8 @@ async fn test_user_task_isolation_strict() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let alice_task_list: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    let alice_task_list = response["data"].as_array().unwrap();
 
     // Alice should see only her task
     assert_eq!(alice_task_list.len(), 1);
@@ -198,9 +199,15 @@ async fn test_user_task_isolation_strict() {
         .unwrap();
     let task: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(task["title"].as_str().unwrap(), "Alice's Private Task");
-    assert_eq!(task["user_id"].as_str().unwrap(), alice.id.to_string());
-    assert_ne!(task["title"].as_str().unwrap(), "Hacked by Bob");
+    assert_eq!(
+        task["data"]["title"].as_str().unwrap(),
+        "Alice's Private Task"
+    );
+    assert_eq!(
+        task["data"]["user_id"].as_str().unwrap(),
+        alice.id.to_string()
+    );
+    assert_ne!(task["data"]["title"].as_str().unwrap(), "Hacked by Bob");
 }
 
 #[tokio::test]
@@ -252,13 +259,13 @@ async fn test_concurrent_user_task_operations() {
         .await
         .unwrap();
     let task1_response: Value = serde_json::from_slice(&body1).unwrap();
-    let task1_id = task1_response["id"].as_str().unwrap();
+    let task1_id = task1_response["data"]["id"].as_str().unwrap();
 
     let body2 = body::to_bytes(response2.into_body(), usize::MAX)
         .await
         .unwrap();
     let task2_response: Value = serde_json::from_slice(&body2).unwrap();
-    let task2_id = task2_response["id"].as_str().unwrap();
+    let task2_id = task2_response["data"]["id"].as_str().unwrap();
 
     // Verify tasks are separate and belong to correct users
     assert_ne!(task1_id, task2_id, "Tasks should have different IDs");
@@ -278,7 +285,10 @@ async fn test_concurrent_user_task_operations() {
         .await
         .unwrap();
     let task: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(task["user_id"].as_str().unwrap(), user1.id.to_string());
+    assert_eq!(
+        task["data"]["user_id"].as_str().unwrap(),
+        user1.id.to_string()
+    );
 
     // User1 cannot access User2's task
     let user1_get_user2_task = auth_helper::create_authenticated_request(
@@ -374,7 +384,7 @@ async fn test_task_filtering_user_isolation() {
         .await
         .unwrap();
     let filtered_response: Value = serde_json::from_slice(&body).unwrap();
-    let tasks = filtered_response["items"].as_array().unwrap();
+    let tasks = filtered_response["data"]["items"].as_array().unwrap();
 
     // User1 should see only their own "todo" tasks
     assert_eq!(tasks.len(), 1);
@@ -397,7 +407,7 @@ async fn test_task_filtering_user_isolation() {
         .await
         .unwrap();
     let filtered_response: Value = serde_json::from_slice(&body).unwrap();
-    let tasks = filtered_response["items"].as_array().unwrap();
+    let tasks = filtered_response["data"]["items"].as_array().unwrap();
 
     // User2 should see only their own "completed" tasks
     assert_eq!(tasks.len(), 1);
@@ -470,7 +480,8 @@ async fn test_bulk_operations_user_isolation() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let user1_task_list: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    let user1_task_list = response["data"].as_array().unwrap();
 
     assert_eq!(user1_task_list.len(), 3);
     for task in user1_task_list {
@@ -487,7 +498,8 @@ async fn test_bulk_operations_user_isolation() {
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let user2_task_list: Vec<Value> = serde_json::from_slice(&body).unwrap();
+    let response: Value = serde_json::from_slice(&body).unwrap();
+    let user2_task_list = response["data"].as_array().unwrap();
 
     assert_eq!(user2_task_list.len(), 2);
     for task in user2_task_list {

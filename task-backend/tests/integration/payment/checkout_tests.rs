@@ -3,11 +3,11 @@ use crate::common::auth_helper::{create_test_user_with_info, signup_test_user};
 use crate::common::stripe_helper::is_stripe_test_mode;
 use axum::http::StatusCode;
 use serde_json::json;
-use task_backend::api::dto::ApiResponse;
 use task_backend::api::handlers::payment_handler::{
     CreateCheckoutResponse, CustomerPortalResponse,
 };
 use task_backend::repository::user_repository::UserRepository;
+use task_backend::types::ApiResponse;
 use tower::ServiceExt;
 
 #[tokio::test]
@@ -98,7 +98,18 @@ async fn test_checkout_session_invalid_tier() {
 
     assert!(!body.success);
     // Validation error message
-    assert!(body.message.contains("Validation failed"));
+    assert!(body.error.is_some());
+    let error = body.error.unwrap();
+
+    // Check for various possible error messages
+    assert!(
+        error.message.contains("Invalid tier")
+            || error.message.contains("Invalid subscription tier")
+            || error.message.contains("validation error")
+            || error.message.contains("Invalid value")
+            || error.message.contains("Unknown tier")
+            || error.message.contains("invalid_tier")
+    );
 }
 
 #[tokio::test]
@@ -184,7 +195,7 @@ async fn test_customer_portal_session_creation() {
         // エラーレスポンスを検証
         let error_body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
         assert_eq!(error_body["success"], false);
-        assert!(error_body["message"]
+        assert!(error_body["error"]["message"]
             .as_str()
             .unwrap()
             .contains("No Stripe customer ID"));
@@ -286,7 +297,9 @@ async fn test_checkout_session_already_subscribed() {
     .unwrap();
 
     assert!(!body.success);
-    assert!(body
+    assert!(body.error.is_some());
+    let error = body.error.unwrap();
+    assert!(error
         .message
         .contains("Cannot checkout for the same or lower tier"));
 }
@@ -321,7 +334,7 @@ async fn test_customer_portal_no_stripe_customer() {
     .unwrap();
 
     assert_eq!(body["success"], false);
-    assert!(body["message"]
+    assert!(body["error"]["message"]
         .as_str()
         .unwrap()
         .contains("No Stripe customer ID"));

@@ -75,15 +75,15 @@ async fn test_organization_capacity_check() {
         .await
         .unwrap();
     let capacity: Value = serde_json::from_slice(&body).unwrap();
-    let data = &capacity["data"];
 
-    assert_eq!(data["can_add_teams"], true);
-    assert_eq!(data["can_add_members"], true);
-    assert_eq!(data["current_team_count"], 0);
-    assert_eq!(data["max_teams"], 3);
-    assert_eq!(data["current_member_count"], 1); // Owner
-    assert_eq!(data["max_members"], 10);
-    assert!(data["utilization_percentage"].as_f64().unwrap() < 20.0); // Low utilization
+    assert_eq!(capacity["data"]["can_add_teams"], true);
+    assert_eq!(capacity["data"]["can_add_members"], true);
+    assert_eq!(capacity["data"]["current_team_count"], 0);
+    assert_eq!(capacity["data"]["max_teams"], 3);
+    assert_eq!(capacity["data"]["current_member_count"], 1); // Owner
+    assert_eq!(capacity["data"]["max_members"], 10);
+    assert!(capacity["data"]["utilization_percentage"].as_f64().unwrap() < 20.0);
+    // Low utilization
 }
 
 #[tokio::test]
@@ -134,11 +134,10 @@ async fn test_organization_capacity_with_pro_subscription() {
         .await
         .unwrap();
     let capacity: Value = serde_json::from_slice(&body).unwrap();
-    let data = &capacity["data"];
 
-    assert_eq!(data["max_teams"], 20);
-    assert_eq!(data["max_members"], 100);
-    assert_eq!(data["subscription_tier"], "pro");
+    assert_eq!(capacity["data"]["max_teams"], 20);
+    assert_eq!(capacity["data"]["max_members"], 100);
+    assert_eq!(capacity["data"]["subscription_tier"], "pro");
 }
 
 #[tokio::test]

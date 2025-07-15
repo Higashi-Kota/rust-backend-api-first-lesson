@@ -6,14 +6,13 @@ pub struct SecurityConfig {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct AppConfig {
     pub environment: String,
     pub host: String,
     pub port: u16,
     pub database_url: String,
-    #[allow(dead_code)]
     pub jwt_secret: String,
-    #[allow(dead_code)]
     pub frontend_url: String,
     pub security: SecurityConfig,
 }

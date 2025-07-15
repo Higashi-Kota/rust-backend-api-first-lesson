@@ -1,6 +1,5 @@
 // task-backend/src/api/handlers/gdpr_handler.rs
 
-use crate::api::dto::common::ApiResponse;
 use crate::api::dto::gdpr_dto::{
     ComplianceStatusResponse, ConsentHistoryResponse, ConsentStatusResponse, ConsentUpdateRequest,
     DataDeletionRequest, DataDeletionResponse, DataExportRequest, DataExportResponse,
@@ -10,6 +9,7 @@ use crate::api::AppState;
 use crate::error::AppResult;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::service::gdpr_service::GdprService;
+use crate::types::ApiResponse;
 use axum::{
     extract::{Path, State},
     Json,
@@ -23,7 +23,7 @@ pub async fn export_user_data_handler(
     user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
     Json(request): Json<DataExportRequest>,
-) -> AppResult<Json<ApiResponse<DataExportResponse>>> {
+) -> AppResult<ApiResponse<DataExportResponse>> {
     // Check if user is accessing their own data or if they're an admin
     if user.user_id() != user_id && !user.is_admin() {
         return Err(crate::error::AppError::Forbidden(
@@ -34,10 +34,7 @@ pub async fn export_user_data_handler(
     let gdpr_service = Arc::new(GdprService::new((*app_state.db).clone()));
     let export_data = gdpr_service.export_user_data(user_id, request).await?;
 
-    Ok(Json(ApiResponse::success(
-        "User data exported successfully",
-        export_data,
-    )))
+    Ok(ApiResponse::success(export_data))
 }
 
 /// Delete user data (user can delete their own data, admin can delete any user's data)
@@ -46,7 +43,7 @@ pub async fn delete_user_data_handler(
     user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
     Json(request): Json<DataDeletionRequest>,
-) -> AppResult<Json<ApiResponse<DataDeletionResponse>>> {
+) -> AppResult<ApiResponse<DataDeletionResponse>> {
     // Check if user is deleting their own data or if they're an admin
     if user.user_id() != user_id && !user.is_admin() {
         return Err(crate::error::AppError::Forbidden(
@@ -57,10 +54,7 @@ pub async fn delete_user_data_handler(
     let gdpr_service = Arc::new(GdprService::new((*app_state.db).clone()));
     let deletion_result = gdpr_service.delete_user_data(user_id, request).await?;
 
-    Ok(Json(ApiResponse::success(
-        "User data deleted successfully",
-        deletion_result,
-    )))
+    Ok(ApiResponse::success(deletion_result))
 }
 
 /// Get GDPR compliance status (user can check their own status, admin can check any user's status)
@@ -68,7 +62,7 @@ pub async fn get_compliance_status_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<ComplianceStatusResponse>>> {
+) -> AppResult<ApiResponse<ComplianceStatusResponse>> {
     // Check if user is checking their own status or if they're an admin
     if user.user_id() != user_id && !user.is_admin() {
         return Err(crate::error::AppError::Forbidden(
@@ -79,10 +73,7 @@ pub async fn get_compliance_status_handler(
     let gdpr_service = Arc::new(GdprService::new((*app_state.db).clone()));
     let status = gdpr_service.get_compliance_status(user_id).await?;
 
-    Ok(Json(ApiResponse::success(
-        "Compliance status retrieved successfully",
-        status,
-    )))
+    Ok(ApiResponse::success(status))
 }
 
 /// Admin endpoint to export any user's data
@@ -91,14 +82,11 @@ pub async fn admin_export_user_data_handler(
     _admin: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
     Json(request): Json<DataExportRequest>,
-) -> AppResult<Json<ApiResponse<DataExportResponse>>> {
+) -> AppResult<ApiResponse<DataExportResponse>> {
     let gdpr_service = Arc::new(GdprService::new((*app_state.db).clone()));
     let export_data = gdpr_service.export_user_data(user_id, request).await?;
 
-    Ok(Json(ApiResponse::success(
-        "User data exported successfully",
-        export_data,
-    )))
+    Ok(ApiResponse::success(export_data))
 }
 
 /// Admin endpoint to delete any user's data
@@ -107,14 +95,11 @@ pub async fn admin_delete_user_data_handler(
     _admin: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
     Json(request): Json<DataDeletionRequest>,
-) -> AppResult<Json<ApiResponse<DataDeletionResponse>>> {
+) -> AppResult<ApiResponse<DataDeletionResponse>> {
     let gdpr_service = Arc::new(GdprService::new((*app_state.db).clone()));
     let deletion_result = gdpr_service.delete_user_data(user_id, request).await?;
 
-    Ok(Json(ApiResponse::success(
-        "User data deleted successfully",
-        deletion_result,
-    )))
+    Ok(ApiResponse::success(deletion_result))
 }
 
 // --- Router ---
@@ -129,7 +114,7 @@ pub async fn get_consent_status_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<ConsentStatusResponse>>> {
+) -> AppResult<ApiResponse<ConsentStatusResponse>> {
     // Check if user is accessing their own data or if they're an admin
     if user.user_id() != user_id && !user.is_admin() {
         return Err(crate::error::AppError::Forbidden(
@@ -140,10 +125,7 @@ pub async fn get_consent_status_handler(
     let gdpr_service = Arc::new(GdprService::new((*app_state.db).clone()));
     let status = gdpr_service.get_consent_status(user_id).await?;
 
-    Ok(Json(ApiResponse::success(
-        "Consent status retrieved successfully",
-        status,
-    )))
+    Ok(ApiResponse::success(status))
 }
 
 /// Update user consents
@@ -152,7 +134,7 @@ pub async fn update_consents_handler(
     user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
     Json(request): Json<ConsentUpdateRequest>,
-) -> AppResult<Json<ApiResponse<ConsentStatusResponse>>> {
+) -> AppResult<ApiResponse<ConsentStatusResponse>> {
     // Users can only update their own consents
     if user.user_id() != user_id {
         return Err(crate::error::AppError::Forbidden(
@@ -165,10 +147,7 @@ pub async fn update_consents_handler(
         .update_consents(user_id, request, None, None)
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Consents updated successfully",
-        status,
-    )))
+    Ok(ApiResponse::success(status))
 }
 
 /// Update single consent
@@ -177,7 +156,7 @@ pub async fn update_single_consent_handler(
     user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
     Json(request): Json<SingleConsentUpdateRequest>,
-) -> AppResult<Json<ApiResponse<ConsentStatusResponse>>> {
+) -> AppResult<ApiResponse<ConsentStatusResponse>> {
     // Users can only update their own consents
     if user.user_id() != user_id {
         return Err(crate::error::AppError::Forbidden(
@@ -190,10 +169,7 @@ pub async fn update_single_consent_handler(
         .update_single_consent(user_id, request, None, None)
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Consent updated successfully",
-        status,
-    )))
+    Ok(ApiResponse::success(status))
 }
 
 /// Get consent history
@@ -201,7 +177,7 @@ pub async fn get_consent_history_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<ConsentHistoryResponse>>> {
+) -> AppResult<ApiResponse<ConsentHistoryResponse>> {
     // Check if user is accessing their own data or if they're an admin
     if user.user_id() != user_id && !user.is_admin() {
         return Err(crate::error::AppError::Forbidden(
@@ -212,10 +188,7 @@ pub async fn get_consent_history_handler(
     let gdpr_service = Arc::new(GdprService::new((*app_state.db).clone()));
     let history = gdpr_service.get_consent_history(user_id, Some(100)).await?;
 
-    Ok(Json(ApiResponse::success(
-        "Consent history retrieved successfully",
-        history,
-    )))
+    Ok(ApiResponse::success(history))
 }
 
 /// GDPR router

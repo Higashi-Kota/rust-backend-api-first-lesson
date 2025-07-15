@@ -3,6 +3,7 @@ use crate::api::dto::auth_dto::*;
 use crate::api::{AppState, CookieConfig, HasJwtManager, SecurityHeaders};
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
+use crate::types::ApiResponse;
 use axum::{
     extract::{FromRequestParts, Json, State},
     http::{header, request::Parts, HeaderMap, StatusCode},
@@ -112,7 +113,10 @@ pub async fn signup_handler(
     let auth_response = app_state.auth_service.signup(payload).await?;
 
     // レスポンスクッキーを設定
-    let mut response = Json(auth_response.clone()).into_response();
+    let api_response = ApiResponse::success(auth_response.clone());
+    let mut response = api_response.into_response();
+    response.extensions_mut().insert(StatusCode::CREATED);
+
     let cookie_jar = create_auth_cookies(&auth_response.tokens, &app_state.cookie_config);
 
     // セキュリティヘッダーを追加
@@ -175,7 +179,8 @@ pub async fn signin_handler(
         .await?;
 
     // レスポンスクッキーを設定
-    let mut response = Json(auth_response.clone()).into_response();
+    let api_response = ApiResponse::success(auth_response.clone());
+    let mut response = api_response.into_response();
     let cookie_jar = create_auth_cookies(&auth_response.tokens, &app_state.cookie_config);
 
     // セキュリティヘッダーを追加
@@ -211,7 +216,8 @@ pub async fn signout_handler(
     let success_response = LogoutResponse {
         message: "Successfully signed out".to_string(),
     };
-    let mut response = Json(success_response).into_response();
+    let api_response = ApiResponse::success(success_response);
+    let mut response = api_response.into_response();
 
     // Cookieを削除
     let expired_cookies = create_expired_auth_cookies(&app_state.cookie_config);
@@ -229,7 +235,7 @@ pub async fn signout_handler(
 pub async fn signout_all_devices_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<LogoutResponse>> {
+) -> AppResult<ApiResponse<LogoutResponse>> {
     let logout_response = app_state
         .auth_service
         .signout_all_devices(user.claims.user_id)
@@ -237,7 +243,7 @@ pub async fn signout_all_devices_handler(
 
     info!(user_id = %user.claims.user_id, "User signed out from all devices");
 
-    Ok(Json(logout_response))
+    Ok(ApiResponse::success(logout_response))
 }
 
 /// トークンリフレッシュ
@@ -276,7 +282,8 @@ pub async fn refresh_token_handler(
         .await?;
 
     // レスポンスクッキーを設定
-    let mut response = Json(refresh_response.clone()).into_response();
+    let api_response = ApiResponse::success(refresh_response.clone());
+    let mut response = api_response.into_response();
     let cookie_jar = create_auth_cookies(&refresh_response.tokens, &app_state.cookie_config);
 
     // セキュリティヘッダーを追加
@@ -294,7 +301,7 @@ pub async fn refresh_token_handler(
 pub async fn forgot_password_handler(
     State(app_state): State<AppState>,
     Json(payload): Json<PasswordResetRequestRequest>,
-) -> AppResult<Json<PasswordResetRequestResponse>> {
+) -> AppResult<ApiResponse<PasswordResetRequestResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -324,14 +331,14 @@ pub async fn forgot_password_handler(
         .request_password_reset(&payload.email)
         .await?;
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// パスワードリセット実行
 pub async fn reset_password_handler(
     State(app_state): State<AppState>,
     Json(payload): Json<PasswordResetRequest>,
-) -> AppResult<Json<PasswordResetResponse>> {
+) -> AppResult<ApiResponse<PasswordResetResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!("Password reset validation failed: {}", validation_errors);
@@ -357,7 +364,7 @@ pub async fn reset_password_handler(
 
     info!("Password reset completed successfully");
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// パスワード変更
@@ -365,7 +372,7 @@ pub async fn change_password_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<PasswordChangeRequest>,
-) -> AppResult<Json<PasswordChangeResponse>> {
+) -> AppResult<ApiResponse<PasswordChangeResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!("Password change validation failed: {}", validation_errors);
@@ -407,20 +414,20 @@ pub async fn change_password_handler(
 
     info!(user_id = %user.claims.user_id, "Password changed successfully");
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// 現在のユーザー情報取得
 pub async fn me_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<CurrentUserResponse>> {
+) -> AppResult<ApiResponse<CurrentUserResponse>> {
     let current_user_response = app_state
         .auth_service
         .get_current_user(user.claims.user_id)
         .await?;
 
-    Ok(Json(current_user_response))
+    Ok(ApiResponse::success(current_user_response))
 }
 
 /// アカウント削除
@@ -462,7 +469,8 @@ pub async fn delete_account_handler(
         .await?;
 
     // レスポンスを作成
-    let mut response = Json(response).into_response();
+    let api_response = ApiResponse::success(response);
+    let mut response = api_response.into_response();
 
     // Cookieを削除
     let expired_cookies = create_expired_auth_cookies(&app_state.cookie_config);
@@ -477,10 +485,10 @@ pub async fn delete_account_handler(
 }
 
 /// 認証ステータス確認
-pub async fn auth_status_handler() -> Json<AuthStatusResponse> {
+pub async fn auth_status_handler() -> ApiResponse<AuthStatusResponse> {
     // このエンドポイントは認証が不要なので、常に未認証として返す
     // 実際の認証状態を確認する場合は、/auth/me エンドポイントを使用
-    Json(AuthStatusResponse {
+    ApiResponse::success(AuthStatusResponse {
         authenticated: false,
         user: None,
         access_token_expires_in: None,
@@ -491,7 +499,7 @@ pub async fn auth_status_handler() -> Json<AuthStatusResponse> {
 pub async fn verify_email_handler(
     State(app_state): State<AppState>,
     Json(payload): Json<EmailVerificationRequest>,
-) -> AppResult<Json<EmailVerificationResponse>> {
+) -> AppResult<ApiResponse<EmailVerificationResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -520,14 +528,14 @@ pub async fn verify_email_handler(
 
     info!("Email verification completed successfully");
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// メール認証再送
 pub async fn resend_verification_email_handler(
     State(app_state): State<AppState>,
     Json(payload): Json<ResendVerificationEmailRequest>,
-) -> AppResult<Json<ResendVerificationEmailResponse>> {
+) -> AppResult<ApiResponse<ResendVerificationEmailResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!(
@@ -557,7 +565,7 @@ pub async fn resend_verification_email_handler(
         .resend_verification_email(&payload.email)
         .await?;
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 // --- ヘルパー関数 ---
@@ -656,7 +664,7 @@ fn add_security_headers(headers: &mut HeaderMap, security: &SecurityHeaders) {
 pub async fn check_pending_verification_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<crate::api::dto::user_dto::PendingEmailVerificationResponse>> {
+) -> AppResult<ApiResponse<crate::api::dto::user_dto::PendingEmailVerificationResponse>> {
     let response = app_state
         .auth_service
         .check_pending_email_verification(user.claims.user_id)
@@ -668,7 +676,7 @@ pub async fn check_pending_verification_handler(
         "Checked pending email verification status"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 /// トークン状態確認リクエスト
@@ -682,7 +690,7 @@ pub async fn check_token_status_handler(
     State(app_state): State<AppState>,
     _admin: AuthenticatedUser,
     Json(payload): Json<TokenStatusRequest>,
-) -> AppResult<Json<crate::api::dto::user_dto::TokenStatusResponse>> {
+) -> AppResult<ApiResponse<crate::api::dto::user_dto::TokenStatusResponse>> {
     let response = app_state
         .auth_service
         .check_token_status(&payload.token)
@@ -694,7 +702,7 @@ pub async fn check_token_status_handler(
         "Checked token status"
     );
 
-    Ok(Json(response))
+    Ok(ApiResponse::success(response))
 }
 
 // --- ルーター ---

@@ -275,7 +275,10 @@ async fn test_team_creation_with_subscription_limits() {
         .await
         .unwrap();
     let error: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert!(error["message"].as_str().unwrap().contains("teams limit"));
+    assert!(error["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("teams limit"));
 
     // Proユーザーは5チームまで作成可能
     for i in 1..=5 {
@@ -441,7 +444,7 @@ async fn test_team_member_invitation_with_limits() {
         );
     }
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert!(error["message"]
+    assert!(error["error"]["message"]
         .as_str()
         .unwrap()
         .contains("team_members limit"));

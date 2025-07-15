@@ -26,9 +26,15 @@ async fn test_get_current_user_success() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    // レスポンス構造の検証
-    assert!(response["user"].is_object());
-    let user_info = &response["user"];
+    // レスポンス構造の検証 - New ApiResponse format
+    assert!(response["success"].as_bool().unwrap());
+    assert!(response["data"].is_object());
+    assert!(response["error"].is_null());
+    assert!(response["meta"].is_object());
+
+    let data = &response["data"];
+    assert!(response["data"]["user"].is_object());
+    let user_info = &data["user"];
 
     assert_eq!(user_info["id"], user.id.to_string());
     assert_eq!(user_info["email"], user.email);
@@ -60,7 +66,11 @@ async fn test_get_current_user_without_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]
@@ -77,7 +87,11 @@ async fn test_get_current_user_with_invalid_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]
@@ -106,10 +120,16 @@ async fn test_delete_account_success() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(response["message"].is_string());
+    assert!(response["data"]["message"].is_string());
     assert!(
-        response["message"].as_str().unwrap().contains("deleted")
-            || response["message"].as_str().unwrap().contains("removed")
+        response["data"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("deleted")
+            || response["data"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("removed")
     );
 }
 
@@ -139,19 +159,31 @@ async fn test_delete_account_wrong_confirmation() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // 確認文字列関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("confirmation") || msg.contains("CONFIRM_DELETE")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // 確認文字列関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages
+            .iter()
+            .any(|msg| msg.contains("confirmation") || msg.contains("CONFIRM_DELETE")));
+    }
 }
 
 #[tokio::test]
@@ -180,14 +212,21 @@ async fn test_delete_account_wrong_password() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
     assert!(
-        error["error"]
+        error["error"]["message"]
             .as_str()
             .unwrap()
             .to_lowercase()
             .contains("password")
-            || error["error"].as_str().unwrap().contains("incorrect")
+            || error["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("incorrect")
     );
 }
 
@@ -214,7 +253,11 @@ async fn test_delete_account_without_authentication() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]
@@ -244,10 +287,16 @@ async fn test_change_password_success() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(response["message"].is_string());
+    assert!(response["data"]["message"].is_string());
     assert!(
-        response["message"].as_str().unwrap().contains("changed")
-            || response["message"].as_str().unwrap().contains("updated")
+        response["data"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("changed")
+            || response["data"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("updated")
     );
 }
 
@@ -278,10 +327,20 @@ async fn test_change_password_wrong_current_password() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
     assert!(
-        error["error"].as_str().unwrap().contains("current")
-            || error["error"].as_str().unwrap().contains("password")
+        error["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("current")
+            || error["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("password")
     );
 }
 
@@ -312,19 +371,31 @@ async fn test_change_password_mismatch_confirmation() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // パスワード確認関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("confirmation") || msg.contains("match")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // パスワード確認関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages
+            .iter()
+            .any(|msg| msg.contains("confirmation") || msg.contains("match")));
+    }
 }
 
 #[tokio::test]
@@ -354,19 +425,31 @@ async fn test_change_password_weak_new_password() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // パスワード強度関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("password") && (msg.contains("8") || msg.contains("characters"))));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // パスワード強度関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages.iter().any(
+            |msg| msg.contains("password") && (msg.contains("8") || msg.contains("characters"))
+        ));
+    }
 }
 
 #[tokio::test]
@@ -396,19 +479,31 @@ async fn test_change_password_same_as_current() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // 同一パスワード関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("different") || msg.contains("same") || msg.contains("current")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // 同一パスワード関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages.iter().any(|msg| msg.contains("different")
+            || msg.contains("same")
+            || msg.contains("current")));
+    }
 }
 
 #[tokio::test]
@@ -463,8 +558,8 @@ async fn test_user_can_login_with_new_password() {
         .unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(response["tokens"]["access_token"].is_string());
-    assert!(response["user"].is_object());
+    assert!(response["data"]["tokens"]["access_token"].is_string());
+    assert!(response["data"]["user"].is_object());
 }
 
 #[tokio::test]
@@ -518,5 +613,9 @@ async fn test_old_password_no_longer_works() {
         .unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
 }

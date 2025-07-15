@@ -5,10 +5,10 @@ use axum::{
     body::{self, Body},
     http::{Request, StatusCode},
 };
-use task_backend::api::dto::common::ApiResponse;
 use task_backend::api::handlers::analytics_handler::{
     FeatureUsageStatsResponse, TrackFeatureUsageRequest, UserFeatureUsageResponse,
 };
+use task_backend::types::ApiResponse;
 use tower::ServiceExt;
 
 #[tokio::test]

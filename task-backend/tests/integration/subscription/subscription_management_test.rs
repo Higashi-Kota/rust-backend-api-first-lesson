@@ -270,7 +270,7 @@ async fn test_admin_delete_user_subscription_history() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    let history = response["history"].as_array().unwrap();
+    let history = response["data"]["history"].as_array().unwrap();
     assert!(history.is_empty());
 }
 

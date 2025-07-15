@@ -37,7 +37,7 @@ async fn create_test_data_for_user(
         // Try to get ID from data field first, then directly from response
         let id_str = response["data"]["id"]
             .as_str()
-            .or_else(|| response["id"].as_str())
+            .or_else(|| response["data"]["id"].as_str())
             .unwrap_or_else(|| panic!("Task creation failed, no id in response: {:?}", response));
         task_ids.push(Uuid::parse_str(id_str).unwrap());
     }
@@ -65,7 +65,7 @@ async fn create_test_data_for_user(
     // Try to get ID from data field first, then directly from response
     let id_str = response["data"]["id"]
         .as_str()
-        .or_else(|| response["id"].as_str())
+        .or_else(|| response["data"]["id"].as_str())
         .unwrap_or_else(|| panic!("Team creation failed, no id in response: {:?}", response));
     team_ids.push(Uuid::parse_str(id_str).unwrap());
 
@@ -116,13 +116,13 @@ async fn test_export_user_data_minimal() {
     assert!(user_data["subscription_tier"].is_string());
 
     // Verify optional data is not included
-    assert!(data["tasks"].is_null());
-    assert!(data["teams"].is_null());
-    assert!(data["subscription_history"].is_null());
-    assert!(data["activity_logs"].is_null());
+    assert!(response["data"]["tasks"].is_null());
+    assert!(response["data"]["teams"].is_null());
+    assert!(response["data"]["subscription_history"].is_null());
+    assert!(response["data"]["activity_logs"].is_null());
 
     // Verify export timestamp
-    assert!(data["exported_at"].is_string());
+    assert!(response["data"]["exported_at"].is_string());
 }
 
 #[tokio::test]
@@ -260,20 +260,32 @@ async fn test_export_user_data_complete() {
     let data = &response["data"];
 
     // Verify all sections are present
-    assert!(data["user_data"].is_object());
-    assert!(data["tasks"].is_array());
-    assert!(data["teams"].is_array());
-    assert!(data["subscription_history"].is_array());
+    assert!(response["data"]["user_data"].is_object());
+    assert!(response["data"]["tasks"].is_array());
+    assert!(response["data"]["teams"].is_array());
+    assert!(response["data"]["subscription_history"].is_array());
 
     // Verify counts
-    assert_eq!(data["tasks"].as_array().unwrap().len(), task_ids.len());
-    assert_eq!(data["teams"].as_array().unwrap().len(), team_ids.len());
+    assert_eq!(
+        response["data"]["tasks"].as_array().unwrap().len(),
+        task_ids.len()
+    );
+    assert_eq!(
+        response["data"]["teams"].as_array().unwrap().len(),
+        team_ids.len()
+    );
 
     // Verify subscription history
     let history = data["subscription_history"].as_array().unwrap();
     assert!(!history.is_empty()); // At least one upgrade
-    assert_eq!(history[0]["previous_tier"], "free");
-    assert_eq!(history[0]["new_tier"], "pro");
+    assert_eq!(
+        response["data"]["subscription_history"][0]["previous_tier"],
+        "free"
+    );
+    assert_eq!(
+        response["data"]["subscription_history"][0]["new_tier"],
+        "pro"
+    );
 }
 
 #[tokio::test]
@@ -401,7 +413,7 @@ async fn test_export_includes_all_task_fields() {
     let task_response: serde_json::Value = serde_json::from_slice(&body).unwrap();
     let task_id = task_response["data"]["id"]
         .as_str()
-        .or_else(|| task_response["id"].as_str())
+        .or_else(|| task_response["data"]["id"].as_str())
         .expect("Task ID not found in response");
 
     let export_request = json!({

@@ -1,7 +1,7 @@
 // task-backend/src/api/handlers/analytics_handler.rs
 
 use crate::api::dto::analytics_dto::*;
-use crate::api::dto::common::{ApiResponse, OperationResult};
+use crate::api::dto::common::OperationResult;
 use crate::api::AppState;
 use crate::domain::{daily_activity_summary_model, subscription_tier::SubscriptionTier};
 use crate::error::{AppError, AppResult};
@@ -11,6 +11,7 @@ use crate::repository::{
     daily_activity_summary_repository::DailyActivitySummaryRepository,
     subscription_history_repository::SubscriptionHistoryRepository,
 };
+use crate::types::ApiResponse;
 use axum::{
     extract::{Json, Path, Query, State},
     routing::{get, post},
@@ -41,7 +42,7 @@ pub struct StatsPeriodQuery {
 pub async fn get_system_analytics_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     // 管理者権限チェック（PermissionServiceを使用）
     app_state
         .permission_service
@@ -145,10 +146,7 @@ pub async fn get_system_analytics_handler(
         "weekly_active_users": weekly_active_users,
     });
 
-    Ok(Json(ApiResponse::success(
-        "System analytics retrieved successfully",
-        analytics,
-    )))
+    Ok(ApiResponse::success(analytics))
 }
 
 /// システム全体の統計を取得（管理者のみ）
@@ -156,7 +154,7 @@ pub async fn get_system_stats_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<StatsPeriodQuery>,
-) -> AppResult<Json<ApiResponse<SystemStatsResponse>>> {
+) -> AppResult<ApiResponse<SystemStatsResponse>> {
     // 管理者権限チェック（PermissionServiceを使用）
     if let Err(e) = app_state
         .permission_service
@@ -421,10 +419,7 @@ pub async fn get_system_stats_handler(
         "System stats generated"
     );
 
-    Ok(Json(ApiResponse::success(
-        "System statistics retrieved successfully",
-        stats,
-    )))
+    Ok(ApiResponse::success(stats))
 }
 
 /// ユーザー個人のアクティビティ統計を取得
@@ -432,7 +427,7 @@ pub async fn get_user_activity_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<StatsPeriodQuery>,
-) -> AppResult<Json<ApiResponse<UserActivityResponse>>> {
+) -> AppResult<ApiResponse<UserActivityResponse>> {
     // バリデーション
     query.validate().map_err(|validation_errors| {
         warn!(
@@ -530,7 +525,7 @@ pub async fn get_user_activity_handler(
     );
 
     // ApiResponse::success_with_metadataを活用
-    let metadata = json!({
+    let _metadata = json!({
         "query_period_days": days,
         "period_start": period_start.to_rfc3339(),
         "period_end": period_end.to_rfc3339(),
@@ -538,11 +533,7 @@ pub async fn get_user_activity_handler(
         "api_version": "v1"
     });
 
-    Ok(Json(ApiResponse::success_with_metadata(
-        "User activity statistics retrieved successfully",
-        response,
-        metadata,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 管理者用ユーザーアクティビティ統計を取得
@@ -551,7 +542,7 @@ pub async fn get_user_activity_admin_handler(
     admin_user: AuthenticatedUserWithRole,
     Path(target_user_id): Path<Uuid>,
     Query(query): Query<StatsPeriodQuery>,
-) -> AppResult<Json<ApiResponse<UserActivityResponse>>> {
+) -> AppResult<ApiResponse<UserActivityResponse>> {
     // 管理者権限チェック（PermissionServiceを使用）
     if let Err(e) = app_state
         .permission_service
@@ -664,10 +655,7 @@ pub async fn get_user_activity_admin_handler(
         "Admin user activity stats generated"
     );
 
-    Ok(Json(ApiResponse::success(
-        "User activity statistics retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// タスク統計詳細を取得
@@ -675,7 +663,7 @@ pub async fn get_task_stats_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<StatsPeriodQuery>,
-) -> AppResult<Json<ApiResponse<TaskStatsDetailResponse>>> {
+) -> AppResult<ApiResponse<TaskStatsDetailResponse>> {
     // バリデーション
     query.validate().map_err(|validation_errors| {
         warn!("Task stats query validation failed: {}", validation_errors);
@@ -796,10 +784,7 @@ pub async fn get_task_stats_handler(
         "Task stats generated"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Task statistics retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// ユーザー行動分析を取得
@@ -807,7 +792,7 @@ pub async fn get_user_behavior_analytics_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<UserBehaviorAnalyticsQuery>,
-) -> AppResult<Json<ApiResponse<UserBehaviorAnalyticsResponse>>> {
+) -> AppResult<ApiResponse<UserBehaviorAnalyticsResponse>> {
     let target_user_id = query.user_id.unwrap_or(user.claims.user_id);
 
     // 権限チェック: PermissionServiceを使用してユーザーアクセス権限を確認
@@ -1057,10 +1042,7 @@ pub async fn get_user_behavior_analytics_handler(
         "User behavior analytics generated"
     );
 
-    Ok(Json(ApiResponse::success(
-        "User behavior analytics retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 高度なエクスポートを実行
@@ -1068,7 +1050,7 @@ pub async fn advanced_export_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<AdvancedExportRequest>,
-) -> AppResult<Json<ApiResponse<AdvancedExportResponse>>> {
+) -> AppResult<ApiResponse<AdvancedExportResponse>> {
     // バリデーション
     payload.validate().map_err(|validation_errors| {
         warn!("Advanced export validation failed: {}", validation_errors);
@@ -1178,17 +1160,14 @@ pub async fn advanced_export_handler(
     // エクスポートレスポンスをOperationResult::createdでラップして作成済みを明示
     let export_result = OperationResult::created(response);
 
-    Ok(Json(ApiResponse::success(
-        "Advanced export completed successfully",
-        export_result.item,
-    )))
+    Ok(ApiResponse::success(export_result.item))
 }
 
 /// 日次活動サマリー更新ハンドラー（管理者のみ）
 pub async fn update_daily_summary_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
-) -> AppResult<Json<ApiResponse<()>>> {
+) -> AppResult<ApiResponse<()>> {
     // 管理者権限チェック（PermissionServiceを使用）
     if let Err(e) = app_state
         .permission_service
@@ -1264,10 +1243,7 @@ pub async fn update_daily_summary_handler(
         "Daily activity summary updated successfully"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Daily activity summary updated successfully",
-        (),
-    )))
+    Ok(ApiResponse::success(()))
 }
 
 // --- Helper Functions ---
@@ -1819,7 +1795,7 @@ pub async fn get_feature_usage_stats_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<StatsPeriodQuery>,
-) -> AppResult<Json<ApiResponse<FeatureUsageStatsResponse>>> {
+) -> AppResult<ApiResponse<FeatureUsageStatsResponse>> {
     // 管理者権限チェック（PermissionServiceを使用）
     app_state
         .permission_service
@@ -1904,10 +1880,7 @@ pub async fn get_feature_usage_stats_handler(
         least_used_feature: least_used,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Feature usage stats retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// ユーザーの機能使用状況取得（管理者のみ）
@@ -1916,7 +1889,7 @@ pub async fn get_user_feature_usage_handler(
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
     Query(query): Query<StatsPeriodQuery>,
-) -> AppResult<Json<ApiResponse<UserFeatureUsageResponse>>> {
+) -> AppResult<ApiResponse<UserFeatureUsageResponse>> {
     // 管理者権限チェック（PermissionServiceを使用）
     app_state
         .permission_service
@@ -1985,10 +1958,7 @@ pub async fn get_user_feature_usage_handler(
             .collect(),
     };
 
-    Ok(Json(ApiResponse::success(
-        "User feature usage retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 機能使用状況を記録（内部使用のみ）
@@ -1996,7 +1966,7 @@ pub async fn track_feature_usage_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(request): Json<TrackFeatureUsageRequest>,
-) -> AppResult<Json<ApiResponse<()>>> {
+) -> AppResult<ApiResponse<()>> {
     request.validate()?;
 
     info!(
@@ -2020,10 +1990,7 @@ pub async fn track_feature_usage_handler(
         .create(user.user_id(), input)
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Feature usage tracked successfully",
-        (),
-    )))
+    Ok(ApiResponse::success(()))
 }
 
 // DTOs for feature tracking

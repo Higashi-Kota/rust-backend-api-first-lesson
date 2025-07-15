@@ -38,14 +38,14 @@ async fn test_check_resource_permission_authenticated() {
     let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify response structure
-    assert!(body["user_id"].is_string());
-    assert_eq!(body["resource"].as_str(), Some("tasks"));
-    assert_eq!(body["action"].as_str(), Some("read"));
-    assert!(body["allowed"].is_boolean());
-    assert!(body["checked_at"].is_string());
+    assert!(body["data"]["user_id"].is_string());
+    assert_eq!(body["data"]["resource"].as_str(), Some("tasks"));
+    assert_eq!(body["data"]["action"].as_str(), Some("read"));
+    assert!(body["data"]["allowed"].is_boolean());
+    assert!(body["data"]["checked_at"].is_string());
 
     // Member should be allowed to read tasks
-    assert_eq!(body["allowed"].as_bool(), Some(true));
+    assert_eq!(body["data"]["allowed"].as_bool(), Some(true));
 }
 
 #[tokio::test]
@@ -77,9 +77,9 @@ async fn test_check_resource_permission_denied() {
     let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Member should not be allowed to delete users
-    assert_eq!(body["allowed"].as_bool(), Some(false));
-    assert!(body["reason"].is_string());
-    assert!(body["subscription_requirements"].is_object());
+    assert_eq!(body["data"]["allowed"].as_bool(), Some(false));
+    assert!(body["data"]["reason"].is_string());
+    assert!(body["data"]["subscription_requirements"].is_object());
 }
 
 #[tokio::test]
@@ -127,13 +127,13 @@ async fn test_bulk_permission_check() {
     let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify response structure
-    assert!(body["user_id"].is_string());
-    assert!(body["checks"].is_array());
-    assert!(body["summary"].is_object());
-    assert!(body["execution_time_ms"].is_number());
-    assert!(body["checked_at"].is_string());
+    assert!(body["data"]["user_id"].is_string());
+    assert!(body["data"]["checks"].is_array());
+    assert!(body["data"]["summary"].is_object());
+    assert!(body["data"]["execution_time_ms"].is_number());
+    assert!(body["data"]["checked_at"].is_string());
 
-    let checks = body["checks"].as_array().unwrap();
+    let checks = body["data"]["checks"].as_array().unwrap();
     assert_eq!(checks.len(), 3);
 
     // Check individual results
@@ -153,7 +153,7 @@ async fn test_bulk_permission_check() {
     assert_eq!(user_delete["allowed"].as_bool(), Some(false));
 
     // Verify summary
-    let summary = &body["summary"];
+    let summary = &body["data"]["summary"];
     assert_eq!(summary["total_checks"].as_u64(), Some(3));
     assert_eq!(summary["allowed_count"].as_u64(), Some(2));
     assert_eq!(summary["denied_count"].as_u64(), Some(1));
@@ -220,23 +220,23 @@ async fn test_get_user_effective_permissions_own() {
     let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify response structure
-    assert!(body["user_id"].is_string());
-    assert!(body["role"].is_object());
-    assert!(body["subscription_tier"].is_string());
-    assert!(body["effective_permissions"].is_array());
-    assert!(body["inherited_permissions"].is_array());
-    assert!(body["denied_permissions"].is_array());
-    assert!(body["permission_summary"].is_object());
-    assert!(body["last_updated"].is_string());
+    assert!(body["data"]["user_id"].is_string());
+    assert!(body["data"]["role"].is_object());
+    assert!(body["data"]["subscription_tier"].is_string());
+    assert!(body["data"]["effective_permissions"].is_array());
+    assert!(body["data"]["inherited_permissions"].is_array());
+    assert!(body["data"]["denied_permissions"].is_array());
+    assert!(body["data"]["permission_summary"].is_object());
+    assert!(body["data"]["last_updated"].is_string());
 
     // Verify role info
-    let role = &body["role"];
+    let role = &body["data"]["role"];
     assert!(role["role_id"].is_string());
     assert!(role["role_name"].is_string());
     assert!(role["is_active"].as_bool().unwrap());
 
     // Verify permission summary
-    let summary = &body["permission_summary"];
+    let summary = &body["data"]["permission_summary"];
     assert!(summary["total_permissions"].is_number());
     assert!(summary["effective_permissions"].is_number());
     assert!(summary["coverage_percentage"].is_number());
@@ -301,7 +301,7 @@ async fn test_get_user_effective_permissions_with_inherited() {
     let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // For member users, inherited_permissions should be empty
-    let inherited = body["inherited_permissions"].as_array().unwrap();
+    let inherited = body["data"]["inherited_permissions"].as_array().unwrap();
     assert_eq!(inherited.len(), 0);
 }
 
@@ -333,14 +333,14 @@ async fn test_get_system_permission_audit_admin() {
     let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify response structure
-    assert!(body["audit_entries"].is_array());
-    assert!(body["summary"].is_object());
-    assert!(body["total_entries"].is_number());
-    assert!(body["filtered_entries"].is_number());
-    assert!(body["audit_period"].is_object());
+    assert!(body["data"]["audit_entries"].is_array());
+    assert!(body["data"]["summary"].is_object());
+    assert!(body["data"]["total_entries"].is_number());
+    assert!(body["data"]["filtered_entries"].is_number());
+    assert!(body["data"]["audit_period"].is_object());
 
     // Verify audit entries
-    let entries = body["audit_entries"].as_array().unwrap();
+    let entries = body["data"]["audit_entries"].as_array().unwrap();
     assert!(!entries.is_empty());
 
     let first_entry = &entries[0];
@@ -352,7 +352,7 @@ async fn test_get_system_permission_audit_admin() {
     assert!(first_entry["timestamp"].is_string());
 
     // Verify summary
-    let summary = &body["summary"];
+    let summary = &body["data"]["summary"];
     assert!(summary["total_checks"].is_number());
     assert!(summary["allowed_checks"].is_number());
     assert!(summary["denied_checks"].is_number());
@@ -361,7 +361,7 @@ async fn test_get_system_permission_audit_admin() {
     assert!(summary["most_denied_action"].is_string());
 
     // Verify audit period
-    let period = &body["audit_period"];
+    let period = &body["data"]["audit_period"];
     assert!(period["start_date"].is_string());
     assert!(period["end_date"].is_string());
     assert!(period["duration_hours"].is_number());
@@ -418,7 +418,7 @@ async fn test_get_system_permission_audit_with_filters() {
     let body: Value = serde_json::from_slice(&body_bytes).expect("Failed to parse JSON");
 
     // Verify filtered results
-    let entries = body["audit_entries"].as_array().unwrap();
+    let entries = body["data"]["audit_entries"].as_array().unwrap();
     assert!(!entries.is_empty());
 
     // All entries should match the filter

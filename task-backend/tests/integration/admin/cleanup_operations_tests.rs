@@ -37,7 +37,7 @@ async fn test_admin_list_bulk_operations_success() {
         let res = app.clone().oneshot(req).await.unwrap();
         let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
         let response: Value = serde_json::from_slice(&body).unwrap();
-        task_ids.push(response["id"].as_str().unwrap().to_string());
+        task_ids.push(response["data"]["id"].as_str().unwrap().to_string());
     }
 
     // Perform a bulk delete operation to create history

@@ -59,7 +59,7 @@ async fn test_password_reset_flow() {
         .unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(response["message"]
+    assert!(response["data"]["message"]
         .as_str()
         .unwrap()
         .contains("password reset link has been sent"));
@@ -106,7 +106,7 @@ async fn test_password_reset_flow() {
         .unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(response["message"]
+    assert!(response["data"]["message"]
         .as_str()
         .unwrap()
         .contains("Password has been reset successfully"));
@@ -176,7 +176,7 @@ async fn test_password_reset_rate_limiting() {
         let response: Value = serde_json::from_slice(&body).unwrap();
 
         // すべてのリクエストで同じメッセージが返される（セキュリティのため）
-        assert!(response["message"]
+        assert!(response["data"]["message"]
             .as_str()
             .unwrap()
             .contains("password reset link has been sent"));
@@ -285,7 +285,7 @@ async fn test_password_reset_token_expiry() {
             .unwrap();
         let response: Value = serde_json::from_slice(&body).unwrap();
 
-        assert!(response["error"]
+        assert!(response["error"]["message"]
             .as_str()
             .unwrap()
             .contains("Invalid or expired"));

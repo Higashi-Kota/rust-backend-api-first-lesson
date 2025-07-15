@@ -5,53 +5,6 @@ use serde::{Deserialize, Serialize};
 // Re-export pagination types from shared module
 pub use crate::shared::types::{PaginatedResponse, PaginationMeta, PaginationQuery};
 
-/// 統一API成功レスポンス
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApiResponse<T> {
-    pub success: bool,
-    pub message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<T>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<serde_json::Value>,
-}
-
-impl<T> ApiResponse<T> {
-    /// 成功レスポンスを作成
-    pub fn success(message: impl Into<String>, data: T) -> Self {
-        Self {
-            success: true,
-            message: message.into(),
-            data: Some(data),
-            metadata: None,
-        }
-    }
-
-    /// メッセージのみの成功レスポンスを作成
-    pub fn success_message(message: impl Into<String>) -> ApiResponse<()> {
-        ApiResponse {
-            success: true,
-            message: message.into(),
-            data: Some(()),
-            metadata: None,
-        }
-    }
-
-    /// メタデータ付き成功レスポンスを作成
-    pub fn success_with_metadata(
-        message: impl Into<String>,
-        data: T,
-        metadata: serde_json::Value,
-    ) -> Self {
-        Self {
-            success: true,
-            message: message.into(),
-            data: Some(data),
-            metadata: Some(metadata),
-        }
-    }
-}
-
 /// 操作結果を表すレスポンス（作成・更新・削除用）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationResult<T> {
@@ -86,22 +39,6 @@ impl<T> OperationResult<T> {
 mod tests {
     use super::*;
     use serde_json::json;
-
-    #[test]
-    fn test_api_response_success() {
-        let response = ApiResponse::success("User created successfully", json!({"id": 1}));
-        assert!(response.success);
-        assert_eq!(response.message, "User created successfully");
-        assert!(response.data.is_some());
-    }
-
-    #[test]
-    fn test_api_response_success_message() {
-        let response = ApiResponse::<()>::success_message("Operation completed");
-        assert!(response.success);
-        assert_eq!(response.message, "Operation completed");
-        assert!(response.data.is_some());
-    }
 
     #[test]
     fn test_operation_result() {

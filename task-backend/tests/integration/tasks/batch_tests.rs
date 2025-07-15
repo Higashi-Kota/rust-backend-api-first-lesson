@@ -51,8 +51,8 @@ async fn test_batch_create_tasks_with_authentication() {
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     // 作成されたタスクの検証
-    assert!(result["created_tasks"].is_array());
-    let created_tasks = result["created_tasks"].as_array().unwrap();
+    assert!(result["data"]["created_tasks"].is_array());
+    let created_tasks = result["data"]["created_tasks"].as_array().unwrap();
     assert_eq!(created_tasks.len(), 3);
 
     // 全てのタスクが正しいユーザーIDを持つことを確認
@@ -63,7 +63,7 @@ async fn test_batch_create_tasks_with_authentication() {
     }
 
     // 作成数の確認
-    assert_eq!(result["created_count"], 3);
+    assert_eq!(result["data"]["created_count"], 3);
 }
 
 #[tokio::test]
@@ -94,7 +94,11 @@ async fn test_batch_create_tasks_without_authentication() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]
@@ -122,7 +126,7 @@ async fn test_batch_update_tasks_with_authentication() {
             .await
             .unwrap();
         let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-        task_ids.push(created_task["id"].as_str().unwrap().to_string());
+        task_ids.push(created_task["data"]["id"].as_str().unwrap().to_string());
     }
 
     // バッチ更新
@@ -158,7 +162,7 @@ async fn test_batch_update_tasks_with_authentication() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(result["updated_count"], 3);
+    assert_eq!(result["data"]["updated_count"], 3);
 
     // 更新されたことを確認
     for (i, task_id) in task_ids.iter().enumerate() {
@@ -178,12 +182,12 @@ async fn test_batch_update_tasks_with_authentication() {
         let task: Value = serde_json::from_slice(&get_body).unwrap();
 
         if i < 2 {
-            assert!(task["title"]
+            assert!(task["data"]["title"]
                 .as_str()
                 .unwrap()
                 .contains("Updated Batch Task"));
         }
-        assert_ne!(task["status"], "todo"); // 全て更新されている
+        assert_ne!(task["data"]["status"], "todo"); // 全て更新されている
     }
 }
 
@@ -212,7 +216,7 @@ async fn test_batch_update_tasks_of_another_user() {
         .await
         .unwrap();
     let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-    let task_id = created_task["id"].as_str().unwrap();
+    let task_id = created_task["data"]["id"].as_str().unwrap();
 
     // user2でバッチ更新試行（user1のタスクを含む）
     let batch_update_payload = json!({
@@ -247,7 +251,7 @@ async fn test_batch_update_tasks_of_another_user() {
 
     if status == StatusCode::OK {
         // 更新数が0であることを確認
-        assert_eq!(result["updated_count"], 0);
+        assert_eq!(result["data"]["updated_count"], 0);
     }
 }
 
@@ -276,7 +280,7 @@ async fn test_batch_delete_tasks_with_authentication() {
             .await
             .unwrap();
         let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-        task_ids.push(created_task["id"].as_str().unwrap().to_string());
+        task_ids.push(created_task["data"]["id"].as_str().unwrap().to_string());
     }
 
     // バッチ削除
@@ -297,7 +301,7 @@ async fn test_batch_delete_tasks_with_authentication() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(result["deleted_count"], 3);
+    assert_eq!(result["data"]["deleted_count"], 3);
 
     // 削除されたことを確認
     for task_id in &task_ids {
@@ -338,7 +342,7 @@ async fn test_batch_delete_tasks_of_another_user() {
         .await
         .unwrap();
     let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-    let task_id = created_task["id"].as_str().unwrap();
+    let task_id = created_task["data"]["id"].as_str().unwrap();
 
     // user2でバッチ削除試行（user1のタスクを含む）
     let batch_delete_payload = json!({
@@ -359,7 +363,7 @@ async fn test_batch_delete_tasks_of_another_user() {
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     // 他のユーザーのタスクは削除されない
-    assert_eq!(result["deleted_count"], 0);
+    assert_eq!(result["data"]["deleted_count"], 0);
 
     // 元のユーザーではまだアクセス可能であることを確認
     let get_req = auth_helper::create_authenticated_request(
@@ -438,7 +442,7 @@ async fn test_batch_operations_empty_arrays() {
     if res.status() == StatusCode::CREATED {
         let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
         let result: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(result["created_count"], 0);
+        assert_eq!(result["data"]["created_count"], 0);
     }
 }
 
@@ -468,9 +472,10 @@ async fn test_batch_operations_malformed_json() {
     match serde_json::from_slice::<Value>(&body) {
         Ok(error) => {
             assert!(
-                error["error_type"] == "parse_error"
-                    || error["error_type"] == "validation_errors"
-                    || error["error_type"] == "bad_request"
+                error["error"]["code"] == "PARSE_ERROR"
+                    || (error["error"]["code"] == "VALIDATION_ERROR"
+                        || error["error"]["code"] == "VALIDATION_ERRORS")
+                    || error["error"]["code"] == "BAD_REQUEST"
             );
         }
         Err(_) => {
@@ -521,6 +526,6 @@ async fn test_batch_operations_large_dataset() {
     if status == StatusCode::CREATED {
         let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
         let result: Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(result["created_count"], 50);
+        assert_eq!(result["data"]["created_count"], 50);
     }
 }

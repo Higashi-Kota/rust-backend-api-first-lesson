@@ -26,14 +26,14 @@ async fn test_get_user_task_stats_with_empty_tasks() {
         .await
         .unwrap();
     let stats: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(stats["total_tasks"], 0);
-    assert_eq!(stats["completed_tasks"], 0);
-    assert_eq!(stats["pending_tasks"], 0);
-    assert_eq!(stats["in_progress_tasks"], 0);
-    assert_eq!(stats["completion_rate"], 0.0);
+    assert_eq!(stats["data"]["total_tasks"], 0);
+    assert_eq!(stats["data"]["completed_tasks"], 0);
+    assert_eq!(stats["data"]["pending_tasks"], 0);
+    assert_eq!(stats["data"]["in_progress_tasks"], 0);
+    assert_eq!(stats["data"]["completion_rate"], 0.0);
 
     // ステータス分布の確認
-    let status_distribution = &stats["status_distribution"];
+    let status_distribution = &stats["data"]["status_distribution"];
     assert_eq!(status_distribution["pending"], 0);
     assert_eq!(status_distribution["in_progress"], 0);
     assert_eq!(status_distribution["completed"], 0);
@@ -77,14 +77,14 @@ async fn test_get_user_task_stats_with_mixed_tasks() {
         .await
         .unwrap();
     let stats: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(stats["total_tasks"], 5);
-    assert_eq!(stats["completed_tasks"], 2);
-    assert_eq!(stats["pending_tasks"], 2); // "todo" tasks are counted as pending
-    assert_eq!(stats["in_progress_tasks"], 1);
-    assert_eq!(stats["completion_rate"], 40.0); // 2/5 = 40%
+    assert_eq!(stats["data"]["total_tasks"], 5);
+    assert_eq!(stats["data"]["completed_tasks"], 2);
+    assert_eq!(stats["data"]["pending_tasks"], 2); // "todo" tasks are counted as pending
+    assert_eq!(stats["data"]["in_progress_tasks"], 1);
+    assert_eq!(stats["data"]["completion_rate"], 40.0); // 2/5 = 40%
 
     // ステータス分布の確認
-    let status_distribution = &stats["status_distribution"];
+    let status_distribution = &stats["data"]["status_distribution"];
     assert_eq!(status_distribution["pending"], 2); // "todo" maps to pending
     assert_eq!(status_distribution["in_progress"], 1);
     assert_eq!(status_distribution["completed"], 2);
@@ -133,7 +133,7 @@ async fn test_bulk_update_status_with_valid_data() {
             .await
             .unwrap();
         let task_data: Value = serde_json::from_slice(&body).unwrap();
-        task_ids.push(task_data["id"].as_str().unwrap().to_string());
+        task_ids.push(task_data["data"]["id"].as_str().unwrap().to_string());
     }
 
     // 一括ステータス更新
@@ -157,9 +157,9 @@ async fn test_bulk_update_status_with_valid_data() {
         .await
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(result["updated_count"], 3);
-    assert_eq!(result["new_status"], "completed");
-    assert!(result["errors"].as_array().unwrap().is_empty());
+    assert_eq!(result["data"]["updated_count"], 3);
+    assert_eq!(result["data"]["new_status"], "completed");
+    assert!(result["data"]["errors"].as_array().unwrap().is_empty());
 
     // 統計を確認して更新が反映されているかチェック
     let req = auth_helper::create_authenticated_request("GET", "/tasks/stats", &user_token, None);
@@ -169,8 +169,8 @@ async fn test_bulk_update_status_with_valid_data() {
         .await
         .unwrap();
     let stats: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(stats["completed_tasks"], 3);
-    assert_eq!(stats["pending_tasks"], 0); // All tasks were updated to completed
+    assert_eq!(stats["data"]["completed_tasks"], 3);
+    assert_eq!(stats["data"]["pending_tasks"], 0); // All tasks were updated to completed
 }
 
 #[tokio::test]
@@ -204,9 +204,9 @@ async fn test_bulk_update_status_with_invalid_task_ids() {
         .await
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(result["updated_count"], 0);
-    assert_eq!(result["new_status"], "completed");
-    assert_eq!(result["errors"].as_array().unwrap().len(), 2);
+    assert_eq!(result["data"]["updated_count"], 0);
+    assert_eq!(result["data"]["new_status"], "completed");
+    assert_eq!(result["data"]["errors"].as_array().unwrap().len(), 2);
 }
 
 #[tokio::test]
@@ -258,9 +258,9 @@ async fn test_bulk_update_status_with_empty_task_ids() {
         .await
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(result["updated_count"], 0);
-    assert_eq!(result["new_status"], "completed");
-    assert!(result["errors"].as_array().unwrap().is_empty());
+    assert_eq!(result["data"]["updated_count"], 0);
+    assert_eq!(result["data"]["new_status"], "completed");
+    assert!(result["data"]["errors"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -289,12 +289,12 @@ async fn test_bulk_update_status_with_malformed_uuid() {
         .await
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(result["updated_count"], 0);
-    assert_eq!(result["new_status"], "completed");
-    assert_eq!(result["errors"].as_array().unwrap().len(), 2);
+    assert_eq!(result["data"]["updated_count"], 0);
+    assert_eq!(result["data"]["new_status"], "completed");
+    assert_eq!(result["data"]["errors"].as_array().unwrap().len(), 2);
 
     // エラーメッセージに"Invalid UUID"が含まれることを確認
-    let errors = result["errors"].as_array().unwrap();
+    let errors = result["data"]["errors"].as_array().unwrap();
     for error in errors {
         let error_str = error.as_str().unwrap();
         assert!(error_str.contains("Invalid UUID"));
@@ -327,7 +327,7 @@ async fn test_bulk_update_status_user_isolation() {
         .await
         .unwrap();
     let task_data: Value = serde_json::from_slice(&body).unwrap();
-    let task_id = task_data["id"].as_str().unwrap();
+    let task_id = task_data["data"]["id"].as_str().unwrap();
 
     // ユーザー2がユーザー1のタスクの一括更新を試行
     let req = auth_helper::create_authenticated_request(
@@ -350,8 +350,8 @@ async fn test_bulk_update_status_user_isolation() {
         .await
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(result["updated_count"], 0);
-    assert_eq!(result["errors"].as_array().unwrap().len(), 1);
+    assert_eq!(result["data"]["updated_count"], 0);
+    assert_eq!(result["data"]["errors"].as_array().unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -371,24 +371,24 @@ async fn test_extended_task_api_response_format() {
     let stats: Value = serde_json::from_slice(&body).unwrap();
 
     // 必須フィールドの存在確認
-    assert!(stats.get("total_tasks").is_some());
-    assert!(stats.get("completed_tasks").is_some());
-    assert!(stats.get("pending_tasks").is_some());
-    assert!(stats.get("in_progress_tasks").is_some());
-    assert!(stats.get("completion_rate").is_some());
-    assert!(stats.get("status_distribution").is_some());
+    assert!(stats["data"].get("total_tasks").is_some());
+    assert!(stats["data"].get("completed_tasks").is_some());
+    assert!(stats["data"].get("pending_tasks").is_some());
+    assert!(stats["data"].get("in_progress_tasks").is_some());
+    assert!(stats["data"].get("completion_rate").is_some());
+    assert!(stats["data"].get("status_distribution").is_some());
 
     // ステータス分布の必須フィールド確認
-    let status_distribution = &stats["status_distribution"];
+    let status_distribution = &stats["data"]["status_distribution"];
     assert!(status_distribution.get("pending").is_some());
     assert!(status_distribution.get("in_progress").is_some());
     assert!(status_distribution.get("completed").is_some());
     assert!(status_distribution.get("other").is_some());
 
     // データ型の確認
-    assert!(stats["total_tasks"].is_u64());
-    assert!(stats["completed_tasks"].is_u64());
-    assert!(stats["completion_rate"].is_f64());
+    assert!(stats["data"]["total_tasks"].is_u64());
+    assert!(stats["data"]["completed_tasks"].is_u64());
+    assert!(stats["data"]["completion_rate"].is_f64());
 }
 
 #[tokio::test]

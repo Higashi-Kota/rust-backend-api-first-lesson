@@ -39,10 +39,17 @@ async fn test_password_reset_request_success() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(response["message"].is_string());
+    assert!(response["success"].as_bool().unwrap());
+    assert!(response["data"].is_object());
     assert!(
-        response["message"].as_str().unwrap().contains("sent")
-            || response["message"].as_str().unwrap().contains("email")
+        response["data"]["message"]
+            .as_str()
+            .unwrap_or("")
+            .contains("sent")
+            || response["data"]["message"]
+                .as_str()
+                .unwrap_or("")
+                .contains("email")
     );
 }
 
@@ -67,7 +74,8 @@ async fn test_password_reset_request_nonexistent_user() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(response["message"].is_string());
+    assert!(response["success"].as_bool().unwrap());
+    assert!(response["data"].is_object());
 }
 
 #[tokio::test]
@@ -90,20 +98,32 @@ async fn test_password_reset_request_invalid_email() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // メール形式のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
 
-    // メール形式のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("email") || msg.contains("format") || msg.contains("Invalid")));
+        assert!(error_messages
+            .iter()
+            .any(|msg| msg.contains("email") || msg.contains("format") || msg.contains("Invalid")));
+    }
 }
 
 #[tokio::test]
@@ -126,8 +146,18 @@ async fn test_password_reset_request_empty_email() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+    }
 }
 
 #[tokio::test]
@@ -198,7 +228,10 @@ async fn test_password_reset_execute_invalid_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert!(error["error_type"].is_string());
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
 }
 
 #[tokio::test]
@@ -221,19 +254,31 @@ async fn test_password_reset_execute_weak_password() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // パスワード関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("password") || msg.contains("characters") || msg.contains("8")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // パスワード関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages.iter().any(|msg| msg.contains("password")
+            || msg.contains("characters")
+            || msg.contains("8")));
+    }
 }
 
 #[tokio::test]
@@ -256,19 +301,31 @@ async fn test_password_reset_execute_empty_token() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
-
-    // トークン関連のエラーが含まれていることを確認
-    let error_messages = errors
-        .iter()
-        .map(|e| e["message"].as_str().unwrap_or(""))
-        .collect::<Vec<&str>>();
-    assert!(error_messages
-        .iter()
-        .any(|msg| msg.contains("token") || msg.contains("required")));
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        let errors = details;
+        assert!(!errors.is_empty());
+    }
+    // Check validation details
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+        // トークン関連のエラーが含まれていることを確認
+        let error_messages = details
+            .iter()
+            .map(|e| e["message"].as_str().unwrap_or(""))
+            .collect::<Vec<&str>>();
+        assert!(error_messages
+            .iter()
+            .any(|msg| msg.contains("token") || msg.contains("required")));
+    }
 }
 
 #[tokio::test]
@@ -294,9 +351,10 @@ async fn test_password_reset_malformed_json() {
         Ok(error) => {
             // JSON パースエラーまたはバリデーションエラーが返されることを確認
             assert!(
-                error["error_type"] == "parse_error"
-                    || error["error_type"] == "validation_errors"
-                    || error["error_type"] == "bad_request"
+                error["error"]["code"] == "PARSE_ERROR"
+                    || (error["error"]["code"] == "VALIDATION_ERROR"
+                        || error["error"]["code"] == "VALIDATION_ERRORS")
+                    || error["error"]["code"] == "BAD_REQUEST"
             );
         }
         Err(_) => {

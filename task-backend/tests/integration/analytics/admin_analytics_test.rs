@@ -79,35 +79,36 @@ async fn test_admin_get_system_analytics() {
         .await
         .unwrap();
     let json: Value = serde_json::from_slice(&body).unwrap();
-
     assert_eq!(json["success"], true);
-    assert_eq!(json["message"], "System analytics retrieved successfully");
-
-    let data = &json["data"];
 
     // Verify actual values based on created data
-    assert!(data["total_users"].as_u64().unwrap() >= 5); // At least the users we created
-    assert!(data["active_users"].as_u64().unwrap() >= 1); // At least user1 who created tasks
-    assert_eq!(data["total_tasks"].as_u64().unwrap(), 5); // Exactly 5 tasks created
-    assert_eq!(data["completed_tasks"].as_u64().unwrap(), 3); // 3 completed tasks
-                                                              // Teams may or may not exist, so just check the field is present
-    assert!(data["active_teams"].is_u64());
+    assert!(json["data"]["total_users"].as_u64().unwrap() >= 5); // At least the users we created
+    assert!(json["data"]["active_users"].as_u64().unwrap() >= 1); // At least user1 who created tasks
+    assert_eq!(json["data"]["total_tasks"].as_u64().unwrap(), 5); // Exactly 5 tasks created
+    assert_eq!(json["data"]["completed_tasks"].as_u64().unwrap(), 3); // 3 completed tasks
+                                                                      // Teams may or may not exist, so just check the field is present
+    assert!(json["data"]["active_teams"].is_u64());
     // Organizations may or may not exist, so just check the field is present
-    assert!(data["total_organizations"].is_u64());
+    assert!(json["data"]["total_organizations"].is_u64());
 
     // Verify calculated rates
-    let task_completion_rate = data["task_completion_rate"].as_f64().unwrap();
+    let task_completion_rate = json["data"]["task_completion_rate"].as_f64().unwrap();
     assert!((task_completion_rate - 60.0).abs() < 0.1); // 3/5 = 60%
 
-    let avg_tasks_per_user = data["average_tasks_per_user"].as_f64().unwrap();
+    let avg_tasks_per_user = json["data"]["average_tasks_per_user"].as_f64().unwrap();
     assert!(avg_tasks_per_user > 0.0 && avg_tasks_per_user <= 5.0);
 
     // Verify subscription distribution
-    let sub_dist = data["subscription_distribution"].as_array().unwrap();
+    let sub_dist = json["data"]["subscription_distribution"]
+        .as_array()
+        .unwrap();
     assert!(!sub_dist.is_empty());
 
     let mut tier_counts = std::collections::HashMap::new();
-    for tier_info in sub_dist {
+    for tier_info in json["data"]["subscription_distribution"]
+        .as_array()
+        .unwrap()
+    {
         let tier = tier_info["tier"].as_str().unwrap();
         let count = tier_info["count"].as_u64().unwrap();
         tier_counts.insert(tier.to_string(), count);
@@ -118,11 +119,11 @@ async fn test_admin_get_system_analytics() {
     assert!(tier_counts.get("enterprise").unwrap_or(&0) >= &1);
 
     // Verify suspicious IPs array exists (may be empty)
-    let suspicious_ips = data["suspicious_ips"].as_array().unwrap();
+    let suspicious_ips = json["data"]["suspicious_ips"].as_array().unwrap();
     assert_eq!(suspicious_ips.len(), 0); // No suspicious activity in test
 
-    assert!(data["daily_active_users"].as_u64().unwrap() >= 1);
-    assert!(data["weekly_active_users"].as_u64().unwrap() >= 1);
+    assert!(json["data"]["daily_active_users"].as_u64().unwrap() >= 1);
+    assert!(json["data"]["weekly_active_users"].as_u64().unwrap() >= 1);
 }
 
 #[tokio::test]
@@ -209,7 +210,7 @@ async fn test_admin_get_subscription_history() {
     assert_eq!(json["success"], true);
 
     // Verify histories array contains actual changes
-    let histories = json["data"]["histories"].as_array().unwrap();
+    let histories = json["data"]["history"].as_array().unwrap();
     assert_eq!(histories.len(), 2); // 2 upgrades (pro and enterprise)
 
     // Verify each history entry
@@ -223,7 +224,9 @@ async fn test_admin_get_subscription_history() {
     }
 
     // Verify tier stats
-    let tier_stats = json["data"]["tier_stats"].as_array().unwrap();
+    let tier_stats = json["data"]["stats"]["tier_distribution"]
+        .as_array()
+        .unwrap();
     assert!(!tier_stats.is_empty());
 
     let mut tier_map = std::collections::HashMap::new();
@@ -271,7 +274,7 @@ async fn test_admin_get_subscription_history_with_date_range() {
     let json: Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["success"], true);
-    assert!(json["data"]["histories"].is_array());
+    assert!(json["data"]["history"].is_array());
 }
 
 #[tokio::test]
@@ -357,9 +360,9 @@ async fn test_user_get_own_subscription_history() {
     let json: Value = serde_json::from_slice(&body).unwrap();
 
     // Verify response structure and data
-    assert_eq!(json["user_id"], user.id.to_string());
+    assert_eq!(json["data"]["user_id"], user.id.to_string());
 
-    let history = json["history"].as_array().unwrap();
+    let history = json["data"]["history"].as_array().unwrap();
     assert_eq!(history.len(), 2); // Two history entries
 
     // Verify first entry (should be most recent - downgrade)
@@ -377,7 +380,7 @@ async fn test_user_get_own_subscription_history() {
     assert_eq!(history[1]["reason"], "User requested upgrade");
 
     // Verify stats
-    let stats = &json["stats"];
+    let stats = &json["data"]["stats"];
     assert_eq!(stats["total_changes"].as_u64().unwrap(), 2);
     assert_eq!(stats["upgrade_count"].as_u64().unwrap(), 1);
     assert_eq!(stats["downgrade_count"].as_u64().unwrap(), 1);
@@ -434,7 +437,7 @@ async fn test_admin_can_get_any_user_subscription_history() {
     let json: Value = serde_json::from_slice(&body).unwrap();
 
     // Admin can access user's subscription history - check SubscriptionHistoryResponse structure
-    assert!(json["user_id"].is_string());
-    assert!(json["history"].is_array());
-    assert!(json["stats"].is_object());
+    assert!(json["data"]["user_id"].is_string());
+    assert!(json["data"]["history"].is_array());
+    assert!(json["data"]["stats"].is_object());
 }

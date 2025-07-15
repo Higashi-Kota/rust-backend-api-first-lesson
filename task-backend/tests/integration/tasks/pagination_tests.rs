@@ -47,8 +47,8 @@ async fn test_paginated_tasks_with_authentication() {
     let page1_result: Value = serde_json::from_slice(&body).unwrap();
 
     // 1ページ目の検証
-    assert!(page1_result["items"].is_array());
-    let page1_tasks = page1_result["items"].as_array().unwrap();
+    assert!(page1_result["data"]["items"].is_array());
+    let page1_tasks = page1_result["data"]["items"].as_array().unwrap();
     assert_eq!(page1_tasks.len(), 5);
 
     // 全てのタスクが自分のものであることを確認
@@ -57,7 +57,7 @@ async fn test_paginated_tasks_with_authentication() {
     }
 
     // ページネーション情報の検証
-    let pagination = &page1_result["pagination"];
+    let pagination = &page1_result["data"]["pagination"];
     assert_eq!(pagination["page"], 1);
     assert_eq!(pagination["per_page"], 5);
     assert_eq!(pagination["total_count"], 12);
@@ -104,11 +104,11 @@ async fn test_paginated_tasks_second_page() {
     let page2_result: Value = serde_json::from_slice(&body).unwrap();
 
     // 2ページ目の検証
-    let page2_tasks = page2_result["items"].as_array().unwrap();
+    let page2_tasks = page2_result["data"]["items"].as_array().unwrap();
     assert_eq!(page2_tasks.len(), 3);
 
     // ページネーション情報の検証
-    let pagination = &page2_result["pagination"];
+    let pagination = &page2_result["data"]["pagination"];
     assert_eq!(pagination["page"], 2);
     assert_eq!(pagination["per_page"], 3);
     assert_eq!(pagination["total_count"], 8);
@@ -154,11 +154,11 @@ async fn test_paginated_tasks_last_page() {
     let last_page_result: Value = serde_json::from_slice(&body).unwrap();
 
     // 最後のページの検証（1個のタスクのみ）
-    let last_page_tasks = last_page_result["items"].as_array().unwrap();
+    let last_page_tasks = last_page_result["data"]["items"].as_array().unwrap();
     assert_eq!(last_page_tasks.len(), 1);
 
     // ページネーション情報の検証
-    let pagination = &last_page_result["pagination"];
+    let pagination = &last_page_result["data"]["pagination"];
     assert_eq!(pagination["page"], 3);
     assert_eq!(pagination["per_page"], 3);
     assert_eq!(pagination["total_count"], 7);
@@ -222,9 +222,9 @@ async fn test_paginated_tasks_user_isolation() {
     let user1_result: Value = serde_json::from_slice(&body1).unwrap();
 
     // user1は自分のタスク3つのみが見える
-    let user1_tasks = user1_result["items"].as_array().unwrap();
+    let user1_tasks = user1_result["data"]["items"].as_array().unwrap();
     assert_eq!(user1_tasks.len(), 3);
-    assert_eq!(user1_result["pagination"]["total_count"], 3);
+    assert_eq!(user1_result["data"]["pagination"]["total_count"], 3);
 
     for task in user1_tasks {
         assert_eq!(task["user_id"], user1.id.to_string());
@@ -247,9 +247,9 @@ async fn test_paginated_tasks_user_isolation() {
     let user2_result: Value = serde_json::from_slice(&body2).unwrap();
 
     // user2は自分のタスク5つのみが見える
-    let user2_tasks = user2_result["items"].as_array().unwrap();
+    let user2_tasks = user2_result["data"]["items"].as_array().unwrap();
     assert_eq!(user2_tasks.len(), 5);
-    assert_eq!(user2_result["pagination"]["total_count"], 5);
+    assert_eq!(user2_result["data"]["pagination"]["total_count"], 5);
 
     for task in user2_tasks {
         assert_eq!(task["user_id"], user2.id.to_string());
@@ -273,7 +273,11 @@ async fn test_paginated_tasks_without_authentication() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]
@@ -312,10 +316,10 @@ async fn test_paginated_tasks_invalid_page_number() {
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     // 存在しないページでは空の配列が返される
-    let tasks = result["items"].as_array().unwrap();
+    let tasks = result["data"]["items"].as_array().unwrap();
     assert!(tasks.is_empty());
 
-    let pagination = &result["pagination"];
+    let pagination = &result["data"]["pagination"];
     assert_eq!(pagination["page"], 10);
     assert_eq!(pagination["total_count"], 1);
     assert_eq!(pagination["has_next"], false);
@@ -384,10 +388,10 @@ async fn test_paginated_tasks_large_page_size() {
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     // 実際のタスク数（3つ）が返される
-    let tasks = result["items"].as_array().unwrap();
+    let tasks = result["data"]["items"].as_array().unwrap();
     assert_eq!(tasks.len(), 3);
 
-    let pagination = &result["pagination"];
+    let pagination = &result["data"]["pagination"];
     assert_eq!(pagination["total_count"], 3);
     assert_eq!(pagination["page"], 1);
     assert_eq!(pagination["has_next"], false);
@@ -432,12 +436,12 @@ async fn test_paginated_tasks_default_parameters() {
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     // デフォルト値が適用されることを確認
-    let pagination = &result["pagination"];
+    let pagination = &result["data"]["pagination"];
     assert_eq!(pagination["page"], 1);
     assert!(pagination["per_page"].as_i64().unwrap() > 0);
     assert_eq!(pagination["total_count"], 15);
 
-    let tasks = result["items"].as_array().unwrap();
+    let tasks = result["data"]["items"].as_array().unwrap();
     assert!(!tasks.is_empty());
     assert!(tasks.len() <= pagination["per_page"].as_i64().unwrap() as usize);
 }
@@ -466,10 +470,10 @@ async fn test_paginated_tasks_empty_result() {
     let result: Value = serde_json::from_slice(&body).unwrap();
 
     // 空の結果
-    let tasks = result["items"].as_array().unwrap();
+    let tasks = result["data"]["items"].as_array().unwrap();
     assert!(tasks.is_empty());
 
-    let pagination = &result["pagination"];
+    let pagination = &result["data"]["pagination"];
     assert_eq!(pagination["page"], 1);
     assert_eq!(pagination["per_page"], 10);
     assert_eq!(pagination["total_count"], 0);
@@ -518,7 +522,7 @@ async fn test_paginated_tasks_sorting_order() {
         .unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
 
-    let tasks = result["items"].as_array().unwrap();
+    let tasks = result["data"]["items"].as_array().unwrap();
     assert_eq!(tasks.len(), 5);
 
     // ソート順序の確認（実装によって昇順・降順が異なる）

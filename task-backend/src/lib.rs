@@ -8,4 +8,8 @@ pub mod middleware;
 pub mod repository;
 pub mod service;
 pub mod shared;
+pub mod types;
 pub mod utils;
+
+// Re-export commonly used types
+pub use types::ApiResponse;

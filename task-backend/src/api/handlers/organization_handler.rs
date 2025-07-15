@@ -1,9 +1,9 @@
 // task-backend/src/api/handlers/organization_handler.rs
 
-use crate::api::dto::common::ApiResponse;
 use crate::api::dto::organization_dto::*;
 use crate::error::AppResult;
 use crate::middleware::auth::AuthenticatedUser;
+use crate::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -18,7 +18,7 @@ pub async fn create_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateOrganizationRequest>,
-) -> AppResult<(StatusCode, Json<ApiResponse<OrganizationResponse>>)> {
+) -> AppResult<(StatusCode, ApiResponse<OrganizationResponse>)> {
     // バリデーション
     payload.validate()?;
 
@@ -29,10 +29,7 @@ pub async fn create_organization_handler(
 
     Ok((
         StatusCode::CREATED,
-        Json(ApiResponse::success(
-            "Organization created successfully",
-            organization_response,
-        )),
+        ApiResponse::success(organization_response),
     ))
 }
 
@@ -41,16 +38,13 @@ pub async fn get_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<OrganizationResponse>>> {
+) -> AppResult<ApiResponse<OrganizationResponse>> {
     let organization_response = app_state
         .organization_service
         .get_organization_by_id(organization_id, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Organization retrieved successfully",
-        organization_response,
-    )))
+    Ok(ApiResponse::success(organization_response))
 }
 
 /// 組織一覧取得
@@ -58,16 +52,13 @@ pub async fn get_organizations_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Query(query): Query<OrganizationSearchQuery>,
-) -> AppResult<Json<ApiResponse<Vec<OrganizationListResponse>>>> {
+) -> AppResult<ApiResponse<Vec<OrganizationListResponse>>> {
     let (organizations, _) = app_state
         .organization_service
         .get_organizations_paginated(query, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Organizations retrieved successfully",
-        organizations,
-    )))
+    Ok(ApiResponse::success(organizations))
 }
 
 /// 組織更新
@@ -76,7 +67,7 @@ pub async fn update_organization_handler(
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
     Json(payload): Json<UpdateOrganizationRequest>,
-) -> AppResult<Json<ApiResponse<OrganizationResponse>>> {
+) -> AppResult<ApiResponse<OrganizationResponse>> {
     // バリデーション
     payload.validate()?;
 
@@ -91,10 +82,7 @@ pub async fn update_organization_handler(
         .update_organization(organization_id, payload, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Organization updated successfully",
-        organization_response,
-    )))
+    Ok(ApiResponse::success(organization_response))
 }
 
 /// 組織削除
@@ -102,7 +90,7 @@ pub async fn delete_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
-) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+) -> AppResult<(StatusCode, ApiResponse<serde_json::Value>)> {
     // 組織管理権限チェック（PermissionServiceを使用）
     app_state
         .permission_service
@@ -116,8 +104,7 @@ pub async fn delete_organization_handler(
 
     Ok((
         StatusCode::NO_CONTENT,
-        Json(json!({
-            "success": true,
+        ApiResponse::success(json!({
             "message": "Organization deleted successfully"
         })),
     ))
@@ -129,7 +116,7 @@ pub async fn invite_organization_member_handler(
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
     Json(payload): Json<InviteOrganizationMemberRequest>,
-) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+) -> AppResult<(StatusCode, ApiResponse<serde_json::Value>)> {
     // バリデーション
     payload.validate()?;
 
@@ -140,9 +127,8 @@ pub async fn invite_organization_member_handler(
 
     Ok((
         StatusCode::CREATED,
-        Json(json!({
-            "success": true,
-            "data": member_response,
+        ApiResponse::success(json!({
+            "member": member_response,
             "message": "Organization member invited successfully"
         })),
     ))
@@ -154,15 +140,14 @@ pub async fn update_organization_member_role_handler(
     user: AuthenticatedUser,
     Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
     Json(payload): Json<UpdateOrganizationMemberRoleRequest>,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     let member_response = app_state
         .organization_service
         .update_organization_member_role(organization_id, member_id, payload, user.user_id())
         .await?;
 
-    Ok(Json(json!({
-        "success": true,
-        "data": member_response,
+    Ok(ApiResponse::success(json!({
+        "member": member_response,
         "message": "Organization member role updated successfully"
     })))
 }
@@ -172,7 +157,7 @@ pub async fn remove_organization_member_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
-) -> AppResult<(StatusCode, Json<serde_json::Value>)> {
+) -> AppResult<(StatusCode, ApiResponse<serde_json::Value>)> {
     app_state
         .organization_service
         .remove_organization_member(organization_id, member_id, user.user_id())
@@ -180,8 +165,7 @@ pub async fn remove_organization_member_handler(
 
     Ok((
         StatusCode::NO_CONTENT,
-        Json(json!({
-            "success": true,
+        ApiResponse::success(json!({
             "message": "Organization member removed successfully"
         })),
     ))
@@ -193,7 +177,7 @@ pub async fn update_organization_settings_handler(
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
     Json(payload): Json<UpdateOrganizationSettingsRequest>,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     // 組織管理権限チェック（PermissionServiceを使用）
     app_state
         .permission_service
@@ -205,9 +189,8 @@ pub async fn update_organization_settings_handler(
         .update_organization_settings(organization_id, payload, user.user_id())
         .await?;
 
-    Ok(Json(json!({
-        "success": true,
-        "data": organization_response,
+    Ok(ApiResponse::success(json!({
+        "organization": organization_response,
         "message": "Organization settings updated successfully"
     })))
 }
@@ -216,17 +199,13 @@ pub async fn update_organization_settings_handler(
 pub async fn get_organization_stats_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<serde_json::Value>> {
+) -> AppResult<ApiResponse<OrganizationStatsResponse>> {
     let stats = app_state
         .organization_service
         .get_organization_stats(user.user_id())
         .await?;
 
-    Ok(Json(json!({
-        "success": true,
-        "data": stats,
-        "message": "Organization statistics retrieved successfully"
-    })))
+    Ok(ApiResponse::success(stats))
 }
 
 /// 組織メンバー詳細取得（権限情報付き）
@@ -234,16 +213,13 @@ pub async fn get_organization_member_details_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
-) -> AppResult<Json<ApiResponse<OrganizationMemberDetailResponse>>> {
+) -> AppResult<ApiResponse<OrganizationMemberDetailResponse>> {
     let member_detail = app_state
         .organization_service
         .get_organization_member_detail(organization_id, member_id, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Organization member details retrieved successfully",
-        member_detail,
-    )))
+    Ok(ApiResponse::success(member_detail))
 }
 
 /// 組織容量チェック
@@ -251,16 +227,13 @@ pub async fn check_organization_capacity_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<OrganizationCapacityResponse>>> {
+) -> AppResult<ApiResponse<OrganizationCapacityResponse>> {
     let capacity = app_state
         .organization_service
         .check_organization_capacity(organization_id, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Organization capacity retrieved successfully",
-        capacity,
-    )))
+    Ok(ApiResponse::success(capacity))
 }
 
 /// 組織一覧をページネーション付きで取得
@@ -268,21 +241,18 @@ pub async fn get_organizations_paginated_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Query(query): Query<OrganizationSearchQuery>,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     let (organizations, total_count) = app_state
         .organization_service
         .get_organizations_paginated(query, user.user_id())
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Organizations retrieved successfully",
-        json!({
-            "organizations": organizations,
-            "total_count": total_count,
-            "page": 1,
-            "per_page": 20
-        }),
-    )))
+    Ok(ApiResponse::success(json!({
+        "organizations": organizations,
+        "total_count": total_count,
+        "page": 1,
+        "per_page": 20
+    })))
 }
 
 /// 組織のサブスクリプション階層を更新
@@ -291,7 +261,7 @@ pub async fn update_organization_subscription_handler(
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
     Json(payload): Json<UpdateOrganizationSubscriptionRequest>,
-) -> AppResult<Json<ApiResponse<OrganizationResponse>>> {
+) -> AppResult<ApiResponse<OrganizationResponse>> {
     let organization_response = app_state
         .organization_service
         .update_organization_subscription(
@@ -301,10 +271,7 @@ pub async fn update_organization_subscription_handler(
         )
         .await?;
 
-    Ok(Json(ApiResponse::success(
-        "Organization subscription updated successfully",
-        organization_response,
-    )))
+    Ok(ApiResponse::success(organization_response))
 }
 
 /// 組織のサブスクリプション履歴を取得
@@ -312,7 +279,7 @@ pub async fn get_organization_subscription_history_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<Vec<serde_json::Value>>>> {
+) -> AppResult<ApiResponse<Vec<serde_json::Value>>> {
     // 組織へのアクセス権限をチェック
     app_state
         .permission_service
@@ -347,10 +314,7 @@ pub async fn get_organization_subscription_history_handler(
         })
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "Subscription history retrieved successfully",
-        history_response,
-    )))
+    Ok(ApiResponse::success(history_response))
 }
 
 /// 組織ルーターを構築

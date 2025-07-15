@@ -1,9 +1,9 @@
 // task-backend/src/api/handlers/team_invitation_handler.rs
 
-use crate::api::dto::common::ApiResponse;
 use crate::api::dto::team_invitation_dto::*;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
+use crate::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     Json,
@@ -16,7 +16,7 @@ pub async fn bulk_member_invite(
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
     Json(request): Json<BulkTeamInviteRequest>,
-) -> AppResult<Json<ApiResponse<BulkInviteResponse>>> {
+) -> AppResult<ApiResponse<BulkInviteResponse>> {
     let service = &app_state.team_invitation_service;
     request
         .validate()
@@ -63,10 +63,7 @@ pub async fn bulk_member_invite(
         failed_emails,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 pub async fn get_team_invitations(
@@ -74,7 +71,7 @@ pub async fn get_team_invitations(
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
     Query(query): Query<TeamInvitationQuery>,
-) -> AppResult<Json<ApiResponse<TeamInvitationsListResponse>>> {
+) -> AppResult<ApiResponse<TeamInvitationsListResponse>> {
     let service = &app_state.team_invitation_service;
     if !service
         .validate_invitation_permissions(team_id, user.user_id())
@@ -109,17 +106,14 @@ pub async fn get_team_invitations(
         status_counts,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 pub async fn decline_invitation(
     State(app_state): State<crate::api::AppState>,
     Path((team_id, invitation_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<DeclineInvitationRequest>,
-) -> AppResult<Json<ApiResponse<TeamInvitationResponse>>> {
+) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
     request
         .validate()
@@ -130,44 +124,35 @@ pub async fn decline_invitation(
         .await?;
 
     let response = TeamInvitationResponse::from(updated_invitation);
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 pub async fn accept_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path(invitation_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<TeamInvitationResponse>>> {
+) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
     let updated_invitation = service
         .accept_invitation(invitation_id, Some(user.user_id()))
         .await?;
 
     let response = TeamInvitationResponse::from(updated_invitation);
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 pub async fn cancel_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path((team_id, invitation_id)): Path<(Uuid, Uuid)>,
-) -> AppResult<Json<ApiResponse<TeamInvitationResponse>>> {
+) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
     let updated_invitation = service
         .cancel_invitation(team_id, invitation_id, user.user_id())
         .await?;
 
     let response = TeamInvitationResponse::from(updated_invitation);
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 pub async fn resend_invitation(
@@ -175,7 +160,7 @@ pub async fn resend_invitation(
     user: AuthenticatedUser,
     Path(invitation_id): Path<Uuid>,
     Json(request): Json<ResendInvitationRequest>,
-) -> AppResult<Json<ApiResponse<TeamInvitationResponse>>> {
+) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
     request
         .validate()
@@ -186,16 +171,13 @@ pub async fn resend_invitation(
         .await?;
 
     let response = TeamInvitationResponse::from(updated_invitation);
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 pub async fn get_user_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<Vec<TeamInvitationResponse>>>> {
+) -> AppResult<ApiResponse<Vec<TeamInvitationResponse>>> {
     let service = &app_state.team_invitation_service;
     let invitations = service.get_user_invitations(&user.claims.email).await?;
 
@@ -204,17 +186,14 @@ pub async fn get_user_invitations(
         .map(TeamInvitationResponse::from)
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        responses,
-    )))
+    Ok(ApiResponse::success(responses))
 }
 
 pub async fn get_invitation_statistics(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
-) -> AppResult<Json<ApiResponse<InvitationStatisticsResponse>>> {
+) -> AppResult<ApiResponse<InvitationStatisticsResponse>> {
     let service = &app_state.team_invitation_service;
     if !service
         .validate_invitation_permissions(team_id, user.user_id())
@@ -228,16 +207,13 @@ pub async fn get_invitation_statistics(
     let stats = service.get_invitation_statistics(team_id).await?;
     let response = InvitationStatisticsResponse::from(stats);
 
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 pub async fn cleanup_expired_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<Vec<TeamInvitationResponse>>>> {
+) -> AppResult<ApiResponse<Vec<TeamInvitationResponse>>> {
     let service = &app_state.team_invitation_service;
     if !user.is_admin() {
         return Err(AppError::Forbidden(
@@ -251,16 +227,13 @@ pub async fn cleanup_expired_invitations(
         .map(TeamInvitationResponse::from)
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        responses,
-    )))
+    Ok(ApiResponse::success(responses))
 }
 
 pub async fn get_invitations_by_creator(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<Vec<TeamInvitationResponse>>>> {
+) -> AppResult<ApiResponse<Vec<TeamInvitationResponse>>> {
     let service = &app_state.team_invitation_service;
     let invitations = service.get_invitations_by_creator(user.user_id()).await?;
 
@@ -269,17 +242,14 @@ pub async fn get_invitations_by_creator(
         .map(TeamInvitationResponse::from)
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "Operation completed successfully",
-        responses,
-    )))
+    Ok(ApiResponse::success(responses))
 }
 
 pub async fn delete_old_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Query(params): Query<std::collections::HashMap<String, String>>,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     let service = &app_state.team_invitation_service;
     if !user.is_admin() {
         return Err(AppError::Forbidden(
@@ -300,13 +270,10 @@ pub async fn delete_old_invitations(
 
     let deleted_count = service.cleanup_old_invitations(days).await?;
 
-    Ok(Json(ApiResponse::success(
-        "Old invitations deleted successfully",
-        serde_json::json!({
-            "deleted_count": deleted_count,
-            "days": days
-        }),
-    )))
+    Ok(ApiResponse::success(serde_json::json!({
+        "deleted_count": deleted_count,
+        "days": days
+    })))
 }
 
 /// 単一招待を作成
@@ -315,7 +282,7 @@ pub async fn create_single_invitation(
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
     Json(request): Json<CreateInvitationRequest>,
-) -> AppResult<Json<ApiResponse<TeamInvitationResponse>>> {
+) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
     request
         .validate()
@@ -326,10 +293,7 @@ pub async fn create_single_invitation(
         .await?;
 
     let response = TeamInvitationResponse::from(invitation);
-    Ok(Json(ApiResponse::success(
-        "Invitation created successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// ユーザーのメール宛て招待一覧を取得
@@ -337,7 +301,7 @@ pub async fn get_invitations_by_email(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Query(query): Query<UserInvitationQuery>,
-) -> AppResult<Json<ApiResponse<Vec<TeamInvitationResponse>>>> {
+) -> AppResult<ApiResponse<Vec<TeamInvitationResponse>>> {
     let service = &app_state.team_invitation_service;
 
     // ユーザーは自分のメールアドレスの招待のみ閲覧可能
@@ -354,10 +318,7 @@ pub async fn get_invitations_by_email(
         .map(TeamInvitationResponse::from)
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "Invitations retrieved successfully",
-        responses,
-    )))
+    Ok(ApiResponse::success(responses))
 }
 
 /// 特定チーム・メールの招待を確認
@@ -365,7 +326,7 @@ pub async fn check_team_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Path((team_id, email)): Path<(Uuid, String)>,
-) -> AppResult<Json<ApiResponse<CheckInvitationResponse>>> {
+) -> AppResult<ApiResponse<CheckInvitationResponse>> {
     let service = &app_state.team_invitation_service;
 
     // 権限確認
@@ -385,10 +346,7 @@ pub async fn check_team_invitation(
         invitation: invitation.map(TeamInvitationResponse::from),
     };
 
-    Ok(Json(ApiResponse::success(
-        "Invitation check completed",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 招待一覧をページング付きで取得
@@ -397,7 +355,7 @@ pub async fn get_invitations_with_pagination(
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
     Query(query): Query<TeamInvitationQuery>,
-) -> AppResult<Json<ApiResponse<InvitationPaginationResponse>>> {
+) -> AppResult<ApiResponse<InvitationPaginationResponse>> {
     let service = &app_state.team_invitation_service;
 
     let (page, page_size) = query.pagination.get_pagination();
@@ -420,10 +378,7 @@ pub async fn get_invitations_with_pagination(
     let response =
         InvitationPaginationResponse::new(responses, page, page_size, total_count as i64);
 
-    Ok(Json(ApiResponse::success(
-        "Invitations retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// ユーザーの招待数を取得
@@ -431,7 +386,7 @@ pub async fn count_user_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Query(query): Query<UserInvitationQuery>,
-) -> AppResult<Json<ApiResponse<UserInvitationStatsResponse>>> {
+) -> AppResult<ApiResponse<UserInvitationStatsResponse>> {
     let service = &app_state.team_invitation_service;
 
     // ユーザーは自分のメールアドレスの招待のみ閲覧可能
@@ -474,10 +429,7 @@ pub async fn count_user_invitations(
         declined_invitations,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Invitation statistics retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 招待の一括ステータス更新
@@ -485,7 +437,7 @@ pub async fn bulk_update_invitation_status(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Json(request): Json<BulkUpdateStatusRequest>,
-) -> AppResult<Json<ApiResponse<BulkUpdateStatusResponse>>> {
+) -> AppResult<ApiResponse<BulkUpdateStatusResponse>> {
     let service = &app_state.team_invitation_service;
     request
         .validate()
@@ -500,10 +452,7 @@ pub async fn bulk_update_invitation_status(
         failed_ids: vec![], // All succeeded if no error was thrown
     };
 
-    Ok(Json(ApiResponse::success(
-        "Invitation status updated successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 #[cfg(test)]

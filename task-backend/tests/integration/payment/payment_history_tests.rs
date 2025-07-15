@@ -149,22 +149,17 @@ async fn test_get_payment_history_endpoint() {
         .unwrap();
     let history: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    // Check if response is wrapped in data field
-    let history_data = if history["data"].is_object() {
-        &history["data"]
-    } else {
-        &history
-    };
-
-    assert!(history_data["items"].is_array());
-    assert_eq!(history_data["items"].as_array().unwrap().len(), 2);
-    assert!(history_data["total_pages"].is_number());
+    // The response is wrapped in ApiResponse format
+    assert!(history["success"].is_boolean());
+    assert!(history["data"]["items"].is_array());
+    assert_eq!(history["data"]["items"].as_array().unwrap().len(), 2);
+    assert!(history["data"]["total_pages"].is_number());
 
     // 最新の履歴が最初に来ることを確認
-    assert_eq!(history_data["items"][0]["amount"], 5000);
-    assert_eq!(history_data["items"][0]["status"], "failed");
-    assert_eq!(history_data["items"][1]["amount"], 10000);
-    assert_eq!(history_data["items"][1]["status"], "succeeded");
+    assert_eq!(history["data"]["items"][0]["amount"], 5000);
+    assert_eq!(history["data"]["items"][0]["status"], "failed");
+    assert_eq!(history["data"]["items"][1]["amount"], 10000);
+    assert_eq!(history["data"]["items"][1]["status"], "succeeded");
 }
 
 #[tokio::test]

@@ -1,6 +1,6 @@
 // task-backend/src/api/dto/user_dto.rs
 
-use crate::api::dto::common::{ApiResponse, OperationResult, PaginatedResponse, PaginationQuery};
+use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::domain::user_model::SafeUser;
 use crate::service::user_service::UserStats;
 use crate::utils::validation::common;
@@ -206,9 +206,6 @@ pub struct UserSummary {
 }
 
 // PaginationInfo は common.rs の PaginationMeta に統一
-
-/// プロフィール更新レスポンス
-pub type ProfileUpdateResponse = ApiResponse<OperationResult<SafeUser>>;
 
 /// メール認証レスポンス
 #[derive(Debug, Clone, Serialize)]

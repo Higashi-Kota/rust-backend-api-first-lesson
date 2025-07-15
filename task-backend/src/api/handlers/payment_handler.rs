@@ -1,8 +1,9 @@
 use crate::api::dto::subscription_dto::{CurrentSubscriptionResponse, SubscriptionTierInfo};
-use crate::api::{dto::ApiResponse, AppState};
+use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
+use crate::types::ApiResponse;
 use axum::{
     extract::{Json, Query, State},
     http::HeaderMap,
@@ -76,7 +77,7 @@ pub async fn create_checkout_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Json(payload): Json<CreateCheckoutRequest>,
-) -> AppResult<Json<ApiResponse<CreateCheckoutResponse>>> {
+) -> AppResult<ApiResponse<CreateCheckoutResponse>> {
     // バリデーション
     Validate::validate(&payload).map_err(|validation_errors| {
         let errors: Vec<String> = validation_errors
@@ -132,17 +133,16 @@ pub async fn create_checkout_handler(
         "Checkout session created successfully"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Checkout session created successfully",
-        CreateCheckoutResponse { checkout_url },
-    )))
+    Ok(ApiResponse::success(CreateCheckoutResponse {
+        checkout_url,
+    }))
 }
 
 /// カスタマーポータルセッション作成
 pub async fn create_customer_portal_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<CustomerPortalResponse>>> {
+) -> AppResult<ApiResponse<CustomerPortalResponse>> {
     info!(
         user_id = %user.claims.user_id,
         "Creating customer portal session"
@@ -159,10 +159,7 @@ pub async fn create_customer_portal_handler(
         "Customer portal session created successfully"
     );
 
-    Ok(Json(ApiResponse::success(
-        "Customer portal session created successfully",
-        CustomerPortalResponse { portal_url },
-    )))
+    Ok(ApiResponse::success(CustomerPortalResponse { portal_url }))
 }
 
 /// Stripe Webhookハンドラー
@@ -202,7 +199,7 @@ pub async fn stripe_webhook_handler(
 pub async fn get_current_subscription_payment_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<CurrentSubscriptionResponse>>> {
+) -> AppResult<ApiResponse<CurrentSubscriptionResponse>> {
     info!(
         user_id = %user.claims.user_id,
         "Getting current subscription"
@@ -219,17 +216,14 @@ pub async fn get_current_subscription_payment_handler(
         user_profile.created_at,
     );
 
-    Ok(Json(ApiResponse::success(
-        "Current subscription retrieved successfully",
-        subscription_info,
-    )))
+    Ok(ApiResponse::success(subscription_info))
 }
 
 /// 利用可能なサブスクリプションティアを取得
 pub async fn get_subscription_tiers_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<Vec<SubscriptionTierInfo>>>> {
+) -> AppResult<ApiResponse<Vec<SubscriptionTierInfo>>> {
     info!(
         user_id = %user.claims.user_id,
         "Getting available subscription tiers"
@@ -241,17 +235,14 @@ pub async fn get_subscription_tiers_handler(
         .map(|tier| CurrentSubscriptionResponse::get_tier_info(tier.as_str()))
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "Available subscription tiers retrieved successfully",
-        tier_infos,
-    )))
+    Ok(ApiResponse::success(tier_infos))
 }
 
 /// アップグレード可能なオプションを取得
 pub async fn get_upgrade_options_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-) -> AppResult<Json<ApiResponse<Vec<SubscriptionTierInfo>>>> {
+) -> AppResult<ApiResponse<Vec<SubscriptionTierInfo>>> {
     info!(
         user_id = %user.claims.user_id,
         "Getting upgrade options"
@@ -274,10 +265,7 @@ pub async fn get_upgrade_options_handler(
         .map(|tier| CurrentSubscriptionResponse::get_tier_info(tier.as_str()))
         .collect();
 
-    Ok(Json(ApiResponse::success(
-        "Upgrade options retrieved successfully",
-        upgrade_options,
-    )))
+    Ok(ApiResponse::success(upgrade_options))
 }
 
 /// 支払い履歴を取得
@@ -285,7 +273,7 @@ pub async fn get_payment_history_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<PaymentHistoryQuery>,
-) -> AppResult<Json<ApiResponse<PaymentHistoryResponse>>> {
+) -> AppResult<ApiResponse<PaymentHistoryResponse>> {
     info!(
         user_id = %user.claims.user_id,
         page = %query.page,
@@ -332,10 +320,7 @@ pub async fn get_payment_history_handler(
         per_page: query.per_page,
     };
 
-    Ok(Json(ApiResponse::success(
-        "Payment history retrieved successfully",
-        response,
-    )))
+    Ok(ApiResponse::success(response))
 }
 
 /// 決済関連のルーター
@@ -379,14 +364,11 @@ pub struct StripeConfigResponse {
 /// Stripe設定情報を取得
 pub async fn get_stripe_config_handler(
     State(_app_state): State<AppState>,
-) -> AppResult<Json<ApiResponse<StripeConfigResponse>>> {
+) -> AppResult<ApiResponse<StripeConfigResponse>> {
     let config = std::sync::Arc::new(crate::config::stripe::StripeConfig::from_env());
 
-    Ok(Json(ApiResponse::success(
-        "Stripe configuration retrieved",
-        StripeConfigResponse {
-            publishable_key: config.publishable_key.clone(),
-            is_test_mode: config.is_test_mode(),
-        },
-    )))
+    Ok(ApiResponse::success(StripeConfigResponse {
+        publishable_key: config.publishable_key.clone(),
+        is_test_mode: config.is_test_mode(),
+    }))
 }

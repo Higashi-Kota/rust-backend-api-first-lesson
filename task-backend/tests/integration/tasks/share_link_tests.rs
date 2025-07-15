@@ -317,7 +317,10 @@ async fn test_revoke_share_link_success() {
         .await
         .unwrap();
     let json: Value = serde_json::from_slice(&body).unwrap();
-    assert!(json["message"].as_str().unwrap().contains("revoked"));
+    assert!(json["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("revoked"));
 }
 
 /// 異常系テスト: アクセス回数制限
@@ -376,7 +379,7 @@ async fn test_share_link_access_count_limit() {
 
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: Value = serde_json::from_slice(&body).unwrap();
-    assert!(json["message"]
+    assert!(json["error"]["message"]
         .as_str()
         .unwrap()
         .contains("maximum access count"));
@@ -402,7 +405,7 @@ async fn test_download_via_invalid_share_token() {
 
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: Value = serde_json::from_slice(&body).unwrap();
-    assert!(json["message"]
+    assert!(json["error"]["message"]
         .as_str()
         .unwrap()
         .contains("Invalid share link"));

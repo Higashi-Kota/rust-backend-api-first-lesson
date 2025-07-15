@@ -1,8 +1,8 @@
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{extract::State, routing::get, Router};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::{api::AppState, error::AppError};
+use crate::{api::AppState, error::AppError, types::ApiResponse};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SystemInfoResponse {
@@ -14,18 +14,15 @@ pub struct SystemInfoResponse {
 
 pub async fn get_system_info(
     State(app_state): State<Arc<AppState>>,
-) -> Result<Json<crate::api::dto::ApiResponse<SystemInfoResponse>>, AppError> {
+) -> Result<ApiResponse<SystemInfoResponse>, AppError> {
     let config = &app_state.config;
 
-    Ok(Json(crate::api::dto::ApiResponse::success(
-        "System information retrieved",
-        SystemInfoResponse {
-            environment: config.environment.clone(),
-            is_test: config.is_test(),
-            is_production: config.is_production(),
-            is_development: config.is_development(),
-        },
-    )))
+    Ok(ApiResponse::success(SystemInfoResponse {
+        environment: config.environment.clone(),
+        is_test: config.is_test(),
+        is_production: config.is_production(),
+        is_development: config.is_development(),
+    }))
 }
 
 pub fn system_router_with_state(app_state: Arc<AppState>) -> Router {

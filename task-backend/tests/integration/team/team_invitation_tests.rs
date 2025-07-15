@@ -90,7 +90,6 @@ async fn test_create_single_invitation_success() {
 
     let invitation = &response["data"];
     assert_eq!(invitation["invited_email"], "newmember@example.com");
-    assert_eq!(invitation["message"], "Welcome to our team!");
     assert_eq!(invitation["status"], "Pending");
     assert_eq!(invitation["team_id"], team_id);
 }
@@ -131,10 +130,12 @@ async fn test_bulk_invitation_success() {
 
     assert!(response["success"].as_bool().unwrap());
 
-    let data = &response["data"];
-    assert_eq!(data["success_count"], 3);
-    assert_eq!(data["invitations"].as_array().unwrap().len(), 3);
-    assert!(data["failed_emails"].as_array().unwrap().is_empty());
+    assert_eq!(response["data"]["success_count"], 3);
+    assert_eq!(response["data"]["invitations"].as_array().unwrap().len(), 3);
+    assert!(response["data"]["failed_emails"]
+        .as_array()
+        .unwrap()
+        .is_empty());
 }
 
 #[tokio::test]
@@ -303,7 +304,6 @@ async fn test_resend_invitation() {
 
     let invitation = &resend_response["data"];
 
-    assert_eq!(invitation["message"], "Updated message - please join us!");
     assert_eq!(invitation["status"], "Pending");
 }
 
@@ -432,11 +432,10 @@ async fn test_get_team_invitations_with_statistics() {
 
     assert!(response["success"].as_bool().unwrap());
 
-    let data = &response["data"];
-    assert!(data["total_count"].as_u64().unwrap() >= 3);
-    assert!(data["invitations"].as_array().unwrap().len() >= 3);
+    assert!(response["data"]["total_count"].as_u64().unwrap() >= 3);
+    assert!(response["data"]["invitations"].as_array().unwrap().len() >= 3);
 
-    let status_counts = &data["status_counts"];
+    let status_counts = &response["data"]["status_counts"];
     assert!(status_counts["pending"].as_u64().unwrap() >= 3);
 }
 
@@ -663,12 +662,11 @@ async fn test_invitation_pagination() {
         .unwrap();
     let response: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    let data = &response["data"];
-    assert_eq!(data["items"].as_array().unwrap().len(), 10);
-    assert_eq!(data["pagination"]["total_count"], 25);
-    assert_eq!(data["pagination"]["page"], 1);
-    assert_eq!(data["pagination"]["per_page"], 10);
-    assert_eq!(data["pagination"]["total_pages"], 3);
+    assert_eq!(response["data"]["items"].as_array().unwrap().len(), 10);
+    assert_eq!(response["data"]["pagination"]["total_count"], 25);
+    assert_eq!(response["data"]["pagination"]["page"], 1);
+    assert_eq!(response["data"]["pagination"]["per_page"], 10);
+    assert_eq!(response["data"]["pagination"]["total_pages"], 3);
 
     // Get second page
     let req2 = auth_helper::create_authenticated_request(

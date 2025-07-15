@@ -49,8 +49,11 @@ async fn test_create_team_with_authentication() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
 
+    // New ApiResponse format
     assert!(response["success"].as_bool().unwrap());
-    assert_eq!(response["message"], "Team created successfully");
+    assert!(response["data"].is_object());
+    assert!(response["error"].is_null());
+    assert!(response["meta"].is_object());
 
     let team_data = &response["data"];
     assert_eq!(team_data["name"], team_name);
@@ -127,7 +130,6 @@ async fn test_get_team_details() {
     let get_response: Value = serde_json::from_slice(&get_body).unwrap();
 
     assert!(get_response["success"].as_bool().unwrap());
-    assert_eq!(get_response["message"], "Team retrieved successfully");
 
     let team_data = &get_response["data"];
     assert_eq!(team_data["id"], team_id);
@@ -169,7 +171,6 @@ async fn test_list_teams() {
     let list_response: Value = serde_json::from_slice(&list_body).unwrap();
 
     assert!(list_response["success"].as_bool().unwrap());
-    assert_eq!(list_response["message"], "Teams retrieved successfully");
 
     let teams = list_response["data"].as_array().unwrap();
     assert_eq!(teams.len(), 1); // Freeティアでは1チームのみ
@@ -221,7 +222,6 @@ async fn test_update_team() {
     let update_response: Value = serde_json::from_slice(&update_body).unwrap();
 
     assert!(update_response["success"].as_bool().unwrap());
-    assert_eq!(update_response["message"], "Team updated successfully");
 
     let updated_team = &update_response["data"];
     assert_eq!(updated_team["name"], "Updated Team Name");
@@ -265,14 +265,6 @@ async fn test_delete_team() {
 
     let delete_res = app.clone().oneshot(delete_req).await.unwrap();
     assert_eq!(delete_res.status(), StatusCode::NO_CONTENT);
-
-    let delete_body = body::to_bytes(delete_res.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let delete_response: Value = serde_json::from_slice(&delete_body).unwrap();
-
-    assert!(delete_response["success"].as_bool().unwrap());
-    assert_eq!(delete_response["message"], "Team deleted successfully");
 
     // 削除されたチームにアクセスしようとすると404が返される
     let get_req = auth_helper::create_authenticated_request(
@@ -345,12 +337,8 @@ async fn test_get_team_stats() {
     let stats_response: Value = serde_json::from_slice(&stats_body).unwrap();
 
     assert!(stats_response["success"].as_bool().unwrap());
-    assert_eq!(
-        stats_response["message"],
-        "Team stats retrieved successfully"
-    );
 
-    let stats = &stats_response["data"];
-    assert_eq!(stats["total_teams"].as_i64().unwrap(), 1);
-    assert!(stats["total_members"].as_i64().unwrap() >= 0);
+    // Stats are directly in data
+    assert_eq!(stats_response["data"]["total_teams"].as_i64().unwrap(), 1);
+    assert!(stats_response["data"]["total_members"].as_i64().unwrap() >= 0);
 }

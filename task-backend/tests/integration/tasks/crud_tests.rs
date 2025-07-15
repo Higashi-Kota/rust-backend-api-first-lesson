@@ -32,11 +32,11 @@ async fn test_create_task_with_authentication() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let task: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(task["title"], "Test Task");
-    assert_eq!(task["status"], "todo");
-    assert!(task["id"].is_string());
-    assert!(task["user_id"].is_string());
-    assert_eq!(task["user_id"], user.id.to_string());
+    assert_eq!(task["data"]["title"], "Test Task");
+    assert_eq!(task["data"]["status"], "todo");
+    assert!(task["data"]["id"].is_string());
+    assert!(task["data"]["user_id"].is_string());
+    assert_eq!(task["data"]["user_id"], user.id.to_string());
 }
 
 #[tokio::test]
@@ -59,7 +59,11 @@ async fn test_create_task_without_authentication() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "unauthorized");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "UNAUTHORIZED");
 }
 
 #[tokio::test]
@@ -85,7 +89,7 @@ async fn test_get_task_with_authentication() {
         .await
         .unwrap();
     let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-    let task_id = created_task["id"].as_str().unwrap();
+    let task_id = created_task["data"]["id"].as_str().unwrap();
 
     // タスク取得
     let get_req = auth_helper::create_authenticated_request(
@@ -103,9 +107,9 @@ async fn test_get_task_with_authentication() {
         .unwrap();
     let task: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(task["id"], task_id);
-    assert_eq!(task["title"], "Test Task");
-    assert_eq!(task["user_id"], user.id.to_string());
+    assert_eq!(task["data"]["id"], task_id);
+    assert_eq!(task["data"]["title"], "Test Task");
+    assert_eq!(task["data"]["user_id"], user.id.to_string());
 }
 
 #[tokio::test]
@@ -133,7 +137,7 @@ async fn test_get_task_of_another_user() {
         .await
         .unwrap();
     let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-    let task_id = created_task["id"].as_str().unwrap();
+    let task_id = created_task["data"]["id"].as_str().unwrap();
 
     // user2でタスク取得試行
     let get_req = auth_helper::create_authenticated_request(
@@ -152,7 +156,11 @@ async fn test_get_task_of_another_user() {
         .unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "not_found");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "NOT_FOUND");
 }
 
 #[tokio::test]
@@ -189,8 +197,8 @@ async fn test_list_tasks_with_authentication() {
     let tasks: Value = serde_json::from_slice(&body).unwrap();
 
     // 自分が作成したタスクのみが返される
-    assert!(tasks.is_array());
-    let task_array = tasks.as_array().unwrap();
+    assert!(tasks["data"].is_array());
+    let task_array = tasks["data"].as_array().unwrap();
     assert_eq!(task_array.len(), 3);
 
     // 全てのタスクが自分のものであることを確認
@@ -249,8 +257,8 @@ async fn test_list_tasks_user_isolation() {
     let tasks1: Value = serde_json::from_slice(&body1).unwrap();
 
     // user1は自分のタスク2つのみが見える
-    assert_eq!(tasks1.as_array().unwrap().len(), 2);
-    for task in tasks1.as_array().unwrap() {
+    assert_eq!(tasks1["data"].as_array().unwrap().len(), 2);
+    for task in tasks1["data"].as_array().unwrap() {
         assert_eq!(task["user_id"], user1.id.to_string());
     }
 
@@ -267,8 +275,8 @@ async fn test_list_tasks_user_isolation() {
     let tasks2: Value = serde_json::from_slice(&body2).unwrap();
 
     // user2は自分のタスク3つのみが見える
-    assert_eq!(tasks2.as_array().unwrap().len(), 3);
-    for task in tasks2.as_array().unwrap() {
+    assert_eq!(tasks2["data"].as_array().unwrap().len(), 3);
+    for task in tasks2["data"].as_array().unwrap() {
         assert_eq!(task["user_id"], user2.id.to_string());
     }
 }
@@ -296,7 +304,7 @@ async fn test_update_task_with_authentication() {
         .await
         .unwrap();
     let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-    let task_id = created_task["id"].as_str().unwrap();
+    let task_id = created_task["data"]["id"].as_str().unwrap();
 
     // タスク更新
     let update_data = test_data::create_partial_update_task_title("Updated Auth Task");
@@ -315,9 +323,9 @@ async fn test_update_task_with_authentication() {
         .unwrap();
     let updated_task: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(updated_task["id"], task_id);
-    assert_eq!(updated_task["title"], "Updated Auth Task");
-    assert_eq!(updated_task["user_id"], user.id.to_string());
+    assert_eq!(updated_task["data"]["id"], task_id);
+    assert_eq!(updated_task["data"]["title"], "Updated Auth Task");
+    assert_eq!(updated_task["data"]["user_id"], user.id.to_string());
 }
 
 #[tokio::test]
@@ -345,7 +353,7 @@ async fn test_update_task_of_another_user() {
         .await
         .unwrap();
     let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-    let task_id = created_task["id"].as_str().unwrap();
+    let task_id = created_task["data"]["id"].as_str().unwrap();
 
     // user2でタスク更新試行
     let update_data = test_data::create_partial_update_task_title("Unauthorized Update");
@@ -365,7 +373,11 @@ async fn test_update_task_of_another_user() {
         .unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "not_found");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "NOT_FOUND");
 }
 
 #[tokio::test]
@@ -391,7 +403,7 @@ async fn test_delete_task_with_authentication() {
         .await
         .unwrap();
     let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-    let task_id = created_task["id"].as_str().unwrap();
+    let task_id = created_task["data"]["id"].as_str().unwrap();
 
     // タスク削除
     let delete_req = auth_helper::create_authenticated_request(
@@ -442,7 +454,7 @@ async fn test_delete_task_of_another_user() {
         .await
         .unwrap();
     let created_task: Value = serde_json::from_slice(&create_body).unwrap();
-    let task_id = created_task["id"].as_str().unwrap();
+    let task_id = created_task["data"]["id"].as_str().unwrap();
 
     // user2でタスク削除試行
     let delete_req = auth_helper::create_authenticated_request(
@@ -461,7 +473,11 @@ async fn test_delete_task_of_another_user() {
         .unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "not_found");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert_eq!(error["error"]["code"], "NOT_FOUND");
 
     // 元のユーザーではまだアクセス可能であることを確認
     let get_req = auth_helper::create_authenticated_request(
@@ -498,10 +514,19 @@ async fn test_task_validation_with_authentication() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
-    assert!(error["errors"].is_array());
-    let errors = error["errors"].as_array().unwrap();
-    assert!(!errors.is_empty());
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
+
+    // Check validation details if present
+    if let Some(details) = error["error"]["details"].as_array() {
+        assert!(!details.is_empty());
+    }
 }
 
 #[tokio::test]
@@ -525,5 +550,12 @@ async fn test_task_with_invalid_uuid() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let error: Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(error["error_type"], "validation_errors");
+    // Error response format
+    assert!(!error["success"].as_bool().unwrap());
+    assert!(error["data"].is_null());
+    assert!(error["error"].is_object());
+    assert!(
+        (error["error"]["code"] == "VALIDATION_ERROR"
+            || error["error"]["code"] == "VALIDATION_ERRORS")
+    );
 }

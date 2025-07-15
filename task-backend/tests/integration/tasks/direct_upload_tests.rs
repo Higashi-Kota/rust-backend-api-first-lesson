@@ -38,7 +38,7 @@ async fn test_generate_upload_url_success() {
     assert_eq!(response.status(), StatusCode::CREATED);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    let task_id = json["id"].as_str().unwrap();
+    let task_id = json["data"]["id"].as_str().unwrap();
 
     // アップロードURL生成
     let upload_url_request = json!({

@@ -209,12 +209,8 @@ async fn test_cannot_downgrade_with_excess_resources() {
     assert_eq!(response["success"], false);
 
     // Check for error message - it might be in different formats
-    let error_message = if response["error"].is_string() {
-        response["error"].as_str().unwrap()
-    } else if response["error"]["message"].is_string() {
+    let error_message = if response["error"]["message"].is_string() {
         response["error"]["message"].as_str().unwrap()
-    } else if response["message"].is_string() {
-        response["message"].as_str().unwrap()
     } else {
         panic!("Could not find error message in response: {:?}", response);
     };

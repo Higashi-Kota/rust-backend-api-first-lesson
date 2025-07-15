@@ -1,9 +1,10 @@
 // task-backend/src/api/handlers/role_handler.rs
 use crate::api::dto::role_dto::*;
-use crate::api::dto::{ApiResponse, OperationResult};
+use crate::api::dto::OperationResult;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUserWithRole;
+use crate::types::ApiResponse;
 use axum::{
     extract::{Json, Path, Query, State},
     http::StatusCode,
@@ -12,6 +13,7 @@ use axum::{
     Router,
 };
 use serde::Deserialize;
+use serde_json;
 use tracing::{info, warn};
 use uuid::Uuid;
 use validator::Validate;
@@ -58,7 +60,7 @@ pub async fn list_roles_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUserWithRole,
     Query(query): Query<RoleSearchQuery>,
-) -> AppResult<Json<RoleListResponse>> {
+) -> AppResult<ApiResponse<RoleListResponse>> {
     // 管理者権限チェック
     app_state
         .role_service
@@ -83,7 +85,7 @@ pub async fn list_roles_handler(
         "Roles list retrieved successfully"
     );
 
-    Ok(Json(RoleListResponse::new(roles)))
+    Ok(ApiResponse::success(RoleListResponse::new(roles)))
 }
 
 /// 特定ロール取得
@@ -91,7 +93,7 @@ pub async fn get_role_handler(
     State(app_state): State<AppState>,
     UuidPath(role_id): UuidPath,
     user: AuthenticatedUserWithRole,
-) -> AppResult<Json<RoleResponse>> {
+) -> AppResult<ApiResponse<RoleResponse>> {
     // RoleWithPermissionsのcan_view_resourceメソッドを活用
     if let Some(role) = user.role() {
         if !role.can_view_resource("role", Some(role_id), user.user_id()) {
@@ -121,7 +123,7 @@ pub async fn get_role_handler(
         "Role details retrieved successfully"
     );
 
-    Ok(Json(RoleResponse::from(role)))
+    Ok(ApiResponse::success(RoleResponse::from(role)))
 }
 
 /// ロール作成
@@ -177,7 +179,7 @@ pub async fn create_role_handler(
 
     Ok((
         StatusCode::CREATED,
-        Json(CreateRoleResponse::build(created_role)),
+        ApiResponse::success(CreateRoleResponse::build(created_role)),
     ))
 }
 
@@ -187,7 +189,7 @@ pub async fn update_role_handler(
     UuidPath(role_id): UuidPath,
     user: AuthenticatedUserWithRole,
     Json(mut payload): Json<UpdateRoleRequest>,
-) -> AppResult<Json<ApiResponse<OperationResult<RoleResponse>>>> {
+) -> AppResult<ApiResponse<OperationResult<RoleResponse>>> {
     // 管理者権限チェック
     app_state
         .role_service
@@ -256,7 +258,10 @@ pub async fn update_role_handler(
         "Role updated successfully"
     );
 
-    Ok(Json(UpdateRoleResponse::build(updated_role, changes)))
+    Ok(ApiResponse::success(OperationResult::updated(
+        RoleResponse::from(updated_role),
+        changes,
+    )))
 }
 
 /// ロール削除
@@ -264,7 +269,7 @@ pub async fn delete_role_handler(
     State(app_state): State<AppState>,
     UuidPath(role_id): UuidPath,
     user: AuthenticatedUserWithRole,
-) -> AppResult<Json<ApiResponse<serde_json::Value>>> {
+) -> AppResult<ApiResponse<serde_json::Value>> {
     // 管理者権限チェック
     app_state
         .role_service
@@ -288,7 +293,9 @@ pub async fn delete_role_handler(
         "Role deleted successfully"
     );
 
-    Ok(Json(DeleteRoleResponse::build(role_id)))
+    Ok(ApiResponse::success(
+        serde_json::json!({ "deleted_role_id": role_id }),
+    ))
 }
 
 // --- ユーザーロール管理ハンドラー ---
@@ -299,7 +306,7 @@ pub async fn assign_role_to_user_handler(
     Path(user_id): Path<Uuid>,
     user: AuthenticatedUserWithRole,
     Json(payload): Json<AssignRoleRequest>,
-) -> AppResult<Json<AssignRoleResponse>> {
+) -> AppResult<ApiResponse<AssignRoleResponse>> {
     // 管理者権限チェック
     app_state
         .role_service
@@ -326,7 +333,7 @@ pub async fn assign_role_to_user_handler(
         "Role assigned to user successfully"
     );
 
-    Ok(Json(AssignRoleResponse {
+    Ok(ApiResponse::success(AssignRoleResponse {
         message: "Role assigned successfully".to_string(),
         user_id,
         role: RoleResponse::from(user_with_role.role),

@@ -123,15 +123,10 @@ async fn test_user_profile_access_isolation() {
     let profile_data: Value = serde_json::from_slice(&body).unwrap();
 
     // Verify user1 gets their own profile data
-    assert_eq!(
-        profile_data["user"]["id"].as_str().unwrap(),
-        user1.id.to_string()
-    );
-    assert_eq!(profile_data["user"]["email"].as_str().unwrap(), user1.email);
-    assert_eq!(
-        profile_data["user"]["username"].as_str().unwrap(),
-        user1.username
-    );
+    let user_data = &profile_data["data"]["user"];
+    assert_eq!(user_data["id"].as_str().unwrap(), user1.id.to_string());
+    assert_eq!(user_data["email"].as_str().unwrap(), user1.email);
+    assert_eq!(user_data["username"].as_str().unwrap(), user1.username);
 
     // Test: User2 can access their own profile
     let user2_profile_request =
@@ -146,15 +141,10 @@ async fn test_user_profile_access_isolation() {
     let profile_data: Value = serde_json::from_slice(&body).unwrap();
 
     // Verify user2 gets their own profile data
-    assert_eq!(
-        profile_data["user"]["id"].as_str().unwrap(),
-        user2.id.to_string()
-    );
-    assert_eq!(profile_data["user"]["email"].as_str().unwrap(), user2.email);
-    assert_eq!(
-        profile_data["user"]["username"].as_str().unwrap(),
-        user2.username
-    );
+    let user_data = &profile_data["data"]["user"];
+    assert_eq!(user_data["id"].as_str().unwrap(), user2.id.to_string());
+    assert_eq!(user_data["email"].as_str().unwrap(), user2.email);
+    assert_eq!(user_data["username"].as_str().unwrap(), user2.username);
 }
 
 #[tokio::test]
@@ -190,14 +180,9 @@ async fn test_authentication_token_isolation() {
     let profile_data: Value = serde_json::from_slice(&body).unwrap();
 
     // Should return user1's data, not user2's
-    assert_eq!(
-        profile_data["user"]["id"].as_str().unwrap(),
-        user1.id.to_string()
-    );
-    assert_ne!(
-        profile_data["user"]["id"].as_str().unwrap(),
-        user2.id.to_string()
-    );
+    let user_data = &profile_data["data"]["user"];
+    assert_eq!(user_data["id"].as_str().unwrap(), user1.id.to_string());
+    assert_ne!(user_data["id"].as_str().unwrap(), user2.id.to_string());
 
     // Verify tokens are different
     assert_ne!(
@@ -256,22 +241,17 @@ async fn test_role_concepts_in_jwt_claims() {
     // Verify that role information is present in the response
     // (This tests the concept that users have roles)
     assert!(
-        profile_data["user"].is_object(),
+        profile_data["data"]["user"].is_object(),
         "User data should be an object"
     );
+    let user_data = &profile_data["data"]["user"];
+    assert!(user_data["id"].is_string(), "User should have ID");
+    assert!(user_data["email"].is_string(), "User should have email");
     assert!(
-        profile_data["user"]["id"].is_string(),
-        "User should have ID"
-    );
-    assert!(
-        profile_data["user"]["email"].is_string(),
-        "User should have email"
-    );
-    assert!(
-        profile_data["user"]["username"].is_string(),
+        user_data["username"].is_string(),
         "User should have username"
     );
 
     // In a full implementation, we would also check for role information
-    // assert!(profile_data["user"]["role"].is_object(), "User should have role info");
+    // assert!(profile_data["data"]["role"].is_object(), "User should have role info");
 }
