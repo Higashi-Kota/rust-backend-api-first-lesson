@@ -65,9 +65,9 @@ pub async fn create_department(
     Json(payload): Json<CreateDepartmentDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "create_department"))?;
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "organization_hierarchy_handler::create_department")
+    })?;
 
     // 権限チェック（組織管理者以上）
     user.ensure_can_manage_organization(organization_id)?;
@@ -126,9 +126,9 @@ pub async fn update_department(
     Json(payload): Json<UpdateDepartmentDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "update_department"))?;
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "organization_hierarchy_handler::update_department")
+    })?;
 
     // 権限チェック（組織管理者またはその部門のマネージャー）
     user.ensure_can_manage_organization_or_department(organization_id, department_id)?;
@@ -189,9 +189,12 @@ pub async fn get_organization_analytics(
     Query(query): Query<OrganizationAnalyticsQueryDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    query
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "department_analytics_query"))?;
+    query.validate().map_err(|e| {
+        convert_validation_errors(
+            e,
+            "organization_hierarchy_handler::get_department_analytics",
+        )
+    })?;
 
     // 権限チェック（組織メンバー以上）
     user.ensure_can_read_organization(organization_id)?;
@@ -222,9 +225,12 @@ pub async fn set_organization_permission_matrix(
     Json(payload): Json<SetPermissionMatrixDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "permission_matrix"))?;
+    payload.validate().map_err(|e| {
+        convert_validation_errors(
+            e,
+            "organization_hierarchy_handler::update_permission_matrix",
+        )
+    })?;
 
     // 権限チェック（組織管理者以上）
     user.ensure_can_manage_organization(organization_id)?;
@@ -317,9 +323,12 @@ pub async fn export_organization_data(
     Query(export_options): Query<ExportOrganizationDataDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    export_options
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "export_options"))?;
+    export_options.validate().map_err(|e| {
+        convert_validation_errors(
+            e,
+            "organization_hierarchy_handler::export_organization_data",
+        )
+    })?;
 
     // 権限チェック（組織管理者以上）
     user.ensure_can_manage_organization(organization_id)?;
@@ -344,9 +353,9 @@ pub async fn add_department_member(
     Json(payload): Json<AddDepartmentMemberDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "add_department_member"))?;
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "organization_hierarchy_handler::add_department_member")
+    })?;
 
     // 権限チェック（組織管理者またはその部門のマネージャー）
     user.ensure_can_manage_organization_or_department(organization_id, department_id)?;
@@ -401,9 +410,9 @@ pub async fn create_analytics_metric(
     Json(payload): Json<CreateAnalyticsMetricDto>,
 ) -> Result<impl IntoResponse, AppError> {
     // バリデーション
-    payload
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "create_analytics_metric"))?;
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "organization_hierarchy_handler::create_analytics_metric")
+    })?;
 
     // 権限チェック（組織管理者以上）
     user.ensure_can_manage_organization(organization_id)?;

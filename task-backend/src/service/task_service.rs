@@ -14,6 +14,7 @@ use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::subscription_guard::check_feature_limit;
 use crate::repository::task_repository::TaskRepository;
 use crate::repository::user_repository::UserRepository;
+use crate::utils::error_helper::internal_server_error;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -469,17 +470,24 @@ impl TaskService {
     ) -> AppResult<crate::api::handlers::admin_handler::AdminTaskStatsResponse> {
         use crate::api::handlers::admin_handler::{AdminTaskStatsResponse, TaskStatusStats};
 
-        let total_tasks =
-            self.repo.count_all_tasks().await.map_err(|e| {
-                AppError::InternalServerError(format!("Failed to count tasks: {}", e))
-            })? as u32;
+        let total_tasks = self.repo.count_all_tasks().await.map_err(|e| {
+            internal_server_error(
+                e,
+                "task_service::admin_get_task_stats",
+                "Failed to count tasks",
+            )
+        })? as u32;
 
         let pending_count = self
             .repo
             .count_tasks_by_status("pending")
             .await
             .map_err(|e| {
-                AppError::InternalServerError(format!("Failed to count pending tasks: {}", e))
+                internal_server_error(
+                    e,
+                    "task_service::admin_get_task_stats",
+                    "Failed to count pending tasks",
+                )
             })? as u32;
 
         let in_progress_count = self
@@ -487,7 +495,11 @@ impl TaskService {
             .count_tasks_by_status("in_progress")
             .await
             .map_err(|e| {
-                AppError::InternalServerError(format!("Failed to count in_progress tasks: {}", e))
+                internal_server_error(
+                    e,
+                    "task_service::admin_get_task_stats",
+                    "Failed to count in_progress tasks",
+                )
             })? as u32;
 
         let completed_count = self
@@ -495,7 +507,11 @@ impl TaskService {
             .count_tasks_by_status("completed")
             .await
             .map_err(|e| {
-                AppError::InternalServerError(format!("Failed to count completed tasks: {}", e))
+                internal_server_error(
+                    e,
+                    "task_service::admin_get_task_stats",
+                    "Failed to count completed tasks",
+                )
             })? as u32;
 
         Ok(AdminTaskStatsResponse {
@@ -521,17 +537,24 @@ impl TaskService {
 
     pub async fn count_tasks_for_user(&self, user_id: Uuid) -> AppResult<u64> {
         let count = self.repo.count_tasks_for_user(user_id).await.map_err(|e| {
-            AppError::InternalServerError(format!("Failed to count tasks for user: {}", e))
+            internal_server_error(
+                e,
+                "task_service::count_tasks_for_user",
+                "Failed to count tasks for user",
+            )
         })?;
         Ok(count)
     }
 
     /// 全タスク数を取得
     pub async fn count_all_tasks(&self) -> AppResult<u64> {
-        self.repo
-            .count_all_tasks()
-            .await
-            .map_err(|e| AppError::InternalServerError(format!("Failed to count all tasks: {}", e)))
+        self.repo.count_all_tasks().await.map_err(|e| {
+            internal_server_error(
+                e,
+                "task_service::count_all_tasks",
+                "Failed to count all tasks",
+            )
+        })
     }
 
     /// 完了済みタスク数を取得
@@ -540,14 +563,22 @@ impl TaskService {
             .count_tasks_by_status("completed")
             .await
             .map_err(|e| {
-                AppError::InternalServerError(format!("Failed to count completed tasks: {}", e))
+                internal_server_error(
+                    e,
+                    "task_service::count_completed_tasks",
+                    "Failed to count completed tasks",
+                )
             })
     }
 
     // Analytics methods for admin handlers
     pub async fn get_priority_distribution(&self) -> AppResult<Vec<(String, u64)>> {
         self.repo.get_priority_distribution().await.map_err(|e| {
-            AppError::InternalServerError(format!("Failed to get priority distribution: {}", e))
+            internal_server_error(
+                e,
+                "task_service::get_priority_distribution",
+                "Failed to get priority distribution",
+            )
         })
     }
 
@@ -556,10 +587,11 @@ impl TaskService {
             .get_average_completion_days_by_priority()
             .await
             .map_err(|e| {
-                AppError::InternalServerError(format!(
-                    "Failed to get average completion days by priority: {}",
-                    e
-                ))
+                internal_server_error(
+                    e,
+                    "task_service::get_average_completion_days_by_priority",
+                    "Failed to get average completion days by priority",
+                )
             })
     }
 
@@ -568,7 +600,11 @@ impl TaskService {
         weeks: u32,
     ) -> AppResult<Vec<(DateTime<Utc>, u64, u64)>> {
         self.repo.get_weekly_trend_data(weeks).await.map_err(|e| {
-            AppError::InternalServerError(format!("Failed to get weekly trend data: {}", e))
+            internal_server_error(
+                e,
+                "task_service::get_weekly_trend_data",
+                "Failed to get weekly trend data",
+            )
         })
     }
 
@@ -577,10 +613,11 @@ impl TaskService {
             .get_user_average_completion_hours(user_id)
             .await
             .map_err(|e| {
-                AppError::InternalServerError(format!(
-                    "Failed to get user average completion hours: {}",
-                    e
-                ))
+                internal_server_error(
+                    e,
+                    "task_service::get_user_average_completion_hours",
+                    "Failed to get user average completion hours",
+                )
             })
     }
 

@@ -173,7 +173,7 @@ pub async fn get_system_stats_handler(
     // バリデーション
     query
         .validate()
-        .map_err(|e| convert_validation_errors(e, "system_stats_query"))?;
+        .map_err(|e| convert_validation_errors(e, "analytics_handler::get_system_stats"))?;
 
     let days = query.days.unwrap_or(30);
     let include_trends = query.include_trends.unwrap_or(false);
@@ -415,7 +415,7 @@ pub async fn get_user_activity_handler(
     // バリデーション
     query
         .validate()
-        .map_err(|e| convert_validation_errors(e, "user_activity_query"))?;
+        .map_err(|e| convert_validation_errors(e, "analytics_handler::get_user_activity_stats"))?;
 
     let days = query.days.unwrap_or(30);
     let period_end = Utc::now();
@@ -525,9 +525,9 @@ pub async fn get_user_activity_admin_handler(
     }
 
     // バリデーション
-    query
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "admin_user_activity_query"))?;
+    query.validate().map_err(|e| {
+        convert_validation_errors(e, "analytics_handler::admin_get_user_activity_stats")
+    })?;
 
     let days = query.days.unwrap_or(30);
     let period_end = Utc::now();
@@ -615,9 +615,9 @@ pub async fn get_task_stats_handler(
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<ApiResponse<TaskStatsDetailResponse>> {
     // バリデーション
-    query
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "task_stats_query"))?;
+    query.validate().map_err(|e| {
+        convert_validation_errors(e, "analytics_handler::get_task_completion_stats")
+    })?;
 
     let days = query.days.unwrap_or(30);
     let detailed = query.detailed.unwrap_or(false);
@@ -990,7 +990,7 @@ pub async fn advanced_export_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "advanced_export"))?;
+        .map_err(|e| convert_validation_errors(e, "analytics_handler::generate_advanced_export"))?;
 
     // エクスポート権限チェック（実装に応じて調整）
     let needs_admin_features = match payload.export_type {

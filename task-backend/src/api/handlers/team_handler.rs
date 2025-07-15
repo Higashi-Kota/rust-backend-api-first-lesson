@@ -25,7 +25,7 @@ pub async fn create_team_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "team"))?;
+        .map_err(|e| convert_validation_errors(e, "team_handler::create_team"))?;
 
     // PermissionServiceを使用してチーム作成権限をチェック
     app_state
@@ -81,7 +81,7 @@ pub async fn update_team_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "team"))?;
+        .map_err(|e| convert_validation_errors(e, "team_handler::update_team"))?;
 
     // PermissionServiceを使用してチーム管理権限をチェック
     app_state
@@ -127,7 +127,7 @@ pub async fn invite_team_member_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "team"))?;
+        .map_err(|e| convert_validation_errors(e, "team_handler::invite_team_member"))?;
 
     // PermissionServiceを使用してチーム管理権限をチェック
     app_state

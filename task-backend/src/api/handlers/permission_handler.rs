@@ -47,7 +47,7 @@ pub async fn check_permission_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "permission_check"))?;
+        .map_err(|e| convert_validation_errors(e, "permission_handler::check_permission"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -128,7 +128,7 @@ pub async fn validate_permissions_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "grant_permission"))?;
+        .map_err(|e| convert_validation_errors(e, "permission_handler::grant_permission"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -1006,7 +1006,7 @@ pub async fn bulk_permission_check_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "bulk_permission_check"))?;
+        .map_err(|e| convert_validation_errors(e, "permission_handler::check_bulk_permissions"))?;
 
     // 追加の手動バリデーション
     for check in &payload.checks {
@@ -1449,7 +1449,7 @@ pub async fn check_permission_denial_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "permission_denial_check"))?;
+        .map_err(|e| convert_validation_errors(e, "permission_handler::check_permission_denial"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -1511,7 +1511,7 @@ pub async fn check_privilege_feature_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "feature_access_check"))?;
+        .map_err(|e| convert_validation_errors(e, "permission_handler::check_feature_access"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -1611,9 +1611,9 @@ pub async fn check_complex_operation_permissions_handler(
     use crate::utils::permission::{PermissionType, ResourceContext};
 
     // バリデーション
-    payload
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "complex_operation"))?;
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "permission_handler::create_complex_operation")
+    })?;
 
     info!(
         user_id = %user.claims.user_id,

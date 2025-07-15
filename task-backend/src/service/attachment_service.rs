@@ -16,6 +16,7 @@ use crate::repository::attachment_share_link_repository::{
 use crate::repository::task_repository::TaskRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::service::storage_service::{sanitize_filename, StorageService};
+use crate::utils::error_helper::internal_server_error;
 use crate::utils::image_optimizer::{is_image_mime_type, optimize_image, ImageOptimizationConfig};
 use crate::utils::token::generate_secure_token;
 use chrono::{Duration, Utc};
@@ -103,10 +104,11 @@ impl AttachmentService {
                                     .upload(file_data, &mime_type)
                                     .await
                                     .map_err(|e| {
-                                        AppError::InternalServerError(format!(
-                                            "Failed to upload original file: {}",
-                                            e
-                                        ))
+                                        internal_server_error(
+                                            e,
+                                            "attachment_service::upload_attachment",
+                                            "Failed to upload original file",
+                                        )
                                     })?;
                             Some(key)
                         } else {
@@ -148,7 +150,13 @@ impl AttachmentService {
             .storage
             .upload(final_data, &final_mime_type)
             .await
-            .map_err(|e| AppError::InternalServerError(format!("Failed to upload file: {}", e)))?;
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "attachment_service::upload_attachment",
+                    "Failed to upload file",
+                )
+            })?;
 
         // メタデータをデータベースに保存
         let attachment = self
@@ -201,7 +209,11 @@ impl AttachmentService {
             .exists(&attachment.storage_key)
             .await
             .map_err(|e| {
-                AppError::InternalServerError(format!("Failed to check file existence: {}", e))
+                internal_server_error(
+                    e,
+                    "attachment_service::download_attachment",
+                    "Failed to check file existence",
+                )
             })?;
 
         if !exists {
@@ -214,7 +226,11 @@ impl AttachmentService {
             .download(&attachment.storage_key)
             .await
             .map_err(|e| {
-                AppError::InternalServerError(format!("Failed to download file: {}", e))
+                internal_server_error(
+                    e,
+                    "attachment_service::download_attachment",
+                    "Failed to download file",
+                )
             })?;
 
         Ok((file_data, attachment.file_name, attachment.mime_type))
@@ -236,7 +252,13 @@ impl AttachmentService {
         self.storage
             .delete(&attachment.storage_key)
             .await
-            .map_err(|e| AppError::InternalServerError(format!("Failed to delete file: {}", e)))?;
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "attachment_service::delete_attachment",
+                    "Failed to delete file",
+                )
+            })?;
 
         // データベースから削除
         self.attachment_repo.delete(attachment_id).await?;
@@ -519,7 +541,11 @@ impl AttachmentService {
             .download(&attachment.storage_key)
             .await
             .map_err(|e| {
-                AppError::InternalServerError(format!("Failed to download file: {}", e))
+                internal_server_error(
+                    e,
+                    "attachment_service::download_via_share_link",
+                    "Failed to download file",
+                )
             })?;
 
         // アクセスを記録（エラーがあってもダウンロードは続行）

@@ -470,7 +470,11 @@ impl AuthService {
             .jwt_manager
             .generate_refresh_token(user_with_role.id, token_claims.ver + 1)
             .map_err(|e| {
-                AppError::InternalServerError(format!("Token generation failed: {}", e))
+                internal_server_error(
+                    e,
+                    "auth_service::refresh_access_token",
+                    "Token generation failed",
+                )
             })?;
 
         let new_refresh_token_hash = self.hash_token(&new_refresh_token);
@@ -489,8 +493,10 @@ impl AuthService {
             .await?;
 
         if rotation_result.is_none() {
-            return Err(AppError::InternalServerError(
-                "Token rotation failed".to_string(),
+            return Err(internal_server_error(
+                "Token rotation failed",
+                "auth_service::refresh_access_token",
+                "Token rotation failed",
             ));
         }
 
@@ -499,7 +505,11 @@ impl AuthService {
             .jwt_manager
             .generate_access_token(user_claims)
             .map_err(|e| {
-                AppError::InternalServerError(format!("Token generation failed: {}", e))
+                internal_server_error(
+                    e,
+                    "auth_service::refresh_access_token",
+                    "Token generation failed",
+                )
             })?;
 
         info!(user_id = %user_id, "Access token refreshed successfully");
@@ -681,7 +691,7 @@ impl AuthService {
             .password_manager
             .hash_password(&reset_data.new_password)
             .map_err(|e| {
-                AppError::InternalServerError(format!("Password hashing failed: {}", e))
+                internal_server_error(e, "auth_service::reset_password", "Password hashing failed")
             })?;
 
         // ユーザーをIDで取得してパスワードを更新
@@ -789,7 +799,11 @@ impl AuthService {
             .password_manager
             .verify_password(&change_data.current_password, &user.password_hash)
             .map_err(|e| {
-                AppError::InternalServerError(format!("Password verification failed: {}", e))
+                internal_server_error(
+                    e,
+                    "auth_service::change_password",
+                    "Password verification failed",
+                )
             })?;
 
         if !is_current_valid {
@@ -816,7 +830,11 @@ impl AuthService {
             .password_manager
             .hash_password(&change_data.new_password)
             .map_err(|e| {
-                AppError::InternalServerError(format!("Password hashing failed: {}", e))
+                internal_server_error(
+                    e,
+                    "auth_service::change_password",
+                    "Password hashing failed",
+                )
             })?;
 
         // パスワードを更新
@@ -891,7 +909,11 @@ impl AuthService {
             .password_manager
             .verify_password(password, &user.password_hash)
             .map_err(|e| {
-                AppError::InternalServerError(format!("Password verification failed: {}", e))
+                internal_server_error(
+                    e,
+                    "auth_service::delete_account",
+                    "Password verification failed",
+                )
             })?;
 
         if !is_valid {
@@ -958,7 +980,11 @@ impl AuthService {
             .jwt_manager
             .generate_access_token(user_claims.clone())
             .map_err(|e| {
-                AppError::InternalServerError(format!("Access token generation failed: {}", e))
+                internal_server_error(
+                    e,
+                    "auth_service::create_token_pair",
+                    "Access token generation failed",
+                )
             })?;
 
         // リフレッシュトークン生成
@@ -966,7 +992,11 @@ impl AuthService {
             .jwt_manager
             .generate_refresh_token(user_claims.user_id, 1)
             .map_err(|e| {
-                AppError::InternalServerError(format!("Refresh token generation failed: {}", e))
+                internal_server_error(
+                    e,
+                    "auth_service::create_token_pair",
+                    "Refresh token generation failed",
+                )
             })?;
 
         // リフレッシュトークンをデータベースに保存

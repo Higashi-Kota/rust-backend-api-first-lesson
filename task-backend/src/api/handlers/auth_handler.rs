@@ -88,7 +88,7 @@ pub async fn signup_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "signup"))?;
+        .map_err(|e| convert_validation_errors(e, "auth_handler::signup"))?;
 
     info!(
         email = %payload.email,
@@ -129,7 +129,7 @@ pub async fn signin_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "signin"))?;
+        .map_err(|e| convert_validation_errors(e, "auth_handler::signin"))?;
 
     info!(identifier = %payload.identifier, "User signin attempt");
 
@@ -228,7 +228,7 @@ pub async fn refresh_token_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "refresh_token"))?;
+        .map_err(|e| convert_validation_errors(e, "auth_handler::refresh_token"))?;
 
     let refresh_token = payload.refresh_token;
 
@@ -264,7 +264,7 @@ pub async fn forgot_password_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "password_reset_request"))?;
+        .map_err(|e| convert_validation_errors(e, "auth_handler::password_reset_request"))?;
 
     info!(email = %payload.email, "Password reset requested");
 
@@ -284,7 +284,7 @@ pub async fn reset_password_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "password_reset"))?;
+        .map_err(|e| convert_validation_errors(e, "auth_handler::password_reset"))?;
 
     info!("Password reset execution attempt");
 
@@ -304,7 +304,7 @@ pub async fn change_password_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "password_change"))?;
+        .map_err(|e| convert_validation_errors(e, "auth_handler::password_change"))?;
 
     // カスタムバリデーション
     payload.validate_password_change().map_err(|e| {
@@ -353,7 +353,7 @@ pub async fn delete_account_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "account_deletion"))?;
+        .map_err(|e| convert_validation_errors(e, "auth_handler::delete_account"))?;
 
     // カスタムバリデーション
     payload.validate_deletion().map_err(|e| {
@@ -403,7 +403,7 @@ pub async fn verify_email_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "email_verification"))?;
+        .map_err(|e| convert_validation_errors(e, "auth_handler::verify_email"))?;
 
     info!("Email verification attempt");
 
@@ -422,7 +422,7 @@ pub async fn resend_verification_email_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "resend_verification"))?;
+        .map_err(|e| convert_validation_errors(e, "auth_handler::resend_verification_email"))?;
 
     info!(email = %payload.email, "Resend verification email requested");
 

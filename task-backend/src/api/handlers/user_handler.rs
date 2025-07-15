@@ -86,7 +86,7 @@ pub async fn update_username_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "update_username"))?;
+        .map_err(|e| convert_validation_errors(e, "user_handler::update_username"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -117,7 +117,7 @@ pub async fn update_email_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "update_email"))?;
+        .map_err(|e| convert_validation_errors(e, "user_handler::update_email"))?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -148,7 +148,7 @@ pub async fn update_profile_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "update_profile"))?;
+        .map_err(|e| convert_validation_errors(e, "user_handler::update_profile"))?;
 
     // カスタムバリデーション
     payload.validate_update().map_err(|e| {
@@ -218,7 +218,7 @@ pub async fn verify_email_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "email_verification"))?;
+        .map_err(|e| convert_validation_errors(e, "user_handler::admin_verify_email"))?;
 
     info!(user_id = %user.claims.user_id, "Email verification attempt");
 
@@ -261,9 +261,9 @@ pub async fn resend_verification_email_handler(
     Json(payload): Json<ResendVerificationEmailRequest>,
 ) -> AppResult<ApiResponse<EmailVerificationResponse>> {
     // バリデーション
-    payload
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "resend_verification_email"))?;
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "user_handler::admin_resend_verification_email")
+    })?;
 
     info!(
         user_id = %user.claims.user_id,
@@ -410,7 +410,7 @@ pub async fn update_account_status_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "account_status_update"))?;
+        .map_err(|e| convert_validation_errors(e, "user_handler::admin_update_account_status"))?;
 
     // 自分自身のアカウント状態変更を防ぐ
     if admin_user.user_id() == user_id {
@@ -692,7 +692,7 @@ pub async fn bulk_user_operations_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "bulk_operations"))?;
+        .map_err(|e| convert_validation_errors(e, "user_handler::admin_bulk_user_operations"))?;
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -756,7 +756,7 @@ pub async fn list_users_handler(
     // バリデーション
     query
         .validate()
-        .map_err(|e| convert_validation_errors(e, "user_search"))?;
+        .map_err(|e| convert_validation_errors(e, "user_handler::search_users"))?;
 
     let query_with_defaults = query.with_defaults();
     let (page, per_page) = query_with_defaults.pagination.get_pagination();

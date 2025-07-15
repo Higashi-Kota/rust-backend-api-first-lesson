@@ -12,6 +12,7 @@ use crate::repository::bulk_operation_history_repository::BulkOperationHistoryRe
 use crate::repository::email_verification_token_repository::EmailVerificationTokenRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::repository::user_settings_repository::UserSettingsRepository;
+use crate::utils::error_helper::internal_server_error;
 use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -338,16 +339,23 @@ impl UserService {
 
     /// 全ユーザー数を取得
     pub async fn count_all_users(&self) -> AppResult<u64> {
-        self.user_repo
-            .count_all_users()
-            .await
-            .map_err(|e| AppError::InternalServerError(format!("Failed to count all users: {}", e)))
+        self.user_repo.count_all_users().await.map_err(|e| {
+            internal_server_error(
+                e,
+                "user_service::count_all_users",
+                "Failed to count all users",
+            )
+        })
     }
 
     /// アクティブユーザー数を取得
     pub async fn count_active_users(&self) -> AppResult<u64> {
         self.user_repo.count_active_users().await.map_err(|e| {
-            AppError::InternalServerError(format!("Failed to count active users: {}", e))
+            internal_server_error(
+                e,
+                "user_service::count_active_users",
+                "Failed to count active users",
+            )
         })
     }
 

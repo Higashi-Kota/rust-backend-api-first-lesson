@@ -87,7 +87,7 @@ pub async fn upgrade_subscription_handler(
     // バリデーション
     payload
         .validate()
-        .map_err(|e| convert_validation_errors(e, "subscription_upgrade"))?;
+        .map_err(|e| convert_validation_errors(e, "subscription_handler::upgrade_subscription"))?;
 
     // 現在のサブスクリプション階層を取得
     let current_user = app_state
@@ -163,9 +163,9 @@ pub async fn downgrade_subscription_handler(
     Json(payload): Json<DowngradeSubscriptionRequest>,
 ) -> AppResult<DowngradeSubscriptionResponse> {
     // バリデーション
-    payload
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "subscription_downgrade"))?;
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "subscription_handler::downgrade_subscription")
+    })?;
 
     // 現在のサブスクリプション階層を取得
     let current_user = app_state
@@ -487,9 +487,9 @@ pub async fn get_admin_subscription_history_handler(
     }
 
     // バリデーション
-    query
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "admin_subscription_history_query"))?;
+    query.validate().map_err(|e| {
+        convert_validation_errors(e, "subscription_handler::admin_get_subscription_history")
+    })?;
 
     let (page, per_page) = query.pagination.get_pagination();
     let page = page as u64;
@@ -784,9 +784,9 @@ pub async fn admin_change_subscription_handler(
     }
 
     // バリデーション
-    payload
-        .validate()
-        .map_err(|e| convert_validation_errors(e, "admin_subscription_change"))?;
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "subscription_handler::admin_change_user_subscription")
+    })?;
 
     // 対象ユーザーの現在の情報を取得
     let current_user = app_state.user_service.get_user_profile(user_id).await?;

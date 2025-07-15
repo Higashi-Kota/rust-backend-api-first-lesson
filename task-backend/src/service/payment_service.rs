@@ -11,6 +11,7 @@ use crate::repository::stripe_subscription_repository::{
 };
 use crate::repository::user_repository::UserRepository;
 use crate::service::subscription_service::SubscriptionService;
+use crate::utils::error_helper::internal_server_error;
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use stripe::{
@@ -267,7 +268,11 @@ impl PaymentService {
             .await
             .map_err(|e| {
                 tracing::error!("Failed to create payment history: {}", e);
-                AppError::InternalServerError(format!("Database error: {}", e))
+                internal_server_error(
+                    e,
+                    "payment_service::handle_checkout_session_completed",
+                    "Database error",
+                )
             })?;
 
         // サブスクリプション階層を更新
@@ -500,7 +505,11 @@ impl PaymentService {
             .await
             .map_err(|e| {
                 tracing::error!("Failed to create payment history: {}", e);
-                AppError::InternalServerError(format!("Database error: {}", e))
+                internal_server_error(
+                    e,
+                    "payment_service::handle_payment_failed",
+                    "Database error",
+                )
             })?;
 
         // TODO: メール通知を送信
@@ -576,7 +585,7 @@ impl PaymentService {
             .await
             .map_err(|e| {
                 tracing::error!("Failed to get payment history: {}", e);
-                AppError::InternalServerError(format!("Database error: {}", e))
+                internal_server_error(e, "payment_service::get_payment_history", "Database error")
             })
     }
 }
