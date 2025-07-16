@@ -63,7 +63,7 @@ async fn test_generate_upload_url_success() {
     assert!(json["success"].as_bool().unwrap());
     assert!(json["data"]["upload_url"].as_str().is_some());
     assert!(json["data"]["upload_key"].as_str().is_some());
-    assert!(json["data"]["expires_at"].as_str().is_some());
+    assert!(json["data"]["expires_at"].is_number());
 
     // upload_keyが正しい形式か確認
     let upload_key = json["data"]["upload_key"].as_str().unwrap();

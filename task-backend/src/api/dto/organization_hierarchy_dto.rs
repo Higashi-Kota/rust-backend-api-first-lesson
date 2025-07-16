@@ -3,6 +3,7 @@ use crate::domain::{
     organization_analytics_model::{AnalyticsType, MetricValue, Period},
     permission_matrix_model::{ComplianceSettings, InheritanceSettings, PermissionMatrix},
 };
+use crate::types::{optional_timestamp, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -52,8 +53,8 @@ pub struct DepartmentResponseDto {
     pub hierarchy_path: String,
     pub manager_user_id: Option<Uuid>,
     pub is_active: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -77,7 +78,7 @@ pub struct DepartmentMemberResponseDto {
     pub user_id: Uuid,
     pub role: DepartmentRole,
     pub is_active: bool,
-    pub joined_at: DateTime<Utc>,
+    pub joined_at: Timestamp,
     pub added_by: Uuid,
 }
 
@@ -105,8 +106,8 @@ pub struct CreateAnalyticsMetricDto {
 
     pub metric_value: MetricValue,
     pub period: Period,
-    pub period_start: DateTime<Utc>,
-    pub period_end: DateTime<Utc>,
+    pub period_start: Timestamp,
+    pub period_end: Timestamp,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -118,10 +119,10 @@ pub struct OrganizationAnalyticsResponseDto {
     pub metric_name: String,
     pub metric_value: MetricValue,
     pub period: Period,
-    pub period_start: DateTime<Utc>,
-    pub period_end: DateTime<Utc>,
+    pub period_start: Timestamp,
+    pub period_end: Timestamp,
     pub calculated_by: Uuid,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 // Permission Matrix DTOs
@@ -143,8 +144,8 @@ pub struct PermissionMatrixResponseDto {
     pub compliance_settings: Option<ComplianceSettings>,
     pub updated_by: Uuid,
     pub is_active: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -152,7 +153,7 @@ pub struct EffectivePermissionsResponseDto {
     pub organization_id: Uuid,
     pub user_id: Option<Uuid>,
     pub inheritance_chain: serde_json::Value,
-    pub analyzed_at: DateTime<Utc>,
+    pub analyzed_at: Timestamp,
 }
 
 // Data Export DTOs
@@ -172,7 +173,7 @@ pub struct OrganizationDataExportResponseDto {
     pub analytics: Option<Vec<OrganizationAnalyticsResponseDto>>,
     pub organization_permissions: Option<PermissionMatrixResponseDto>,
     pub department_permissions: Option<Vec<PermissionMatrixResponseDto>>,
-    pub exported_at: DateTime<Utc>,
+    pub exported_at: Timestamp,
 }
 
 // Common Response DTOs
@@ -202,7 +203,9 @@ pub struct DepartmentQueryParams {
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct AnalyticsQueryParams {
+    #[serde(default, with = "optional_timestamp")]
     pub start_date: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub end_date: Option<DateTime<Utc>>,
     pub department_id: Option<Uuid>,
     pub metric_names: Option<Vec<String>>,
@@ -221,8 +224,8 @@ impl From<crate::domain::organization_department_model::Model> for DepartmentRes
             hierarchy_path: model.hierarchy_path,
             manager_user_id: model.manager_user_id,
             is_active: model.is_active,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            created_at: Timestamp::from_datetime(model.created_at),
+            updated_at: Timestamp::from_datetime(model.updated_at),
         }
     }
 }
@@ -235,7 +238,7 @@ impl From<crate::domain::department_member_model::Model> for DepartmentMemberRes
             user_id: model.user_id,
             role: model.get_role(),
             is_active: model.is_active,
-            joined_at: model.joined_at,
+            joined_at: Timestamp::from_datetime(model.joined_at),
             added_by: model.added_by,
         }
     }
@@ -260,10 +263,10 @@ impl From<crate::domain::organization_analytics_model::Model> for OrganizationAn
             metric_name: model.metric_name,
             metric_value,
             period,
-            period_start: model.period_start,
-            period_end: model.period_end,
+            period_start: Timestamp::from_datetime(model.period_start),
+            period_end: Timestamp::from_datetime(model.period_end),
             calculated_by: model.calculated_by,
-            created_at: model.created_at,
+            created_at: Timestamp::from_datetime(model.created_at),
         }
     }
 }
@@ -290,8 +293,8 @@ impl From<crate::domain::permission_matrix_model::Model> for PermissionMatrixRes
             compliance_settings,
             updated_by: model.updated_by,
             is_active: model.is_active,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            created_at: Timestamp::from_datetime(model.created_at),
+            updated_at: Timestamp::from_datetime(model.updated_at),
         }
     }
 }

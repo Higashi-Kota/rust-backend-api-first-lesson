@@ -6,7 +6,7 @@ use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
-use crate::types::ApiResponse;
+use crate::types::{optional_timestamp, ApiResponse, Timestamp};
 use crate::utils::error_helper::convert_validation_errors;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
@@ -66,7 +66,7 @@ pub async fn get_current_subscription_handler(
     let response = CurrentSubscriptionResponse::new(
         user.claims.user_id,
         user_profile.subscription_tier,
-        user_profile.created_at,
+        user_profile.created_at.into(),
     );
 
     info!(
@@ -441,7 +441,7 @@ pub async fn get_admin_subscription_history_extended_handler(
                 "is_upgrade": is_upgrade,
                 "is_downgrade": is_downgrade,
                 "reason": h.reason,
-                "changed_at": h.changed_at.to_rfc3339(),
+                "changed_at": h.changed_at.timestamp(),
                 "changed_by": h.changed_by
             })
         })
@@ -465,7 +465,9 @@ pub async fn get_admin_subscription_history_extended_handler(
 /// クエリパラメータ（拡張版）
 #[derive(Debug, Deserialize)]
 pub struct SubscriptionHistoryExtendedQuery {
+    #[serde(default, with = "optional_timestamp")]
     pub start_date: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub end_date: Option<DateTime<Utc>>,
     pub filter: Option<String>, // "upgrades" | "downgrades"
 }
@@ -552,8 +554,8 @@ pub async fn get_admin_subscription_history_handler(
             upgrades_count,
             downgrades_count,
             date_range: DateRange {
-                start_date,
-                end_date,
+                start_date: Timestamp::from_datetime(start_date),
+                end_date: Timestamp::from_datetime(end_date),
             },
         },
     };
@@ -950,7 +952,7 @@ pub async fn get_subscription_history_detail_handler(
         new_tier: history.new_tier.clone(),
         change_type: history.change_type(),
         reason: history.reason.clone(),
-        changed_at: history.changed_at,
+        changed_at: Timestamp::from_datetime(history.changed_at),
         changed_by: history.changed_by,
         changed_by_user,
         tier_comparison: TierComparison {

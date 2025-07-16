@@ -12,6 +12,7 @@ use crate::repository::{
     subscription_history_repository::SubscriptionHistoryRepository,
 };
 use crate::types::ApiResponse;
+use crate::types::Timestamp;
 use crate::utils::error_helper::convert_validation_errors;
 use axum::{
     extract::{Json, Path, Query, State},
@@ -479,8 +480,8 @@ pub async fn get_user_activity_handler(
         user_id: user.claims.user_id,
         daily_activities,
         summary,
-        period_start,
-        period_end,
+        period_start: Timestamp::from_datetime(period_start),
+        period_end: Timestamp::from_datetime(period_end),
     };
 
     info!(
@@ -593,8 +594,8 @@ pub async fn get_user_activity_admin_handler(
         user_id: target_user_id,
         daily_activities,
         summary,
-        period_start,
-        period_end,
+        period_start: Timestamp::from_datetime(period_start),
+        period_end: Timestamp::from_datetime(period_end),
     };
 
     info!(
@@ -762,8 +763,8 @@ pub async fn get_user_behavior_analytics_handler(
 
     // 行動分析データを生成（実際の実装では適切なサービスから取得）
     let analysis_period = AnalysisPeriod {
-        start_date: from_date,
-        end_date: to_date,
+        start_date: Timestamp::from_datetime(from_date),
+        end_date: Timestamp::from_datetime(to_date),
         duration_days: (to_date - from_date).num_days() as u32,
         granularity: MetricGranularity::Daily,
     };
@@ -830,19 +831,19 @@ pub async fn get_user_behavior_analytics_handler(
             feature_name: "Task Management".to_string(),
             usage_count: 156,
             usage_percentage: 89.2,
-            last_used: Utc::now() - Duration::hours(2),
+            last_used: Timestamp::from_datetime(Utc::now() - Duration::hours(2)),
             proficiency_level: ProficiencyLevel::Advanced,
         }],
         least_used_features: vec![FeatureUsage {
             feature_name: "Advanced Reporting".to_string(),
             usage_count: 3,
             usage_percentage: 1.8,
-            last_used: Utc::now() - Duration::days(15),
+            last_used: Timestamp::from_datetime(Utc::now() - Duration::days(15)),
             proficiency_level: ProficiencyLevel::Beginner,
         }],
         feature_progression: vec![FeatureProgression {
             feature_name: "Task Management".to_string(),
-            adoption_date: Utc::now() - Duration::days(90),
+            adoption_date: Timestamp::from_datetime(Utc::now() - Duration::days(90)),
             proficiency_level: ProficiencyLevel::Advanced,
             usage_trend: TrendDirection::Stable,
             mastery_percentage: 85.6,
@@ -967,7 +968,7 @@ pub async fn get_user_behavior_analytics_handler(
         performance_indicators,
         comparisons,
         recommendations,
-        generated_at: Utc::now(),
+        generated_at: Timestamp::now(),
     };
 
     info!(
@@ -1065,10 +1066,10 @@ pub async fn advanced_export_handler(
         total_records,
         file_size_bytes,
         download_url: Some(format!("/api/exports/{}/download", export_id)),
-        expires_at,
+        expires_at: Timestamp::from_datetime(expires_at),
         metadata,
         processing_status: ExportStatus::Completed,
-        created_at: Utc::now(),
+        created_at: Timestamp::now(),
     };
 
     info!(
@@ -1386,7 +1387,7 @@ async fn generate_daily_activities(
     let activities: Vec<DailyActivity> = summaries
         .into_iter()
         .map(|summary| DailyActivity {
-            date: summary.date.and_hms_opt(0, 0, 0).unwrap().and_utc(),
+            date: Timestamp::from_datetime(summary.date.and_hms_opt(0, 0, 0).unwrap().and_utc()),
             tasks_created: summary.tasks_created as u32,
             tasks_completed: summary.tasks_completed as u32,
             login_count: summary.active_users as u32, // アクティブユーザー数をログイン数として使用
@@ -1404,7 +1405,7 @@ fn generate_mock_daily_activities(start: DateTime<Utc>, end: DateTime<Utc>) -> V
 
     while current <= end {
         activities.push(DailyActivity {
-            date: current,
+            date: Timestamp::from_datetime(current),
             tasks_created: (current.timestamp() % 10) as u32,
             tasks_completed: (current.timestamp() % 8) as u32,
             login_count: if current.timestamp() % 3 == 0 { 1 } else { 0 },
@@ -1459,7 +1460,7 @@ async fn generate_task_trends(db: &DatabaseConnection) -> AppResult<TaskTrends> 
         };
 
         weekly_creation.push(WeeklyTrend {
-            week_start,
+            week_start: Timestamp::from_datetime(week_start),
             count: created_count,
             change_from_previous_week,
         });
@@ -1479,7 +1480,7 @@ async fn generate_task_trends(db: &DatabaseConnection) -> AppResult<TaskTrends> 
         };
 
         weekly_completion.push(WeeklyTrend {
-            week_start,
+            week_start: Timestamp::from_datetime(week_start),
             count: completed_count,
             change_from_previous_week: completion_change,
         });
@@ -1528,17 +1529,17 @@ async fn generate_task_trends(db: &DatabaseConnection) -> AppResult<TaskTrends> 
 fn generate_mock_task_trends() -> TaskTrends {
     let weekly_creation = vec![
         WeeklyTrend {
-            week_start: Utc::now() - Duration::days(21),
+            week_start: Timestamp::from(Timestamp::now().inner() - Duration::days(21)),
             count: 45,
             change_from_previous_week: 12.5,
         },
         WeeklyTrend {
-            week_start: Utc::now() - Duration::days(14),
+            week_start: Timestamp::from(Timestamp::now().inner() - Duration::days(14)),
             count: 52,
             change_from_previous_week: 15.6,
         },
         WeeklyTrend {
-            week_start: Utc::now() - Duration::days(7),
+            week_start: Timestamp::from(Timestamp::now().inner() - Duration::days(7)),
             count: 48,
             change_from_previous_week: -7.7,
         },
@@ -1546,17 +1547,17 @@ fn generate_mock_task_trends() -> TaskTrends {
 
     let weekly_completion = vec![
         WeeklyTrend {
-            week_start: Utc::now() - Duration::days(21),
+            week_start: Timestamp::from(Timestamp::now().inner() - Duration::days(21)),
             count: 38,
             change_from_previous_week: 8.6,
         },
         WeeklyTrend {
-            week_start: Utc::now() - Duration::days(14),
+            week_start: Timestamp::from(Timestamp::now().inner() - Duration::days(14)),
             count: 45,
             change_from_previous_week: 18.4,
         },
         WeeklyTrend {
-            week_start: Utc::now() - Duration::days(7),
+            week_start: Timestamp::from(Timestamp::now().inner() - Duration::days(7)),
             count: 41,
             change_from_previous_week: -8.9,
         },
@@ -2049,8 +2050,8 @@ mod tests {
         assert!(activities.len() <= 8); // 7 days + maybe 1 extra depending on timing
 
         for activity in &activities {
-            assert!(activity.date >= start);
-            assert!(activity.date <= end);
+            assert!(activity.date >= Timestamp::from_datetime(start));
+            assert!(activity.date <= Timestamp::from_datetime(end));
             assert!(activity.tasks_created < 10);
             assert!(activity.tasks_completed < 8);
         }

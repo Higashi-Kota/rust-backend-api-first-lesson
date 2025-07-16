@@ -4,7 +4,7 @@ use axum::{
     body::{self, Body},
     http::{Request, StatusCode},
 };
-use chrono::DateTime;
+use chrono::Utc;
 use serde_json::Value;
 use tower::ServiceExt;
 
@@ -39,28 +39,27 @@ async fn test_signup_response_contains_token_timestamps() {
     assert!(tokens.get("access_token_expires_at").is_some());
     assert!(tokens.get("should_refresh_at").is_some());
 
-    // ISO 8601形式であることを確認
-    let expires_at_str = tokens
+    // Unix timestampであることを確認
+    let expires_at_ts = tokens
         .get("access_token_expires_at")
         .unwrap()
-        .as_str()
+        .as_i64()
         .unwrap();
-    let refresh_at_str = tokens.get("should_refresh_at").unwrap().as_str().unwrap();
+    let refresh_at_ts = tokens.get("should_refresh_at").unwrap().as_i64().unwrap();
 
-    let expires_at = DateTime::parse_from_rfc3339(expires_at_str);
-    let refresh_at = DateTime::parse_from_rfc3339(refresh_at_str);
-
+    // タイムスタンプが有効な範囲であることを確認
+    let now = Utc::now().timestamp();
     assert!(
-        expires_at.is_ok(),
-        "access_token_expires_at should be valid ISO 8601"
+        expires_at_ts > now,
+        "access_token_expires_at should be in the future"
     );
     assert!(
-        refresh_at.is_ok(),
-        "should_refresh_at should be valid ISO 8601"
+        refresh_at_ts > now,
+        "should_refresh_at should be in the future"
     );
 
     // リフレッシュ時刻が有効期限より前であることを確認
-    assert!(refresh_at.unwrap() < expires_at.unwrap());
+    assert!(refresh_at_ts < expires_at_ts);
 }
 
 #[tokio::test]
@@ -109,20 +108,28 @@ fn validate_token_timestamps(tokens: &Value) {
     assert!(tokens.get("access_token_expires_at").is_some());
     assert!(tokens.get("should_refresh_at").is_some());
 
-    let expires_at_str = tokens
+    let expires_at_ts = tokens
         .get("access_token_expires_at")
         .unwrap()
-        .as_str()
-        .unwrap();
-    let refresh_at_str = tokens.get("should_refresh_at").unwrap().as_str().unwrap();
+        .as_i64()
+        .expect("access_token_expires_at should be a number");
+    let refresh_at_ts = tokens
+        .get("should_refresh_at")
+        .unwrap()
+        .as_i64()
+        .expect("should_refresh_at should be a number");
 
-    let expires_at = DateTime::parse_from_rfc3339(expires_at_str)
-        .expect("access_token_expires_at should be valid ISO 8601");
-    let refresh_at = DateTime::parse_from_rfc3339(refresh_at_str)
-        .expect("should_refresh_at should be valid ISO 8601");
-
+    let now = Utc::now().timestamp();
     assert!(
-        refresh_at < expires_at,
+        expires_at_ts > now,
+        "access_token_expires_at should be in the future"
+    );
+    assert!(
+        refresh_at_ts > now,
+        "should_refresh_at should be in the future"
+    );
+    assert!(
+        refresh_at_ts < expires_at_ts,
         "should_refresh_at should be before access_token_expires_at"
     );
 }

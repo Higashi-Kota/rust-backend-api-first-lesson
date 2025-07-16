@@ -49,8 +49,8 @@ async fn test_token_refresh_success() {
     assert_eq!(tokens["token_type"], "Bearer");
 
     // タイムスタンプフィールドの検証
-    assert!(tokens["access_token_expires_at"].is_string());
-    assert!(tokens["should_refresh_at"].is_string());
+    assert!(tokens["access_token_expires_at"].is_number());
+    assert!(tokens["should_refresh_at"].is_number());
 
     // 新しいトークンが発行されていることを確認
     let new_access_token = tokens["access_token"].as_str().unwrap();

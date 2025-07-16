@@ -1,5 +1,6 @@
 // task-backend/src/api/dto/subscription_dto.rs
 
+use crate::types::{optional_timestamp, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -74,7 +75,7 @@ pub struct CurrentSubscriptionResponse {
     pub current_tier: String,
     pub tier_display_name: String,
     pub tier_level: u8,
-    pub subscribed_at: DateTime<Utc>,
+    pub subscribed_at: Timestamp,
     pub features: Vec<String>,
     pub limits: SubscriptionLimits,
     pub next_available_tiers: Vec<SubscriptionTierInfo>,
@@ -88,7 +89,7 @@ pub struct SubscriptionChangeResponse {
     pub new_tier: String,
     pub change_type: String, // "upgrade", "downgrade", "admin_change"
     pub reason: Option<String>,
-    pub changed_at: DateTime<Utc>,
+    pub changed_at: Timestamp,
     pub changed_by: Option<Uuid>,
     pub message: String,
 }
@@ -156,7 +157,9 @@ pub struct RevenueInfo {
 /// サブスクリプション履歴クエリパラメータ
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct SubscriptionHistoryQuery {
+    #[serde(default, with = "optional_timestamp")]
     pub start_date: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub end_date: Option<DateTime<Utc>>,
     #[serde(rename = "type")]
     pub change_type: Option<SubscriptionChangeType>,
@@ -193,8 +196,8 @@ pub struct SubscriptionHistorySummary {
 /// 日付範囲
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DateRange {
-    pub start_date: DateTime<Utc>,
-    pub end_date: DateTime<Utc>,
+    pub start_date: Timestamp,
+    pub end_date: Timestamp,
 }
 
 /// サブスクリプション統計レスポンス（Phase 5.2用）
@@ -240,7 +243,7 @@ pub struct SubscriptionHistoryDetailResponse {
     pub new_tier: String,
     pub change_type: String,
     pub reason: Option<String>,
-    pub changed_at: DateTime<Utc>,
+    pub changed_at: Timestamp,
     pub changed_by: Option<Uuid>,
     pub changed_by_user: Option<ChangedByUserInfo>,
     pub tier_comparison: TierComparison,
@@ -290,7 +293,8 @@ pub struct TierUserInfo {
     pub user_id: Uuid,
     pub username: String,
     pub email: String,
-    pub subscribed_at: DateTime<Utc>,
+    pub subscribed_at: Timestamp,
+    #[serde(default, with = "optional_timestamp")]
     pub last_login_at: Option<DateTime<Utc>>,
     pub is_active: bool,
 }
@@ -311,7 +315,7 @@ impl CurrentSubscriptionResponse {
             current_tier: current_tier.clone(),
             tier_display_name: tier_info.display_name,
             tier_level: tier_info.level,
-            subscribed_at,
+            subscribed_at: Timestamp::from_datetime(subscribed_at),
             features: tier_info.features,
             limits: tier_info.limits,
             next_available_tiers: Self::get_next_available_tiers(&current_tier),
@@ -468,7 +472,7 @@ impl SubscriptionChangeResponse {
             new_tier,
             change_type: change_type.to_string(),
             reason,
-            changed_at: Utc::now(),
+            changed_at: Timestamp::now(),
             changed_by,
             message,
         }
@@ -528,8 +532,8 @@ mod tests {
             email_verified: true,
             role_id: Uuid::new_v4(),
             subscription_tier: "free".to_string(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
             last_login_at: None,
         };
 

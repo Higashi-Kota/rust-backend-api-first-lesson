@@ -255,8 +255,8 @@ impl UserService {
                 email: admin.email.clone(),
                 is_active: admin.is_active,
                 email_verified: admin.email_verified,
-                created_at: admin.created_at,
-                updated_at: admin.updated_at,
+                created_at: admin.created_at.into(),
+                updated_at: admin.updated_at.into(),
                 last_login_at: admin.last_login_at,
             })
         } else {

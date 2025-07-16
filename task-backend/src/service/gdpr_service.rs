@@ -9,6 +9,7 @@ use crate::repository::subscription_history_repository::SubscriptionHistoryRepos
 use crate::repository::task_repository::TaskRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
+use crate::types::Timestamp;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
@@ -79,8 +80,8 @@ impl GdprService {
                     description: task.description,
                     status: task.status,
                     due_date: task.due_date,
-                    created_at: task.created_at,
-                    updated_at: task.updated_at,
+                    created_at: Timestamp::from_datetime(task.created_at),
+                    updated_at: Timestamp::from_datetime(task.updated_at),
                 })
                 .collect();
             Some(task_exports)
@@ -105,7 +106,7 @@ impl GdprService {
                         name: team.name,
                         description: team.description,
                         role_in_team: member.role,
-                        joined_at: member.joined_at,
+                        joined_at: Timestamp::from_datetime(member.joined_at),
                     });
                 }
             }
@@ -126,7 +127,7 @@ impl GdprService {
                     id: h.id,
                     previous_tier: h.previous_tier,
                     new_tier: h.new_tier,
-                    changed_at: h.changed_at,
+                    changed_at: Timestamp::from_datetime(h.changed_at),
                     reason: h.reason,
                 })
                 .collect();
@@ -144,7 +145,7 @@ impl GdprService {
             teams,
             subscription_history,
             activity_logs,
-            exported_at: Utc::now(),
+            exported_at: Timestamp::now(),
         })
     }
 
@@ -239,7 +240,7 @@ impl GdprService {
 
         Ok(DataDeletionResponse {
             user_id,
-            deleted_at: Utc::now(),
+            deleted_at: Timestamp::now(),
             deleted_records,
         })
     }
@@ -310,7 +311,7 @@ impl GdprService {
                     is_granted: consent.is_granted,
                     granted_at: consent.granted_at,
                     revoked_at: consent.revoked_at,
-                    last_updated: consent.updated_at,
+                    last_updated: Timestamp::from_datetime(consent.updated_at),
                     display_name: consent_type_enum.display_name().to_string(),
                     description: consent_type_enum.description().to_string(),
                     is_required: consent_type_enum.is_required(),
@@ -322,7 +323,7 @@ impl GdprService {
                     is_granted: false,
                     granted_at: None,
                     revoked_at: None,
-                    last_updated: Utc::now(),
+                    last_updated: Timestamp::now(),
                     display_name: consent_type.display_name().to_string(),
                     description: consent_type.description().to_string(),
                     is_required: consent_type.is_required(),
@@ -337,7 +338,7 @@ impl GdprService {
             .iter()
             .map(|c| c.last_updated)
             .max()
-            .unwrap_or_else(Utc::now);
+            .unwrap_or_else(Timestamp::now);
 
         Ok(ConsentStatusResponse {
             user_id,
@@ -485,7 +486,7 @@ impl GdprService {
                     "revoked".to_string()
                 },
                 is_granted: consent.is_granted,
-                timestamp: consent.updated_at,
+                timestamp: Timestamp::from_datetime(consent.updated_at),
                 ip_address: consent.ip_address,
                 user_agent: consent.user_agent,
             })

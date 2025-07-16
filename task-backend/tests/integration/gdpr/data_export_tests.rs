@@ -18,7 +18,7 @@ async fn create_test_data_for_user(
             "title": format!("Test Task {}", i),
             "description": format!("Description for task {}", i),
             "status": if i % 2 == 0 { "todo" } else { "in_progress" },
-            "due_date": if i == 0 { Some((Utc::now() + Duration::days(7)).to_rfc3339()) } else { None }
+            "due_date": if i == 0 { Some((Utc::now() + Duration::days(7)).timestamp()) } else { None }
         });
 
         let req = auth_helper::create_authenticated_request(
@@ -122,7 +122,7 @@ async fn test_export_user_data_minimal() {
     assert!(response["data"]["activity_logs"].is_null());
 
     // Verify export timestamp
-    assert!(response["data"]["exported_at"].is_string());
+    assert!(response["data"]["exported_at"].is_number());
 }
 
 #[tokio::test]
@@ -165,8 +165,8 @@ async fn test_export_user_data_with_tasks() {
         assert!(task["title"].as_str().unwrap().starts_with("Test Task"));
         assert!(task["description"].is_string());
         assert!(task["status"].is_string());
-        assert!(task["created_at"].is_string());
-        assert!(task["updated_at"].is_string());
+        assert!(task["created_at"].is_number());
+        assert!(task["updated_at"].is_number());
     }
 }
 
@@ -210,7 +210,7 @@ async fn test_export_user_data_with_teams() {
         assert!(team["name"].as_str().unwrap().starts_with("Test Team"));
         assert!(team["description"].is_string());
         assert_eq!(team["role_in_team"], "owner"); // User is owner of teams they create
-        assert!(team["joined_at"].is_string());
+        assert!(team["joined_at"].is_number());
     }
 }
 
@@ -397,7 +397,7 @@ async fn test_export_includes_all_task_fields() {
         "title": "Detailed Task",
         "description": "This task has all fields filled",
         "status": "in_progress",
-        "due_date": (Utc::now() + Duration::days(30)).to_rfc3339()
+        "due_date": (Utc::now() + Duration::days(30)).timestamp()
     });
 
     let req = auth_helper::create_authenticated_request(
@@ -447,9 +447,9 @@ async fn test_export_includes_all_task_fields() {
         "This task has all fields filled"
     );
     assert_eq!(exported_task["status"], "in_progress");
-    assert!(exported_task["due_date"].is_string());
-    assert!(exported_task["created_at"].is_string());
-    assert!(exported_task["updated_at"].is_string());
+    assert!(exported_task["due_date"].is_number());
+    assert!(exported_task["created_at"].is_number());
+    assert!(exported_task["updated_at"].is_number());
 }
 
 #[tokio::test]

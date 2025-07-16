@@ -3,7 +3,7 @@ use crate::api::dto::common::{PaginationMeta, PaginationQuery};
 use crate::api::dto::role_dto::RoleResponse;
 use crate::domain::role_model::RoleWithPermissions;
 use crate::domain::subscription_tier::SubscriptionTier;
-use chrono::{DateTime, Utc};
+use crate::types::Timestamp;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use uuid::Uuid;
@@ -43,8 +43,8 @@ pub struct RoleWithSubscriptionResponse {
     pub display_name: String,
     pub description: Option<String>,
     pub is_active: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
     pub permissions: RolePermissionsWithSubscription,
     pub subscription_info: SubscriptionInfo,
 }
@@ -205,8 +205,8 @@ impl RoleWithSubscriptionResponse {
         let role_display_name = role.display_name.clone();
         let role_description = role.description.clone();
         let role_is_active = role.is_active;
-        let role_created_at = role.created_at;
-        let role_updated_at = role.updated_at;
+        let role_created_at = Timestamp::from_datetime(role.created_at);
+        let role_updated_at = Timestamp::from_datetime(role.updated_at);
         let recommended_tier = recommend_tier_for_role(&role).to_string();
 
         Self {

@@ -3,7 +3,7 @@
 use crate::domain::subscription_history_model::{
     Model as SubscriptionHistory, SubscriptionChangeInfo,
 };
-use chrono::{DateTime, Utc};
+use crate::types::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -14,7 +14,7 @@ pub struct SubscriptionHistoryItemResponse {
     pub user_id: Uuid,
     pub previous_tier: Option<String>,
     pub new_tier: String,
-    pub changed_at: DateTime<Utc>,
+    pub changed_at: Timestamp,
     pub changed_by: Option<Uuid>,
     pub reason: Option<String>,
     pub is_upgrade: bool,
@@ -37,7 +37,7 @@ impl From<SubscriptionHistory> for SubscriptionHistoryItemResponse {
             user_id: history.user_id,
             previous_tier: history.previous_tier,
             new_tier: history.new_tier,
-            changed_at: history.changed_at,
+            changed_at: Timestamp::from_datetime(history.changed_at),
             changed_by: history.changed_by,
             reason: history.reason,
             is_upgrade,
@@ -81,7 +81,7 @@ pub struct SubscriptionChangeInfoResponse {
     pub user_id: Uuid,
     pub previous_tier: Option<String>,
     pub new_tier: String,
-    pub changed_at: DateTime<Utc>,
+    pub changed_at: Timestamp,
     pub change_type: String,
     pub is_upgrade: bool,
     pub is_downgrade: bool,
@@ -104,7 +104,7 @@ impl From<SubscriptionChangeInfo> for SubscriptionChangeInfoResponse {
             user_id: info.user_id,
             previous_tier: info.previous_tier,
             new_tier: info.new_tier,
-            changed_at: info.changed_at,
+            changed_at: Timestamp::from_datetime(info.changed_at),
             change_type,
             is_upgrade: info.is_upgrade,
             is_downgrade: info.is_downgrade,

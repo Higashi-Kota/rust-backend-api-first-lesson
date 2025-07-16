@@ -394,7 +394,7 @@ async fn test_get_subscription_history() {
     for entry in history {
         assert!(entry["id"].is_string());
         assert!(entry["new_tier"].is_string());
-        assert!(entry["changed_at"].is_string());
+        assert!(entry["changed_at"].is_number());
         assert!(entry["changed_by"].is_string());
     }
 }

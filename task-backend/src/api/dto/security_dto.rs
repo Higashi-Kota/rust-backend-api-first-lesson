@@ -1,5 +1,6 @@
 // task-backend/src/api/dto/security_dto.rs
 
+use crate::types::{optional_timestamp, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -38,8 +39,8 @@ pub struct AuditReportRequest {
 /// 日付範囲
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DateRange {
-    pub start_date: DateTime<Utc>,
-    pub end_date: DateTime<Utc>,
+    pub start_date: Timestamp,
+    pub end_date: Timestamp,
 }
 
 // --- レスポンスDTO ---
@@ -87,9 +88,10 @@ pub struct ActiveTokenSummary {
     pub user_id: Uuid,
     pub username: String,
     pub token_count: u64,
+    #[serde(default, with = "optional_timestamp")]
     pub last_used: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub expires_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub expires_at: Timestamp,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
 }
@@ -121,9 +123,10 @@ pub struct PasswordResetActivity {
     pub user_id: Uuid,
     pub username: String,
     pub email: String,
-    pub requested_at: DateTime<Utc>,
+    pub requested_at: Timestamp,
+    #[serde(default, with = "optional_timestamp")]
     pub used_at: Option<DateTime<Utc>>,
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
     pub ip_address: Option<String>,
     pub status: String, // "pending", "used", "expired"
 }
@@ -141,7 +144,7 @@ pub struct RevokeResult {
     pub revoked_count: u64,
     pub affected_users: u64,
     pub revocation_reason: String,
-    pub revoked_at: DateTime<Utc>,
+    pub revoked_at: Timestamp,
 }
 
 /// セッション分析レスポンス
@@ -193,7 +196,7 @@ pub struct AuditReportResponse {
 pub struct AuditReport {
     pub report_id: Uuid,
     pub report_type: String,
-    pub generated_at: DateTime<Utc>,
+    pub generated_at: Timestamp,
     pub generated_by: Uuid,
     pub date_range: Option<DateRange>,
     pub summary: AuditSummary,
@@ -220,8 +223,8 @@ pub struct AuditFinding {
     pub severity: String, // "info", "warning", "error", "critical"
     pub description: String,
     pub affected_users: Vec<Uuid>,
-    pub first_occurrence: DateTime<Utc>,
-    pub last_occurrence: DateTime<Utc>,
+    pub first_occurrence: Timestamp,
+    pub last_occurrence: Timestamp,
     pub count: u64,
     pub details: Option<serde_json::Value>,
 }

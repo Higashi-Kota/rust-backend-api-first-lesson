@@ -2,6 +2,7 @@
 
 use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::domain::team_invitation_model::{Model as TeamInvitationModel, TeamInvitationStatus};
+use crate::types::{optional_timestamp, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -26,12 +27,15 @@ pub struct TeamInvitationResponse {
     pub invited_by_user_id: Uuid,
     pub status: TeamInvitationStatus,
     pub message: Option<String>,
+    #[serde(default, with = "optional_timestamp")]
     pub expires_at: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub accepted_at: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub declined_at: Option<DateTime<Utc>>,
     pub decline_reason: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -113,8 +117,8 @@ impl From<TeamInvitationModel> for TeamInvitationResponse {
             accepted_at: model.accepted_at,
             declined_at: model.declined_at,
             decline_reason: model.decline_reason,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            created_at: Timestamp::from_datetime(model.created_at),
+            updated_at: Timestamp::from_datetime(model.updated_at),
         }
     }
 }
@@ -133,8 +137,8 @@ impl From<&TeamInvitationModel> for TeamInvitationResponse {
             accepted_at: model.accepted_at,
             declined_at: model.declined_at,
             decline_reason: model.decline_reason.clone(),
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            created_at: Timestamp::from_datetime(model.created_at),
+            updated_at: Timestamp::from_datetime(model.updated_at),
         }
     }
 }
@@ -421,8 +425,8 @@ mod tests {
                 accepted_at: None,
                 declined_at: None,
                 decline_reason: None,
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
+                created_at: Timestamp::now(),
+                updated_at: Timestamp::now(),
             },
             TeamInvitationResponse {
                 id: Uuid::new_v4(),
@@ -436,8 +440,8 @@ mod tests {
                 accepted_at: Some(Utc::now()),
                 declined_at: None,
                 decline_reason: None,
-                created_at: Utc::now(),
-                updated_at: Utc::now(),
+                created_at: Timestamp::now(),
+                updated_at: Timestamp::now(),
             },
         ];
 

@@ -3,6 +3,7 @@
 use super::permission::{PermissionResult, PermissionScope};
 use super::role_model::RoleWithPermissions;
 use super::subscription_tier::SubscriptionTier;
+use crate::types::{optional_timestamp, Timestamp};
 use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
@@ -141,8 +142,8 @@ impl Model {
             role_id: self.role_id,
             subscription_tier: self.subscription_tier.clone(),
             last_login_at: self.last_login_at,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
+            created_at: Timestamp::from_datetime(self.created_at),
+            updated_at: Timestamp::from_datetime(self.updated_at),
         }
     }
 
@@ -157,8 +158,8 @@ impl Model {
             role,
             subscription_tier: self.subscription_tier.clone(),
             last_login_at: self.last_login_at,
-            created_at: self.created_at,
-            updated_at: self.updated_at,
+            created_at: Timestamp::from_datetime(self.created_at),
+            updated_at: Timestamp::from_datetime(self.updated_at),
         }
     }
 }
@@ -173,9 +174,10 @@ pub struct SafeUser {
     pub email_verified: bool,
     pub role_id: Uuid,
     pub subscription_tier: String,
+    #[serde(with = "optional_timestamp")]
     pub last_login_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 /// ロール情報付きのセーフなユーザー表現
@@ -188,9 +190,10 @@ pub struct SafeUserWithRole {
     pub email_verified: bool,
     pub role: RoleWithPermissions,
     pub subscription_tier: String,
+    #[serde(with = "optional_timestamp")]
     pub last_login_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 impl From<Model> for SafeUser {
@@ -483,8 +486,8 @@ impl From<UserClaims> for SafeUserWithRole {
             last_login_at: None, // JWTクレームにはログイン時刻は含まれない
             // 注意: created_atとupdated_atはJWTクレームに含まれないため、現在時刻を設定
             // 実際の値が必要な場合は、DBからユーザー情報を取得する必要がある
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
         }
     }
 }
@@ -522,8 +525,8 @@ impl From<UserClaims> for SafeUser {
             last_login_at: None, // JWTクレームにはログイン時刻は含まれない
             // タイムスタンプは実際のDB値ではなく、現在時刻を使用
             // 実際の値が必要な場合は、DBからユーザー情報を取得する必要がある
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
+            created_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
         }
     }
 }

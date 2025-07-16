@@ -13,6 +13,7 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
+use crate::types::Timestamp;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 use tracing::{info, warn};
@@ -537,7 +538,7 @@ impl TeamService {
             username: user.username,
             email: user.email,
             role: member.get_role(),
-            joined_at: member.joined_at,
+            joined_at: Timestamp::from_datetime(member.joined_at),
             invited_by: member.invited_by,
         })
     }
@@ -612,7 +613,7 @@ impl TeamService {
             is_admin,
             can_invite,
             can_remove_members,
-            joined_at: member.joined_at,
+            joined_at: Timestamp::from_datetime(member.joined_at),
             invited_by: member.invited_by,
         })
     }

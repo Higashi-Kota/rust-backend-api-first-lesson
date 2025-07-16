@@ -14,7 +14,7 @@ use crate::domain::user_model::SafeUser;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
-use crate::types::ApiResponse;
+use crate::types::{ApiResponse, Timestamp};
 use crate::utils::error_helper::convert_validation_errors;
 use crate::utils::permission::PermissionChecker;
 use axum::{
@@ -729,7 +729,7 @@ pub async fn bulk_user_operations_handler(
         message: format!("Bulk operation '{}' completed", payload.operation),
         results: result.results,
         execution_time_ms: execution_time,
-        executed_at: chrono::Utc::now().to_rfc3339(),
+        executed_at: Timestamp::now(),
     }))
 }
 

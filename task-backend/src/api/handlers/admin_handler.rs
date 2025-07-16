@@ -14,6 +14,7 @@ use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::types::ApiResponse;
+use crate::types::{optional_timestamp, Timestamp};
 use crate::utils::permission::{PermissionChecker, PermissionType};
 use axum::{
     extract::{Path, Query, State},
@@ -101,7 +102,7 @@ pub struct ChangeUserSubscriptionResponse {
     pub user_id: Uuid,
     pub previous_tier: String,
     pub new_tier: String,
-    pub changed_at: DateTime<Utc>,
+    pub changed_at: Timestamp,
     pub history_id: Uuid,
 }
 
@@ -377,7 +378,7 @@ pub async fn admin_get_task_stats(
         let completed_with_dates = all_tasks
             .iter()
             .filter(|t| t.status == crate::domain::task_status::TaskStatus::Completed)
-            .filter_map(|t| t.due_date.map(|d| (t.created_at, d)))
+            .filter_map(|t| t.due_date.map(|d| (t.created_at.inner(), d)))
             .collect::<Vec<_>>();
 
         if completed_with_dates.is_empty() {
@@ -505,13 +506,13 @@ pub async fn admin_get_task_stats(
         };
 
         weekly_creation.push(WeeklyTrend {
-            week_start: *week_start,
+            week_start: Timestamp::from_datetime(*week_start),
             count: *created,
             change_from_previous_week: creation_change,
         });
 
         weekly_completion.push(WeeklyTrend {
-            week_start: *week_start,
+            week_start: Timestamp::from_datetime(*week_start),
             count: *completed,
             change_from_previous_week: completion_change,
         });
@@ -1158,7 +1159,7 @@ pub async fn change_user_subscription(
         user_id: updated_user.id,
         previous_tier: history.previous_tier.unwrap_or_else(|| "free".to_string()),
         new_tier: history.new_tier,
-        changed_at: history.changed_at,
+        changed_at: Timestamp::from_datetime(history.changed_at),
         history_id: history.id,
     };
 
@@ -1182,7 +1183,9 @@ pub struct BulkOperationListQuery {
     pub page: i32,
     #[serde(default = "default_per_page")]
     pub per_page: i32,
+    #[serde(default, with = "optional_timestamp")]
     pub start_date: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub end_date: Option<DateTime<Utc>>,
 }
 
@@ -1196,7 +1199,8 @@ pub struct BulkOperationHistoryResponse {
     pub affected_count: i32,
     pub status: String,
     pub error_details: Option<serde_json::Value>,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    #[serde(default, with = "optional_timestamp")]
     pub completed_at: Option<DateTime<Utc>>,
 }
 
@@ -1205,8 +1209,9 @@ pub struct BulkOperationHistoryResponse {
 pub struct CleanupResultResponse {
     pub operation_type: String,
     pub deleted_count: u64,
+    #[serde(default, with = "optional_timestamp")]
     pub before_date: Option<DateTime<Utc>>,
-    pub performed_at: DateTime<Utc>,
+    pub performed_at: Timestamp,
 }
 
 /// 機能使用メトリクスレスポンス
@@ -1214,8 +1219,8 @@ pub struct CleanupResultResponse {
 pub struct UserFeatureMetricsResponse {
     pub user_id: Uuid,
     pub action_counts: HashMap<String, i64>,
-    pub start_date: DateTime<Utc>,
-    pub end_date: DateTime<Utc>,
+    pub start_date: Timestamp,
+    pub end_date: Timestamp,
 }
 
 /// 管理者向けバルク操作履歴一覧取得
@@ -1269,7 +1274,7 @@ pub async fn admin_list_bulk_operations(
             affected_count: op.affected_count,
             status: op.status,
             error_details: op.error_details,
-            created_at: op.created_at,
+            created_at: Timestamp::from_datetime(op.created_at),
             completed_at: op.completed_at,
         });
     }
@@ -1332,7 +1337,7 @@ pub async fn admin_get_user_bulk_operations(
             affected_count: op.affected_count,
             status: op.status,
             error_details: op.error_details,
-            created_at: op.created_at,
+            created_at: Timestamp::from_datetime(op.created_at),
             completed_at: op.completed_at,
         })
         .collect();
@@ -1381,7 +1386,7 @@ pub async fn admin_cleanup_bulk_operations(
         operation_type: "bulk_operation_history_cleanup".to_string(),
         deleted_count,
         before_date: Some(before_date),
-        performed_at: Utc::now(),
+        performed_at: Timestamp::now(),
     };
 
     Ok(ApiResponse::success(response))
@@ -1428,7 +1433,7 @@ pub async fn admin_cleanup_daily_summaries(
         operation_type: "daily_activity_summary_cleanup".to_string(),
         deleted_count,
         before_date: Some(before_date.and_hms_opt(0, 0, 0).unwrap().and_utc()),
-        performed_at: Utc::now(),
+        performed_at: Timestamp::now(),
     };
 
     Ok(ApiResponse::success(response))
@@ -1476,8 +1481,8 @@ pub async fn admin_get_user_feature_metrics(
     let response = UserFeatureMetricsResponse {
         user_id,
         action_counts,
-        start_date,
-        end_date,
+        start_date: Timestamp::from_datetime(start_date),
+        end_date: Timestamp::from_datetime(end_date),
     };
 
     Ok(ApiResponse::success(response))
@@ -1524,7 +1529,7 @@ pub async fn admin_cleanup_feature_metrics(
         operation_type: "feature_usage_metrics_cleanup".to_string(),
         deleted_count,
         before_date: Some(before_date),
-        performed_at: Utc::now(),
+        performed_at: Timestamp::now(),
     };
 
     Ok(ApiResponse::success(response))
@@ -1916,7 +1921,9 @@ mod tests {
 pub struct SubscriptionHistorySearchQuery {
     pub tier: Option<String>,
     pub user_id: Option<Uuid>,
+    #[serde(default, with = "optional_timestamp")]
     pub start_date: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub end_date: Option<DateTime<Utc>>,
     #[serde(default = "default_page")]
     pub page: i32,
@@ -2127,7 +2134,7 @@ pub async fn delete_user_subscription_history_handler(
     let response = DeleteHistoryResponse {
         user_id,
         deleted_count,
-        deleted_at: Utc::now(),
+        deleted_at: Timestamp::now(),
     };
 
     Ok((StatusCode::OK, ApiResponse::success(response)))
@@ -2188,7 +2195,7 @@ pub struct MonthlyTrend {
 pub struct DeleteHistoryResponse {
     pub user_id: Uuid,
     pub deleted_count: u64,
-    pub deleted_at: DateTime<Utc>,
+    pub deleted_at: Timestamp,
 }
 
 // === ユーザー設定管理API ===

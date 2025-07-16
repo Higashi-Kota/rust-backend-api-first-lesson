@@ -756,8 +756,9 @@ mod tests {
     #[test]
     fn test_auth_response_serialization() {
         use crate::domain::user_model::SafeUser;
+        use crate::types::Timestamp;
         use crate::utils::jwt::TokenPair;
-        use chrono::{DateTime, Utc};
+        use chrono::Utc;
         use uuid::Uuid;
 
         // 実際のビジネスロジックに基づくテストデータ作成
@@ -774,8 +775,8 @@ mod tests {
             role_id,
             subscription_tier: "pro".to_string(), // 実際のサブスクリプション
             last_login_at: Some(now),
-            created_at: now,
-            updated_at: now,
+            created_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
         };
 
         // 実際のJWTライフサイクルに基づくトークンペア
@@ -784,8 +785,8 @@ mod tests {
             "refresh_token_32_chars_long_abcd".to_string(),
             15, // 15分のアクセストークン
             7,  // 7日のリフレッシュトークン
-            (now + chrono::Duration::minutes(15)).to_rfc3339(),
-            (now + chrono::Duration::minutes(12)).to_rfc3339(), // リフレッシュすべき時間
+            (now + chrono::Duration::minutes(15)).timestamp(),
+            (now + chrono::Duration::minutes(12)).timestamp(), // リフレッシュすべき時間
         );
 
         let auth_response = AuthResponse {
@@ -891,39 +892,36 @@ mod tests {
         );
 
         // タイムスタンプの検証
-        let expires_at_str = json_value["tokens"]["access_token_expires_at"]
-            .as_str()
+        let expires_at_ts = json_value["tokens"]["access_token_expires_at"]
+            .as_i64()
             .unwrap();
-        let expires_at = DateTime::parse_from_rfc3339(expires_at_str);
-        assert!(
-            expires_at.is_ok(),
-            "Expiration timestamp should be valid RFC3339"
-        );
+        let refresh_at_ts = json_value["tokens"]["should_refresh_at"].as_i64().unwrap();
 
-        let refresh_at_str = json_value["tokens"]["should_refresh_at"].as_str().unwrap();
-        let refresh_at = DateTime::parse_from_rfc3339(refresh_at_str);
+        let now = Utc::now().timestamp();
         assert!(
-            refresh_at.is_ok(),
-            "Refresh timestamp should be valid RFC3339"
+            expires_at_ts > now,
+            "Expiration timestamp should be in the future"
         );
-
-        // ビジネスロジック：リフレッシュ時間は有効期限より前であるべき
         assert!(
-            refresh_at.unwrap() < expires_at.unwrap(),
-            "Refresh time should be before expiration time"
+            refresh_at_ts > now,
+            "Refresh timestamp should be in the future"
+        );
+        assert!(
+            refresh_at_ts < expires_at_ts,
+            "Refresh timestamp should be before expiration"
         );
 
         // 必須フィールドの存在確認
         assert!(
-            json_value["user"]["created_at"].is_string(),
+            json_value["user"]["created_at"].is_number(),
             "Should have created_at timestamp"
         );
         assert!(
-            json_value["user"]["updated_at"].is_string(),
+            json_value["user"]["updated_at"].is_number(),
             "Should have updated_at timestamp"
         );
         assert!(
-            json_value["user"]["last_login_at"].is_string(),
+            json_value["user"]["last_login_at"].is_number(),
             "Should have last_login_at timestamp"
         );
 
@@ -943,8 +941,8 @@ mod tests {
             role_id: Uuid::new_v4(),
             subscription_tier: "free".to_string(),
             last_login_at: None,
-            created_at: now,
-            updated_at: now,
+            created_at: Timestamp::now(),
+            updated_at: Timestamp::now(),
         };
 
         let special_auth_response = AuthResponse {

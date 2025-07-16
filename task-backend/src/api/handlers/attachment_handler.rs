@@ -9,7 +9,7 @@ use crate::api::dto::common::PaginatedResponse;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
-use crate::types::ApiResponse;
+use crate::types::{ApiResponse, Timestamp};
 use axum::body::Body;
 use axum::extract::DefaultBodyLimit;
 use axum::{
@@ -216,7 +216,9 @@ pub async fn generate_download_url_handler(
     let response = GenerateDownloadUrlResponse {
         download_url,
         expires_in_seconds,
-        expires_at: Utc::now() + Duration::seconds(expires_in_seconds as i64),
+        expires_at: Timestamp::from_datetime(
+            Utc::now() + Duration::seconds(expires_in_seconds as i64),
+        ),
     };
 
     Ok((StatusCode::OK, ApiResponse::success(response)))
@@ -459,7 +461,7 @@ pub async fn generate_upload_url_handler(
     Ok(ApiResponse::success(GenerateUploadUrlResponse {
         upload_url,
         upload_key,
-        expires_at,
+        expires_at: Timestamp::from_datetime(expires_at),
     }))
 }
 

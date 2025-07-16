@@ -4,7 +4,7 @@ use crate::{
     error::AppError,
     middleware::auth::AuthenticatedUser,
     service::organization_hierarchy_service::OrganizationHierarchyService,
-    types::ApiResponse,
+    types::{ApiResponse, Timestamp},
     utils::error_helper::convert_validation_errors,
 };
 use axum::{
@@ -308,7 +308,7 @@ pub async fn get_effective_permissions(
         organization_id,
         user_id: Some(target_user),
         inheritance_chain: permissions,
-        analyzed_at: chrono::Utc::now(),
+        analyzed_at: Timestamp::now(),
     };
 
     let api_response = ApiResponse::success(response_data);
@@ -425,8 +425,8 @@ pub async fn create_analytics_metric(
         payload.metric_name,
         payload.metric_value,
         payload.period,
-        payload.period_start,
-        payload.period_end,
+        payload.period_start.into(),
+        payload.period_end.into(),
         user.user_id(),
     )
     .await?;

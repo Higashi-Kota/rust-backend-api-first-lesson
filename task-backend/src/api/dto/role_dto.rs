@@ -1,8 +1,7 @@
 // task-backend/src/api/dto/role_dto.rs
 use crate::domain::role_model::RoleWithPermissions;
 use crate::service::role_service::{CreateRoleInput, UpdateRoleInput};
-use crate::types::ApiResponse;
-use chrono::{DateTime, Utc};
+use crate::types::{ApiResponse, Timestamp};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
@@ -103,8 +102,8 @@ pub struct RoleResponse {
     pub is_active: bool,
     pub is_system_role: bool,
     pub user_count: u64,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
     pub permissions: RolePermissionsResponse,
 }
 
@@ -120,8 +119,8 @@ impl From<RoleWithPermissions> for RoleResponse {
             is_active: role.is_active,
             is_system_role,
             user_count: 0, // This will be populated by the handler
-            created_at: role.created_at,
-            updated_at: role.updated_at,
+            created_at: Timestamp::from_datetime(role.created_at),
+            updated_at: Timestamp::from_datetime(role.updated_at),
             permissions,
         }
     }
