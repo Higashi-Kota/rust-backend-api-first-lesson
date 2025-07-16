@@ -45,7 +45,7 @@ async fn test_get_user_behavior_analytics() {
     assert!(body["data"]["feature_usage"].is_object());
     assert!(body["data"]["performance_indicators"].is_object());
     assert!(body["data"]["recommendations"].is_array());
-    assert!(body["data"]["generated_at"].is_string());
+    assert!(body["data"]["generated_at"].is_number());
 
     // Verify behavioral metrics structure
     let behavioral_metrics = &body["data"]["behavioral_metrics"];
@@ -264,7 +264,7 @@ async fn test_bulk_user_operation_admin() {
     assert!(body["data"]["failed_operations"].is_number());
     assert!(body["data"]["results"].is_array());
     assert!(body["data"]["execution_time_ms"].is_number());
-    assert!(body["data"]["executed_at"].is_string());
+    assert!(body["data"]["executed_at"].is_number());
 
     // Verify results structure
     let results = body["data"]["results"].as_array().unwrap();
@@ -387,13 +387,13 @@ async fn test_advanced_export() {
     assert_eq!(body["data"]["total_records"].as_u64(), Some(500));
     assert!(body["data"]["file_size_bytes"].is_number());
     assert!(body["data"]["download_url"].is_string());
-    assert!(body["data"]["expires_at"].is_string());
+    assert!(body["data"]["expires_at"].is_number());
     assert!(body["data"]["metadata"].is_object());
     assert_eq!(
         body["data"]["processing_status"].as_str(),
         Some("Completed")
     );
-    assert!(body["data"]["created_at"].is_string());
+    assert!(body["data"]["created_at"].is_number());
 
     // Verify metadata structure
     let metadata = &body["data"]["metadata"];

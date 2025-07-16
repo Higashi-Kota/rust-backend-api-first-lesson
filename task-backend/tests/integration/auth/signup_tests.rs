@@ -45,8 +45,8 @@ async fn test_user_signup_success() {
     assert_eq!(user["email"], signup_data.email);
     assert_eq!(user["username"], signup_data.username);
     assert!(user["id"].is_string());
-    assert!(user["created_at"].is_string());
-    assert!(user["updated_at"].is_string());
+    assert!(user["created_at"].is_number());
+    assert!(user["updated_at"].is_number());
 
     // パスワードが含まれていないことを確認
     assert!(user["password"].is_null() || !user.as_object().unwrap().contains_key("password"));

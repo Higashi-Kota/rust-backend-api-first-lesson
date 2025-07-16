@@ -64,7 +64,7 @@ async fn test_jwt_token_generation_and_structure() {
 
 #[tokio::test]
 async fn test_token_expiration_and_validation() {
-    use chrono::{DateTime, Utc};
+    use chrono::Utc;
     use task_backend::utils::jwt::TokenPair;
 
     // Arrange: トークン有効期限の検証をテスト
@@ -119,23 +119,18 @@ async fn test_token_expiration_and_validation() {
     );
     assert_eq!(token_pair.token_type, "Bearer");
 
-    // タイムスタンプが有効なISO 8601形式であることを確認
-    let expires_at = DateTime::parse_from_rfc3339(&token_pair.access_token_expires_at).unwrap();
-    let should_refresh_at = DateTime::parse_from_rfc3339(&token_pair.should_refresh_at).unwrap();
+    // タイムスタンプが有効な値であることを確認
+    let now = Utc::now().timestamp();
+    assert!(token_pair.access_token_expires_at > now);
+    assert!(token_pair.should_refresh_at > now);
 
     // should_refresh_atが有効期限より前であることを確認（80%時点）
     assert!(
-        should_refresh_at < expires_at,
+        token_pair.should_refresh_at < token_pair.access_token_expires_at,
         "Should refresh before expiration"
     );
 
-    // 現在時刻より後であることを確認
-    let now = Utc::now();
-    assert!(expires_at > now, "Access token should expire in the future");
-    assert!(
-        should_refresh_at > now,
-        "Should refresh time should be in the future"
-    );
+    // 現在時刻より後であることを確認（上で既に検証済みなので削除）
 
     // Act & Assert: 無効なトークンの検証
     let invalid_token = "invalid.token.here";

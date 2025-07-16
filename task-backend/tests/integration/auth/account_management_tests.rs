@@ -39,8 +39,8 @@ async fn test_get_current_user_success() {
     assert_eq!(user_info["id"], user.id.to_string());
     assert_eq!(user_info["email"], user.email);
     assert_eq!(user_info["username"], user.username);
-    assert!(user_info["created_at"].is_string());
-    assert!(user_info["updated_at"].is_string());
+    assert!(user_info["created_at"].is_number());
+    assert!(user_info["updated_at"].is_number());
 
     // パスワードが含まれていないことを確認
     assert!(

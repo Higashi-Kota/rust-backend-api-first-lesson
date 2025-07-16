@@ -40,7 +40,7 @@ async fn test_get_current_subscription_free_user() {
     assert_eq!(data.current_tier, "free");
     assert_eq!(data.tier_display_name, "Free");
     assert_eq!(data.tier_level, 1);
-    assert!(data.subscribed_at < chrono::Utc::now());
+    assert!(data.subscribed_at < chrono::Utc::now().into());
     assert!(!data.features.is_empty());
 }
 
@@ -84,7 +84,7 @@ async fn test_get_current_subscription_pro_user() {
     assert_eq!(data.current_tier, "pro");
     assert_eq!(data.tier_display_name, "Pro");
     assert_eq!(data.tier_level, 2);
-    assert!(data.subscribed_at < chrono::Utc::now());
+    assert!(data.subscribed_at < chrono::Utc::now().into());
     assert!(!data.features.is_empty());
 }
 
@@ -316,7 +316,7 @@ async fn test_subscription_with_cancellation_scheduled() {
     assert_eq!(data.tier_display_name, "Pro");
     assert_eq!(data.tier_level, 2);
     // キャンセル情報は別途Stripe APIで確認する必要がある
-    assert!(data.subscribed_at < chrono::Utc::now());
+    assert!(data.subscribed_at < chrono::Utc::now().into());
 }
 
 // ヘルパー関数

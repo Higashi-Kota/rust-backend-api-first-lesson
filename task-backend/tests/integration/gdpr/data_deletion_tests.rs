@@ -183,7 +183,7 @@ async fn test_delete_user_data_complete() {
     let data = &response["data"];
     assert_eq!(response["data"]["user_id"], user_id.to_string());
     assert!(
-        data["deleted_at"].is_string(),
+        data["deleted_at"].is_number(),
         "deleted_at timestamp should be present"
     );
 

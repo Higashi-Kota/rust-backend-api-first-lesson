@@ -2,7 +2,7 @@
 
 use crate::domain::organization_model::{Organization, OrganizationRole, OrganizationSettings};
 use crate::domain::subscription_tier::SubscriptionTier;
-use chrono::{DateTime, Utc};
+use crate::types::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
@@ -104,8 +104,8 @@ pub struct OrganizationResponse {
     pub current_team_count: u32,
     pub current_member_count: u32,
     pub settings: OrganizationSettings,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
     pub members: Vec<OrganizationMemberResponse>,
 }
 
@@ -117,7 +117,7 @@ pub struct OrganizationMemberResponse {
     pub username: String,
     pub email: String,
     pub role: OrganizationRole,
-    pub joined_at: DateTime<Utc>,
+    pub joined_at: Timestamp,
     pub invited_by: Option<Uuid>,
 }
 
@@ -133,7 +133,7 @@ pub struct OrganizationListResponse {
     pub max_members: u32,
     pub current_team_count: u32,
     pub current_member_count: u32,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 /// 組織統計レスポンス
@@ -177,8 +177,8 @@ pub struct OrganizationInvitationResponse {
     pub invited_email: String,
     pub role: OrganizationRole,
     pub invited_by: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub expires_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub expires_at: Timestamp,
 }
 
 /// 組織メンバー詳細レスポンス（権限情報付き）
@@ -195,7 +195,7 @@ pub struct OrganizationMemberDetailResponse {
     pub can_create_teams: bool,
     pub can_invite_members: bool,
     pub can_change_settings: bool,
-    pub joined_at: DateTime<Utc>,
+    pub joined_at: Timestamp,
     pub invited_by: Option<Uuid>,
 }
 
@@ -226,7 +226,7 @@ impl From<Organization> for OrganizationListResponse {
             max_members: org.max_members,
             current_team_count: 0,   // Will be populated by service
             current_member_count: 0, // Will be populated by service
-            created_at: org.created_at,
+            created_at: Timestamp::from_datetime(org.created_at),
         }
     }
 }
@@ -247,8 +247,8 @@ impl From<(Organization, Vec<OrganizationMemberResponse>, u32)> for Organization
             current_team_count: team_count,
             current_member_count,
             settings: org.settings,
-            created_at: org.created_at,
-            updated_at: org.updated_at,
+            created_at: Timestamp::from_datetime(org.created_at),
+            updated_at: Timestamp::from_datetime(org.updated_at),
             members,
         }
     }

@@ -267,21 +267,21 @@ impl JwtManager {
         remaining.num_minutes().max(0)
     }
 
-    /// 現在時刻からアクセストークンの有効期限をISO 8601形式で計算
-    pub fn calculate_access_token_expires_at(&self) -> String {
+    /// 現在時刻からアクセストークンの有効期限をUnix timestampで計算
+    pub fn calculate_access_token_expires_at(&self) -> i64 {
         let expires_at = Utc::now() + Duration::minutes(self.config.access_token_expiry_minutes);
-        expires_at.to_rfc3339()
+        expires_at.timestamp()
     }
 
-    /// 現在時刻からアクセストークンのリフレッシュ推奨時刻をISO 8601形式で計算（80%時点）
-    pub fn calculate_should_refresh_at(&self) -> String {
+    /// 現在時刻からアクセストークンのリフレッシュ推奨時刻をUnix timestampで計算（80%時点）
+    pub fn calculate_should_refresh_at(&self) -> i64 {
         let now = Utc::now();
         let total_duration = Duration::minutes(self.config.access_token_expiry_minutes);
         let refresh_duration_secs = (total_duration.num_seconds() as f64 * 0.8) as i64;
         let refresh_duration = Duration::seconds(refresh_duration_secs);
         let should_refresh_at = now + refresh_duration;
 
-        should_refresh_at.to_rfc3339()
+        should_refresh_at.timestamp()
     }
 }
 
@@ -293,8 +293,8 @@ pub struct TokenPair {
     pub access_token_expires_in: i64,  // 秒
     pub refresh_token_expires_in: i64, // 秒
     pub token_type: String,
-    pub access_token_expires_at: String, // ISO 8601 UTC時刻
-    pub should_refresh_at: String,       // ISO 8601 UTC時刻（80%時点）
+    pub access_token_expires_at: i64, // Unix timestamp
+    pub should_refresh_at: i64,       // Unix timestamp（80%時点）
 }
 
 impl TokenPair {
@@ -303,8 +303,8 @@ impl TokenPair {
         refresh_token: String,
         access_expiry_minutes: i64,
         refresh_expiry_days: i64,
-        access_token_expires_at: String,
-        should_refresh_at: String,
+        access_token_expires_at: i64,
+        should_refresh_at: i64,
     ) -> Self {
         Self {
             access_token,
@@ -425,13 +425,12 @@ mod tests {
         let calc_expires_at = jwt_manager.calculate_access_token_expires_at();
         let calc_should_refresh_at = jwt_manager.calculate_should_refresh_at();
 
-        assert!(DateTime::parse_from_rfc3339(&calc_expires_at).is_ok());
-        assert!(DateTime::parse_from_rfc3339(&calc_should_refresh_at).is_ok());
+        let now = Utc::now().timestamp();
+        assert!(calc_expires_at > now);
+        assert!(calc_should_refresh_at > now);
 
         // リフレッシュ時刻が有効期限より前であることを確認
-        let expires_dt = DateTime::parse_from_rfc3339(&calc_expires_at).unwrap();
-        let refresh_dt = DateTime::parse_from_rfc3339(&calc_should_refresh_at).unwrap();
-        assert!(refresh_dt < expires_dt);
+        assert!(calc_should_refresh_at < calc_expires_at);
     }
 
     #[test]
@@ -455,14 +454,13 @@ mod tests {
         assert_eq!(token_pair.refresh_token_expires_in, 7 * 24 * 60 * 60);
         assert_eq!(token_pair.token_type, "Bearer");
 
-        // タイムスタンプフィールドが有効なISO 8601形式であることを確認
-        assert!(DateTime::parse_from_rfc3339(&token_pair.access_token_expires_at).is_ok());
-        assert!(DateTime::parse_from_rfc3339(&token_pair.should_refresh_at).is_ok());
+        // タイムスタンプフィールドが有効な値であることを確認
+        let now = Utc::now().timestamp();
+        assert!(token_pair.access_token_expires_at > now);
+        assert!(token_pair.should_refresh_at > now);
 
         // should_refresh_atがaccess_token_expires_atより前であることを確認
-        let expires_at = DateTime::parse_from_rfc3339(&token_pair.access_token_expires_at).unwrap();
-        let refresh_at = DateTime::parse_from_rfc3339(&token_pair.should_refresh_at).unwrap();
-        assert!(refresh_at < expires_at);
+        assert!(token_pair.should_refresh_at < token_pair.access_token_expires_at);
 
         // 手動newメソッドのテスト
         let manual_token_pair = TokenPair::new(
@@ -470,16 +468,16 @@ mod tests {
             "manual_refresh".to_string(),
             10,
             5,
-            "2024-01-01T12:10:00Z".to_string(),
-            "2024-01-01T12:08:00Z".to_string(),
+            1704110400, // 2024-01-01T12:10:00Z
+            1704110280, // 2024-01-01T12:08:00Z
         );
 
         assert_eq!(manual_token_pair.access_token_expires_in, 10 * 60);
         assert_eq!(manual_token_pair.refresh_token_expires_in, 5 * 24 * 60 * 60);
         assert_eq!(
             manual_token_pair.access_token_expires_at,
-            "2024-01-01T12:10:00Z"
+            1704110400 // 2024-01-01T12:10:00Z
         );
-        assert_eq!(manual_token_pair.should_refresh_at, "2024-01-01T12:08:00Z");
+        assert_eq!(manual_token_pair.should_refresh_at, 1704110280); // 2024-01-01T12:08:00Z
     }
 }

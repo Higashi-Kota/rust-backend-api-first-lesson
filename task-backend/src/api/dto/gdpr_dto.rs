@@ -1,6 +1,7 @@
 // task-backend/src/api/dto/gdpr_dto.rs
 
 use crate::domain::user_consent_model::ConsentType;
+use crate::types::{optional_timestamp, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -28,7 +29,7 @@ pub struct DataExportResponse {
     pub subscription_history: Option<Vec<SubscriptionHistoryExport>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub activity_logs: Option<Vec<ActivityLogExport>>,
-    pub exported_at: DateTime<Utc>,
+    pub exported_at: Timestamp,
 }
 
 /// User data export
@@ -41,9 +42,10 @@ pub struct UserDataExport {
     pub email_verified: bool,
     pub role_name: String,
     pub subscription_tier: String,
+    #[serde(default, with = "optional_timestamp")]
     pub last_login_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 /// Task data export
@@ -53,9 +55,10 @@ pub struct TaskDataExport {
     pub title: String,
     pub description: Option<String>,
     pub status: String,
+    #[serde(default, with = "optional_timestamp")]
     pub due_date: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 /// Team data export
@@ -65,7 +68,7 @@ pub struct TeamDataExport {
     pub name: String,
     pub description: Option<String>,
     pub role_in_team: String,
-    pub joined_at: DateTime<Utc>,
+    pub joined_at: Timestamp,
 }
 
 /// Subscription history export
@@ -74,7 +77,7 @@ pub struct SubscriptionHistoryExport {
     pub id: Uuid,
     pub previous_tier: Option<String>,
     pub new_tier: String,
-    pub changed_at: DateTime<Utc>,
+    pub changed_at: Timestamp,
     pub reason: Option<String>,
 }
 
@@ -85,7 +88,7 @@ pub struct ActivityLogExport {
     pub action: String,
     pub resource_type: Option<String>,
     pub resource_id: Option<Uuid>,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 /// GDPR deletion request
@@ -99,7 +102,7 @@ pub struct DataDeletionRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataDeletionResponse {
     pub user_id: Uuid,
-    pub deleted_at: DateTime<Utc>,
+    pub deleted_at: Timestamp,
     pub deleted_records: DeletedRecordsSummary,
 }
 
@@ -119,8 +122,10 @@ pub struct DeletedRecordsSummary {
 pub struct ComplianceStatusResponse {
     pub user_id: Uuid,
     pub data_retention_days: u32,
+    #[serde(default, with = "optional_timestamp")]
     pub last_data_export: Option<DateTime<Utc>>,
     pub deletion_requested: bool,
+    #[serde(default, with = "optional_timestamp")]
     pub deletion_scheduled_for: Option<DateTime<Utc>>,
 }
 
@@ -146,7 +151,7 @@ pub struct SingleConsentUpdateRequest {
 pub struct ConsentStatusResponse {
     pub user_id: Uuid,
     pub consents: Vec<ConsentStatus>,
-    pub last_updated: DateTime<Utc>,
+    pub last_updated: Timestamp,
 }
 
 /// Individual consent status
@@ -154,9 +159,11 @@ pub struct ConsentStatusResponse {
 pub struct ConsentStatus {
     pub consent_type: ConsentType,
     pub is_granted: bool,
+    #[serde(default, with = "optional_timestamp")]
     pub granted_at: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub revoked_at: Option<DateTime<Utc>>,
-    pub last_updated: DateTime<Utc>,
+    pub last_updated: Timestamp,
     pub display_name: String,
     pub description: String,
     pub is_required: bool,
@@ -177,7 +184,7 @@ pub struct ConsentHistoryEntry {
     pub consent_type: ConsentType,
     pub action: String, // "granted" or "revoked"
     pub is_granted: bool,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
 }

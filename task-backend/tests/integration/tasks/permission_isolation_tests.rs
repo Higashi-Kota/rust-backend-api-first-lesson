@@ -57,7 +57,24 @@ async fn test_user_task_isolation_strict() {
     );
 
     let response = app.clone().oneshot(alice_create_request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Check status first
+    let status = response.status();
+
+    // If status is not CREATED, print the response body for debugging
+    if status != StatusCode::CREATED {
+        let body = body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body_str = String::from_utf8_lossy(&body);
+        eprintln!("Task creation failed with status {}: {}", status, body_str);
+        if let Ok(error_response) = serde_json::from_slice::<Value>(&body) {
+            eprintln!("Parsed error: {}", error_response);
+        }
+        panic!("Task creation failed");
+    }
+
+    assert_eq!(status, StatusCode::CREATED);
 
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await

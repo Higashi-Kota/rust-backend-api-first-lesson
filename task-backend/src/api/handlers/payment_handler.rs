@@ -213,7 +213,7 @@ pub async fn get_current_subscription_payment_handler(
     let subscription_info = CurrentSubscriptionResponse::new(
         user.claims.user_id,
         user_profile.subscription_tier,
-        user_profile.created_at,
+        user_profile.created_at.into(),
     );
 
     Ok(ApiResponse::success(subscription_info))

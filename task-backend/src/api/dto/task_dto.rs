@@ -2,6 +2,7 @@
 use crate::api::dto::common::PaginatedResponse;
 use crate::domain::task_model;
 use crate::domain::task_status::TaskStatus;
+use crate::types::{optional_timestamp, Timestamp};
 use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -30,6 +31,7 @@ pub struct CreateTaskDto {
 
     pub status: Option<TaskStatus>, // 省略時はデフォルト値を使いたい場合
     pub priority: Option<String>,   // 'low', 'medium', 'high'、省略時は'medium'
+    #[serde(default, with = "optional_timestamp")]
     pub due_date: Option<DateTime<Utc>>,
 }
 
@@ -53,6 +55,7 @@ pub struct UpdateTaskDto {
 
     pub status: Option<TaskStatus>,
     pub priority: Option<String>, // 'low', 'medium', 'high'
+    #[serde(default, with = "optional_timestamp")]
     pub due_date: Option<DateTime<Utc>>,
 }
 
@@ -85,6 +88,7 @@ pub struct BatchUpdateTaskItemDto {
     pub description: Option<String>,
 
     pub status: Option<TaskStatus>,
+    #[serde(default, with = "optional_timestamp")]
     pub due_date: Option<DateTime<Utc>>,
 }
 
@@ -108,10 +112,11 @@ pub struct TaskDto {
     pub description: Option<String>,
     pub status: TaskStatus,
     pub priority: String,
+    #[serde(default, with = "optional_timestamp")]
     pub due_date: Option<DateTime<Utc>>,
     pub user_id: Option<Uuid>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 // SeaORM の Model から TaskDto への変換
@@ -125,8 +130,8 @@ impl From<task_model::Model> for TaskDto {
             priority: model.priority,
             due_date: model.due_date,
             user_id: model.user_id,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            created_at: Timestamp::from_datetime(model.created_at),
+            updated_at: Timestamp::from_datetime(model.updated_at),
         }
     }
 }
@@ -154,9 +159,13 @@ pub struct TaskFilterDto {
     pub status: Option<TaskStatus>,
     pub title_contains: Option<String>,
     pub description_contains: Option<String>,
+    #[serde(default, with = "optional_timestamp")]
     pub due_date_before: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub due_date_after: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub created_after: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub created_before: Option<DateTime<Utc>>,
     pub limit: Option<u64>,
     pub offset: Option<u64>,

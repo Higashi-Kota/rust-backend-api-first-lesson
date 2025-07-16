@@ -42,7 +42,7 @@ async fn test_check_resource_permission_authenticated() {
     assert_eq!(body["data"]["resource"].as_str(), Some("tasks"));
     assert_eq!(body["data"]["action"].as_str(), Some("read"));
     assert!(body["data"]["allowed"].is_boolean());
-    assert!(body["data"]["checked_at"].is_string());
+    assert!(body["data"]["checked_at"].is_number());
 
     // Member should be allowed to read tasks
     assert_eq!(body["data"]["allowed"].as_bool(), Some(true));
@@ -131,7 +131,7 @@ async fn test_bulk_permission_check() {
     assert!(body["data"]["checks"].is_array());
     assert!(body["data"]["summary"].is_object());
     assert!(body["data"]["execution_time_ms"].is_number());
-    assert!(body["data"]["checked_at"].is_string());
+    assert!(body["data"]["checked_at"].is_number());
 
     let checks = body["data"]["checks"].as_array().unwrap();
     assert_eq!(checks.len(), 3);
@@ -227,7 +227,7 @@ async fn test_get_user_effective_permissions_own() {
     assert!(body["data"]["inherited_permissions"].is_array());
     assert!(body["data"]["denied_permissions"].is_array());
     assert!(body["data"]["permission_summary"].is_object());
-    assert!(body["data"]["last_updated"].is_string());
+    assert!(body["data"]["last_updated"].is_number());
 
     // Verify role info
     let role = &body["data"]["role"];
@@ -349,7 +349,7 @@ async fn test_get_system_permission_audit_admin() {
     assert!(first_entry["resource"].is_string());
     assert!(first_entry["action"].is_string());
     assert!(first_entry["result"].is_string());
-    assert!(first_entry["timestamp"].is_string());
+    assert!(first_entry["timestamp"].is_number());
 
     // Verify summary
     let summary = &body["data"]["summary"];
@@ -362,8 +362,8 @@ async fn test_get_system_permission_audit_admin() {
 
     // Verify audit period
     let period = &body["data"]["audit_period"];
-    assert!(period["start_date"].is_string());
-    assert!(period["end_date"].is_string());
+    assert!(period["start_date"].is_number());
+    assert!(period["end_date"].is_number());
     assert!(period["duration_hours"].is_number());
 }
 

@@ -145,9 +145,9 @@ ci-check:
 
 # Run CI checks with optimized profile
 ci-check-fast:
-	cargo fmt --all -- --check
-	cargo clippy --workspace --all-targets --all-features -- -D warnings
-	cargo test --profile ci --workspace --verbose
+	RUSTC_WRAPPER="" cargo fmt --all -- --check
+	RUSTC_WRAPPER="" cargo clippy --workspace --all-targets --all-features -- -D warnings
+	RUSTC_WRAPPER="" cargo test --profile ci --workspace --verbose
 
 # Workspace-specific commands
 workspace-info:

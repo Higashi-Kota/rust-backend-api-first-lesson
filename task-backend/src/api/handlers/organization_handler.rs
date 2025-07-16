@@ -307,7 +307,7 @@ pub async fn get_organization_subscription_history_handler(
                 "user_id": h.user_id,
                 "old_tier": h.previous_tier,
                 "new_tier": h.new_tier,
-                "changed_at": h.changed_at,
+                "changed_at": h.changed_at.timestamp(),
                 "changed_by": h.changed_by,
                 "reason": h.reason,
             })

@@ -1,5 +1,6 @@
 // task-backend/src/api/dto/permission_dto.rs
 
+use crate::types::{optional_timestamp, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -95,6 +96,7 @@ pub struct PermissionCheckResponse {
     pub reason: Option<String>,
     pub scope: Option<PermissionScopeInfo>,
     pub privilege: Option<PrivilegeInfo>,
+    #[serde(default, with = "optional_timestamp")]
     pub expires_at: Option<DateTime<Utc>>,
 }
 
@@ -127,7 +129,7 @@ pub struct UserPermissionsResponse {
     pub permissions: Vec<PermissionInfo>,
     pub features: Vec<FeatureInfo>,
     pub effective_scopes: Vec<PermissionScopeInfo>,
-    pub last_updated: DateTime<Utc>,
+    pub last_updated: Timestamp,
 }
 
 /// 利用可能リソース一覧レスポンス
@@ -186,6 +188,7 @@ pub struct PrivilegeInfo {
     pub name: String,
     pub subscription_tier: SubscriptionTier,
     pub quota: Option<QuotaInfo>,
+    #[serde(default, with = "optional_timestamp")]
     pub expires_at: Option<DateTime<Utc>>,
 }
 
@@ -204,7 +207,7 @@ pub struct QuotaUsage {
     pub items_used: u32,
     pub requests_today: u32,
     pub features_used: Vec<String>,
-    pub last_reset: DateTime<Utc>,
+    pub last_reset: Timestamp,
 }
 
 /// 検証サマリー
@@ -232,7 +235,8 @@ pub struct PermissionInfo {
     pub resource: String,
     pub action: String,
     pub scope: PermissionScope,
-    pub granted_at: DateTime<Utc>,
+    pub granted_at: Timestamp,
+    #[serde(default, with = "optional_timestamp")]
     pub expires_at: Option<DateTime<Utc>>,
 }
 
@@ -447,7 +451,9 @@ pub struct SystemPermissionAuditQuery {
     pub user_id: Option<Uuid>,
     pub resource: Option<String>,
     pub action: Option<String>,
+    #[serde(default, with = "optional_timestamp")]
     pub from_date: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub to_date: Option<DateTime<Utc>>,
 }
 
@@ -461,7 +467,7 @@ pub struct ResourcePermissionResponse {
     pub reason: Option<String>,
     pub permission_scope: Option<PermissionScopeInfo>,
     pub subscription_requirements: Option<SubscriptionRequirement>,
-    pub checked_at: DateTime<Utc>,
+    pub checked_at: Timestamp,
 }
 
 /// バルク権限チェックレスポンス
@@ -471,7 +477,7 @@ pub struct BulkPermissionCheckResponse {
     pub checks: Vec<PermissionCheckResult>,
     pub summary: ValidationSummary,
     pub execution_time_ms: u64,
-    pub checked_at: DateTime<Utc>,
+    pub checked_at: Timestamp,
 }
 
 /// ユーザー有効権限レスポンス
@@ -484,7 +490,7 @@ pub struct UserEffectivePermissionsResponse {
     pub inherited_permissions: Vec<InheritedPermission>,
     pub denied_permissions: Vec<DeniedPermission>,
     pub permission_summary: PermissionSummary,
-    pub last_updated: DateTime<Utc>,
+    pub last_updated: Timestamp,
 }
 
 /// システム権限監査レスポンス
@@ -513,7 +519,8 @@ pub struct EffectivePermission {
     pub action: String,
     pub scope: PermissionScope,
     pub source: PermissionSource,
-    pub granted_at: DateTime<Utc>,
+    pub granted_at: Timestamp,
+    #[serde(default, with = "optional_timestamp")]
     pub expires_at: Option<DateTime<Utc>>,
     pub conditions: Vec<PermissionCondition>,
 }
@@ -526,7 +533,7 @@ pub struct InheritedPermission {
     pub scope: PermissionScope,
     pub inherited_from: PermissionSource,
     pub inheritance_chain: Vec<String>,
-    pub granted_at: DateTime<Utc>,
+    pub granted_at: Timestamp,
 }
 
 /// 拒否権限
@@ -563,7 +570,7 @@ pub struct PermissionAuditEntry {
     pub scope: Option<PermissionScope>,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
 }
 
 /// 監査サマリー
@@ -582,8 +589,8 @@ pub struct AuditSummary {
 /// 監査期間
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuditPeriod {
-    pub start_date: DateTime<Utc>,
-    pub end_date: DateTime<Utc>,
+    pub start_date: Timestamp,
+    pub end_date: Timestamp,
     pub duration_hours: u32,
 }
 
@@ -682,7 +689,7 @@ pub struct ComplexOperationPermissionResponse {
     pub operation: String,
     pub operation_allowed: bool,
     pub permission_details: Vec<PermissionCheckDetail>,
-    pub checked_at: DateTime<Utc>,
+    pub checked_at: Timestamp,
 }
 
 /// 権限チェックの詳細

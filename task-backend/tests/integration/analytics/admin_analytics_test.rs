@@ -220,7 +220,7 @@ async fn test_admin_get_subscription_history() {
         assert_eq!(history["is_upgrade"], true);
         assert_eq!(history["is_downgrade"], false);
         assert_eq!(history["reason"], "Test upgrade");
-        assert!(history["changed_at"].is_string());
+        assert!(history["changed_at"].is_number());
     }
 
     // Verify tier stats
@@ -258,8 +258,14 @@ async fn test_admin_get_subscription_history_with_date_range() {
     let admin_token = auth_helper::create_admin_with_jwt(&app).await;
 
     // Get subscription history with date range
+    // Use Unix timestamps for dates
+    let start_timestamp = 1704067200; // 2024-01-01T00:00:00Z
+    let end_timestamp = 1735689599; // 2024-12-31T23:59:59Z
     let request = Request::builder()
-        .uri("/admin/subscription/history?start_date=2024-01-01T00:00:00Z&end_date=2024-12-31T23:59:59Z")
+        .uri(format!(
+            "/admin/subscription/history?start_date={}&end_date={}",
+            start_timestamp, end_timestamp
+        ))
         .method("GET")
         .header("Authorization", format!("Bearer {}", admin_token))
         .body(Body::empty())

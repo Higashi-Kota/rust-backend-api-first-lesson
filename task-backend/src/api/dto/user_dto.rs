@@ -3,6 +3,7 @@
 use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::domain::user_model::SafeUser;
 use crate::service::user_service::UserStats;
+use crate::types::{optional_timestamp, Timestamp};
 use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -88,6 +89,7 @@ pub struct UserStatsResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct UserAdditionalInfo {
     pub days_since_registration: i64,
+    #[serde(default, with = "optional_timestamp")]
     pub last_activity: Option<DateTime<Utc>>,
     pub account_status: AccountStatus,
 }
@@ -106,6 +108,7 @@ pub struct AccountStatus {
 pub struct AccountRestriction {
     pub restriction_type: RestrictionType,
     pub reason: String,
+    #[serde(default, with = "optional_timestamp")]
     pub expires_at: Option<DateTime<Utc>>,
 }
 
@@ -200,7 +203,8 @@ pub struct UserSummary {
     pub email: String,
     pub is_active: bool,
     pub email_verified: bool,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    #[serde(default, with = "optional_timestamp")]
     pub last_login_at: Option<DateTime<Utc>>,
     pub task_count: i64,
 }
@@ -437,7 +441,8 @@ pub struct UserWithRoleResponse {
     pub is_active: bool,
     pub email_verified: bool,
     pub subscription_tier: String,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    #[serde(default, with = "optional_timestamp")]
     pub last_login_at: Option<DateTime<Utc>>,
     pub role: crate::api::dto::role_dto::RoleResponse,
 }
@@ -545,7 +550,7 @@ pub struct BulkOperationResponse {
     pub message: String,
     pub results: Option<serde_json::Value>,
     pub execution_time_ms: u64,
-    pub executed_at: String,
+    pub executed_at: Timestamp,
 }
 
 /// 一括操作結果
@@ -568,8 +573,8 @@ pub struct UserSettingsDto {
     pub notifications_enabled: bool,
     pub email_notifications: serde_json::Value,
     pub ui_preferences: serde_json::Value,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 impl From<crate::domain::user_settings_model::Model> for UserSettingsDto {
@@ -586,8 +591,8 @@ impl From<crate::domain::user_settings_model::Model> for UserSettingsDto {
             notifications_enabled: settings.notifications_enabled,
             email_notifications,
             ui_preferences,
-            created_at: settings.created_at,
-            updated_at: settings.updated_at,
+            created_at: Timestamp::from_datetime(settings.created_at),
+            updated_at: Timestamp::from_datetime(settings.updated_at),
         }
     }
 }
@@ -609,8 +614,8 @@ impl From<UserSettingsResponse> for UserSettingsDto {
                 "date_format": settings.preferences.date_format,
                 "time_format": settings.preferences.time_format,
             }),
-            created_at: chrono::Utc::now(), // これらは実際にはDBから取得すべき
-            updated_at: chrono::Utc::now(),
+            created_at: Timestamp::now(), // これらは実際にはDBから取得すべき
+            updated_at: Timestamp::now(),
         }
     }
 }

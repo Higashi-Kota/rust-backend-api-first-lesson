@@ -190,7 +190,7 @@ async fn test_accept_invitation_success() {
 
     let invitation = &accept_response["data"];
     assert_eq!(invitation["status"], "Accepted");
-    assert!(invitation["accepted_at"].is_string());
+    assert!(invitation["accepted_at"].is_number());
     assert_eq!(invitation["invited_user_id"], invitee.id.to_string());
 }
 
@@ -246,7 +246,7 @@ async fn test_decline_invitation_with_reason() {
     let invitation = &decline_response["data"];
 
     assert_eq!(invitation["status"], "Declined");
-    assert!(invitation["declined_at"].is_string());
+    assert!(invitation["declined_at"].is_number());
     assert_eq!(
         invitation["decline_reason"],
         "Not interested in joining at this time"

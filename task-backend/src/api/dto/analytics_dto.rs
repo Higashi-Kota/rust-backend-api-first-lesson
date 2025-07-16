@@ -1,5 +1,6 @@
 // task-backend/src/api/dto/analytics_dto.rs
 
+use crate::types::{optional_timestamp, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -16,7 +17,9 @@ pub struct AnalyticsTimeRangeRequest {
     #[validate(range(min = 1, max = 365, message = "Days must be between 1 and 365"))]
     pub days: Option<u32>,
 
+    #[serde(default, with = "optional_timestamp")]
     pub start_date: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub end_date: Option<DateTime<Utc>>,
 
     #[validate(length(
@@ -53,7 +56,7 @@ pub struct SystemStatsResponse {
     pub task_metrics: TaskMetrics,
     pub subscription_metrics: SubscriptionMetrics,
     pub security_metrics: SecurityMetrics,
-    pub generated_at: DateTime<Utc>,
+    pub generated_at: Timestamp,
 }
 
 impl SystemStatsResponse {
@@ -89,7 +92,7 @@ impl SystemStatsResponse {
             },
             subscription_metrics: SubscriptionMetrics::default(),
             security_metrics: SecurityMetrics::default(),
-            generated_at: Utc::now(),
+            generated_at: Timestamp::now(),
         }
     }
 }
@@ -156,7 +159,7 @@ pub struct SecurityMetrics {
 pub struct SuspiciousIpInfo {
     pub ip_address: String,
     pub failed_attempts: u64,
-    pub last_attempt: DateTime<Utc>,
+    pub last_attempt: Timestamp,
 }
 
 /// 階層分布
@@ -182,14 +185,14 @@ pub struct UserActivityResponse {
     pub user_id: Uuid,
     pub daily_activities: Vec<DailyActivity>,
     pub summary: ActivitySummary,
-    pub period_start: DateTime<Utc>,
-    pub period_end: DateTime<Utc>,
+    pub period_start: Timestamp,
+    pub period_end: Timestamp,
 }
 
 /// 日次アクティビティ
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DailyActivity {
-    pub date: DateTime<Utc>,
+    pub date: Timestamp,
     pub tasks_created: u32,
     pub tasks_completed: u32,
     pub login_count: u32,
@@ -259,7 +262,7 @@ pub struct TaskTrends {
 /// 週次トレンド
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WeeklyTrend {
-    pub week_start: DateTime<Utc>,
+    pub week_start: Timestamp,
     pub count: u64,
     pub change_from_previous_week: f64,
 }
@@ -386,7 +389,9 @@ impl TaskStatsOverview {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserBehaviorAnalyticsQuery {
     pub user_id: Option<Uuid>,
+    #[serde(default, with = "optional_timestamp")]
     pub from_date: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
     pub to_date: Option<DateTime<Utc>>,
     pub metrics: Option<Vec<String>>, // ["login_frequency", "task_activity", "feature_usage"]
     pub include_comparisons: Option<bool>,
@@ -419,7 +424,7 @@ pub struct UserBehaviorAnalyticsResponse {
     pub performance_indicators: PerformanceIndicators,
     pub comparisons: Option<UserComparisons>,
     pub recommendations: Vec<UserRecommendation>,
-    pub generated_at: DateTime<Utc>,
+    pub generated_at: Timestamp,
 }
 
 /// 高度なエクスポート結果レスポンス
@@ -431,10 +436,10 @@ pub struct AdvancedExportResponse {
     pub total_records: u32,
     pub file_size_bytes: u64,
     pub download_url: Option<String>,
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
     pub metadata: ExportMetadata,
     pub processing_status: ExportStatus,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 // --- Supporting Enums and Structures ---
@@ -474,8 +479,8 @@ pub enum ExportStatus {
 /// 分析期間
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AnalysisPeriod {
-    pub start_date: DateTime<Utc>,
-    pub end_date: DateTime<Utc>,
+    pub start_date: Timestamp,
+    pub end_date: Timestamp,
     pub duration_days: u32,
     pub granularity: MetricGranularity,
 }
@@ -634,7 +639,7 @@ pub struct FeatureUsage {
     pub feature_name: String,
     pub usage_count: u32,
     pub usage_percentage: f64,
-    pub last_used: DateTime<Utc>,
+    pub last_used: Timestamp,
     pub proficiency_level: ProficiencyLevel,
 }
 
@@ -642,7 +647,7 @@ pub struct FeatureUsage {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FeatureProgression {
     pub feature_name: String,
-    pub adoption_date: DateTime<Utc>,
+    pub adoption_date: Timestamp,
     pub proficiency_level: ProficiencyLevel,
     pub usage_trend: TrendDirection,
     pub mastery_percentage: f64,
@@ -720,8 +725,8 @@ pub enum RecommendationPriority {
 /// 日付範囲
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DateRange {
-    pub start: DateTime<Utc>,
-    pub end: DateTime<Utc>,
+    pub start: Timestamp,
+    pub end: Timestamp,
 }
 
 /// ユーザーフィルター

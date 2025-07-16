@@ -8,6 +8,7 @@ use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
+use crate::types::Timestamp;
 use uuid::Uuid;
 
 pub struct OrganizationService {
@@ -766,7 +767,7 @@ impl OrganizationService {
             username: user.username,
             email: user.email,
             role: member.role.clone(),
-            joined_at: member.joined_at,
+            joined_at: Timestamp::from_datetime(member.joined_at),
             invited_by: member.invited_by,
         })
     }
@@ -841,7 +842,7 @@ impl OrganizationService {
             can_create_teams,
             can_invite_members,
             can_change_settings,
-            joined_at: member.joined_at,
+            joined_at: Timestamp::from_datetime(member.joined_at),
             invited_by: member.invited_by,
         })
     }

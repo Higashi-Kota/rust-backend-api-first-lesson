@@ -8,7 +8,7 @@ use crate::domain::permission::{
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
-use crate::types::ApiResponse;
+use crate::types::{ApiResponse, Timestamp};
 use crate::utils::error_helper::convert_validation_errors;
 use crate::utils::permission::PermissionType;
 use axum::{
@@ -262,7 +262,7 @@ pub async fn get_user_permissions_handler(
         permissions,
         features,
         effective_scopes,
-        last_updated: chrono::Utc::now(),
+        last_updated: Timestamp::now(),
     };
 
     info!(
@@ -482,28 +482,28 @@ fn get_basic_permissions(tier: &SubscriptionTier) -> Vec<PermissionInfo> {
             resource: read_permission.resource.clone(),
             action: read_permission.action.clone(),
             scope: read_permission.scope.clone(),
-            granted_at: chrono::Utc::now(),
+            granted_at: Timestamp::now(),
             expires_at: None,
         },
         PermissionInfo {
             resource: write_permission.resource.clone(),
             action: "create".to_string(),
             scope: write_permission.scope.clone(),
-            granted_at: chrono::Utc::now(),
+            granted_at: Timestamp::now(),
             expires_at: None,
         },
         PermissionInfo {
             resource: "tasks".to_string(),
             action: "update".to_string(),
             scope: PermissionScope::Own,
-            granted_at: chrono::Utc::now(),
+            granted_at: Timestamp::now(),
             expires_at: None,
         },
         PermissionInfo {
             resource: "tasks".to_string(),
             action: "delete".to_string(),
             scope: PermissionScope::Own,
-            granted_at: chrono::Utc::now(),
+            granted_at: Timestamp::now(),
             expires_at: None,
         },
     ];
@@ -514,7 +514,7 @@ fn get_basic_permissions(tier: &SubscriptionTier) -> Vec<PermissionInfo> {
                 resource: "tasks".to_string(),
                 action: "export".to_string(),
                 scope: PermissionScope::Team,
-                granted_at: chrono::Utc::now(),
+                granted_at: Timestamp::now(),
                 expires_at: None,
             });
         }
@@ -523,7 +523,7 @@ fn get_basic_permissions(tier: &SubscriptionTier) -> Vec<PermissionInfo> {
                 resource: "tasks".to_string(),
                 action: "bulk_operations".to_string(),
                 scope: PermissionScope::Organization,
-                granted_at: chrono::Utc::now(),
+                granted_at: Timestamp::now(),
                 expires_at: None,
             });
         }
@@ -974,7 +974,7 @@ pub async fn check_resource_permission_handler(
                 level: scope.level(),
             }),
             subscription_requirements,
-            checked_at: chrono::Utc::now(),
+            checked_at: Timestamp::now(),
         },
         PermissionResult::Denied { reason } => ResourcePermissionResponse {
             user_id: user.claims.user_id,
@@ -984,7 +984,7 @@ pub async fn check_resource_permission_handler(
             reason: Some(reason),
             permission_scope: None,
             subscription_requirements,
-            checked_at: chrono::Utc::now(),
+            checked_at: Timestamp::now(),
         },
     };
 
@@ -1081,7 +1081,7 @@ pub async fn bulk_permission_check_handler(
         checks,
         summary,
         execution_time_ms: execution_time,
-        checked_at: chrono::Utc::now(),
+        checked_at: Timestamp::now(),
     };
 
     info!(
@@ -1176,7 +1176,7 @@ pub async fn get_user_effective_permissions_handler(
         inherited_permissions,
         denied_permissions,
         permission_summary,
-        last_updated: chrono::Utc::now(),
+        last_updated: Timestamp::now(),
     };
 
     info!(
@@ -1214,10 +1214,11 @@ pub async fn get_system_permission_audit_handler(
 
     // 監査期間を設定
     let audit_period = AuditPeriod {
-        start_date: query
-            .from_date
-            .unwrap_or_else(|| chrono::Utc::now() - chrono::Duration::days(7)),
-        end_date: query.to_date.unwrap_or_else(chrono::Utc::now),
+        start_date: query.from_date.map_or_else(
+            || Timestamp::from(Timestamp::now().inner() - chrono::Duration::days(7)),
+            Timestamp::from,
+        ),
+        end_date: query.to_date.map_or_else(Timestamp::now, Timestamp::from),
         duration_hours: 168, // 7 days default
     };
 
@@ -1286,7 +1287,7 @@ fn get_effective_permissions_for_user(
                 PermissionScope::Own
             },
             source: PermissionSource::Role,
-            granted_at: chrono::Utc::now(),
+            granted_at: Timestamp::now(),
             expires_at: None,
             conditions: vec![],
         },
@@ -1299,7 +1300,7 @@ fn get_effective_permissions_for_user(
                 PermissionScope::Own
             },
             source: PermissionSource::Role,
-            granted_at: chrono::Utc::now(),
+            granted_at: Timestamp::now(),
             expires_at: None,
             conditions: vec![],
         },
@@ -1312,7 +1313,7 @@ fn get_effective_permissions_for_user(
             action: "export".to_string(),
             scope: PermissionScope::Team,
             source: PermissionSource::Subscription,
-            granted_at: chrono::Utc::now(),
+            granted_at: Timestamp::now(),
             expires_at: None,
             conditions: vec![PermissionCondition {
                 condition_type: "subscription_tier".to_string(),
@@ -1328,7 +1329,7 @@ fn get_effective_permissions_for_user(
             action: "bulk_operations".to_string(),
             scope: PermissionScope::Organization,
             source: PermissionSource::Subscription,
-            granted_at: chrono::Utc::now(),
+            granted_at: Timestamp::now(),
             expires_at: None,
             conditions: vec![],
         });
@@ -1353,7 +1354,7 @@ fn get_inherited_permissions(role_name: &str) -> Vec<InheritedPermission> {
                 scope: PermissionScope::Global,
                 inherited_from: PermissionSource::Role,
                 inheritance_chain: vec!["admin".to_string(), "member".to_string()],
-                granted_at: chrono::Utc::now(),
+                granted_at: Timestamp::now(),
             },
             InheritedPermission {
                 resource: "system".to_string(),
@@ -1361,7 +1362,7 @@ fn get_inherited_permissions(role_name: &str) -> Vec<InheritedPermission> {
                 scope: PermissionScope::Global,
                 inherited_from: PermissionSource::System,
                 inheritance_chain: vec!["system".to_string(), "admin".to_string()],
-                granted_at: chrono::Utc::now(),
+                granted_at: Timestamp::now(),
             },
         ]
     } else {
@@ -1402,7 +1403,7 @@ fn generate_mock_audit_entries(
     count: usize,
 ) -> Vec<PermissionAuditEntry> {
     let mut entries = Vec::new();
-    let base_time = chrono::Utc::now();
+    let base_time = Timestamp::now();
 
     for i in 0..count {
         let entry = PermissionAuditEntry {
@@ -1430,7 +1431,7 @@ fn generate_mock_audit_entries(
             }),
             ip_address: Some("192.168.1.100".to_string()),
             user_agent: Some("Mozilla/5.0".to_string()),
-            timestamp: base_time - chrono::Duration::hours(i as i64),
+            timestamp: Timestamp::from(base_time.inner() - chrono::Duration::hours(i as i64)),
         };
         entries.push(entry);
     }
@@ -1490,7 +1491,7 @@ pub async fn check_permission_denial_handler(
         "action": payload.action,
         "is_denied": is_denied,
         "denial_details": denial_details,
-        "checked_at": chrono::Utc::now()
+        "checked_at": Timestamp::now()
     });
 
     info!(
@@ -1552,7 +1553,7 @@ pub async fn check_privilege_feature_handler(
         "feature_check": feature_details,
         "feature_available": has_feature,
         "upgrade_required": !has_feature && payload.required_tier.is_some_and(|t| !user.claims.subscription_tier.is_at_least(&t)),
-        "checked_at": chrono::Utc::now()
+        "checked_at": Timestamp::now()
     });
 
     info!(
@@ -1692,7 +1693,7 @@ pub async fn check_complex_operation_permissions_handler(
         operation: payload.operation,
         operation_allowed,
         permission_details: permission_results,
-        checked_at: chrono::Utc::now(),
+        checked_at: Timestamp::now(),
     };
 
     info!(

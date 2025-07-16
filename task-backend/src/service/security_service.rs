@@ -9,7 +9,8 @@ use crate::repository::{
     refresh_token_repository::RefreshTokenRepository,
     security_incident_repository::SecurityIncidentRepository, user_repository::UserRepository,
 };
-use chrono::Utc;
+use crate::types::Timestamp;
+use chrono::Duration;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -143,17 +144,17 @@ impl SecurityService {
                 user_id: activity.user_id,
                 username,
                 email,
-                requested_at: activity.created_at,
+                requested_at: Timestamp::from_datetime(activity.created_at),
                 used_at: if activity.is_used {
                     Some(activity.updated_at)
                 } else {
                     None
                 },
-                expires_at: activity.expires_at,
+                expires_at: Timestamp::from_datetime(activity.expires_at),
                 ip_address: None, // IPアドレスはリセットトークンには保存されていないため、ログから取得する必要がある
                 status: if activity.is_used {
                     "used".to_string()
-                } else if activity.expires_at < Utc::now() {
+                } else if activity.expires_at < Timestamp::now().inner() {
                     "expired".to_string()
                 } else {
                     "pending".to_string()
@@ -210,7 +211,7 @@ impl SecurityService {
             revoked_count: total_revoked,
             affected_users,
             revocation_reason: request.reason.clone(),
-            revoked_at: Utc::now(),
+            revoked_at: Timestamp::now(),
         })
     }
 
@@ -297,7 +298,7 @@ impl SecurityService {
                 crate::api::dto::analytics_dto::SuspiciousIpInfo {
                     ip_address,
                     failed_attempts,
-                    last_attempt,
+                    last_attempt: Timestamp::from_datetime(last_attempt),
                 }
             })
             .collect())
@@ -305,8 +306,8 @@ impl SecurityService {
 
     /// 失敗したログイン試行回数を取得
     pub async fn get_failed_login_counts(&self) -> AppResult<(u64, u64)> {
-        let today = Utc::now() - chrono::Duration::days(1);
-        let this_week = Utc::now() - chrono::Duration::days(7);
+        let today = Timestamp::now().inner() - Duration::days(1);
+        let this_week = Timestamp::now().inner() - Duration::days(7);
 
         let failed_today = self
             .login_attempt_repo
@@ -322,8 +323,8 @@ impl SecurityService {
 
     /// セキュリティインシデント数を取得
     pub async fn get_security_incident_count(&self, days: i64) -> AppResult<u64> {
-        let start_date = Utc::now() - chrono::Duration::days(days);
-        let end_date = Utc::now();
+        let start_date = Timestamp::now().inner() - Duration::days(days);
+        let end_date = Timestamp::now().inner();
 
         self.security_incident_repo
             .count_by_date_range(start_date, end_date)
@@ -344,10 +345,10 @@ impl SecurityService {
 
         // デフォルトの日付範囲を設定（過去30日間）
         let (start_date, end_date) = if let Some(date_range) = &request.date_range {
-            (date_range.start_date, date_range.end_date)
+            (date_range.start_date.inner(), date_range.end_date.inner())
         } else {
-            let end_date = Utc::now();
-            let start_date = end_date - chrono::Duration::days(30);
+            let end_date = Timestamp::now().inner();
+            let start_date = end_date - Duration::days(30);
             (start_date, end_date)
         };
 
@@ -392,8 +393,10 @@ impl SecurityService {
                     severity: "info".to_string(),
                     description: "High number of expired tokens detected".to_string(),
                     affected_users: vec![],
-                    first_occurrence: Utc::now() - chrono::Duration::hours(24),
-                    last_occurrence: Utc::now(),
+                    first_occurrence: Timestamp::from(
+                        Timestamp::now().inner() - Duration::hours(24),
+                    ),
+                    last_occurrence: Timestamp::now(),
                     count: refresh_stats.expired_tokens,
                     details: Some(serde_json::json!({
                         "expired_count": refresh_stats.expired_tokens,
@@ -406,8 +409,10 @@ impl SecurityService {
                     severity: "warning".to_string(),
                     description: "Multiple password reset requests detected".to_string(),
                     affected_users: vec![],
-                    first_occurrence: Utc::now() - chrono::Duration::hours(48),
-                    last_occurrence: Utc::now(),
+                    first_occurrence: Timestamp::from(
+                        Timestamp::now().inner() - Duration::hours(48),
+                    ),
+                    last_occurrence: Timestamp::now(),
                     count: password_stats.total_tokens,
                     details: Some(serde_json::json!({
                         "used_tokens": password_stats.used_tokens,
@@ -422,8 +427,8 @@ impl SecurityService {
                 severity: "info".to_string(),
                 description: "High number of expired tokens detected".to_string(),
                 affected_users: vec![],
-                first_occurrence: Utc::now() - chrono::Duration::hours(24),
-                last_occurrence: Utc::now(),
+                first_occurrence: Timestamp::from(Timestamp::now().inner() - Duration::hours(24)),
+                last_occurrence: Timestamp::now(),
                 count: refresh_stats.expired_tokens,
                 details: None,
             }]
@@ -444,7 +449,7 @@ impl SecurityService {
         Ok(AuditReport {
             report_id: Uuid::new_v4(),
             report_type: request.report_type.clone(),
-            generated_at: Utc::now(),
+            generated_at: Timestamp::now(),
             generated_by,
             date_range: request.date_range.clone(),
             summary,
@@ -547,12 +552,12 @@ mod tests {
             revoked_count: 25,
             affected_users: 10,
             revocation_reason: "Security maintenance".to_string(),
-            revoked_at: Utc::now(),
+            revoked_at: Timestamp::now(),
         };
 
         assert_eq!(result.revoked_count, 25);
         assert_eq!(result.affected_users, 10);
         assert_eq!(result.revocation_reason, "Security maintenance");
-        assert!(result.revoked_at <= Utc::now());
+        assert!(result.revoked_at <= Timestamp::now());
     }
 }

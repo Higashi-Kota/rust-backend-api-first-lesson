@@ -638,7 +638,7 @@ async fn test_generate_download_url_success() {
     assert_eq!(json["success"], true);
     assert!(json["data"]["download_url"].is_string());
     assert_eq!(json["data"]["expires_in_seconds"], 3600);
-    assert!(json["data"]["expires_at"].is_string());
+    assert!(json["data"]["expires_at"].is_number());
 
     // URLが正しい形式かチェック
     let download_url = json["data"]["download_url"].as_str().unwrap();

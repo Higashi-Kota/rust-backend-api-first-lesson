@@ -2,7 +2,7 @@
 
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::team_model::{Model as Team, TeamRole};
-use chrono::{DateTime, Utc};
+use crate::types::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use validator::Validate;
@@ -66,8 +66,8 @@ pub struct TeamResponse {
     pub subscription_tier: SubscriptionTier,
     pub max_members: i32,
     pub current_member_count: i32,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
     pub members: Vec<TeamMemberResponse>,
 }
 
@@ -79,7 +79,7 @@ pub struct TeamMemberResponse {
     pub username: String,
     pub email: String,
     pub role: TeamRole,
-    pub joined_at: DateTime<Utc>,
+    pub joined_at: Timestamp,
     pub invited_by: Option<Uuid>,
 }
 
@@ -95,7 +95,7 @@ pub struct TeamMemberDetailResponse {
     pub is_admin: bool,
     pub can_invite: bool,
     pub can_remove_members: bool,
-    pub joined_at: DateTime<Utc>,
+    pub joined_at: Timestamp,
     pub invited_by: Option<Uuid>,
 }
 
@@ -110,7 +110,7 @@ pub struct TeamListResponse {
     pub subscription_tier: SubscriptionTier,
     pub max_members: i32,
     pub current_member_count: i32,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 /// チーム統計レスポンス
@@ -150,8 +150,8 @@ pub struct TeamInvitationResponse {
     pub invited_email: String,
     pub role: TeamRole,
     pub invited_by: Uuid,
-    pub created_at: DateTime<Utc>,
-    pub expires_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub expires_at: Timestamp,
 }
 
 impl From<Team> for TeamListResponse {
@@ -166,7 +166,7 @@ impl From<Team> for TeamListResponse {
             subscription_tier,
             max_members: team.max_members,
             current_member_count: 0, // Will be populated by service
-            created_at: team.created_at,
+            created_at: Timestamp::from_datetime(team.created_at),
         }
     }
 }
@@ -184,8 +184,8 @@ impl From<(Team, Vec<TeamMemberResponse>)> for TeamResponse {
             subscription_tier,
             max_members: team.max_members,
             current_member_count,
-            created_at: team.created_at,
-            updated_at: team.updated_at,
+            created_at: Timestamp::from_datetime(team.created_at),
+            updated_at: Timestamp::from_datetime(team.updated_at),
             members,
         }
     }
@@ -397,7 +397,7 @@ mod tests {
                 subscription_tier: SubscriptionTier::Free,
                 max_members: 3,
                 current_member_count: 2,
-                created_at: Utc::now(),
+                created_at: Timestamp::now(),
             },
             TeamListResponse {
                 id: Uuid::new_v4(),
@@ -408,7 +408,7 @@ mod tests {
                 subscription_tier: SubscriptionTier::Pro,
                 max_members: 50,
                 current_member_count: 25,
-                created_at: Utc::now(),
+                created_at: Timestamp::now(),
             },
         ];
 

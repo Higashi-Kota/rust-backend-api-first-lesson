@@ -2,7 +2,7 @@
 
 use crate::api::dto::common::PaginationQuery;
 use crate::domain::task_attachment_model;
-use chrono::{DateTime, Utc};
+use crate::types::Timestamp;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -17,8 +17,8 @@ pub struct AttachmentDto {
     pub file_name: String,
     pub file_size: i64,
     pub mime_type: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
 }
 
 impl From<task_attachment_model::Model> for AttachmentDto {
@@ -30,8 +30,8 @@ impl From<task_attachment_model::Model> for AttachmentDto {
             file_name: model.file_name,
             file_size: model.file_size,
             mime_type: model.mime_type,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            created_at: Timestamp::from_datetime(model.created_at),
+            updated_at: Timestamp::from_datetime(model.updated_at),
         }
     }
 }
@@ -141,7 +141,7 @@ impl Default for GenerateDownloadUrlRequest {
 pub struct GenerateDownloadUrlResponse {
     pub download_url: String,
     pub expires_in_seconds: u64,
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
 }
 
 // --- 外部共有リンク関連 DTOs ---
@@ -175,12 +175,12 @@ pub struct ShareLinkDto {
     pub created_by: Uuid,
     pub share_token: String,
     pub description: Option<String>,
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
     pub max_access_count: Option<i32>,
     pub current_access_count: i32,
     pub is_revoked: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
     /// フルURLを構築して返す
     pub share_url: String,
 }
@@ -198,12 +198,12 @@ impl ShareLinkDto {
             created_by: model.created_by,
             share_token: model.share_token,
             description: model.description,
-            expires_at: model.expires_at,
+            expires_at: Timestamp::from_datetime(model.expires_at),
             max_access_count: model.max_access_count,
             current_access_count: model.current_access_count,
             is_revoked: model.is_revoked,
-            created_at: model.created_at,
-            updated_at: model.updated_at,
+            created_at: Timestamp::from_datetime(model.created_at),
+            updated_at: Timestamp::from_datetime(model.updated_at),
             share_url,
         }
     }
@@ -246,5 +246,5 @@ impl Default for GenerateUploadUrlRequest {
 pub struct GenerateUploadUrlResponse {
     pub upload_url: String,
     pub upload_key: String,
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: Timestamp,
 }

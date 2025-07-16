@@ -96,14 +96,14 @@ async fn test_update_multiple_consents() {
         .find(|c| c["consent_type"] == "Marketing")
         .unwrap();
     assert_eq!(marketing_consent["is_granted"], true);
-    assert!(marketing_consent["granted_at"].is_string());
+    assert!(marketing_consent["granted_at"].is_number());
 
     let analytics_consent = consents
         .iter()
         .find(|c| c["consent_type"] == "Analytics")
         .unwrap();
     assert_eq!(analytics_consent["is_granted"], false);
-    assert!(analytics_consent["revoked_at"].is_string());
+    assert!(analytics_consent["revoked_at"].is_number());
 }
 
 #[tokio::test]
@@ -283,7 +283,7 @@ async fn test_get_consent_history() {
                 || entry["action"].as_str().unwrap() == "revoked"
         );
         assert!(entry["is_granted"].is_boolean());
-        assert!(entry["timestamp"].is_string());
+        assert!(entry["timestamp"].is_number());
     }
 }
 
