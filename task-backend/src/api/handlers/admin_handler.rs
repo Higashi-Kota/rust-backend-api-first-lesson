@@ -2,6 +2,7 @@
 
 use crate::api::dto::admin_organization_dto::*;
 use crate::api::dto::admin_role_dto::*;
+use crate::api::dto::analytics_query_dto::SubscriptionHistorySearchQuery;
 use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::api::dto::subscription_history_dto::*;
 use crate::api::dto::task_dto::*;
@@ -771,14 +772,14 @@ pub async fn admin_list_tasks_paginated(
         .get("page")
         .and_then(|p| p.parse::<u64>().ok())
         .unwrap_or(1);
-    let page_size = params
-        .get("page_size")
+    let per_page = params
+        .get("per_page")
         .and_then(|p| p.parse::<u64>().ok())
         .unwrap_or(10)
         .clamp(1, 100);
 
     let task_service = &app_state.task_service;
-    let paginated_tasks = task_service.list_tasks_paginated(page, page_size).await?;
+    let paginated_tasks = task_service.list_tasks_paginated(page, per_page).await?;
 
     Ok(ApiResponse::success(paginated_tasks))
 }
@@ -822,17 +823,16 @@ pub async fn admin_list_roles(
 
     // ページネーションパラメータを取得
     let (page, per_page) = query.pagination.get_pagination();
-    let page_size = per_page;
     let active_only = query.active_only.unwrap_or(false);
 
     // ロールを取得
     let (roles, total_count) = if active_only {
         role_service
-            .list_active_roles_paginated(page, page_size)
+            .list_active_roles_paginated(page, per_page)
             .await?
     } else {
         role_service
-            .list_all_roles_paginated(page, page_size)
+            .list_all_roles_paginated(page, per_page)
             .await?
     };
 
@@ -855,10 +855,10 @@ pub async fn admin_list_roles(
 
     let pagination = crate::api::dto::common::PaginationMeta {
         page,
-        per_page: page_size,
-        total_pages: ((total_count as f64) / (page_size as f64)).ceil() as i32,
+        per_page,
+        total_pages: ((total_count as f64) / (per_page as f64)).ceil() as i32,
         total_count: total_count as i64,
-        has_next: page < ((total_count as f64) / (page_size as f64)).ceil() as i32,
+        has_next: page < ((total_count as f64) / (per_page as f64)).ceil() as i32,
         has_prev: page > 1,
     };
 
@@ -922,15 +922,17 @@ pub async fn admin_list_organizations(
 
     // ページネーションパラメータ
     let (page, per_page) = query.pagination.get_pagination();
-    let page_size = per_page;
 
     // 検索クエリを構築
-    let search_query = crate::api::dto::organization_dto::OrganizationSearchQuery {
+    let search_query = crate::api::dto::organization_query_dto::OrganizationSearchQuery {
         name: None,
         owner_id: None,
         subscription_tier: query.subscription_tier,
-        page: Some(page as u32),
-        page_size: Some(page_size as u32),
+        pagination: crate::api::dto::common::PaginationQuery {
+            page: page as u32,
+            per_page: per_page as u32,
+        },
+        ..Default::default()
     };
 
     // 組織一覧を取得（管理者なので全組織を取得）
@@ -962,10 +964,10 @@ pub async fn admin_list_organizations(
 
     let pagination = crate::api::dto::common::PaginationMeta {
         page,
-        per_page: page_size,
-        total_pages: ((total_count as f64) / (page_size as f64)).ceil() as i32,
+        per_page,
+        total_pages: ((total_count as f64) / (per_page as f64)).ceil() as i32,
         total_count: total_count as i64,
-        has_next: page < ((total_count as f64) / (page_size as f64)).ceil() as i32,
+        has_next: page < ((total_count as f64) / (per_page as f64)).ceil() as i32,
         has_prev: page > 1,
     };
 
@@ -995,11 +997,10 @@ pub async fn admin_list_users_with_roles(
 
     // ページネーションパラメータ
     let (page, per_page) = query.pagination.get_pagination();
-    let page_size = per_page;
 
     // ユーザー一覧を取得
     let (users_with_roles, total_count) = user_service
-        .get_all_users_with_roles_paginated(page, page_size, query.role_name.as_deref())
+        .get_all_users_with_roles_paginated(page, per_page, query.role_name.as_deref())
         .await?;
 
     // UserWithRoleResponseに変換
@@ -1033,10 +1034,10 @@ pub async fn admin_list_users_with_roles(
 
     let pagination = crate::api::dto::common::PaginationMeta {
         page,
-        per_page: page_size,
-        total_pages: ((total_count as f64) / (page_size as f64)).ceil() as i32,
+        per_page,
+        total_pages: ((total_count as f64) / (per_page as f64)).ceil() as i32,
         total_count: total_count as i64,
-        has_next: page < ((total_count as f64) / (page_size as f64)).ceil() as i32,
+        has_next: page < ((total_count as f64) / (per_page as f64)).ceil() as i32,
         has_prev: page > 1,
     };
 
@@ -1179,10 +1180,8 @@ pub async fn change_user_subscription(
 /// バルク操作履歴一覧取得クエリ
 #[derive(Debug, Deserialize)]
 pub struct BulkOperationListQuery {
-    #[serde(default = "default_page")]
-    pub page: i32,
-    #[serde(default = "default_per_page")]
-    pub per_page: i32,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
     #[serde(default, with = "optional_timestamp")]
     pub start_date: Option<DateTime<Utc>>,
     #[serde(default, with = "optional_timestamp")]
@@ -1280,8 +1279,7 @@ pub async fn admin_list_bulk_operations(
     }
 
     // ページネーション適用
-    let page = query.page;
-    let per_page = query.per_page;
+    let (page, per_page) = query.pagination.get_pagination();
     let total_count = responses.len() as i64;
     let offset = ((page - 1) * per_page) as usize;
     let limit = per_page as usize;
@@ -1830,38 +1828,38 @@ mod tests {
         // ページネーションパラメータのロジックテスト
         let mut params = std::collections::HashMap::new();
         params.insert("page".to_string(), "2".to_string());
-        params.insert("page_size".to_string(), "25".to_string());
+        params.insert("per_page".to_string(), "25".to_string());
 
         let page = params
             .get("page")
             .and_then(|p| p.parse::<u64>().ok())
             .unwrap_or(1);
-        let page_size = params
-            .get("page_size")
+        let per_page = params
+            .get("per_page")
             .and_then(|p| p.parse::<u64>().ok())
             .unwrap_or(10)
             .clamp(1, 100);
 
         assert_eq!(page, 2);
-        assert_eq!(page_size, 25);
+        assert_eq!(per_page, 25);
 
         // 不正な値の場合のテスト
         let mut invalid_params = std::collections::HashMap::new();
         invalid_params.insert("page".to_string(), "invalid".to_string());
-        invalid_params.insert("page_size".to_string(), "150".to_string());
+        invalid_params.insert("per_page".to_string(), "150".to_string());
 
         let invalid_page = invalid_params
             .get("page")
             .and_then(|p| p.parse::<u64>().ok())
             .unwrap_or(1);
-        let invalid_page_size = invalid_params
-            .get("page_size")
+        let invalid_per_page = invalid_params
+            .get("per_page")
             .and_then(|p| p.parse::<u64>().ok())
             .unwrap_or(10)
             .clamp(1, 100);
 
         assert_eq!(invalid_page, 1); // デフォルト値
-        assert_eq!(invalid_page_size, 100); // クランプされた最大値
+        assert_eq!(invalid_per_page, 100); // クランプされた最大値
     }
 
     #[test]
@@ -1915,29 +1913,7 @@ mod tests {
 }
 
 // ============ サブスクリプション履歴検索・分析API ============
-
-/// サブスクリプション履歴検索クエリ（ページネーション付き）
-#[derive(Debug, Deserialize, Validate)]
-pub struct SubscriptionHistorySearchQuery {
-    pub tier: Option<String>,
-    pub user_id: Option<Uuid>,
-    #[serde(default, with = "optional_timestamp")]
-    pub start_date: Option<DateTime<Utc>>,
-    #[serde(default, with = "optional_timestamp")]
-    pub end_date: Option<DateTime<Utc>>,
-    #[serde(default = "default_page")]
-    pub page: i32,
-    #[serde(default = "default_per_page")]
-    pub per_page: i32,
-}
-
-fn default_page() -> i32 {
-    1
-}
-
-fn default_per_page() -> i32 {
-    10
-}
+// SubscriptionHistorySearchQuery moved to analytics_query_dto.rs with unified pattern
 
 /// 全サブスクリプション履歴取得（管理者用）
 pub async fn get_all_subscription_history_handler(
@@ -1990,9 +1966,7 @@ pub async fn search_subscription_history_handler(
         ));
     }
 
-    search_query
-        .validate()
-        .map_err(|e| AppError::BadRequest(e.to_string()))?;
+    // Validation is handled by the unified query pattern
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -2026,8 +2000,7 @@ pub async fn search_subscription_history_handler(
     };
 
     // ページネーション適用
-    let page = search_query.page;
-    let per_page = search_query.per_page;
+    let (page, per_page) = search_query.pagination.get_pagination();
     let total_count = histories.len() as i64;
     let offset = ((page - 1) * per_page) as usize;
     let limit = per_page as usize;

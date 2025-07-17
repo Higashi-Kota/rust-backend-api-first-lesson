@@ -14,4 +14,5 @@ pub mod subscription;
 pub mod system;
 pub mod tasks;
 pub mod team;
+pub mod unified_query_tests;
 pub mod user;

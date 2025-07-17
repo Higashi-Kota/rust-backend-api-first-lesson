@@ -1,8 +1,11 @@
 // task-backend/src/api/handlers/organization_handler.rs
 
 use crate::api::dto::organization_dto::*;
+use crate::api::dto::organization_query_dto::OrganizationSearchQuery;
+use crate::domain::organization_model::Organization;
 use crate::error::AppResult;
 use crate::middleware::auth::AuthenticatedUser;
+use crate::shared::types::PaginatedResponse;
 use crate::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
@@ -10,6 +13,7 @@ use axum::{
     Json,
 };
 use serde_json::json;
+use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -317,6 +321,30 @@ pub async fn get_organization_subscription_history_handler(
     Ok(ApiResponse::success(history_response))
 }
 
+/// 統一検索クエリを使用した組織検索
+pub async fn search_organizations_handler(
+    State(app_state): State<crate::api::AppState>,
+    user: AuthenticatedUser,
+    Query(query): Query<OrganizationSearchQuery>,
+) -> AppResult<ApiResponse<PaginatedResponse<Organization>>> {
+    info!(
+        user_id = %user.claims.user_id,
+        search = ?query.search,
+        "Searching organizations with unified query"
+    );
+
+    let (organizations, total_count) = app_state
+        .organization_service
+        .search_organizations(&query, user.claims.user_id)
+        .await?;
+
+    let (page, per_page) = query.pagination.get_pagination();
+    let paginated_response =
+        PaginatedResponse::new(organizations, page, per_page, total_count as i64);
+
+    Ok(ApiResponse::success(paginated_response))
+}
+
 /// 組織ルーターを構築
 pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::Router {
     use axum::{
@@ -331,6 +359,8 @@ pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::
             "/organizations/paginated",
             get(get_organizations_paginated_handler),
         )
+        // 検索
+        .route("/organizations/search", get(search_organizations_handler))
         // リソースルート
         .route("/organizations", post(create_organization_handler))
         .route("/organizations", get(get_organizations_handler))

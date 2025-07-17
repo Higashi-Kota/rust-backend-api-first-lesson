@@ -1,10 +1,12 @@
 // task-backend/src/api/handlers/team_handler.rs
 
 use crate::api::dto::team_dto::*;
+use crate::api::dto::team_query_dto::TeamSearchQuery;
 use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
 use crate::error::AppResult;
 use crate::middleware::auth::AuthenticatedUser;
+use crate::shared::types::PaginatedResponse;
 use crate::types::ApiResponse;
 use crate::utils::error_helper::convert_validation_errors;
 use axum::{
@@ -13,6 +15,7 @@ use axum::{
     routing::{delete, get, patch, post},
     Json, Router,
 };
+use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -189,17 +192,19 @@ pub async fn get_team_stats_handler(
 pub async fn get_teams_with_pagination_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Query(query): Query<TeamPaginationQuery>,
+    Query(query): Query<TeamSearchQuery>,
 ) -> AppResult<ApiResponse<TeamPaginationResponse>> {
-    let page = query.page.unwrap_or(1).max(1);
-    let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
+    let (page, per_page) = query.pagination.get_pagination();
+    let page = page as u64;
+    let per_page = per_page as u64;
 
     let (teams, total_count) = app_state
         .team_service
-        .get_teams_with_pagination(page, page_size, query.organization_id, user.user_id())
+        .get_teams_with_pagination(page, per_page, query.organization_id, user.user_id())
         .await?;
 
-    let response = TeamPaginationResponse::new(teams, total_count, page, page_size);
+    let response =
+        TeamPaginationResponse::new(teams, page as i32, per_page as i32, total_count as i64);
 
     Ok(ApiResponse::success(response))
 }
@@ -218,6 +223,29 @@ pub async fn get_team_member_details_handler(
     Ok(ApiResponse::success(member_detail))
 }
 
+/// 統一検索クエリを使用したチーム検索
+pub async fn search_teams_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Query(query): Query<TeamSearchQuery>,
+) -> AppResult<ApiResponse<PaginatedResponse<TeamListResponse>>> {
+    info!(
+        user_id = %user.claims.user_id,
+        search = ?query.search,
+        "Searching teams with unified query"
+    );
+
+    let (teams, total_count) = app_state
+        .team_service
+        .search_teams(&query, user.claims.user_id)
+        .await?;
+
+    let (page, per_page) = query.pagination.get_pagination();
+    let paginated_response = PaginatedResponse::new(teams, page, per_page, total_count as i64);
+
+    Ok(ApiResponse::success(paginated_response))
+}
+
 // --- ルーター ---
 
 /// チームルーターを作成
@@ -226,6 +254,7 @@ pub fn team_router(app_state: AppState) -> Router {
         // チーム管理
         .route("/teams", post(create_team_handler))
         .route("/teams", get(list_teams_handler))
+        .route("/teams/search", get(search_teams_handler))
         .route("/teams/{id}", get(get_team_handler))
         .route("/teams/{id}", patch(update_team_handler))
         .route("/teams/{id}", delete(delete_team_handler))

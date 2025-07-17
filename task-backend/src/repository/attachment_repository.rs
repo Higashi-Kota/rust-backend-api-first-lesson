@@ -103,6 +103,12 @@ impl AttachmentRepository {
             (AttachmentSortBy::CreatedAt, SortOrder::Desc) => {
                 query.order_by_desc(task_attachment_model::Column::CreatedAt)
             }
+            (AttachmentSortBy::UpdatedAt, SortOrder::Asc) => {
+                query.order_by_asc(task_attachment_model::Column::UpdatedAt)
+            }
+            (AttachmentSortBy::UpdatedAt, SortOrder::Desc) => {
+                query.order_by_desc(task_attachment_model::Column::UpdatedAt)
+            }
             (AttachmentSortBy::FileName, SortOrder::Asc) => {
                 query.order_by_asc(task_attachment_model::Column::FileName)
             }

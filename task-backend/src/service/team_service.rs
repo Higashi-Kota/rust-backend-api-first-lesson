@@ -1,6 +1,7 @@
 // task-backend/src/service/team_service.rs
 
 use crate::api::dto::team_dto::*;
+use crate::api::dto::team_query_dto::TeamSearchQuery;
 use crate::domain::team_member_model::Model as TeamMemberModel;
 use crate::domain::team_model::{Model as TeamModel, TeamRole};
 use crate::middleware::subscription_guard::check_feature_limit;
@@ -468,6 +469,18 @@ impl TeamService {
         }
 
         Ok((team_responses, total))
+    }
+
+    /// チームを検索（統一クエリパターン使用）
+    pub async fn search_teams(
+        &self,
+        query: &TeamSearchQuery,
+        user_id: Uuid,
+    ) -> AppResult<(Vec<TeamListResponse>, u64)> {
+        // 既存のメソッドを使用してページネーションとフィルタリング
+        let (page, per_page) = query.pagination.get_pagination();
+        self.get_teams_with_pagination(page as u64, per_page as u64, query.organization_id, user_id)
+            .await
     }
 
     /// アクティブなチーム数を取得

@@ -161,18 +161,6 @@ pub struct RoleListResponse {
     pub total_count: usize,
 }
 
-impl RoleListResponse {
-    pub fn new(roles: Vec<RoleWithPermissions>) -> Self {
-        let total_count = roles.len();
-        let role_responses = roles.into_iter().map(RoleResponse::from).collect();
-
-        Self {
-            roles: role_responses,
-            total_count,
-        }
-    }
-}
-
 /// ロール作成レスポンス
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateRoleResponse {

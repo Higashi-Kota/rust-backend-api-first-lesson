@@ -2,4 +2,4 @@
 
 pub mod pagination;
 
-pub use pagination::{PaginatedResponse, PaginationMeta, PaginationQuery};
+pub use pagination::{PaginatedResponse, PaginationMeta};

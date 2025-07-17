@@ -389,7 +389,7 @@ async fn test_task_filtering_user_isolation() {
     // Test filtering by status for User1
     let user1_todo_filter = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?status=todo",
+        "/tasks/search?status=todo",
         &user1.access_token,
         None,
     );
@@ -412,7 +412,7 @@ async fn test_task_filtering_user_isolation() {
     // Test filtering by status for User2
     let user2_completed_filter = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?status=completed",
+        "/tasks/search?status=completed",
         &user2.access_token,
         None,
     );

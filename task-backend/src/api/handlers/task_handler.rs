@@ -1,10 +1,11 @@
 // src/api/handlers/task_handler.rs
 use crate::api::dto::common::PaginationQuery;
+use crate::api::dto::common::PaginationQuery as CommonPaginationQuery;
 use crate::api::dto::task_dto::{
     BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto, BatchUpdateResponseDto,
-    BatchUpdateTaskDto, CreateTaskDto, PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse,
-    UpdateTaskDto,
+    BatchUpdateTaskDto, CreateTaskDto, PaginatedTasksDto, TaskDto, TaskResponse, UpdateTaskDto,
 };
+use crate::api::dto::task_query_dto::TaskSearchQuery;
 use crate::api::AppState;
 use crate::domain::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
@@ -485,40 +486,52 @@ pub async fn delete_tasks_batch_handler(
     Ok(ApiResponse::success(response_dto))
 }
 
-// フィルタリング用ハンドラー
-pub async fn filter_tasks_handler(
+// filter_tasks_handler removed - use search_tasks_handler instead
+
+// 統一検索クエリハンドラー
+pub async fn search_tasks_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Query(filter): Query<TaskFilterDto>,
+    Query(query): Query<TaskSearchQuery>,
 ) -> AppResult<ApiResponse<PaginatedTasksDto>> {
+    info!(
+        user_id = %user.claims.user_id,
+        search = ?query.search,
+        page = ?query.pagination.page,
+        per_page = ?query.pagination.per_page,
+        allowed_sort_fields = ?TaskSearchQuery::allowed_sort_fields(),
+        "Searching tasks with unified query"
+    );
+
     let paginated_tasks = app_state
         .task_service
-        .filter_tasks_for_user(user.claims.user_id, filter)
+        .search_tasks_for_user(user.claims.user_id, query)
         .await?;
+
     Ok(ApiResponse::success(paginated_tasks))
 }
 
-/// 動的権限を使用するフィルタリング（新エンドポイント）
-pub async fn filter_tasks_dynamic_handler(
+/// 動的権限を使用する検索（新エンドポイント）
+pub async fn search_tasks_dynamic_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Query(filter): Query<TaskFilterDto>,
+    Query(query): Query<TaskSearchQuery>,
 ) -> AppResult<ApiResponse<TaskResponse>> {
     info!(
         user_id = %user.claims.user_id,
         subscription_tier = %user.claims.get_subscription_tier().as_str(),
-        "Filtering tasks with dynamic permissions"
+        "Searching tasks with dynamic permissions"
     );
 
     let response = app_state
         .task_service
-        .list_tasks_dynamic(&user, Some(filter))
+        .search_tasks_dynamic(&user, Some(query))
         .await?;
 
     info!(
         user_id = %user.claims.user_id,
         filtered_count = %response.total_count(),
-        "Tasks filtered successfully with dynamic permissions"
+        "Tasks searched successfully with dynamic permissions"
     );
 
     Ok(ApiResponse::success(response))
@@ -532,11 +545,11 @@ pub async fn list_tasks_paginated_handler(
 ) -> AppResult<ApiResponse<PaginatedTasksDto>> {
     let (page, per_page) = params.get_pagination();
     let page = page as u64;
-    let page_size = per_page as u64;
+    let per_page = per_page as u64;
 
     let paginated_tasks = app_state
         .task_service
-        .list_tasks_paginated_for_user(user.claims.user_id, page, page_size)
+        .list_tasks_paginated_for_user(user.claims.user_id, page, per_page)
         .await?;
     Ok(ApiResponse::success(paginated_tasks))
 }
@@ -549,12 +562,14 @@ pub async fn list_tasks_paginated_dynamic_handler(
 ) -> AppResult<ApiResponse<TaskResponse>> {
     let (page, per_page) = params.get_pagination();
     let page = page as u64;
-    let page_size = per_page as u64;
+    let per_page = per_page as u64;
 
-    // ページネーションパラメータをTaskFilterDtoに変換
-    let filter = TaskFilterDto {
-        limit: Some(page_size),
-        offset: Some((page - 1) * page_size),
+    // ページネーションパラメータをTaskSearchQueryに変換
+    let query = TaskSearchQuery {
+        pagination: CommonPaginationQuery {
+            page: page as u32,
+            per_page: per_page as u32,
+        },
         ..Default::default()
     };
 
@@ -562,13 +577,13 @@ pub async fn list_tasks_paginated_dynamic_handler(
         user_id = %user.claims.user_id,
         subscription_tier = %user.claims.get_subscription_tier().as_str(),
         page = %page,
-        page_size = %page_size,
+        per_page = %per_page,
         "Paginated tasks with dynamic permissions"
     );
 
     let response = app_state
         .task_service
-        .list_tasks_dynamic(&user, Some(filter))
+        .search_tasks_dynamic(&user, Some(query))
         .await?;
 
     info!(
@@ -761,10 +776,11 @@ pub fn task_router(app_state: AppState) -> Router {
     Router::new()
         .route("/tasks", get(list_tasks_handler).post(create_task_handler))
         .route("/tasks/paginated", get(list_tasks_paginated_handler))
-        .route("/tasks/filter", get(filter_tasks_handler))
+        // 統一クエリパターン
+        .route("/tasks/search", get(search_tasks_handler))
         // 動的権限システム用の新エンドポイント
         .route("/tasks/dynamic", get(list_tasks_dynamic_handler))
-        .route("/tasks/dynamic/filter", get(filter_tasks_dynamic_handler))
+        .route("/tasks/dynamic/search", get(search_tasks_dynamic_handler))
         .route(
             "/tasks/dynamic/paginated",
             get(list_tasks_paginated_dynamic_handler),

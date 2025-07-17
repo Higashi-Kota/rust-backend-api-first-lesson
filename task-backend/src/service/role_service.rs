@@ -34,26 +34,6 @@ impl RoleService {
 
     // --- 基本CRUD操作 ---
 
-    /// すべてのロールを取得
-    pub async fn list_all_roles(&self) -> AppResult<Vec<RoleWithPermissions>> {
-        info!("Fetching all roles");
-
-        self.role_repository.find_all().await.map_err(|e| {
-            error!(error = %e, "Failed to fetch all roles");
-            AppError::InternalServerError("Failed to fetch roles".to_string())
-        })
-    }
-
-    /// アクティブなロールのみ取得
-    pub async fn list_active_roles(&self) -> AppResult<Vec<RoleWithPermissions>> {
-        info!("Fetching active roles");
-
-        self.role_repository.find_all_active().await.map_err(|e| {
-            error!(error = %e, "Failed to fetch active roles");
-            AppError::InternalServerError("Failed to fetch active roles".to_string())
-        })
-    }
-
     /// ページネーション付きですべてのロールを取得
     pub async fn list_all_roles_paginated(
         &self,

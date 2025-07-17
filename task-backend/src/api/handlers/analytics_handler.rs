@@ -1,6 +1,7 @@
 // task-backend/src/api/handlers/analytics_handler.rs
 
 use crate::api::dto::analytics_dto::*;
+use crate::api::dto::analytics_query_dto::StatsPeriodQuery;
 use crate::api::dto::common::OperationResult;
 use crate::api::AppState;
 use crate::domain::{daily_activity_summary_model, subscription_tier::SubscriptionTier};
@@ -27,16 +28,7 @@ use tracing::{info, warn};
 use uuid::Uuid;
 use validator::Validate;
 
-// --- Query Parameters ---
-
-/// 統計期間パラメータ
-#[derive(Debug, Deserialize, Validate)]
-pub struct StatsPeriodQuery {
-    #[validate(range(min = 1, max = 365, message = "Days must be between 1 and 365"))]
-    pub days: Option<u32>,
-    pub include_trends: Option<bool>,
-    pub detailed: Option<bool>,
-}
+// Query parameters are now in analytics_query_dto.rs
 
 // --- Handler Functions ---
 

@@ -6,8 +6,9 @@ use task_backend::domain::user_model::{ActiveModel as UserActiveModel, Entity as
 use task_backend::{
     api::dto::task_dto::{
         BatchCreateTaskDto, BatchDeleteTaskDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto,
-        CreateTaskDto, TaskFilterDto, UpdateTaskDto,
+        CreateTaskDto, UpdateTaskDto,
     },
+    api::dto::task_query_dto::TaskSearchQuery,
     service::task_service::TaskService,
 };
 use uuid::Uuid;
@@ -279,11 +280,11 @@ async fn test_filter_tasks_service() {
         .unwrap();
 
     // ステータスでフィルタリング
-    let filter = TaskFilterDto {
+    let mut filter = TaskSearchQuery {
         status: Some(TaskStatus::Todo),
-        limit: Some(10),
         ..Default::default()
     };
+    filter.pagination.per_page = 10;
 
     let result = service.filter_tasks(filter).await.unwrap();
 
@@ -292,11 +293,11 @@ async fn test_filter_tasks_service() {
     assert_eq!(result.pagination.per_page, 10);
 
     // タイトルでフィルタリング
-    let filter = TaskFilterDto {
-        title_contains: Some("Another".to_string()),
-        limit: Some(10),
+    let mut filter = TaskSearchQuery {
+        search: Some("Another".to_string()),
         ..Default::default()
     };
+    filter.pagination.per_page = 10;
 
     let result = service.filter_tasks(filter).await.unwrap();
 
@@ -305,12 +306,12 @@ async fn test_filter_tasks_service() {
     assert!(result.items.iter().any(|t| t.title.contains("Another")));
 
     // 該当タスクなしのケース
-    let filter = TaskFilterDto {
+    let mut filter = TaskSearchQuery {
         status: Some(TaskStatus::Completed),
-        title_contains: Some("NonExistent".to_string()),
-        limit: Some(10),
+        search: Some("NonExistent".to_string()),
         ..Default::default()
     };
+    filter.pagination.per_page = 10;
 
     let result = service.filter_tasks(filter).await.unwrap();
 

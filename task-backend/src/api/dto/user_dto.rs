@@ -3,7 +3,7 @@
 use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::domain::user_model::SafeUser;
 use crate::service::user_service::UserStats;
-use crate::types::{optional_timestamp, Timestamp};
+use crate::types::{optional_timestamp, SortQuery, Timestamp};
 use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -231,47 +231,22 @@ pub struct AccountStatusUpdateResponse {
 // --- クエリパラメータ ---
 
 /// ユーザー検索クエリ
-#[derive(Debug, Clone, Deserialize, Validate)]
+#[derive(Debug, Clone, Default, Deserialize, Validate)]
 pub struct UserSearchQuery {
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
+    #[serde(flatten)]
+    pub sort: SortQuery, // TODO: Implement sorting in user search
+
     #[validate(length(
         min = 1,
         max = 100,
         message = "Search term must be between 1 and 100 characters"
     ))]
-    pub q: Option<String>,
+    pub search: Option<String>,
 
     pub is_active: Option<bool>,
     pub email_verified: Option<bool>,
-
-    #[serde(flatten)]
-    pub pagination: PaginationQuery,
-
-    pub sort_by: Option<UserSortField>,
-    pub sort_order: Option<SortOrder>,
-}
-
-/// ユーザーソートフィールド
-#[derive(Debug, Clone, Deserialize)]
-pub enum UserSortField {
-    #[serde(rename = "username")]
-    Username,
-    #[serde(rename = "email")]
-    Email,
-    #[serde(rename = "created_at")]
-    CreatedAt,
-    #[serde(rename = "last_login_at")]
-    LastLoginAt,
-    #[serde(rename = "task_count")]
-    TaskCount,
-}
-
-/// ソート順序
-#[derive(Debug, Clone, Deserialize)]
-pub enum SortOrder {
-    #[serde(rename = "asc")]
-    Ascending,
-    #[serde(rename = "desc")]
-    Descending,
 }
 
 // --- バリデーション ---
@@ -295,24 +270,6 @@ impl UpdateProfileRequest {
             fields.push("email".to_string());
         }
         fields
-    }
-}
-
-impl UserSearchQuery {
-    /// デフォルト値を適用
-    pub fn with_defaults(self) -> Self {
-        let (page, per_page) = self.pagination.get_pagination();
-        Self {
-            q: self.q,
-            is_active: self.is_active,
-            email_verified: self.email_verified,
-            pagination: PaginationQuery {
-                page: Some(page),
-                per_page: Some(per_page),
-            },
-            sort_by: self.sort_by.or(Some(UserSortField::CreatedAt)),
-            sort_order: self.sort_order.or(Some(SortOrder::Descending)),
-        }
     }
 }
 
@@ -726,27 +683,21 @@ mod tests {
     #[test]
     fn test_user_search_query_defaults() {
         let query = UserSearchQuery {
-            q: None,
+            search: None,
             is_active: None,
             email_verified: None,
-            pagination: PaginationQuery {
-                page: None,
-                per_page: None,
-            },
-            sort_by: None,
-            sort_order: None,
+            pagination: PaginationQuery::default(),
+            sort: SortQuery::default(),
         };
 
-        let query_with_defaults = query.with_defaults();
-        assert_eq!(query_with_defaults.pagination.page, Some(1));
-        assert_eq!(query_with_defaults.pagination.per_page, Some(20));
+        // デフォルト値の検証
+        let (page, per_page) = query.pagination.get_pagination();
+        assert_eq!(page, 1);
+        assert_eq!(per_page, 20);
+        assert!(query.sort.sort_by.is_none());
         assert!(matches!(
-            query_with_defaults.sort_by,
-            Some(UserSortField::CreatedAt)
-        ));
-        assert!(matches!(
-            query_with_defaults.sort_order,
-            Some(SortOrder::Descending)
+            query.sort.sort_order,
+            crate::types::SortOrder::Asc
         ));
     }
 

@@ -4,8 +4,9 @@ use crate::api::dto::common::PaginationMeta;
 use crate::api::dto::task_dto::{
     BatchCreateResponseDto, BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto,
     BatchUpdateResponseDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto, CreateTaskDto,
-    PaginatedTasksDto, TaskDto, TaskFilterDto, TaskResponse, UpdateTaskDto,
+    PaginatedTasksDto, TaskDto, TaskResponse, UpdateTaskDto,
 };
+use crate::api::dto::task_query_dto::TaskSearchQuery;
 use crate::db::DbPool;
 use crate::domain::permission::{Permission, PermissionResult, PermissionScope, Privilege};
 use crate::domain::subscription_tier::SubscriptionTier;
@@ -235,18 +236,15 @@ impl TaskService {
     }
 
     // フィルタリング機能を追加
-    pub async fn filter_tasks(&self, filter: TaskFilterDto) -> AppResult<PaginatedTasksDto> {
-        let (tasks, total_count) = self.repo.find_with_filter(&filter).await?;
+    pub async fn filter_tasks(&self, query: TaskSearchQuery) -> AppResult<PaginatedTasksDto> {
+        let (tasks, total_count) = self.repo.find_with_filter(&query).await?;
 
         // タスクモデルをDTOに変換
         let task_dtos: Vec<TaskDto> = tasks.into_iter().map(Into::into).collect();
 
-        // ページネーション情報を計算
-        let limit = filter.limit.unwrap_or(10);
-        let offset = filter.offset.unwrap_or(0);
-        let current_page = if limit > 0 { offset / limit + 1 } else { 1 };
-
-        let pagination = PaginationMeta::new(current_page as i32, limit as i32, total_count as i64);
+        // ページネーション情報を取得
+        let (page, per_page) = query.pagination.get_pagination();
+        let pagination = PaginationMeta::new(page, per_page, total_count as i64);
 
         Ok(PaginatedTasksDto {
             items: task_dtos,
@@ -278,31 +276,35 @@ impl TaskService {
         })
     }
 
-    // ユーザー固有のフィルタリング付きタスク取得
+    // ユーザー固有のフィルタリング付きタスク取得（廃止予定 - search_tasks_for_userを使用してください）
     pub async fn filter_tasks_for_user(
         &self,
         user_id: uuid::Uuid,
-        filter: TaskFilterDto,
+        query: TaskSearchQuery,
     ) -> AppResult<PaginatedTasksDto> {
-        let (tasks, total_count) = self
-            .repo
-            .find_with_filter_for_user(user_id, &filter)
-            .await?;
+        let (tasks, total_count) = self.repo.find_with_filter_for_user(user_id, &query).await?;
 
         // タスクモデルをDTOに変換
         let task_dtos: Vec<TaskDto> = tasks.into_iter().map(Into::into).collect();
 
-        // limit/offsetをpage/page_sizeに変換
-        let page_size = filter.limit.unwrap_or(10);
-        let offset = filter.offset.unwrap_or(0);
-        let page = (offset / page_size) + 1;
-
-        let pagination = PaginationMeta::new(page as i32, page_size as i32, total_count as i64);
+        // ページネーション情報を取得
+        let (page, per_page) = query.pagination.get_pagination();
+        let pagination = PaginationMeta::new(page, per_page, total_count as i64);
 
         Ok(PaginatedTasksDto {
             items: task_dtos,
             pagination,
         })
+    }
+
+    // 統一クエリパターンを使用した検索
+    pub async fn search_tasks_for_user(
+        &self,
+        user_id: uuid::Uuid,
+        query: TaskSearchQuery,
+    ) -> AppResult<PaginatedTasksDto> {
+        // 直接TaskSearchQueryを使用
+        self.filter_tasks_for_user(user_id, query).await
     }
 
     // ユーザー固有のページネーション付きタスク一覧取得
@@ -339,7 +341,7 @@ impl TaskService {
     pub async fn list_tasks_dynamic(
         &self,
         user: &AuthenticatedUser,
-        filter: Option<TaskFilterDto>,
+        query: Option<TaskSearchQuery>,
     ) -> AppResult<TaskResponse> {
         let permission_result = if let Some(ref role) = user.claims.role {
             role.can_perform_action("tasks", "read", None)
@@ -353,18 +355,27 @@ impl TaskService {
 
         match permission_result {
             PermissionResult::Allowed { privilege, scope } => {
-                self.execute_task_query(user, filter, privilege, scope)
-                    .await
+                self.execute_task_query(user, query, privilege, scope).await
             }
             PermissionResult::Denied { reason } => Err(AppError::Forbidden(reason)),
         }
+    }
+
+    /// 動的権限システムによるタスク検索（統一クエリパターン使用）
+    pub async fn search_tasks_dynamic(
+        &self,
+        user: &AuthenticatedUser,
+        query: Option<TaskSearchQuery>,
+    ) -> AppResult<TaskResponse> {
+        // 直接TaskSearchQueryを使用
+        self.list_tasks_dynamic(user, query).await
     }
 
     /// 動的権限に基づいてクエリを実行
     async fn execute_task_query(
         &self,
         user: &AuthenticatedUser,
-        filter: Option<TaskFilterDto>,
+        query: Option<TaskSearchQuery>,
         privilege: Option<Privilege>,
         scope: PermissionScope,
     ) -> AppResult<TaskResponse> {
@@ -390,7 +401,7 @@ impl TaskService {
                         .as_ref()
                         .map(|q| q.features.clone())
                         .unwrap_or_default(),
-                    filter,
+                    query,
                 )
                 .await
             }
@@ -400,17 +411,17 @@ impl TaskService {
                 if privilege_info.subscription_tier
                     == crate::domain::subscription_tier::SubscriptionTier::Enterprise =>
             {
-                self.list_all_tasks_unlimited(filter).await
+                self.list_all_tasks_unlimited(query).await
             }
 
             // Admin access: Always unlimited
-            _ if user.claims.is_admin() => self.list_all_tasks_unlimited(filter).await,
+            _ if user.claims.is_admin() => self.list_all_tasks_unlimited(query).await,
 
             // Default: Limited access to own tasks only
             _ => {
-                let basic_filter = filter.unwrap_or_default();
+                let basic_query = query.unwrap_or_default();
                 let result = self
-                    .filter_tasks_for_user(user.claims.user_id, basic_filter)
+                    .filter_tasks_for_user(user.claims.user_id, basic_query)
                     .await?;
                 Ok(TaskResponse::Limited(result))
             }
@@ -425,12 +436,10 @@ impl TaskService {
     ) -> AppResult<TaskResponse> {
         let max_items = quota.and_then(|q| q.max_items).unwrap_or(100);
 
-        let filter = TaskFilterDto {
-            limit: Some(max_items as u64),
-            ..Default::default()
-        };
+        let mut query = TaskSearchQuery::default();
+        query.pagination.per_page = max_items.min(100);
 
-        let result = self.filter_tasks_for_user(user_id, filter).await?;
+        let result = self.filter_tasks_for_user(user_id, query).await?;
         Ok(TaskResponse::Limited(result))
     }
 
@@ -439,17 +448,17 @@ impl TaskService {
         &self,
         user_id: Uuid,
         features: &[String],
-        filter: Option<TaskFilterDto>,
+        query: Option<TaskSearchQuery>,
     ) -> AppResult<TaskResponse> {
-        let mut enhanced_filter = filter.unwrap_or_default();
-        enhanced_filter.limit = Some(10_000); // Pro tier limit
+        let mut enhanced_query = query.unwrap_or_default();
+        enhanced_query.pagination.per_page = enhanced_query.pagination.per_page.min(100); // Pro tier limit
 
         if features.contains(&"advanced_filter".to_string()) {
             // Enhanced filtering capabilities for Pro users
-            let result = self.filter_tasks_for_user(user_id, enhanced_filter).await?;
+            let result = self.filter_tasks_for_user(user_id, enhanced_query).await?;
             Ok(TaskResponse::Enhanced(result))
         } else {
-            let result = self.filter_tasks_for_user(user_id, enhanced_filter).await?;
+            let result = self.filter_tasks_for_user(user_id, enhanced_query).await?;
             Ok(TaskResponse::Limited(result))
         }
     }
@@ -457,10 +466,10 @@ impl TaskService {
     /// Enterprise tier: All tasks unlimited
     async fn list_all_tasks_unlimited(
         &self,
-        filter: Option<TaskFilterDto>,
+        query: Option<TaskSearchQuery>,
     ) -> AppResult<TaskResponse> {
-        let enhanced_filter = filter.unwrap_or_default();
-        let result = self.filter_tasks(enhanced_filter).await?;
+        let enhanced_query = query.unwrap_or_default();
+        let result = self.filter_tasks(enhanced_query).await?;
         Ok(TaskResponse::Unlimited(result))
     }
 

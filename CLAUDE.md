@@ -164,7 +164,6 @@ self.repo.count_tasks()
 * **例外: テスト用ヘルパー関数**
   * テスト用については `#[allow(dead_code)]` を許可
     * `AppConfig::for_testing`
-    * `setup_test_app`
     * `TestDatabase::_container`
 
 ### 6. **プロダクションコードの品質基準**
