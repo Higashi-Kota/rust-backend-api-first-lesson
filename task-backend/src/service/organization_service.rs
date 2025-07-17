@@ -1,6 +1,7 @@
 // task-backend/src/service/organization_service.rs
 
 use crate::api::dto::organization_dto::*;
+use crate::api::dto::organization_query_dto::OrganizationSearchQuery;
 use crate::domain::organization_model::{Organization, OrganizationMember, OrganizationRole};
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
@@ -133,9 +134,8 @@ impl OrganizationService {
         query: OrganizationSearchQuery,
         user_id: Option<Uuid>,
     ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
-        let page = query.page.unwrap_or(1) as i32;
-        let page_size = query.page_size.unwrap_or(20) as i32;
-        let page_size = std::cmp::min(page_size, 100); // 最大100件に制限
+        let (page, per_page) = query.pagination.get_pagination();
+        let page_size = std::cmp::min(per_page, 100); // 最大100件に制限
 
         // 組織を取得
         let all_organizations = if user_id.is_none() {
@@ -605,6 +605,33 @@ impl OrganizationService {
             .remove_member(member_id)
             .await?;
         Ok(())
+    }
+
+    /// 組織を検索（統一クエリパターン使用）
+    pub async fn search_organizations(
+        &self,
+        query: &OrganizationSearchQuery,
+        user_id: Uuid,
+    ) -> AppResult<(Vec<Organization>, u64)> {
+        // 現在は既存のメソッドを使用してフィルタリング
+        let organizations = self
+            .organization_repository
+            .find_organizations_by_member(user_id)
+            .await?;
+
+        let total = organizations.len() as u64;
+
+        // ページネーション適用
+        let (page, per_page) = query.pagination.get_pagination();
+        let start = ((page - 1) * per_page) as usize;
+        let end = (start + per_page as usize).min(organizations.len());
+        let paginated = organizations
+            .into_iter()
+            .skip(start)
+            .take(end - start)
+            .collect();
+
+        Ok((paginated, total))
     }
 
     /// 組織統計を取得

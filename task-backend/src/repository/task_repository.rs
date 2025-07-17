@@ -1,7 +1,6 @@
 // src/repository/task_repository.rs
-use crate::api::dto::task_dto::{
-    BatchUpdateTaskItemDto, CreateTaskDto, TaskFilterDto, UpdateTaskDto,
-};
+use crate::api::dto::task_dto::{BatchUpdateTaskItemDto, CreateTaskDto, UpdateTaskDto};
+use crate::api::dto::task_query_dto::TaskSearchQuery;
 use crate::db;
 use crate::domain::task_model::{self, ActiveModel as TaskActiveModel, Entity as TaskEntity};
 use crate::domain::task_status::TaskStatus;
@@ -75,76 +74,95 @@ impl TaskRepository {
 
     pub async fn find_with_filter(
         &self,
-        filter: &TaskFilterDto,
+        query: &TaskSearchQuery,
     ) -> Result<(Vec<task_model::Model>, u64), DbErr> {
         self.prepare_connection().await?;
 
-        let mut query = TaskEntity::find();
+        let mut db_query = TaskEntity::find();
         let mut conditions = Condition::all();
 
         // ステータスフィルタ
-        if let Some(status) = &filter.status {
+        if let Some(status) = &query.status {
             conditions = conditions.add(task_model::Column::Status.eq(status.as_str()));
         }
 
-        // タイトル検索
-        if let Some(title_contains) = &filter.title_contains {
-            conditions = conditions.add(task_model::Column::Title.contains(title_contains));
+        // 検索（タイトルと説明文のOR検索）
+        if let Some(search_term) = &query.search {
+            conditions = conditions.add(
+                Condition::any()
+                    .add(task_model::Column::Title.contains(search_term))
+                    .add(task_model::Column::Description.contains(search_term)),
+            );
         }
 
-        // 説明検索
-        if let Some(desc_contains) = &filter.description_contains {
-            conditions = conditions.add(task_model::Column::Description.contains(desc_contains));
+        // 担当者フィルタ
+        if let Some(assigned_to) = &query.assigned_to {
+            conditions = conditions.add(task_model::Column::UserId.eq(*assigned_to));
+        }
+
+        // 優先度フィルタ
+        if let Some(priority) = &query.priority {
+            conditions = conditions.add(task_model::Column::Priority.eq(priority));
         }
 
         // 期日フィルタ
-        if let Some(due_before) = filter.due_date_before {
+        if let Some(due_before) = query.due_date_before {
             conditions = conditions.add(task_model::Column::DueDate.lt(due_before));
         }
 
-        if let Some(due_after) = filter.due_date_after {
+        if let Some(due_after) = query.due_date_after {
             conditions = conditions.add(task_model::Column::DueDate.gt(due_after));
         }
 
         // 作成日フィルタ
-        if let Some(created_after) = filter.created_after {
+        if let Some(created_after) = query.created_after {
             conditions = conditions.add(task_model::Column::CreatedAt.gt(created_after));
         }
 
-        if let Some(created_before) = filter.created_before {
+        if let Some(created_before) = query.created_before {
             conditions = conditions.add(task_model::Column::CreatedAt.lt(created_before));
         }
 
         // 条件を適用
-        query = query.filter(conditions);
+        db_query = db_query.filter(conditions);
 
         // ソート
-        let sort_order = if filter.sort_order.as_deref() == Some("desc") {
-            Order::Desc
-        } else {
-            Order::Asc
+        let sort_order = match query.sort.sort_order {
+            crate::types::SortOrder::Asc => Order::Asc,
+            crate::types::SortOrder::Desc => Order::Desc,
         };
 
-        match filter.sort_by.as_deref() {
-            Some("title") => query = query.order_by(task_model::Column::Title, sort_order),
-            Some("due_date") => query = query.order_by(task_model::Column::DueDate, sort_order),
-            Some("created_at") => query = query.order_by(task_model::Column::CreatedAt, sort_order),
-            Some("status") => query = query.order_by(task_model::Column::Status, sort_order),
-            _ => query = query.order_by(task_model::Column::CreatedAt, Order::Desc), // デフォルトは作成日の降順
+        match query.sort.sort_by.as_deref() {
+            Some("title") => db_query = db_query.order_by(task_model::Column::Title, sort_order),
+            Some("due_date") => {
+                db_query = db_query.order_by(task_model::Column::DueDate, sort_order)
+            }
+            Some("created_at") => {
+                db_query = db_query.order_by(task_model::Column::CreatedAt, sort_order)
+            }
+            Some("updated_at") => {
+                db_query = db_query.order_by(task_model::Column::UpdatedAt, sort_order)
+            }
+            Some("priority") => {
+                db_query = db_query.order_by(task_model::Column::Priority, sort_order)
+            }
+            Some("status") => db_query = db_query.order_by(task_model::Column::Status, sort_order),
+            _ => db_query = db_query.order_by(task_model::Column::CreatedAt, Order::Desc), // デフォルトは作成日の降順
         }
 
         // 総件数を取得
-        let total_items = query.clone().count(&self.db).await?;
+        let total_items = db_query.clone().count(&self.db).await?;
 
         // ページネーション
-        let limit = filter.limit.unwrap_or(10);
-        let offset = filter.offset.unwrap_or(0);
+        let (page, per_page) = query.pagination.get_pagination();
+        let offset = ((page - 1) * per_page) as u64;
+        let limit = per_page as u64;
 
         // 最大ページサイズを制限
         let limit = std::cmp::min(limit, 100);
 
         // 結果を取得
-        let tasks = query.limit(limit).offset(offset).all(&self.db).await?;
+        let tasks = db_query.limit(limit).offset(offset).all(&self.db).await?;
 
         Ok((tasks, total_items))
     }
@@ -179,76 +197,90 @@ impl TaskRepository {
     pub async fn find_with_filter_for_user(
         &self,
         user_id: Uuid,
-        filter: &TaskFilterDto,
+        query: &TaskSearchQuery,
     ) -> Result<(Vec<task_model::Model>, u64), DbErr> {
         self.prepare_connection().await?;
 
-        let mut query = TaskEntity::find();
+        let mut db_query = TaskEntity::find();
         let mut conditions = Condition::all().add(task_model::Column::UserId.eq(user_id)); // ユーザーフィルタを追加
 
         // ステータスフィルタ
-        if let Some(status) = &filter.status {
+        if let Some(status) = &query.status {
             conditions = conditions.add(task_model::Column::Status.eq(status.as_str()));
         }
 
-        // タイトル検索
-        if let Some(title_contains) = &filter.title_contains {
-            conditions = conditions.add(task_model::Column::Title.contains(title_contains));
+        // 検索（タイトルと説明文のOR検索）
+        if let Some(search_term) = &query.search {
+            conditions = conditions.add(
+                Condition::any()
+                    .add(task_model::Column::Title.contains(search_term))
+                    .add(task_model::Column::Description.contains(search_term)),
+            );
         }
 
-        // 説明検索
-        if let Some(desc_contains) = &filter.description_contains {
-            conditions = conditions.add(task_model::Column::Description.contains(desc_contains));
+        // 優先度フィルタ
+        if let Some(priority) = &query.priority {
+            conditions = conditions.add(task_model::Column::Priority.eq(priority));
         }
 
         // 期日フィルタ
-        if let Some(due_before) = filter.due_date_before {
+        if let Some(due_before) = query.due_date_before {
             conditions = conditions.add(task_model::Column::DueDate.lt(due_before));
         }
 
-        if let Some(due_after) = filter.due_date_after {
+        if let Some(due_after) = query.due_date_after {
             conditions = conditions.add(task_model::Column::DueDate.gt(due_after));
         }
 
         // 作成日フィルタ
-        if let Some(created_after) = filter.created_after {
+        if let Some(created_after) = query.created_after {
             conditions = conditions.add(task_model::Column::CreatedAt.gt(created_after));
         }
 
-        if let Some(created_before) = filter.created_before {
+        if let Some(created_before) = query.created_before {
             conditions = conditions.add(task_model::Column::CreatedAt.lt(created_before));
         }
 
         // 条件を適用
-        query = query.filter(conditions);
+        db_query = db_query.filter(conditions);
 
         // ソート
-        let sort_order = if filter.sort_order.as_deref() == Some("desc") {
-            Order::Desc
-        } else {
-            Order::Asc
+        let sort_order = match query.sort.sort_order {
+            crate::types::SortOrder::Asc => Order::Asc,
+            crate::types::SortOrder::Desc => Order::Desc,
         };
 
-        match filter.sort_by.as_deref() {
-            Some("title") => query = query.order_by(task_model::Column::Title, sort_order),
-            Some("due_date") => query = query.order_by(task_model::Column::DueDate, sort_order),
-            Some("created_at") => query = query.order_by(task_model::Column::CreatedAt, sort_order),
-            Some("status") => query = query.order_by(task_model::Column::Status, sort_order),
-            _ => query = query.order_by(task_model::Column::CreatedAt, Order::Desc), // デフォルトは作成日の降順
+        match query.sort.sort_by.as_deref() {
+            Some("title") => db_query = db_query.order_by(task_model::Column::Title, sort_order),
+            Some("due_date") => {
+                db_query = db_query.order_by(task_model::Column::DueDate, sort_order)
+            }
+            Some("created_at") => {
+                db_query = db_query.order_by(task_model::Column::CreatedAt, sort_order)
+            }
+            Some("updated_at") => {
+                db_query = db_query.order_by(task_model::Column::UpdatedAt, sort_order)
+            }
+            Some("priority") => {
+                db_query = db_query.order_by(task_model::Column::Priority, sort_order)
+            }
+            Some("status") => db_query = db_query.order_by(task_model::Column::Status, sort_order),
+            _ => db_query = db_query.order_by(task_model::Column::CreatedAt, Order::Desc), // デフォルトは作成日の降順
         }
 
         // 総件数を取得
-        let total_items = query.clone().count(&self.db).await?;
+        let total_items = db_query.clone().count(&self.db).await?;
 
         // ページネーション
-        let limit = filter.limit.unwrap_or(10);
-        let offset = filter.offset.unwrap_or(0);
+        let (page, per_page) = query.pagination.get_pagination();
+        let offset = ((page - 1) * per_page) as u64;
+        let limit = per_page as u64;
 
         // 最大ページサイズを制限
         let limit = std::cmp::min(limit, 100);
 
         // 結果を取得
-        let tasks = query.limit(limit).offset(offset).all(&self.db).await?;
+        let tasks = db_query.limit(limit).offset(offset).all(&self.db).await?;
 
         Ok((tasks, total_items))
     }

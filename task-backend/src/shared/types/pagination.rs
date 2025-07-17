@@ -1,31 +1,6 @@
 // task-backend/src/shared/types/pagination.rs
 
-use serde::{Deserialize, Deserializer, Serialize};
-
-/// 文字列または数値からOption<i32>をデシリアライズ
-fn deserialize_option_number_from_string<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    #[derive(Deserialize)]
-    #[serde(untagged)]
-    enum StringOrNumber {
-        String(String),
-        Number(i32),
-    }
-
-    match Option::<StringOrNumber>::deserialize(deserializer)? {
-        Some(StringOrNumber::String(s)) => {
-            if s.is_empty() {
-                Ok(None)
-            } else {
-                s.parse::<i32>().map(Some).map_err(serde::de::Error::custom)
-            }
-        }
-        Some(StringOrNumber::Number(n)) => Ok(Some(n)),
-        None => Ok(None),
-    }
-}
+use serde::{Deserialize, Serialize};
 
 /// ページネーション情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,31 +28,6 @@ impl PaginationMeta {
     }
 }
 
-/// ページネーションクエリパラメータ
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(default)]
-pub struct PaginationQuery {
-    #[serde(deserialize_with = "deserialize_option_number_from_string")]
-    pub page: Option<i32>,
-    #[serde(deserialize_with = "deserialize_option_number_from_string")]
-    pub per_page: Option<i32>,
-}
-
-impl PaginationQuery {
-    /// デフォルト値を適用してページとper_pageを取得
-    pub fn get_pagination(&self) -> (i32, i32) {
-        let page = self.page.unwrap_or(1).max(1);
-        let per_page = self.per_page.unwrap_or(20).clamp(1, 100);
-        (page, per_page)
-    }
-
-    /// オフセットを計算
-    pub fn get_offset(&self) -> i32 {
-        let (page, per_page) = self.get_pagination();
-        (page - 1) * per_page
-    }
-}
-
 /// ページネーション付きレスポンス
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginatedResponse<T> {
@@ -97,6 +47,7 @@ impl<T> PaginatedResponse<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::query::PaginationQuery;
 
     #[test]
     fn test_pagination_meta() {
@@ -112,8 +63,8 @@ mod tests {
     #[test]
     fn test_pagination_query() {
         let query = PaginationQuery {
-            page: Some(2),
-            per_page: Some(10),
+            page: 2,
+            per_page: 10,
         };
         let (page, per_page) = query.get_pagination();
         assert_eq!(page, 2);
@@ -123,10 +74,7 @@ mod tests {
 
     #[test]
     fn test_pagination_query_defaults() {
-        let query = PaginationQuery {
-            page: None,
-            per_page: None,
-        };
+        let query = PaginationQuery::default();
         let (page, per_page) = query.get_pagination();
         assert_eq!(page, 1);
         assert_eq!(per_page, 20);

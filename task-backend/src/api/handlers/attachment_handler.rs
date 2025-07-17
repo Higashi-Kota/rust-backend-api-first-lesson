@@ -1,10 +1,11 @@
 // task-backend/src/api/handlers/attachment_handler.rs
 
 use crate::api::dto::attachment_dto::{
-    AttachmentDto, AttachmentFilterDto, AttachmentUploadResponse, CreateShareLinkRequest,
-    CreateShareLinkResponse, GenerateDownloadUrlRequest, GenerateDownloadUrlResponse,
-    GenerateUploadUrlRequest, GenerateUploadUrlResponse, ShareLinkDto, ShareLinkListResponse,
+    AttachmentDto, AttachmentUploadResponse, CreateShareLinkRequest, CreateShareLinkResponse,
+    GenerateDownloadUrlRequest, GenerateDownloadUrlResponse, GenerateUploadUrlRequest,
+    GenerateUploadUrlResponse, ShareLinkDto, ShareLinkListResponse,
 };
+use crate::api::dto::attachment_query_dto::AttachmentSearchQuery;
 use crate::api::dto::common::PaginatedResponse;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
@@ -100,7 +101,7 @@ pub async fn list_attachments_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Path(task_id): Path<Uuid>,
-    Query(filter): Query<AttachmentFilterDto>,
+    Query(query): Query<AttachmentSearchQuery>,
 ) -> AppResult<impl IntoResponse> {
     info!(
         user_id = %user.user_id(),
@@ -110,9 +111,26 @@ pub async fn list_attachments_handler(
 
     let attachment_service = &app_state.attachment_service;
 
-    let (page, per_page) = filter.pagination.get_pagination();
+    let (page, per_page) = query.pagination.get_pagination();
     let page = page as u64;
     let per_page = (per_page as u64).min(100); // 最大100件まで
+
+    // Convert sort fields to match the service interface
+    let sort_by = query
+        .sort
+        .sort_by
+        .as_ref()
+        .and_then(|field| match field.as_str() {
+            "file_name" => Some(crate::api::dto::attachment_dto::AttachmentSortBy::FileName),
+            "file_size" => Some(crate::api::dto::attachment_dto::AttachmentSortBy::FileSize),
+            "created_at" => Some(crate::api::dto::attachment_dto::AttachmentSortBy::CreatedAt),
+            "updated_at" => Some(crate::api::dto::attachment_dto::AttachmentSortBy::UpdatedAt),
+            _ => None,
+        });
+    let sort_order = match query.sort.sort_order {
+        crate::types::SortOrder::Asc => crate::api::dto::attachment_dto::SortOrder::Asc,
+        crate::types::SortOrder::Desc => crate::api::dto::attachment_dto::SortOrder::Desc,
+    };
 
     // ページング付きで取得
     let (attachments, total) = attachment_service
@@ -121,8 +139,8 @@ pub async fn list_attachments_handler(
             user.user_id(),
             page,
             per_page,
-            filter.sort_by,
-            filter.sort_order,
+            sort_by,
+            Some(sort_order),
         )
         .await?;
 

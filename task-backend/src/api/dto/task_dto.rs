@@ -153,26 +153,6 @@ pub struct BatchDeleteResponseDto {
     pub deleted_count: usize,
 }
 
-// --- フィルタリング用DTO ---
-#[derive(Deserialize, Serialize, Debug, Default)] // Serialize を追加
-pub struct TaskFilterDto {
-    pub status: Option<TaskStatus>,
-    pub title_contains: Option<String>,
-    pub description_contains: Option<String>,
-    #[serde(default, with = "optional_timestamp")]
-    pub due_date_before: Option<DateTime<Utc>>,
-    #[serde(default, with = "optional_timestamp")]
-    pub due_date_after: Option<DateTime<Utc>>,
-    #[serde(default, with = "optional_timestamp")]
-    pub created_after: Option<DateTime<Utc>>,
-    #[serde(default, with = "optional_timestamp")]
-    pub created_before: Option<DateTime<Utc>>,
-    pub limit: Option<u64>,
-    pub offset: Option<u64>,
-    pub sort_by: Option<String>, // "title", "due_date", "created_at", "status"
-    pub sort_order: Option<String>, // "asc" or "desc"
-}
-
 // --- ページネーション用DTO ---
 /// ページネーション付きタスクレスポンス (統一構造体使用)
 pub type PaginatedTasksDto = PaginatedResponse<TaskDto>;

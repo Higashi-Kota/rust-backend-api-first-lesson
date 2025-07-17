@@ -1,10 +1,11 @@
 // task-backend/src/api/handlers/role_handler.rs
+use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::api::dto::role_dto::*;
 use crate::api::dto::OperationResult;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUserWithRole;
-use crate::types::ApiResponse;
+use crate::types::{ApiResponse, SortQuery};
 use axum::{
     extract::{Json, Path, Query, State},
     http::StatusCode,
@@ -23,6 +24,10 @@ use validator::Validate;
 /// ロール検索用クエリパラメータ
 #[derive(Debug, Deserialize, Validate)]
 pub struct RoleSearchQuery {
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
+    #[serde(flatten)]
+    pub sort: SortQuery,
     pub active_only: Option<bool>,
 }
 
@@ -59,32 +64,49 @@ pub async fn list_roles_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUserWithRole,
     Query(query): Query<RoleSearchQuery>,
-) -> AppResult<ApiResponse<RoleListResponse>> {
+) -> AppResult<ApiResponse<PaginatedResponse<RoleResponse>>> {
     // 管理者権限チェック
     app_state
         .role_service
         .check_admin_permission(&user.claims)?;
 
+    let (page, per_page) = query.pagination.get_pagination();
+
     info!(
         admin_id = %user.user_id(),
         active_only = ?query.active_only,
+        page = %page,
+        per_page = %per_page,
+        sort_by = ?query.sort.sort_by,
+        sort_order = ?query.sort.sort_order,
         "Fetching roles list"
     );
 
-    // ロール一覧を取得
-    let roles = if query.active_only.unwrap_or(false) {
-        app_state.role_service.list_active_roles().await?
+    // ロール一覧を取得（ページネーション対応）
+    let (roles, total_count) = if query.active_only.unwrap_or(false) {
+        app_state
+            .role_service
+            .list_active_roles_paginated(page, per_page)
+            .await?
     } else {
-        app_state.role_service.list_all_roles().await?
+        app_state
+            .role_service
+            .list_all_roles_paginated(page, per_page)
+            .await?
     };
+
+    // RoleResponseに変換
+    let role_responses: Vec<RoleResponse> = roles.into_iter().map(RoleResponse::from).collect();
 
     info!(
         admin_id = %user.user_id(),
-        roles_count = %roles.len(),
+        roles_count = %role_responses.len(),
+        total_count = %total_count,
         "Roles list retrieved successfully"
     );
 
-    Ok(ApiResponse::success(RoleListResponse::new(roles)))
+    let response = PaginatedResponse::new(role_responses, page, per_page, total_count as i64);
+    Ok(ApiResponse::success(response))
 }
 
 /// 特定ロール取得
@@ -380,6 +402,8 @@ mod tests {
     fn test_role_search_query() {
         // 正常なクエリパラメータ
         let query = RoleSearchQuery {
+            pagination: PaginationQuery::default(),
+            sort: SortQuery::default(),
             active_only: Some(true),
         };
 

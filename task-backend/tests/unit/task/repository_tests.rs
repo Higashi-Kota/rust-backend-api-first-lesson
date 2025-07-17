@@ -2,7 +2,8 @@ use task_backend::domain::task_status::TaskStatus;
 // tests/unit/repository_tests.rs
 use chrono::Utc;
 use task_backend::{
-    api::dto::task_dto::{BatchUpdateTaskItemDto, CreateTaskDto, TaskFilterDto, UpdateTaskDto},
+    api::dto::task_dto::{BatchUpdateTaskItemDto, CreateTaskDto, UpdateTaskDto},
+    api::dto::task_query_dto::TaskSearchQuery,
     repository::task_repository::TaskRepository,
 };
 
@@ -152,7 +153,7 @@ async fn test_find_with_filter() {
     repo.create(task3).await.unwrap();
 
     // ステータスでフィルタリング
-    let filter = TaskFilterDto {
+    let filter = TaskSearchQuery {
         status: Some(TaskStatus::Todo),
         ..Default::default()
     };
@@ -164,8 +165,8 @@ async fn test_find_with_filter() {
     assert_eq!(filtered_tasks.len() as u64, count);
 
     // タイトルによるフィルタリング
-    let filter = TaskFilterDto {
-        title_contains: Some("Important".to_string()),
+    let filter = TaskSearchQuery {
+        search: Some("Important".to_string()),
         ..Default::default()
     };
 
@@ -176,9 +177,9 @@ async fn test_find_with_filter() {
     assert_eq!(filtered_tasks.len() as u64, count);
 
     // 複合フィルタリング
-    let filter = TaskFilterDto {
+    let filter = TaskSearchQuery {
         status: Some(TaskStatus::Todo),
-        title_contains: Some("Important".to_string()),
+        search: Some("Important".to_string()),
         ..Default::default()
     };
 
@@ -189,9 +190,9 @@ async fn test_find_with_filter() {
     assert_eq!(filtered_tasks.len() as u64, count);
 
     // すべてのフィルタ条件が一致しないケース
-    let filter = TaskFilterDto {
+    let filter = TaskSearchQuery {
         status: Some(TaskStatus::Completed),
-        title_contains: Some("NonExistent".to_string()),
+        search: Some("NonExistent".to_string()),
         ..Default::default()
     };
 

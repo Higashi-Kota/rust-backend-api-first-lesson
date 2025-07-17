@@ -486,23 +486,53 @@ pub async fn advanced_search_users_handler(
         return Err(e);
     }
 
-    let query_with_defaults = query.with_defaults();
-
-    let (page, per_page) = query_with_defaults.pagination.get_pagination();
+    let (page, per_page) = query.pagination.get_pagination();
 
     info!(
         admin_id = %admin_user.user_id(),
         page = page,
         per_page = per_page,
-        query = ?query_with_defaults.q,
+        query = ?query.search,
+        sort_by = ?query.sort.sort_by,
+        sort_order = ?query.sort.sort_order,
         "Advanced user search request"
     );
 
     // 詳細検索機能付きでユーザー一覧を取得
-    let (users_with_roles, total_count) = app_state
+    let (mut users_with_roles, total_count) = app_state
         .user_service
         .list_users_with_roles_paginated(page, per_page)
         .await?;
+
+    // ソート処理を適用
+    if let Some(sort_field) = &query.sort.sort_by {
+        use crate::types::SortOrder;
+
+        match sort_field.as_str() {
+            "username" => {
+                users_with_roles.sort_by(|a, b| match query.sort.sort_order {
+                    SortOrder::Asc => a.username.cmp(&b.username),
+                    SortOrder::Desc => b.username.cmp(&a.username),
+                });
+            }
+            "email" => {
+                users_with_roles.sort_by(|a, b| match query.sort.sort_order {
+                    SortOrder::Asc => a.email.cmp(&b.email),
+                    SortOrder::Desc => b.email.cmp(&a.email),
+                });
+            }
+            "created_at" => {
+                users_with_roles.sort_by(|a, b| match query.sort.sort_order {
+                    SortOrder::Asc => a.created_at.cmp(&b.created_at),
+                    SortOrder::Desc => b.created_at.cmp(&a.created_at),
+                });
+            }
+            _ => {
+                // デフォルトはcreated_atでソート
+                users_with_roles.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            }
+        }
+    }
 
     // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
     let mut user_summaries: Vec<UserSummary> = Vec::new();
@@ -588,8 +618,7 @@ pub async fn get_users_by_role_handler(
         return Err(e);
     }
 
-    let query_with_defaults = query.with_defaults();
-    let (page, per_page) = query_with_defaults.pagination.get_pagination();
+    let (page, per_page) = query.pagination.get_pagination();
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -758,40 +787,32 @@ pub async fn list_users_handler(
         .validate()
         .map_err(|e| convert_validation_errors(e, "user_handler::search_users"))?;
 
-    let query_with_defaults = query.with_defaults();
-    let (page, per_page) = query_with_defaults.pagination.get_pagination();
+    let (page, per_page) = query.pagination.get_pagination();
 
     info!(
         admin_id = %admin_user.user_id(),
         page = page,
         per_page = per_page,
-        query = ?query_with_defaults.q,
+        query = ?query.search,
         "Admin user search request"
     );
 
-    // 検索機能付きでユーザー一覧を取得
-    let (users_with_roles, total_count) = if query_with_defaults.q.is_some()
-        || query_with_defaults.is_active.is_some()
-        || query_with_defaults.email_verified.is_some()
-    {
-        // 検索・フィルター機能を使用
-        app_state
-            .user_service
-            .search_users(
-                query_with_defaults.q,
-                query_with_defaults.is_active,
-                query_with_defaults.email_verified,
-                page,
-                per_page,
-            )
-            .await?
-    } else {
-        // 通常の一覧取得
-        app_state
-            .user_service
-            .list_users_with_roles_paginated(page, per_page)
-            .await?
-    };
+    // 検索機能付きでユーザー一覧を取得（ソート機能付き）
+    let (users_with_roles, total_count) = app_state
+        .user_service
+        .search_users_with_sort(
+            query.search,
+            query.is_active,
+            query.email_verified,
+            query.sort.sort_by.as_deref(),
+            match query.sort.sort_order {
+                crate::types::SortOrder::Asc => "asc",
+                crate::types::SortOrder::Desc => "desc",
+            },
+            page,
+            per_page,
+        )
+        .await?;
 
     // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
     let mut user_summaries: Vec<UserSummary> = Vec::new();

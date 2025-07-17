@@ -10,3 +10,4 @@ pub mod image_optimization_tests;
 pub mod pagination_tests;
 pub mod permission_isolation_tests;
 pub mod share_link_tests;
+pub mod unified_search_tests;

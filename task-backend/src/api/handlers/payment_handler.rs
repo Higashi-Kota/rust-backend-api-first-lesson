@@ -1,3 +1,4 @@
+use crate::api::dto::common::PaginationQuery;
 use crate::api::dto::subscription_dto::{CurrentSubscriptionResponse, SubscriptionTierInfo};
 use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
@@ -37,21 +38,7 @@ pub struct CustomerPortalResponse {
     pub portal_url: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct PaymentHistoryQuery {
-    #[serde(default = "default_page")]
-    pub page: u64,
-    #[serde(default = "default_per_page")]
-    pub per_page: u64,
-}
-
-fn default_page() -> u64 {
-    1
-}
-
-fn default_per_page() -> u64 {
-    10
-}
+// PaymentHistoryQuery is now replaced by unified PaginationQuery from common module
 
 #[derive(Debug, Serialize)]
 pub struct PaymentHistoryItem {
@@ -68,8 +55,8 @@ pub struct PaymentHistoryItem {
 pub struct PaymentHistoryResponse {
     pub items: Vec<PaymentHistoryItem>,
     pub total_pages: u64,
-    pub current_page: u64,
-    pub per_page: u64,
+    pub current_page: i32,
+    pub per_page: i32,
 }
 
 /// チェックアウトセッション作成
@@ -272,31 +259,21 @@ pub async fn get_upgrade_options_handler(
 pub async fn get_payment_history_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Query(query): Query<PaymentHistoryQuery>,
+    Query(query): Query<PaginationQuery>,
 ) -> AppResult<ApiResponse<PaymentHistoryResponse>> {
+    let (page, per_page) = query.get_pagination();
+
     info!(
         user_id = %user.claims.user_id,
-        page = %query.page,
-        per_page = %query.per_page,
+        page = %page,
+        per_page = %per_page,
         "Getting payment history"
     );
-
-    // ページネーションの検証
-    if query.page == 0 {
-        return Err(AppError::BadRequest(
-            "Page number must be 1 or greater".to_string(),
-        ));
-    }
-    if query.per_page == 0 || query.per_page > 100 {
-        return Err(AppError::BadRequest(
-            "Per page must be between 1 and 100".to_string(),
-        ));
-    }
 
     // 支払い履歴を取得（0-indexed）
     let (history_items, total_pages) = app_state
         .payment_service
-        .get_payment_history(user.claims.user_id, query.page - 1, query.per_page)
+        .get_payment_history(user.claims.user_id, (page - 1) as u64, per_page as u64)
         .await?;
 
     // DTOに変換
@@ -316,8 +293,8 @@ pub async fn get_payment_history_handler(
     let response = PaymentHistoryResponse {
         items,
         total_pages,
-        current_page: query.page,
-        per_page: query.per_page,
+        current_page: page,
+        per_page,
     };
 
     Ok(ApiResponse::success(response))

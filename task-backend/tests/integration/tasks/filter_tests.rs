@@ -1,4 +1,4 @@
-// tests/integration/tasks/filter_tests.rs
+// tests/integration/tasks/search_tests.rs
 
 use axum::{
     body::{self, Body},
@@ -38,7 +38,7 @@ async fn test_filter_tasks_by_status_with_authentication() {
     // todoステータスでフィルタリング
     let filter_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?status=todo",
+        "/tasks/search?status=todo",
         &user.access_token,
         None,
     );
@@ -83,7 +83,7 @@ async fn test_filter_tasks_by_title_with_authentication() {
     // "Important"を含むタスクでフィルタリング
     let filter_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?title_contains=Important",
+        "/tasks/search?search=Important",
         &user.access_token,
         None,
     );
@@ -138,7 +138,7 @@ async fn test_filter_tasks_multiple_criteria() {
     // "Important"かつ"todo"でフィルタリング
     let filter_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?status=todo&title_contains=Important",
+        "/tasks/search?status=todo&search=Important",
         &user.access_token,
         None,
     );
@@ -187,7 +187,7 @@ async fn test_filter_tasks_user_isolation() {
     // user1でフィルタリング
     let filter_req1 = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?title_contains=Shared",
+        "/tasks/search?search=Shared",
         &user1.access_token,
         None,
     );
@@ -207,7 +207,7 @@ async fn test_filter_tasks_user_isolation() {
     // user2でフィルタリング
     let filter_req2 = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?title_contains=Shared",
+        "/tasks/search?search=Shared",
         &user2.access_token,
         None,
     );
@@ -231,7 +231,7 @@ async fn test_filter_tasks_without_authentication() {
 
     // 認証なしでフィルタリング試行
     let req = Request::builder()
-        .uri("/tasks/filter?status=todo")
+        .uri("/tasks/search?status=todo")
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -259,7 +259,7 @@ async fn test_filter_tasks_invalid_status() {
     // 無効なステータスでフィルタリング
     let filter_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?status=invalid_status",
+        "/tasks/search?status=invalid_status",
         &user.access_token,
         None,
     );
@@ -292,7 +292,7 @@ async fn test_filter_tasks_no_matches() {
     // マッチしない条件でフィルタリング
     let filter_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?title_contains=NonExistent",
+        "/tasks/search?search=NonExistent",
         &user.access_token,
         None,
     );
@@ -331,7 +331,7 @@ async fn test_filter_tasks_empty_parameters() {
 
     // 空のパラメータでフィルタリング
     let filter_req =
-        auth_helper::create_authenticated_request("GET", "/tasks/filter", &user.access_token, None);
+        auth_helper::create_authenticated_request("GET", "/tasks/search", &user.access_token, None);
 
     let filter_res = app.clone().oneshot(filter_req).await.unwrap();
 
@@ -370,7 +370,7 @@ async fn test_filter_tasks_case_sensitivity() {
     // 小文字でフィルタリング
     let filter_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?title_contains=casesensitive",
+        "/tasks/search?search=casesensitive",
         &user.access_token,
         None,
     );
@@ -411,7 +411,7 @@ async fn test_filter_tasks_with_special_characters() {
     // 特殊文字を含む文字列でフィルタリング
     let filter_req = auth_helper::create_authenticated_request(
         "GET",
-        "/tasks/filter?title_contains=@#$%",
+        "/tasks/search?search=@#$%",
         &user.access_token,
         None,
     );

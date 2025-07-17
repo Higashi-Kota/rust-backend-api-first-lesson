@@ -2,8 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-// Re-export pagination types from shared module
-pub use crate::shared::types::{PaginatedResponse, PaginationMeta, PaginationQuery};
+// Re-export pagination types
+pub use crate::shared::types::{PaginatedResponse, PaginationMeta};
+pub use crate::types::query::PaginationQuery;
 
 /// 操作結果を表すレスポンス（作成・更新・削除用）
 #[derive(Debug, Clone, Serialize, Deserialize)]

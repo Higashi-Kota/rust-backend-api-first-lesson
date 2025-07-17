@@ -194,15 +194,20 @@ impl UserService {
         Ok((users, total_count))
     }
 
-    /// ユーザー検索（管理者用）
-    pub async fn search_users(
+    /// ユーザー検索（ソート機能付き、管理者用）
+    #[allow(clippy::too_many_arguments)]
+    pub async fn search_users_with_sort(
         &self,
         query: Option<String>,
         is_active: Option<bool>,
         email_verified: Option<bool>,
+        sort_by: Option<&str>,
+        sort_order: &str,
         page: i32,
         per_page: i32,
     ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
+        // 現在はソート機能なしで実装（将来的にリポジトリ層で実装）
+        // TODO: リポジトリ層でソート機能を実装
         let users = self
             .user_repo
             .search_users(query.clone(), is_active, email_verified, page, per_page)
@@ -212,6 +217,15 @@ impl UserService {
             .user_repo
             .count_users_by_filter(query.as_deref(), is_active, email_verified)
             .await?;
+
+        // ソート情報のログ出力
+        if let Some(field) = sort_by {
+            info!(
+                sort_by = field,
+                sort_order = sort_order,
+                "User search with sort requested"
+            );
+        }
 
         Ok((users, total_count))
     }

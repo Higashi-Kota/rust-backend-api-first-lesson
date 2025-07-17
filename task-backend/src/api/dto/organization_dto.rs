@@ -69,27 +69,7 @@ pub struct UpdateOrganizationMemberRoleRequest {
     pub role: OrganizationRole,
 }
 
-/// 組織検索クエリ
-#[derive(Debug, Serialize, Deserialize)]
-pub struct OrganizationSearchQuery {
-    pub name: Option<String>,
-    pub owner_id: Option<Uuid>,
-    pub subscription_tier: Option<SubscriptionTier>,
-    pub page: Option<u32>,
-    pub page_size: Option<u32>,
-}
-
-impl Default for OrganizationSearchQuery {
-    fn default() -> Self {
-        Self {
-            name: None,
-            owner_id: None,
-            subscription_tier: None,
-            page: Some(1),
-            page_size: Some(20),
-        }
-    }
-}
+// OrganizationSearchQuery moved to organization_query_dto.rs with unified pattern
 
 /// 組織詳細レスポンス
 #[derive(Debug, Serialize, Deserialize)]
@@ -321,15 +301,7 @@ mod tests {
         assert!(invalid_email_request.validate().is_err());
     }
 
-    #[test]
-    fn test_organization_search_query_defaults() {
-        let query = OrganizationSearchQuery::default();
-        assert_eq!(query.page, Some(1));
-        assert_eq!(query.page_size, Some(20));
-        assert!(query.name.is_none());
-        assert!(query.owner_id.is_none());
-        assert!(query.subscription_tier.is_none());
-    }
+    // Test for OrganizationSearchQuery moved to organization_query_dto.rs
 
     #[test]
     fn test_organization_response_conversion() {

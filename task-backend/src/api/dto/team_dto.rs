@@ -46,14 +46,7 @@ pub struct UpdateTeamMemberRoleRequest {
     pub role: TeamRole,
 }
 
-/// チーム検索クエリ（ページネーション情報を除く）
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct TeamSearchQuery {
-    pub name: Option<String>,
-    pub organization_id: Option<Uuid>,
-    pub owner_id: Option<Uuid>,
-    pub subscription_tier: Option<SubscriptionTier>,
-}
+// TeamSearchQuery moved to team_query_dto.rs
 
 /// チーム詳細レスポンス
 #[derive(Debug, Serialize, Deserialize)]
@@ -191,46 +184,10 @@ impl From<(Team, Vec<TeamMemberResponse>)> for TeamResponse {
     }
 }
 
-/// チーム一覧ページング取得クエリ
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TeamPaginationQuery {
-    pub page: Option<u64>,
-    pub page_size: Option<u64>,
-    pub organization_id: Option<Uuid>,
-}
+// TeamPaginationQuery replaced by unified TeamSearchQuery in team_query_dto.rs
 
-impl Default for TeamPaginationQuery {
-    fn default() -> Self {
-        Self {
-            page: Some(1),
-            page_size: Some(20),
-            organization_id: None,
-        }
-    }
-}
-
-/// チーム一覧ページング取得レスポンス
-#[derive(Debug, Serialize, Deserialize)]
-pub struct TeamPaginationResponse {
-    pub teams: Vec<TeamListResponse>,
-    pub total_count: u64,
-    pub page: u64,
-    pub page_size: u64,
-    pub total_pages: u64,
-}
-
-impl TeamPaginationResponse {
-    pub fn new(teams: Vec<TeamListResponse>, total_count: u64, page: u64, page_size: u64) -> Self {
-        let total_pages = total_count.div_ceil(page_size);
-        Self {
-            teams,
-            total_count,
-            page,
-            page_size,
-            total_pages,
-        }
-    }
-}
+/// チーム一覧ページング取得レスポンス (統一構造体使用)
+pub type TeamPaginationResponse = crate::shared::types::PaginatedResponse<TeamListResponse>;
 
 #[cfg(test)]
 mod tests {
@@ -299,14 +256,7 @@ mod tests {
         assert!(invalid_email_request.validate().is_err());
     }
 
-    #[test]
-    fn test_team_search_query_defaults() {
-        let query = TeamSearchQuery::default();
-        assert!(query.name.is_none());
-        assert!(query.organization_id.is_none());
-        assert!(query.owner_id.is_none());
-        assert!(query.subscription_tier.is_none());
-    }
+    // Test for TeamSearchQuery moved to team_query_dto.rs
 
     #[test]
     fn test_team_response_conversion() {
@@ -377,13 +327,7 @@ mod tests {
         assert_eq!(stats.average_members_per_team, 19.0);
     }
 
-    #[test]
-    fn test_team_pagination_query_defaults() {
-        let query = TeamPaginationQuery::default();
-        assert_eq!(query.page, Some(1));
-        assert_eq!(query.page_size, Some(20));
-        assert!(query.organization_id.is_none());
-    }
+    // Test for TeamPaginationQuery replaced by TeamSearchQuery in team_query_dto.rs
 
     #[test]
     fn test_team_pagination_response_creation() {
@@ -412,23 +356,23 @@ mod tests {
             },
         ];
 
-        let response = TeamPaginationResponse::new(teams.clone(), 2, 1, 20);
+        let response = TeamPaginationResponse::new(teams.clone(), 1, 20, 2);
 
-        assert_eq!(response.teams.len(), 2);
-        assert_eq!(response.total_count, 2);
-        assert_eq!(response.page, 1);
-        assert_eq!(response.page_size, 20);
-        assert_eq!(response.total_pages, 1);
+        assert_eq!(response.items.len(), 2);
+        assert_eq!(response.pagination.total_count, 2);
+        assert_eq!(response.pagination.page, 1);
+        assert_eq!(response.pagination.per_page, 20);
+        assert_eq!(response.pagination.total_pages, 1);
     }
 
     #[test]
     fn test_team_pagination_response_multiple_pages() {
         let teams = vec![];
-        let response = TeamPaginationResponse::new(teams, 45, 2, 20);
+        let response = TeamPaginationResponse::new(teams, 2, 20, 45);
 
-        assert_eq!(response.total_count, 45);
-        assert_eq!(response.page, 2);
-        assert_eq!(response.page_size, 20);
-        assert_eq!(response.total_pages, 3); // 45 / 20 = 2.25 -> 3 pages
+        assert_eq!(response.pagination.total_count, 45);
+        assert_eq!(response.pagination.page, 2);
+        assert_eq!(response.pagination.per_page, 20);
+        assert_eq!(response.pagination.total_pages, 3); // 45 / 20 = 2.25 -> 3 pages
     }
 }

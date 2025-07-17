@@ -9,23 +9,11 @@ use serde_json;
 use uuid::Uuid;
 
 /// 管理者向けロール一覧クエリパラメータ
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AdminRoleListQuery {
     #[serde(flatten)]
     pub pagination: PaginationQuery,
     pub active_only: Option<bool>,
-}
-
-impl Default for AdminRoleListQuery {
-    fn default() -> Self {
-        Self {
-            pagination: PaginationQuery {
-                page: Some(1),
-                per_page: Some(20),
-            },
-            active_only: None,
-        }
-    }
 }
 
 /// 管理者向けロール一覧レスポンス
@@ -297,8 +285,9 @@ mod tests {
     #[test]
     fn test_admin_role_list_query_default() {
         let query = AdminRoleListQuery::default();
-        assert_eq!(query.pagination.page, Some(1));
-        assert_eq!(query.pagination.per_page, Some(20));
+        let (page, per_page) = query.pagination.get_pagination();
+        assert_eq!(page, 1);
+        assert_eq!(per_page, 20);
         assert_eq!(query.active_only, None);
     }
 

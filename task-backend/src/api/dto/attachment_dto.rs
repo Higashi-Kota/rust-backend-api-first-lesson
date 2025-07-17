@@ -1,6 +1,5 @@
 // task-backend/src/api/dto/attachment_dto.rs
 
-use crate::api::dto::common::PaginationQuery;
 use crate::domain::task_attachment_model;
 use crate::types::Timestamp;
 use serde::{Deserialize, Serialize};
@@ -79,34 +78,14 @@ pub struct AttachmentErrorDetail {
 }
 
 // --- Request DTOs ---
-
-/// ファイルアップロード時のフィルタ（将来の拡張用）
-#[derive(Deserialize, Debug)]
-pub struct AttachmentFilterDto {
-    #[serde(flatten)]
-    pub pagination: PaginationQuery,
-    pub sort_by: Option<AttachmentSortBy>,
-    pub sort_order: Option<SortOrder>,
-}
-
-impl Default for AttachmentFilterDto {
-    fn default() -> Self {
-        Self {
-            pagination: PaginationQuery {
-                page: Some(1),
-                per_page: Some(20),
-            },
-            sort_by: Some(AttachmentSortBy::CreatedAt),
-            sort_order: Some(SortOrder::Desc),
-        }
-    }
-}
+// AttachmentFilterDto replaced by unified AttachmentSearchQuery in attachment_query_dto.rs
 
 /// ソート可能なフィールド
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum AttachmentSortBy {
     CreatedAt,
+    UpdatedAt,
     FileName,
     FileSize,
 }

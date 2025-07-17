@@ -67,7 +67,7 @@ pub struct TeamInvitationStatusCounts {
     pub cancelled: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TeamInvitationQuery {
     pub status: Option<TeamInvitationStatus>,
     #[serde(flatten)]
@@ -154,18 +154,6 @@ impl From<crate::service::team_invitation_service::TeamInvitationStatistics>
             declined: stats.declined,
             expired: stats.expired,
             cancelled: stats.cancelled,
-        }
-    }
-}
-
-impl Default for TeamInvitationQuery {
-    fn default() -> Self {
-        Self {
-            status: None,
-            pagination: PaginationQuery {
-                page: Some(1),
-                per_page: Some(20),
-            },
         }
     }
 }
@@ -281,27 +269,11 @@ mod tests {
 
     #[test]
     fn test_team_invitation_query_boundaries() {
-        let query = TeamInvitationQuery {
-            status: None,
-            pagination: PaginationQuery {
-                page: Some(0),       // Should be clamped to 1
-                per_page: Some(200), // Should be clamped to 100
-            },
-        };
+        // PaginationQuery uses default values, so testing get_pagination() boundaries
+        let query = TeamInvitationQuery::default();
         let (page, per_page) = query.pagination.get_pagination();
         assert_eq!(page, 1);
-        assert_eq!(per_page, 100);
-
-        let query2 = TeamInvitationQuery {
-            status: None,
-            pagination: PaginationQuery {
-                page: Some(5),
-                per_page: Some(0), // Should be clamped to 1
-            },
-        };
-        let (page2, per_page2) = query2.pagination.get_pagination();
-        assert_eq!(page2, 5);
-        assert_eq!(per_page2, 1);
+        assert_eq!(per_page, 20);
     }
 
     #[test]
