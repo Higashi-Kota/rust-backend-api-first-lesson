@@ -57,6 +57,7 @@ async fn create_test_user(db: &common::db::TestDatabase) -> Uuid {
         role_id: Set(role_id),
         last_login_at: Set(None),
         stripe_customer_id: Set(None),
+        organization_id: Set(None),
     };
 
     UserEntity::insert(user_model)

@@ -21,6 +21,7 @@ pub mod task_query_dto;
 pub mod team_dto;
 pub mod team_invitation_dto;
 pub mod team_query_dto;
+pub mod team_task_dto;
 pub mod user_dto;
 
 // Re-export common response types

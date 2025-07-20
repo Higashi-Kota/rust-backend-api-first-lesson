@@ -255,6 +255,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         permission_service,
         security_service,
         attachment_service,
+        activity_log_repo.clone(),
         jwt_manager,
         Arc::new(db.connection.clone()),
         &app_config,
@@ -269,8 +270,18 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         .merge(task_backend::api::handlers::task_handler::task_router_with_state(app_state.clone()))
         .merge(
             task_backend::api::handlers::attachment_handler::attachment_routes()
-                .with_state(app_state),
-        );
+                .with_state(app_state.clone()),
+        )
+        .merge(
+            task_backend::api::handlers::activity_log_handler::activity_log_router()
+                .with_state(app_state.clone()),
+        )
+        .layer(axum::middleware::from_fn_with_state(
+            task_backend::middleware::activity_logger::ActivityLogger::new(
+                activity_log_repo.clone(),
+            ),
+            task_backend::middleware::activity_logger::log_activity,
+        ));
 
     (app, schema_name, db)
 }
@@ -487,6 +498,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         permission_service,
         security_service,
         attachment_service,
+        activity_log_repo.clone(),
         jwt_manager.clone(),
         Arc::new(db.connection.clone()),
         &app_config,
@@ -532,6 +544,16 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         )
         .merge(task_backend::api::handlers::admin_handler::admin_router(
             app_state.clone(),
+        ))
+        .merge(
+            task_backend::api::handlers::activity_log_handler::activity_log_router()
+                .with_state(app_state.clone()),
+        )
+        .layer(axum_middleware::from_fn_with_state(
+            task_backend::middleware::activity_logger::ActivityLogger::new(
+                activity_log_repo.clone(),
+            ),
+            task_backend::middleware::activity_logger::log_activity,
         ))
         .merge(
             task_backend::api::handlers::subscription_handler::subscription_router_with_state(
@@ -784,6 +806,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         permission_service,
         security_service,
         attachment_service,
+        activity_log_repo.clone(),
         jwt_manager.clone(),
         Arc::new(db.connection.clone()),
         &app_config,
@@ -846,8 +869,18 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         .merge(task_backend::api::handlers::gdpr_handler::gdpr_router_with_state(app_state.clone()))
         .merge(
             task_backend::api::handlers::attachment_handler::attachment_routes()
-                .with_state(app_state),
+                .with_state(app_state.clone()),
         )
+        .merge(
+            task_backend::api::handlers::activity_log_handler::activity_log_router()
+                .with_state(app_state.clone()),
+        )
+        .layer(axum_middleware::from_fn_with_state(
+            task_backend::middleware::activity_logger::ActivityLogger::new(
+                activity_log_repo.clone(),
+            ),
+            task_backend::middleware::activity_logger::log_activity,
+        ))
         .layer(axum_middleware::from_fn_with_state(
             auth_middleware_config,
             jwt_auth_middleware,

@@ -1,6 +1,7 @@
 // task-backend/src/api/mod.rs
 use crate::config::AppConfig;
 use crate::repository::{
+    activity_log_repository::ActivityLogRepository,
     bulk_operation_history_repository::BulkOperationHistoryRepository,
     daily_activity_summary_repository::DailyActivitySummaryRepository,
     feature_usage_metrics_repository::FeatureUsageMetricsRepository,
@@ -42,6 +43,7 @@ pub struct AppState {
     pub permission_service: Arc<PermissionService>,
     pub security_service: Arc<SecurityService>,
     pub attachment_service: Arc<AttachmentService>,
+    pub activity_log_repo: Arc<ActivityLogRepository>,
     pub jwt_manager: Arc<JwtManager>,
     pub db: Arc<DatabaseConnection>,
     pub db_pool: Arc<DatabaseConnection>,
@@ -126,6 +128,7 @@ impl AppState {
         permission_service: Arc<PermissionService>,
         security_service: Arc<SecurityService>,
         attachment_service: Arc<AttachmentService>,
+        activity_log_repo: Arc<ActivityLogRepository>,
         jwt_manager: Arc<JwtManager>,
         db_pool: Arc<DatabaseConnection>,
         app_config: &AppConfig,
@@ -150,6 +153,7 @@ impl AppState {
             permission_service,
             security_service,
             attachment_service,
+            activity_log_repo,
             jwt_manager,
             db: db_pool.clone(),
             db_pool,

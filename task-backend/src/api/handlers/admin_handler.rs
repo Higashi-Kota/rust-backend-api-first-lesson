@@ -1583,6 +1583,8 @@ pub fn admin_router(app_state: crate::api::AppState) -> axum::Router {
 
     // admin_only_middlewareを使用してルーター全体に管理者権限チェックを適用
     axum::Router::new()
+        // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に以下のコメントを解除
+        // .layer(middleware::from_fn(admin_permission_middleware()))
         // 単一タスク操作
         .route("/admin/tasks", post(admin_create_task))
         .route("/admin/tasks", get(admin_list_all_tasks))

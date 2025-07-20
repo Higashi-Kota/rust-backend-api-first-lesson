@@ -36,6 +36,9 @@ pub struct Model {
     #[sea_orm(unique, nullable)]
     pub stripe_customer_id: Option<String>,
 
+    #[sea_orm(nullable)]
+    pub organization_id: Option<Uuid>,
+
     pub last_login_at: Option<DateTime<Utc>>,
 
     pub created_at: DateTime<Utc>,
@@ -71,6 +74,13 @@ pub enum Relation {
         to = "crate::domain::subscription_history_model::Column::UserId"
     )]
     SubscriptionHistory,
+
+    #[sea_orm(
+        belongs_to = "crate::domain::organization_model::Entity",
+        from = "Column::OrganizationId",
+        to = "crate::domain::organization_model::Column::Id"
+    )]
+    Organization,
 }
 
 // リレーション実装
@@ -95,6 +105,12 @@ impl Related<crate::domain::password_reset_token_model::Entity> for Entity {
 impl Related<crate::domain::role_model::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Role.def()
+    }
+}
+
+impl Related<crate::domain::organization_model::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Organization.def()
     }
 }
 

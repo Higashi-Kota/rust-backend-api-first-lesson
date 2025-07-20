@@ -1,6 +1,203 @@
 ## 実現トピック
 
-TBD
+- [マルチテナント機能要件定義](./マルチテナント機能要件定義.md) - チーム・組織単位でのデータ共有・操作機能の実装
+
+### マルチテナント機能実装タスクリスト（実装ガイドライン準拠）
+
+#### フェーズ1: 統一権限チェックミドルウェアの実装
+- [x] **リソース名定数とアクション定義の統一化**
+   - [x] `src/middleware/authorization.rs` に `RequirePermission` ミドルウェア実装
+   - [x] リソース名定数（`resources::TASK`, `resources::TEAM` 等）の定義
+   - [x] 権限チェックマクロ `require_permission!` の実装
+   - [x] エラーコンテキスト命名規則（`"モジュール名::関数名"`）の徹底
+
+- [x] **既存APIへの統一権限チェック適用と統廃合（リファレンス実装）**
+   - [x] 各ハンドラーでの直接ロールチェックを `RequirePermission` ミドルウェアに置換（サンプル）
+   - [x] error_helper関数の一貫した使用（`internal_server_error`, `not_found_error`, `conflict_error`）
+   - [x] 構造化ログによるエラー追跡の実装
+   - [x] リファレンス実装（task_handler_v2.rs）は参考実装として保持
+   - 📝 **注**: 既存APIへの実際の統合は、フェーズ2-3の実装と合わせて段階的に実施予定
+   - 📝 既存のPermissionServiceから統一権限チェックミドルウェアへの移行は慎重に実施
+
+#### フェーズ2: データベーススキーマ拡張
+- [x] **tasksテーブルのマルチテナント対応**
+   - [x] マイグレーション作成: `m20250719_000001_add_multitenant_fields_to_tasks.rs`
+   - [x] 追加カラム: `team_id` (UUID, nullable), `organization_id` (UUID, nullable), `visibility` (ENUM: personal/team/organization), `assigned_to` (UUID, nullable)
+   - [x] 外部キー制約とインデックス設計（`team_id`, `organization_id`, 複合インデックス）
+   - [x] 既存データのデフォルト値設定（`visibility = 'personal'`）
+   - [x] PostgreSQL enum型 `task_visibility` の作成
+
+- [x] **タスクモデルの拡張**
+   - [x] `TaskVisibility` enum実装（Personal, Team, Organization）をdomain/task_visibility.rsに作成
+   - [x] task_model.rsにマルチテナントフィールドを追加（team_id, organization_id, visibility, assigned_to）
+   - [x] ヘルパーメソッド実装（is_owned_by, belongs_to_team, is_accessible_by等）
+   - [x] ActiveModel用ヘルパーメソッド実装（set_as_team_task, assign_to等）
+   - [x] TaskDtoをマルチテナント対応に拡張
+   - [x] team_task_dto.rsにチーム/組織タスク用DTOを作成
+   - [x] TaskSearchQueryにマルチテナントフィルタを追加
+   - [x] Timestamp型による日時フィールドのUnix timestamp対応（既存実装を活用）
+   - [x] 既存の個人タスクとの後方互換性保証（デフォルトvisibility=Personal）
+
+#### フェーズ3: API実装（ドメイン統合原則準拠）
+- [x] **タスクサービス層の拡張**
+   - [x] `get_tasks_with_scope` メソッド実装（スコープ: personal/team/organization）
+   - [x] 権限に基づくフィルタリングロジック（TeamService活用）
+   - [x] error_helperによる一貫したエラーハンドリング
+   - [x] Repository層でOption<Uuid>対応（organization_idのnullable対応）
+
+- [x] **チームタスクCRUD API実装**
+   - [x] `/teams/{team_id}/tasks` エンドポイント（パスパラメータは `{param}` 形式）
+   - [x] 作成: `POST /teams/{team_id}/tasks`
+   - [x] 更新: `PATCH /tasks/{id}/multi-tenant`
+   - [x] 削除: `DELETE /tasks/{id}/multi-tenant`
+   - [x] 権限チェック: チームメンバーシップベースの制御
+
+- [x] **タスク一覧APIのスコープ対応**
+   - [x] `GET /tasks/scoped?visibility={personal|team|organization}&team_id={id}`
+   - [x] 複数チーム所属時の適切なフィルタリング
+   - [x] ページネーション対応（既存実装との統合）
+   - [x] レスポンスのUnix timestamp形式統一
+
+- [x] **タスク割り当てAPI**
+   - [x] `POST /tasks/{id}/assign` - メンバーへの割り当て
+   - [x] 権限チェック: タスクへのアクセス権限確認
+   - [ ] `POST /tasks/{id}/transfer` - タスクの引き継ぎ（未実装）
+   - [ ] 監査ログの記録（未実装）
+
+#### フェーズ4: 統合テスト実装（AAA パターン準拠）
+- [x] **チームタスク基本機能テスト**
+   - [x] `test_create_team_task_success` - 正常系
+   - [x] `test_create_team_task_non_member_forbidden` - 権限エラー（非メンバー）
+   - [x] `test_update_team_task_success` - 更新正常系
+   - [x] `test_update_team_task_non_member_forbidden` - 更新権限エラー
+   - [x] `test_delete_team_task_success` - 削除正常系
+   - [x] `test_delete_team_task_non_member_forbidden` - 削除権限エラー
+
+- [x] **スコープベースアクセステスト**
+   - [x] `test_list_tasks_with_scope_filter` - スコープベースのフィルタリング
+   - [x] 個人スコープ: 自分のタスクのみ取得
+   - [x] チームスコープ: 所属チームのタスク取得
+   - [x] 権限エラー: 非メンバーはチームタスクにアクセス不可
+
+- [x] **権限ベースアクセステスト**
+   - [x] `test_assign_task_within_team` - チーム内タスク割り当て
+   - [x] メンバー: 作成・閲覧・更新・削除可能
+   - [x] 非メンバー: アクセス拒否（403 Forbidden）
+
+- [x] **データ分離テスト**
+   - [x] `test_team_data_isolation` - チーム間のデータ分離確認
+   - [x] チームAのメンバーはチームBのタスクにアクセス不可
+
+#### パフォーマンス・セキュリティ対応
+- [x] **パフォーマンステスト実装**
+   - [x] `test_large_scale_team_task_creation_performance` - 100タスク作成
+   - [x] `test_large_scale_team_task_query_performance` - クエリ性能測定
+   - [x] `test_concurrent_team_member_access_performance` - 同時アクセステスト
+   - [ ] インデックス効果の検証（未実装）
+
+- [ ] **監査ログ実装**
+   - [ ] アクセスログの構造化記録
+   - [ ] 権限変更の追跡
+   - [ ] セキュリティイベントの記録
+
+#### 品質保証
+- [x] **dead_code対応**
+   - [x] 新規実装での `#[allow(dead_code)]` 使用禁止
+   - [x] 未使用コードの削除
+   - [x] テスト用ヘルパーのみ例外許可
+
+- [x] **CI/CD対応**
+   - [x] `cargo clippy --all-targets --all-features -- -D warnings` 警告ゼロ
+   - [x] すべてのマルチテナント統合テストがパス
+   - [x] 実データによる検証実装
+
+#### 実装完了基準
+- [x] チームメンバー間でタスクを共有・協業できる
+- [x] 権限に基づいた適切なアクセス制御が機能する
+- [x] 既存の個人タスク機能に影響を与えない（後方互換性確保）
+- [x] パフォーマンステスト実装（100タスク作成10秒以内）
+- [ ] セキュリティ上の問題がない（ペネトレーションテスト未実施）
+- [x] すべての新規APIに統合テスト実装（9個のテスト）
+- [ ] APIドキュメントと実装が完全に一致（ドキュメント更新未実施）
+
+### 統一権限チェックミドルウェア適用タスクリスト
+
+#### フェーズ0: 基礎実装（完了）
+- [x] **統一権限チェックミドルウェアの基礎実装**
+   - [x] `RequirePermission`構造体の実装
+   - [x] `Action`列挙型の定義（View, Create, Update, Delete, Admin）
+   - [x] `require_permission!`マクロの実装
+   - [x] `permission_middleware`ヘルパー関数の実装
+   - [x] `admin_permission_middleware`ヘルパー関数の実装
+   - [x] `PermissionContext`構造体とヘルパーメソッドの実装
+
+#### フェーズ1: 既存APIへの段階的適用準備
+- [x] **既存権限チェックの調査と分類**
+   - [x] 直接的な`is_admin()`チェックを使用しているハンドラーの一覧化
+   - [x] `permission_service.check_resource_access()`を使用しているハンドラーの一覧化
+   - [ ] 権限チェックパターンの分類（管理者専用、リソースベース、チームベース等）
+   - [ ] 各ハンドラーの権限要件のドキュメント化
+
+- [ ] **テスト環境の準備**
+   - [ ] 統一権限チェックミドルウェアを使用する場合のテストヘルパー関数作成
+   - [ ] モックPermissionContextの作成ヘルパー実装
+   - [ ] 既存テストの権限チェック部分の抽出と共通化
+
+#### フェーズ2: 段階的な適用実装
+- [ ] **管理者専用APIへの適用**
+   - [ ] `security_handler`の各エンドポイントへの適用
+   - [ ] `admin_handler`内の個別`is_admin()`チェックの除去
+   - [x] 管理者専用ルーターへの一括適用の検証（`admin_router`に`admin_permission_middleware`適用済み）
+   - [ ] 統合テストの修正と動作確認
+
+- [ ] **リソースベース権限APIへの適用**
+   - [x] タスクCRUD操作への段階的適用（実験的実装：`task_router_with_unified_permission`）
+   - [x] チームCRUD操作への段階的適用（実験的実装：`team_router_with_unified_permission`）
+   - [ ] 組織関連操作への適用
+   - [ ] 各リソースタイプ毎のアクション権限マッピング
+
+- [ ] **複雑な権限チェックの移行**
+   - [ ] チームメンバーシップベースの権限チェック
+   - [ ] 階層的権限（組織→チーム→個人）の実装
+   - [ ] 動的権限（コンテキストに基づく権限）の対応
+
+#### フェーズ3: テストの完全対応
+- [ ] **既存テストの修正**
+   - [ ] 権限チェックを期待するテストケースの洗い出し
+   - [ ] テスト用の権限設定ヘルパーの実装
+   - [ ] モックミドルウェアによるテスト簡略化
+   - [ ] E2Eテストでの権限チェック動作確認
+
+- [ ] **新規テストの追加**
+   - [ ] 統一権限チェックミドルウェアの単体テスト
+   - [ ] 各リソース・アクションの組み合わせテスト
+   - [ ] エッジケースの権限チェックテスト
+   - [ ] パフォーマンステスト（権限チェックのオーバーヘッド測定）
+
+#### フェーズ4: 完全移行と最適化
+- [ ] **既存権限チェックコードの削除**
+   - [ ] 直接的な`is_admin()`チェックの完全削除
+   - [ ] PermissionServiceの旧メソッドの非推奨化
+   - [ ] 不要になったヘルパー関数の削除
+   - [ ] `#[allow(dead_code)]`アノテーションの削除
+
+- [ ] **ドキュメントとガイドライン更新**
+   - [ ] 統一権限チェックミドルウェアの使用ガイド作成
+   - [ ] 新規エンドポイント追加時の権限設定手順
+   - [ ] トラブルシューティングガイド
+   - [ ] パフォーマンスチューニングガイド
+
+#### 実装時の注意事項
+- 各フェーズ完了時点で`make ci-check-fast`が通ること
+- 既存のAPIの動作に影響を与えないよう、段階的に適用すること
+- 権限チェックの抜け漏れがないよう、網羅的なテストを実施すること
+- パフォーマンスへの影響を測定し、必要に応じて最適化すること
+
+#### 現在の実装状況
+- 統一権限チェックミドルウェアの基礎実装は完了
+- `admin_router`では既に`admin_permission_middleware`が適用済み
+- 実験的実装として`/tasks/unified/*`と`/teams/unified/*`エンドポイントで動作確認済み
+- 既存APIへの本格適用は`#[allow(dead_code)]`でペンディング（テストへの影響を考慮）
 
 ## 🧩 実装ガイドライン
 

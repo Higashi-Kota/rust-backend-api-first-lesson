@@ -24,6 +24,7 @@ pub mod subscription_tier;
 pub mod task_attachment_model;
 pub mod task_model;
 pub mod task_status;
+pub mod task_visibility;
 pub mod team_invitation_model;
 pub mod team_member_model;
 pub mod team_model;

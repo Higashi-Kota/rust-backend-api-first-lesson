@@ -10,12 +10,14 @@ use crate::api::AppState;
 use crate::domain::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
+use crate::middleware::authorization::{resources, Action};
+use crate::require_permission;
 use crate::types::ApiResponse;
 use axum::{
     extract::{FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
     response::IntoResponse,
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use chrono::Utc;
@@ -762,6 +764,7 @@ pub async fn bulk_update_status_handler(
 // --- Router Setup ---
 // スキーマを指定できるようにルーター構築関数を修正
 pub fn task_router(app_state: AppState) -> Router {
+    use super::task_handler_v2::multi_tenant_task_router;
     use crate::middleware::auth::is_auth_endpoint;
     use crate::utils::permission::PermissionChecker;
 
@@ -773,7 +776,11 @@ pub fn task_router(app_state: AppState) -> Router {
     let team_scope = crate::domain::permission::PermissionScope::Team;
     let _scope_check = PermissionChecker::check_scope(&global_scope, &team_scope);
 
+    // マルチテナント対応ルートと既存ルートを統合
     Router::new()
+        .merge(multi_tenant_task_router())
+        // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に以下のコメントを解除
+        // .merge(task_router_with_unified_permission(app_state.clone()))
         .route("/tasks", get(list_tasks_handler).post(create_task_handler))
         .route("/tasks/paginated", get(list_tasks_paginated_handler))
         // 統一クエリパターン
@@ -808,3 +815,43 @@ pub fn task_router_with_state(app_state: AppState) -> Router {
 }
 
 // Admin functionality moved to admin_handler.rs
+
+/// 統一権限チェックミドルウェアを使用したタスクルーター（実験的実装）
+#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
+pub fn task_router_with_unified_permission(app_state: AppState) -> Router<AppState> {
+    use crate::middleware::authorization::permission_middleware;
+    use axum::middleware;
+
+    Router::new()
+        // タスク一覧取得エンドポイント
+        .route("/tasks/unified", get(list_tasks_handler))
+        // タスク作成エンドポイントに権限チェックを適用（require_permission!マクロを使用）
+        .route(
+            "/tasks/unified/create",
+            post(create_task_handler)
+                .route_layer(require_permission!(resources::TASK, Action::Create)),
+        )
+        // タスク個別操作エンドポイント
+        .route(
+            "/tasks/unified/{id}",
+            get(get_task_handler).layer(middleware::from_fn(permission_middleware(
+                resources::TASK,
+                Action::View,
+            ))),
+        )
+        .route(
+            "/tasks/unified/{id}",
+            patch(update_task_handler).layer(middleware::from_fn(permission_middleware(
+                resources::TASK,
+                Action::Update,
+            ))),
+        )
+        .route(
+            "/tasks/unified/{id}",
+            delete(delete_task_handler).layer(middleware::from_fn(permission_middleware(
+                resources::TASK,
+                Action::Delete,
+            ))),
+        )
+        .with_state(app_state)
+}

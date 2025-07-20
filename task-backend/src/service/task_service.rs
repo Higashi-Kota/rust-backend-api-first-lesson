@@ -7,15 +7,22 @@ use crate::api::dto::task_dto::{
     PaginatedTasksDto, TaskDto, TaskResponse, UpdateTaskDto,
 };
 use crate::api::dto::task_query_dto::TaskSearchQuery;
+use crate::api::dto::team_task_dto::{
+    AssignTaskRequest, CreateOrganizationTaskRequest, CreateTeamTaskRequest,
+};
 use crate::db::DbPool;
 use crate::domain::permission::{Permission, PermissionResult, PermissionScope, Privilege};
 use crate::domain::subscription_tier::SubscriptionTier;
+use crate::domain::task_visibility::TaskVisibility;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::subscription_guard::check_feature_limit;
 use crate::repository::task_repository::TaskRepository;
+use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
-use crate::utils::error_helper::internal_server_error;
+use crate::service::team_service::TeamService;
+use crate::utils::email::EmailService;
+use crate::utils::error_helper::{forbidden_error, internal_server_error, not_found_error};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -23,13 +30,24 @@ use uuid::Uuid;
 pub struct TaskService {
     repo: Arc<TaskRepository>,
     user_repo: Arc<UserRepository>,
+    team_repo: Arc<TeamRepository>,
+    team_service: Arc<TeamService>,
 }
 
 impl TaskService {
     pub fn new(db_pool: DbPool) -> Self {
         Self {
             repo: Arc::new(TaskRepository::new(db_pool.clone())),
-            user_repo: Arc::new(UserRepository::new(db_pool)),
+            user_repo: Arc::new(UserRepository::new(db_pool.clone())),
+            team_repo: Arc::new(TeamRepository::new(db_pool.clone())),
+            team_service: Arc::new(TeamService::new(
+                Arc::new(db_pool.clone()),
+                TeamRepository::new(db_pool.clone()),
+                UserRepository::new(db_pool.clone()),
+                // Note: EmailService requires config, using dummy service for now
+                // In production, this should be injected from the main app state
+                Arc::new(EmailService::new(crate::utils::email::EmailConfig::default()).unwrap()),
+            )),
         }
     }
 
@@ -631,4 +649,498 @@ impl TaskService {
     }
 
     // Unused admin methods removed - use admin_* methods instead
+
+    // --- マルチテナント対応メソッド ---
+
+    /// スコープベースのタスク取得
+    pub async fn get_tasks_with_scope(
+        &self,
+        user: &AuthenticatedUser,
+        query: TaskSearchQuery,
+    ) -> AppResult<PaginatedTasksDto> {
+        // ユーザーの所属チームと組織を取得
+        let user_teams = self
+            .team_service
+            .get_user_team_ids(user.claims.user_id)
+            .await?;
+
+        // ユーザーの組織IDを取得
+        let user_model = self
+            .user_repo
+            .find_by_id(user.claims.user_id)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::get_tasks_with_scope",
+                    "Failed to fetch user information",
+                )
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    "User not found",
+                    "task_service::get_tasks_with_scope",
+                    "User information could not be retrieved",
+                )
+            })?;
+
+        let user_organization_id = user_model.organization_id;
+
+        // クエリのスコープに基づいてフィルタリング
+        let (tasks, total_count) = match query.visibility {
+            Some(TaskVisibility::Personal) => {
+                // 個人タスクのみ
+                self.repo
+                    .find_personal_tasks(user.claims.user_id, &query)
+                    .await?
+            }
+            Some(TaskVisibility::Team) => {
+                // チームタスク
+                if let Some(team_id) = query.team_id {
+                    // 特定のチームのタスクのみ
+                    if !user_teams.contains(&team_id) {
+                        return Err(forbidden_error(
+                            "User is not a member of the specified team",
+                            "task_service::get_tasks_with_scope",
+                            "You don't have access to this team's tasks",
+                        ));
+                    }
+                    self.repo.find_team_tasks(team_id, &query).await?
+                } else {
+                    // ユーザーが所属する全チームのタスク
+                    self.repo.find_tasks_in_teams(&user_teams, &query).await?
+                }
+            }
+            Some(TaskVisibility::Organization) => {
+                // 組織タスク
+                if let Some(org_id) = user_organization_id {
+                    self.repo.find_organization_tasks(org_id, &query).await?
+                } else {
+                    return Err(forbidden_error(
+                        "User is not a member of any organization",
+                        "task_service::get_tasks_with_scope",
+                        "You need to be part of an organization to view organization tasks",
+                    ));
+                }
+            }
+            None => {
+                // スコープ指定なしの場合は、アクセス可能な全タスクを返す
+                self.repo
+                    .find_accessible_tasks(
+                        user.claims.user_id,
+                        &user_teams,
+                        user_organization_id,
+                        &query,
+                    )
+                    .await?
+            }
+        };
+
+        let task_dtos: Vec<TaskDto> = tasks.into_iter().map(Into::into).collect();
+        let (page, per_page) = query.pagination.get_pagination();
+        let pagination = PaginationMeta::new(page, per_page, total_count as i64);
+
+        Ok(PaginatedTasksDto {
+            items: task_dtos,
+            pagination,
+        })
+    }
+
+    /// チームタスクの作成
+    pub async fn create_team_task(
+        &self,
+        user: &AuthenticatedUser,
+        payload: CreateTeamTaskRequest,
+    ) -> AppResult<TaskDto> {
+        // チームメンバーシップの確認
+        let is_member = self
+            .team_service
+            .is_user_member_of_team(user.claims.user_id, payload.team_id)
+            .await?;
+
+        if !is_member {
+            return Err(forbidden_error(
+                "User is not a member of the team",
+                "task_service::create_team_task",
+                "You must be a member of the team to create team tasks",
+            ));
+        }
+
+        // チーム情報の取得
+        let team = self
+            .team_repo
+            .find_by_id(payload.team_id)
+            .await?
+            .ok_or_else(|| {
+                not_found_error(
+                    "Team not found",
+                    "task_service::create_team_task",
+                    "The specified team does not exist",
+                )
+            })?;
+
+        // CreateTaskDtoに変換
+        let create_dto = CreateTaskDto {
+            title: payload.title,
+            description: payload.description,
+            status: payload.status,
+            priority: payload.priority,
+            due_date: payload
+                .due_date
+                .map(|ts| DateTime::from_timestamp(ts, 0).unwrap()),
+        };
+
+        // タスクの作成
+        let task = self
+            .repo
+            .create_team_task(
+                payload.team_id,
+                team.organization_id, // Pass Option<Uuid> directly
+                create_dto,
+                payload.visibility.unwrap_or(TaskVisibility::Team),
+                payload.assigned_to,
+            )
+            .await?;
+
+        Ok(task.into())
+    }
+
+    /// 組織タスクの作成
+    pub async fn create_organization_task(
+        &self,
+        user: &AuthenticatedUser,
+        payload: CreateOrganizationTaskRequest,
+    ) -> AppResult<TaskDto> {
+        // ユーザーの組織確認
+        let user_model = self
+            .user_repo
+            .find_by_id(user.claims.user_id)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::create_organization_task",
+                    "Failed to fetch user information",
+                )
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    "User not found",
+                    "task_service::create_organization_task",
+                    "User information could not be retrieved",
+                )
+            })?;
+
+        if user_model.organization_id != Some(payload.organization_id) {
+            return Err(forbidden_error(
+                "User is not a member of the organization",
+                "task_service::create_organization_task",
+                "You must be a member of the organization to create organization tasks",
+            ));
+        }
+
+        // CreateTaskDtoに変換
+        let create_dto = CreateTaskDto {
+            title: payload.title,
+            description: payload.description,
+            status: payload.status,
+            priority: payload.priority,
+            due_date: payload
+                .due_date
+                .map(|ts| DateTime::from_timestamp(ts, 0).unwrap()),
+        };
+
+        // タスクの作成
+        let task = self
+            .repo
+            .create_organization_task(payload.organization_id, create_dto, payload.assigned_to)
+            .await?;
+
+        Ok(task.into())
+    }
+
+    /// タスクの割り当て
+    pub async fn assign_task(
+        &self,
+        user: &AuthenticatedUser,
+        task_id: Uuid,
+        payload: AssignTaskRequest,
+    ) -> AppResult<TaskDto> {
+        // タスクの取得
+        let task = self.repo.find_by_id(task_id).await?.ok_or_else(|| {
+            not_found_error(
+                "Task not found",
+                "task_service::assign_task",
+                "The specified task does not exist",
+            )
+        })?;
+
+        // アクセス権限の確認
+        let user_teams = self
+            .team_service
+            .get_user_team_ids(user.claims.user_id)
+            .await?;
+
+        // ユーザーの組織IDを取得
+        let user_model = self
+            .user_repo
+            .find_by_id(user.claims.user_id)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::assign_task",
+                    "Failed to fetch user information",
+                )
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    "User not found",
+                    "task_service::assign_task",
+                    "User information could not be retrieved",
+                )
+            })?;
+
+        let user_organization_id = user_model.organization_id;
+
+        let can_assign = match task.visibility {
+            TaskVisibility::Personal => {
+                // 個人タスクは所有者のみ割り当て可能
+                task.is_owned_by(&user.claims.user_id)
+            }
+            TaskVisibility::Team => {
+                // チームタスクはチームメンバーが割り当て可能
+                task.team_id.is_some_and(|tid| user_teams.contains(&tid))
+            }
+            TaskVisibility::Organization => {
+                // 組織タスクは組織メンバーが割り当て可能
+                task.organization_id == user_organization_id
+            }
+        };
+
+        if !can_assign {
+            return Err(forbidden_error(
+                "User does not have permission to assign this task",
+                "task_service::assign_task",
+                "You don't have permission to assign this task",
+            ));
+        }
+
+        // 割り当て先ユーザーの権限確認
+        if let Some(assigned_to_id) = payload.assigned_to {
+            // 割り当て先がタスクのスコープ内にいるか確認
+            let assigned_user_teams = self.team_service.get_user_team_ids(assigned_to_id).await?;
+
+            // 割り当て先ユーザーの組織IDを取得
+            let assigned_user_model = self
+                .user_repo
+                .find_by_id(assigned_to_id)
+                .await
+                .map_err(|e| {
+                    internal_server_error(
+                        e,
+                        "task_service::assign_task",
+                        "Failed to fetch assigned user information",
+                    )
+                })?
+                .ok_or_else(|| {
+                    not_found_error(
+                        "Assigned user not found",
+                        "task_service::assign_task",
+                        "The user you're trying to assign to does not exist",
+                    )
+                })?;
+
+            let assigned_user_org_id = assigned_user_model.organization_id;
+
+            let can_be_assigned = match task.visibility {
+                TaskVisibility::Personal => false, // 個人タスクは他人に割り当てできない
+                TaskVisibility::Team => task
+                    .team_id
+                    .is_some_and(|tid| assigned_user_teams.contains(&tid)),
+                TaskVisibility::Organization => task.organization_id == assigned_user_org_id,
+            };
+
+            if !can_be_assigned {
+                return Err(forbidden_error(
+                    "Cannot assign task to user outside of scope",
+                    "task_service::assign_task",
+                    "The user you're trying to assign to doesn't have access to this task",
+                ));
+            }
+        }
+
+        // タスクの更新
+        let updated_task = self
+            .repo
+            .update_task_assignment(task_id, payload.assigned_to)
+            .await?
+            .ok_or_else(|| {
+                internal_server_error(
+                    "Failed to update task assignment",
+                    "task_service::assign_task",
+                    "An error occurred while updating the task assignment",
+                )
+            })?;
+
+        Ok(updated_task.into())
+    }
+
+    /// マルチテナントタスクの更新
+    pub async fn update_multi_tenant_task(
+        &self,
+        user: &AuthenticatedUser,
+        task_id: Uuid,
+        payload: UpdateTaskDto,
+    ) -> AppResult<TaskDto> {
+        // タスクの取得
+        let task = self.repo.find_by_id(task_id).await?.ok_or_else(|| {
+            not_found_error(
+                "Task not found",
+                "task_service::update_multi_tenant_task",
+                "The specified task does not exist",
+            )
+        })?;
+
+        // アクセス権限の確認
+        let user_teams = self
+            .team_service
+            .get_user_team_ids(user.claims.user_id)
+            .await?;
+
+        // ユーザーの組織IDを取得
+        let user_model = self
+            .user_repo
+            .find_by_id(user.claims.user_id)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::update_multi_tenant_task",
+                    "Failed to fetch user information",
+                )
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    "User not found",
+                    "task_service::update_multi_tenant_task",
+                    "User information could not be retrieved",
+                )
+            })?;
+
+        let user_organization_id = user_model.organization_id;
+
+        let can_update = match task.visibility {
+            TaskVisibility::Personal => {
+                // 個人タスクは所有者のみ更新可能
+                task.is_owned_by(&user.claims.user_id)
+            }
+            TaskVisibility::Team => {
+                // チームタスクはチームメンバーが更新可能
+                task.team_id.is_some_and(|tid| user_teams.contains(&tid))
+            }
+            TaskVisibility::Organization => {
+                // 組織タスクは組織メンバーが更新可能
+                task.organization_id == user_organization_id
+            }
+        };
+
+        if !can_update {
+            return Err(forbidden_error(
+                "User does not have permission to update this task",
+                "task_service::update_multi_tenant_task",
+                "You don't have permission to update this task",
+            ));
+        }
+
+        // タスクの更新
+        let updated_task = self.repo.update(task_id, payload).await?.ok_or_else(|| {
+            internal_server_error(
+                "Failed to update task",
+                "task_service::update_multi_tenant_task",
+                "An error occurred while updating the task",
+            )
+        })?;
+
+        Ok(updated_task.into())
+    }
+
+    /// マルチテナントタスクの削除
+    pub async fn delete_multi_tenant_task(
+        &self,
+        user: &AuthenticatedUser,
+        task_id: Uuid,
+    ) -> AppResult<()> {
+        // タスクの取得
+        let task = self.repo.find_by_id(task_id).await?.ok_or_else(|| {
+            not_found_error(
+                "Task not found",
+                "task_service::delete_multi_tenant_task",
+                "The specified task does not exist",
+            )
+        })?;
+
+        // アクセス権限の確認
+        let user_teams = self
+            .team_service
+            .get_user_team_ids(user.claims.user_id)
+            .await?;
+
+        // ユーザーの組織IDを取得
+        let user_model = self
+            .user_repo
+            .find_by_id(user.claims.user_id)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::delete_multi_tenant_task",
+                    "Failed to fetch user information",
+                )
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    "User not found",
+                    "task_service::delete_multi_tenant_task",
+                    "User information could not be retrieved",
+                )
+            })?;
+
+        let user_organization_id = user_model.organization_id;
+
+        let can_delete = match task.visibility {
+            TaskVisibility::Personal => {
+                // 個人タスクは所有者のみ削除可能
+                task.is_owned_by(&user.claims.user_id)
+            }
+            TaskVisibility::Team => {
+                // チームタスクはチームメンバーが削除可能
+                task.team_id.is_some_and(|tid| user_teams.contains(&tid))
+            }
+            TaskVisibility::Organization => {
+                // 組織タスクは組織メンバーが削除可能
+                task.organization_id == user_organization_id
+            }
+        };
+
+        if !can_delete {
+            return Err(forbidden_error(
+                "User does not have permission to delete this task",
+                "task_service::delete_multi_tenant_task",
+                "You don't have permission to delete this task",
+            ));
+        }
+
+        // タスクの削除
+        let delete_result = self.repo.delete(task_id).await?;
+        if delete_result.rows_affected == 0 {
+            Err(internal_server_error(
+                "Failed to delete task",
+                "task_service::delete_multi_tenant_task",
+                "An error occurred while deleting the task",
+            ))
+        } else {
+            Ok(())
+        }
+    }
 }

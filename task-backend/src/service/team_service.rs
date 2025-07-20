@@ -567,6 +567,21 @@ impl TeamService {
         Ok(responses)
     }
 
+    /// ユーザーが所属するチームのIDリストを取得
+    pub async fn get_user_team_ids(&self, user_id: Uuid) -> AppResult<Vec<Uuid>> {
+        let teams = self.team_repository.find_teams_by_member(user_id).await?;
+        Ok(teams.iter().map(|t| t.id).collect())
+    }
+
+    /// ユーザーが特定のチームのメンバーかチェック
+    pub async fn is_user_member_of_team(&self, user_id: Uuid, team_id: Uuid) -> AppResult<bool> {
+        Ok(self
+            .team_repository
+            .find_member_by_user_and_team(user_id, team_id)
+            .await?
+            .is_some())
+    }
+
     /// チームメンバーの詳細情報を取得（権限情報付き）
     pub async fn get_team_member_detail(
         &self,

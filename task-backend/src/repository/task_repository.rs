@@ -4,6 +4,7 @@ use crate::api::dto::task_query_dto::TaskSearchQuery;
 use crate::db;
 use crate::domain::task_model::{self, ActiveModel as TaskActiveModel, Entity as TaskEntity};
 use crate::domain::task_status::TaskStatus;
+use crate::domain::task_visibility::TaskVisibility;
 use chrono::Utc;
 use sea_orm::{entity::*, query::*, DbConn, DbErr, DeleteResult, Set};
 use sea_orm::{Condition, Order, PaginatorTrait, QueryFilter, QueryOrder};
@@ -809,5 +810,377 @@ impl TaskRepository {
             .sum();
 
         Ok(total_hours / completed_tasks.len() as f64)
+    }
+
+    // --- マルチテナント対応メソッド ---
+
+    /// 個人タスクの取得
+    pub async fn find_personal_tasks(
+        &self,
+        user_id: Uuid,
+        query: &TaskSearchQuery,
+    ) -> Result<(Vec<task_model::Model>, u64), DbErr> {
+        self.prepare_connection().await?;
+
+        let mut db_query = TaskEntity::find();
+        let mut conditions = Condition::all()
+            .add(task_model::Column::Visibility.eq(TaskVisibility::Personal.as_str()))
+            .add(
+                Condition::any()
+                    .add(task_model::Column::UserId.eq(user_id))
+                    .add(task_model::Column::AssignedTo.eq(user_id)),
+            );
+
+        // 共通フィルタを適用
+        conditions = self.apply_common_filters(conditions, query);
+
+        db_query = db_query.filter(conditions);
+
+        // ソートを適用
+        db_query = self.apply_sorting(db_query, query);
+
+        // ページネーション
+        let (page, per_page) = query.pagination.get_pagination();
+        let paginator = db_query.paginate(&self.db, per_page as u64);
+
+        let total_count = paginator.num_items().await?;
+        let items = paginator.fetch_page((page - 1) as u64).await?;
+
+        Ok((items, total_count))
+    }
+
+    /// チームタスクの取得（特定チーム）
+    pub async fn find_team_tasks(
+        &self,
+        team_id: Uuid,
+        query: &TaskSearchQuery,
+    ) -> Result<(Vec<task_model::Model>, u64), DbErr> {
+        self.prepare_connection().await?;
+
+        let mut db_query = TaskEntity::find();
+        let mut conditions = Condition::all()
+            .add(task_model::Column::TeamId.eq(team_id))
+            .add(task_model::Column::Visibility.eq(TaskVisibility::Team.as_str()));
+
+        conditions = self.apply_common_filters(conditions, query);
+
+        db_query = db_query.filter(conditions);
+        db_query = self.apply_sorting(db_query, query);
+
+        let (page, per_page) = query.pagination.get_pagination();
+        let paginator = db_query.paginate(&self.db, per_page as u64);
+
+        let total_count = paginator.num_items().await?;
+        let items = paginator.fetch_page((page - 1) as u64).await?;
+
+        Ok((items, total_count))
+    }
+
+    /// 複数チームのタスクを取得
+    pub async fn find_tasks_in_teams(
+        &self,
+        team_ids: &[Uuid],
+        query: &TaskSearchQuery,
+    ) -> Result<(Vec<task_model::Model>, u64), DbErr> {
+        self.prepare_connection().await?;
+
+        if team_ids.is_empty() {
+            return Ok((vec![], 0));
+        }
+
+        let mut db_query = TaskEntity::find();
+        let mut conditions = Condition::all()
+            .add(task_model::Column::TeamId.is_in(team_ids.to_vec()))
+            .add(task_model::Column::Visibility.eq(TaskVisibility::Team.as_str()));
+
+        conditions = self.apply_common_filters(conditions, query);
+
+        db_query = db_query.filter(conditions);
+        db_query = self.apply_sorting(db_query, query);
+
+        let (page, per_page) = query.pagination.get_pagination();
+        let paginator = db_query.paginate(&self.db, per_page as u64);
+
+        let total_count = paginator.num_items().await?;
+        let items = paginator.fetch_page((page - 1) as u64).await?;
+
+        Ok((items, total_count))
+    }
+
+    /// 組織タスクの取得
+    pub async fn find_organization_tasks(
+        &self,
+        organization_id: Uuid,
+        query: &TaskSearchQuery,
+    ) -> Result<(Vec<task_model::Model>, u64), DbErr> {
+        self.prepare_connection().await?;
+
+        let mut db_query = TaskEntity::find();
+        let mut conditions = Condition::all()
+            .add(task_model::Column::OrganizationId.eq(organization_id))
+            .add(task_model::Column::Visibility.eq(TaskVisibility::Organization.as_str()));
+
+        conditions = self.apply_common_filters(conditions, query);
+
+        db_query = db_query.filter(conditions);
+        db_query = self.apply_sorting(db_query, query);
+
+        let (page, per_page) = query.pagination.get_pagination();
+        let paginator = db_query.paginate(&self.db, per_page as u64);
+
+        let total_count = paginator.num_items().await?;
+        let items = paginator.fetch_page((page - 1) as u64).await?;
+
+        Ok((items, total_count))
+    }
+
+    /// アクセス可能な全タスクの取得
+    pub async fn find_accessible_tasks(
+        &self,
+        user_id: Uuid,
+        team_ids: &[Uuid],
+        organization_id: Option<Uuid>,
+        query: &TaskSearchQuery,
+    ) -> Result<(Vec<task_model::Model>, u64), DbErr> {
+        self.prepare_connection().await?;
+
+        let mut db_query = TaskEntity::find();
+        let mut access_conditions = Condition::any();
+
+        // 個人タスク（所有または割り当て）
+        access_conditions = access_conditions.add(
+            Condition::all()
+                .add(task_model::Column::Visibility.eq(TaskVisibility::Personal.as_str()))
+                .add(
+                    Condition::any()
+                        .add(task_model::Column::UserId.eq(user_id))
+                        .add(task_model::Column::AssignedTo.eq(user_id)),
+                ),
+        );
+
+        // チームタスク
+        if !team_ids.is_empty() {
+            access_conditions = access_conditions.add(
+                Condition::all()
+                    .add(task_model::Column::Visibility.eq(TaskVisibility::Team.as_str()))
+                    .add(task_model::Column::TeamId.is_in(team_ids.to_vec())),
+            );
+        }
+
+        // 組織タスク
+        if let Some(org_id) = organization_id {
+            access_conditions = access_conditions.add(
+                Condition::all()
+                    .add(task_model::Column::Visibility.eq(TaskVisibility::Organization.as_str()))
+                    .add(task_model::Column::OrganizationId.eq(org_id)),
+            );
+        }
+
+        let mut conditions = Condition::all().add(access_conditions);
+        conditions = self.apply_common_filters(conditions, query);
+
+        db_query = db_query.filter(conditions);
+        db_query = self.apply_sorting(db_query, query);
+
+        let (page, per_page) = query.pagination.get_pagination();
+        let paginator = db_query.paginate(&self.db, per_page as u64);
+
+        let total_count = paginator.num_items().await?;
+        let items = paginator.fetch_page((page - 1) as u64).await?;
+
+        Ok((items, total_count))
+    }
+
+    /// チームタスクの作成
+    pub async fn create_team_task(
+        &self,
+        team_id: Uuid,
+        organization_id: Option<Uuid>,
+        payload: CreateTaskDto,
+        visibility: TaskVisibility,
+        assigned_to: Option<Uuid>,
+    ) -> Result<task_model::Model, DbErr> {
+        self.prepare_connection().await?;
+
+        let mut new_task = TaskActiveModel::new();
+        new_task.title = Set(payload.title);
+        new_task.description = Set(payload.description);
+        new_task.status = Set(payload.status.unwrap_or(TaskStatus::Todo).to_string());
+        new_task.priority = Set(payload.priority.unwrap_or_else(|| "medium".to_string()));
+        new_task.due_date = Set(payload.due_date);
+
+        // ヘルパーメソッドを使用してチームタスクとして設定
+        if let Some(org_id) = organization_id {
+            new_task.set_as_team_task(team_id, org_id);
+        } else {
+            // organization_idがない場合は手動で設定
+            new_task.team_id = Set(Some(team_id));
+            new_task.visibility = Set(visibility);
+            new_task.user_id = Set(None);
+        }
+
+        new_task.assign_to(assigned_to);
+
+        new_task.insert(&self.db).await
+    }
+
+    /// 組織タスクの作成
+    pub async fn create_organization_task(
+        &self,
+        organization_id: Uuid,
+        payload: CreateTaskDto,
+        assigned_to: Option<Uuid>,
+    ) -> Result<task_model::Model, DbErr> {
+        self.prepare_connection().await?;
+
+        let mut new_task = TaskActiveModel::new();
+        new_task.title = Set(payload.title);
+        new_task.description = Set(payload.description);
+        new_task.status = Set(payload.status.unwrap_or(TaskStatus::Todo).to_string());
+        new_task.priority = Set(payload.priority.unwrap_or_else(|| "medium".to_string()));
+        new_task.due_date = Set(payload.due_date);
+
+        // ヘルパーメソッドを使用して組織タスクとして設定
+        new_task.set_as_organization_task(organization_id);
+        new_task.assign_to(assigned_to);
+
+        new_task.insert(&self.db).await
+    }
+
+    /// タスクの割り当て更新
+    pub async fn update_task_assignment(
+        &self,
+        task_id: Uuid,
+        assigned_to: Option<Uuid>,
+    ) -> Result<Option<task_model::Model>, DbErr> {
+        self.prepare_connection().await?;
+
+        let task = match TaskEntity::find_by_id(task_id).one(&self.db).await? {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        let mut active_model: TaskActiveModel = task.into();
+        // ヘルパーメソッドを使用して割り当て
+        active_model.assign_to(assigned_to);
+
+        Ok(Some(active_model.update(&self.db).await?))
+    }
+
+    // 共通フィルタ適用ヘルパー
+    fn apply_common_filters(
+        &self,
+        mut conditions: Condition,
+        query: &TaskSearchQuery,
+    ) -> Condition {
+        // ステータスフィルタ
+        if let Some(status) = &query.status {
+            conditions = conditions.add(task_model::Column::Status.eq(status.as_str()));
+        }
+
+        // 検索（タイトルと説明文のOR検索）
+        if let Some(search_term) = &query.search {
+            conditions = conditions.add(
+                Condition::any()
+                    .add(task_model::Column::Title.contains(search_term))
+                    .add(task_model::Column::Description.contains(search_term)),
+            );
+        }
+
+        // 担当者フィルタ
+        if let Some(assigned_to) = &query.assigned_to {
+            conditions = conditions.add(task_model::Column::AssignedTo.eq(*assigned_to));
+        }
+
+        // 優先度フィルタ
+        if let Some(priority) = &query.priority {
+            conditions = conditions.add(task_model::Column::Priority.eq(priority));
+        }
+
+        // 期限前フィルタ
+        if let Some(due_before) = &query.due_date_before {
+            conditions = conditions.add(task_model::Column::DueDate.lte(*due_before));
+        }
+
+        // 期限後フィルタ
+        if let Some(due_after) = &query.due_date_after {
+            conditions = conditions.add(task_model::Column::DueDate.gte(*due_after));
+        }
+
+        // 作成日時フィルタ
+        if let Some(created_after) = &query.created_after {
+            conditions = conditions.add(task_model::Column::CreatedAt.gte(*created_after));
+        }
+
+        if let Some(created_before) = &query.created_before {
+            conditions = conditions.add(task_model::Column::CreatedAt.lte(*created_before));
+        }
+
+        conditions
+    }
+
+    // ソート適用ヘルパー
+    fn apply_sorting(
+        &self,
+        mut db_query: Select<TaskEntity>,
+        query: &TaskSearchQuery,
+    ) -> Select<TaskEntity> {
+        use crate::types::SortOrder;
+
+        if let Some(sort_by) = &query.sort.sort_by {
+            match sort_by.as_str() {
+                "title" => {
+                    db_query = match query.sort.sort_order {
+                        SortOrder::Asc => db_query.order_by_asc(task_model::Column::Title),
+                        SortOrder::Desc => db_query.order_by_desc(task_model::Column::Title),
+                    };
+                }
+                "due_date" => {
+                    db_query = match query.sort.sort_order {
+                        SortOrder::Asc => db_query.order_by_asc(task_model::Column::DueDate),
+                        SortOrder::Desc => db_query.order_by_desc(task_model::Column::DueDate),
+                    };
+                }
+                "priority" => {
+                    db_query = match query.sort.sort_order {
+                        SortOrder::Asc => db_query.order_by_asc(task_model::Column::Priority),
+                        SortOrder::Desc => db_query.order_by_desc(task_model::Column::Priority),
+                    };
+                }
+                "status" => {
+                    db_query = match query.sort.sort_order {
+                        SortOrder::Asc => db_query.order_by_asc(task_model::Column::Status),
+                        SortOrder::Desc => db_query.order_by_desc(task_model::Column::Status),
+                    };
+                }
+                "updated_at" => {
+                    db_query = match query.sort.sort_order {
+                        SortOrder::Asc => db_query.order_by_asc(task_model::Column::UpdatedAt),
+                        SortOrder::Desc => db_query.order_by_desc(task_model::Column::UpdatedAt),
+                    };
+                }
+                "visibility" => {
+                    db_query = match query.sort.sort_order {
+                        SortOrder::Asc => db_query.order_by_asc(task_model::Column::Visibility),
+                        SortOrder::Desc => db_query.order_by_desc(task_model::Column::Visibility),
+                    };
+                }
+                "assigned_to" => {
+                    db_query = match query.sort.sort_order {
+                        SortOrder::Asc => db_query.order_by_asc(task_model::Column::AssignedTo),
+                        SortOrder::Desc => db_query.order_by_desc(task_model::Column::AssignedTo),
+                    };
+                }
+                _ => {
+                    // デフォルトは作成日時の降順
+                    db_query = db_query.order_by_desc(task_model::Column::CreatedAt);
+                }
+            }
+        } else {
+            // ソート指定がない場合はデフォルトで作成日時の降順
+            db_query = db_query.order_by_desc(task_model::Column::CreatedAt);
+        }
+
+        db_query
     }
 }

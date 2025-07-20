@@ -5,6 +5,19 @@ use crate::domain::activity_log_model::{ActiveModel, Column, Entity, Model};
 use crate::error::AppResult;
 use chrono::{DateTime, Utc};
 use sea_orm::*;
+use uuid::Uuid;
+
+/// アクティビティログ検索用フィルタ
+#[derive(Debug, Clone)]
+pub struct ActivityLogFilter {
+    pub user_id: Option<Uuid>,
+    pub resource_type: Option<String>,
+    pub action: Option<String>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
+    pub page: u64,
+    pub per_page: u64,
+}
 
 #[derive(Clone)]
 pub struct ActivityLogRepository {
@@ -78,5 +91,41 @@ impl ActivityLogRepository {
             .await?;
 
         Ok(count)
+    }
+
+    /// アクティビティログをクエリで検索
+    pub async fn find_with_query(&self, filter: ActivityLogFilter) -> AppResult<(Vec<Model>, u64)> {
+        let mut query = Entity::find();
+
+        // フィルタ条件を適用
+        if let Some(user_id) = filter.user_id {
+            query = query.filter(Column::UserId.eq(user_id));
+        }
+        if let Some(resource_type) = filter.resource_type {
+            query = query.filter(Column::ResourceType.eq(resource_type));
+        }
+        if let Some(action) = filter.action {
+            query = query.filter(Column::Action.eq(action));
+        }
+        if let Some(from) = filter.from {
+            query = query.filter(Column::CreatedAt.gte(from));
+        }
+        if let Some(to) = filter.to {
+            query = query.filter(Column::CreatedAt.lte(to));
+        }
+
+        // 総件数を取得
+        let total = query.clone().count(&self.db).await?;
+
+        // ページネーション
+        let offset = (filter.page - 1) * filter.per_page;
+        let logs = query
+            .order_by_desc(Column::CreatedAt)
+            .limit(filter.per_page)
+            .offset(offset)
+            .all(&self.db)
+            .await?;
+
+        Ok((logs, total))
     }
 }

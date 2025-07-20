@@ -310,3 +310,18 @@ pub async fn authenticate_as_admin(app: &Router) -> TestUser {
         .await
         .expect("Failed to authenticate as admin")
 }
+
+/// 特定の認証情報でユーザーを作成するヘルパー（テスト用）
+pub async fn create_user_with_credentials(
+    app: &Router,
+    email: &str,
+    username: &str,
+    password: &str,
+) -> Result<TestUser, String> {
+    let signup_data = SignupRequest {
+        email: email.to_string(),
+        username: username.to_string(),
+        password: password.to_string(),
+    };
+    signup_test_user(app, signup_data).await
+}

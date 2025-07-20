@@ -1,4 +1,5 @@
 // src/api/handlers/mod.rs
+pub mod activity_log_handler;
 pub mod admin_handler;
 pub mod analytics_handler;
 pub mod attachment_handler;
@@ -13,6 +14,7 @@ pub mod security_handler;
 pub mod subscription_handler;
 pub mod system_handler;
 pub mod task_handler;
+pub mod task_handler_v2;
 pub mod team_handler;
 pub mod team_invitation_handler;
 pub mod user_handler;

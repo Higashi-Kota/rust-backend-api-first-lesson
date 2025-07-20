@@ -2,6 +2,7 @@
 use crate::api::dto::common::PaginatedResponse;
 use crate::domain::task_model;
 use crate::domain::task_status::TaskStatus;
+use crate::domain::task_visibility::TaskVisibility;
 use crate::types::{optional_timestamp, Timestamp};
 use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
@@ -117,11 +118,26 @@ pub struct TaskDto {
     pub user_id: Option<Uuid>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+
+    // マルチテナント対応フィールド
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub team_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<Uuid>,
+    pub visibility: TaskVisibility,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assigned_to: Option<Uuid>,
+
+    // 表示用の追加情報
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_info: Option<String>,
 }
 
 // SeaORM の Model から TaskDto への変換
 impl From<task_model::Model> for TaskDto {
     fn from(model: task_model::Model) -> Self {
+        let owner_info = Some(model.get_owner_info());
+
         Self {
             id: model.id,
             title: model.title,
@@ -132,6 +148,11 @@ impl From<task_model::Model> for TaskDto {
             user_id: model.user_id,
             created_at: Timestamp::from_datetime(model.created_at),
             updated_at: Timestamp::from_datetime(model.updated_at),
+            team_id: model.team_id,
+            organization_id: model.organization_id,
+            visibility: model.visibility,
+            assigned_to: model.assigned_to,
+            owner_info,
         }
     }
 }

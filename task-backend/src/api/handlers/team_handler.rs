@@ -6,11 +6,12 @@ use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
 use crate::error::AppResult;
 use crate::middleware::auth::AuthenticatedUser;
+use crate::middleware::authorization::PermissionContext;
 use crate::shared::types::PaginatedResponse;
 use crate::types::ApiResponse;
 use crate::utils::error_helper::convert_validation_errors;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     routing::{delete, get, patch, post},
     Json, Router,
@@ -18,6 +19,37 @@ use axum::{
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
+
+/// チーム作成（統一権限チェックミドルウェア対応）
+#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
+pub async fn create_team_with_unified_permission(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Extension(permission_ctx): Extension<PermissionContext>,
+    Json(payload): Json<CreateTeamRequest>,
+) -> AppResult<(StatusCode, ApiResponse<TeamResponse>)> {
+    // PermissionContextを使用して権限を確認
+    info!(
+        user_id = %permission_ctx.user_id,
+        resource = permission_ctx.resource,
+        action = ?permission_ctx.action,
+        is_admin = permission_ctx.is_admin(),
+        can_access = permission_ctx.can_access(),
+        "Creating team with unified permission check"
+    );
+
+    // バリデーション
+    payload.validate().map_err(|e| {
+        convert_validation_errors(e, "team_handler::create_team_with_unified_permission")
+    })?;
+
+    let team_response = app_state
+        .team_service
+        .create_team(payload, user.user_id())
+        .await?;
+
+    Ok((StatusCode::CREATED, ApiResponse::success(team_response)))
+}
 
 /// チーム作成
 pub async fn create_team_handler(
@@ -251,6 +283,8 @@ pub async fn search_teams_handler(
 /// チームルーターを作成
 pub fn team_router(app_state: AppState) -> Router {
     Router::new()
+        // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に以下のコメントを解除
+        // .merge(team_router_with_unified_permission(app_state.clone()))
         // チーム管理
         .route("/teams", post(create_team_handler))
         .route("/teams", get(list_teams_handler))
@@ -356,4 +390,43 @@ pub fn team_router(app_state: AppState) -> Router {
 /// チームルーターをAppStateから作成
 pub fn team_router_with_state(app_state: AppState) -> Router {
     team_router(app_state)
+}
+
+/// 統一権限チェックミドルウェアを使用したチームルーター（実験的実装）
+#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
+pub fn team_router_with_unified_permission(app_state: AppState) -> Router<AppState> {
+    use crate::middleware::authorization::{permission_middleware, resources, Action};
+    use crate::require_permission;
+    use axum::middleware;
+
+    Router::new()
+        // 統一権限チェックを使用したチーム作成
+        .route(
+            "/teams/unified",
+            post(create_team_with_unified_permission)
+                .route_layer(require_permission!(resources::TEAM, Action::Create)),
+        )
+        // 統一権限チェックを使用したチーム操作
+        .route(
+            "/teams/unified/{id}",
+            get(get_team_handler).layer(middleware::from_fn(permission_middleware(
+                resources::TEAM,
+                Action::View,
+            ))),
+        )
+        .route(
+            "/teams/unified/{id}",
+            patch(update_team_handler).layer(middleware::from_fn(permission_middleware(
+                resources::TEAM,
+                Action::Update,
+            ))),
+        )
+        .route(
+            "/teams/unified/{id}",
+            delete(delete_team_handler).layer(middleware::from_fn(permission_middleware(
+                resources::TEAM,
+                Action::Delete,
+            ))),
+        )
+        .with_state(app_state)
 }
