@@ -4,7 +4,8 @@
 use crate::api::dto::task_dto::{PaginatedTasksDto, TaskDto, UpdateTaskDto}; // TaskDto is used in ApiResponse
 use crate::api::dto::task_query_dto::TaskSearchQuery;
 use crate::api::dto::team_task_dto::{
-    AssignTaskRequest, CreateOrganizationTaskRequest, CreateTeamTaskRequest,
+    AssignTaskRequest, CreateOrganizationTaskRequest, CreateTeamTaskRequest, TransferTaskRequest,
+    TransferTaskResponse,
 };
 use crate::api::AppState;
 use crate::error::AppResult;
@@ -13,6 +14,7 @@ use crate::types::ApiResponse;
 use crate::utils::error_helper::convert_validation_errors;
 use axum::{
     extract::{Extension, Json, Path, Query, State},
+    http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -72,7 +74,10 @@ pub async fn create_team_task(
         .create_team_task(&auth_user, payload)
         .await?;
 
-    Ok(ApiResponse::<TaskDto>::success(task_dto))
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiResponse::<TaskDto>::success(task_dto)),
+    ))
 }
 
 /// 組織タスク作成ハンドラー
@@ -102,7 +107,10 @@ pub async fn create_organization_task(
         .create_organization_task(&auth_user, payload)
         .await?;
 
-    Ok(ApiResponse::<TaskDto>::success(task_dto))
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiResponse::<TaskDto>::success(task_dto)),
+    ))
 }
 
 /// タスク割り当てハンドラー
@@ -178,10 +186,36 @@ pub async fn delete_multi_tenant_task(
     Ok(ApiResponse::<()>::success(()))
 }
 
+/// タスク引き継ぎハンドラー
+pub async fn transfer_task(
+    State(app_state): State<AppState>,
+    Extension(auth_user): Extension<AuthenticatedUser>,
+    Path(task_id): Path<Uuid>,
+    Json(payload): Json<TransferTaskRequest>,
+) -> AppResult<impl IntoResponse> {
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "task_handler_v2::transfer_task"))?;
+
+    info!(
+        user_id = %auth_user.claims.user_id,
+        task_id = %task_id,
+        new_assignee = %payload.new_assignee,
+        "Transferring task to new assignee"
+    );
+
+    let response = app_state
+        .task_service
+        .transfer_task(&auth_user, task_id, payload)
+        .await?;
+
+    Ok(ApiResponse::<TransferTaskResponse>::success(response))
+}
+
 // task_router_v2 は削除されました - multi_tenant_task_router を使用してください
 
 /// マルチテナント対応タスクルーター
-pub fn multi_tenant_task_router() -> Router<AppState> {
+pub fn multi_tenant_task_router(app_state: AppState) -> Router {
     use axum::routing::patch;
 
     Router::new()
@@ -196,11 +230,14 @@ pub fn multi_tenant_task_router() -> Router<AppState> {
         )
         // タスク割り当て
         .route("/tasks/{id}/assign", post(assign_task))
+        // タスク引き継ぎ
+        .route("/tasks/{id}/transfer", post(transfer_task))
         // マルチテナントタスク更新
         .route(
             "/tasks/{id}/multi-tenant",
             patch(update_multi_tenant_task).delete(delete_multi_tenant_task),
         )
+        .with_state(app_state)
 }
 
 #[cfg(test)]

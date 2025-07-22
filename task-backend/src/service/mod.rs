@@ -1,5 +1,6 @@
 // src/service/mod.rs
 pub mod attachment_service;
+pub mod audit_log_service;
 pub mod auth_service;
 pub mod feature_tracking_service;
 pub mod gdpr_service;

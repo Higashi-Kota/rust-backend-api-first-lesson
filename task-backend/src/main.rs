@@ -18,15 +18,24 @@ mod types;
 mod utils;
 
 use crate::api::handlers::{
-    activity_log_handler::activity_log_router, admin_handler::admin_router,
-    analytics_handler::analytics_router_with_state, attachment_handler::attachment_routes,
-    auth_handler::auth_router_with_state, gdpr_handler::gdpr_router_with_state,
+    activity_log_handler::activity_log_router,
+    admin_handler::admin_router,
+    analytics_handler::analytics_router_with_state,
+    attachment_handler::attachment_routes,
+    audit_log_handler::audit_log_router,
+    auth_handler::auth_router_with_state,
+    gdpr_handler::gdpr_router_with_state,
     organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
-    payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
-    role_handler::role_router_with_state, security_handler::security_router,
-    subscription_handler::subscription_router_with_state, system_handler::system_router_with_state,
-    task_handler::task_router_with_state, team_handler::team_router_with_state,
+    payment_handler::payment_router_with_state,
+    permission_handler::permission_router_with_state,
+    role_handler::role_router_with_state,
+    security_handler::security_router,
+    subscription_handler::subscription_router_with_state,
+    system_handler::system_router_with_state,
+    task_handler::{task_router_with_state, task_router_with_unified_permission},
+    task_handler_v2::multi_tenant_task_router,
+    team_handler::{team_router_with_state, team_router_with_unified_permission},
     user_handler::user_router_with_state,
 };
 use crate::api::AppState;
@@ -47,6 +56,7 @@ use crate::repository::{
 };
 use crate::service::{
     attachment_service::AttachmentService,
+    audit_log_service::AuditLogService,
     auth_service::AuthService,
     organization_service::OrganizationService,
     payment_service::PaymentService,
@@ -181,6 +191,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let activity_log_repo = Arc::new(ActivityLogRepository::new(db_pool.clone()));
     let security_incident_repo = Arc::new(SecurityIncidentRepository::new(db_pool.clone()));
     let login_attempt_repo = Arc::new(LoginAttemptRepository::new(db_pool.clone()));
+    let audit_log_repo =
+        Arc::new(crate::repository::audit_log_repository::AuditLogRepository::new(db_pool.clone()));
 
     tracing::info!("📚 Repositories created.");
 
@@ -212,7 +224,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user_repo.clone(),
     ));
 
-    let task_service = Arc::new(TaskService::new(db_pool.clone()));
+    // Audit log service creation
+    let audit_log_service = Arc::new(AuditLogService::new(audit_log_repo.clone()));
+
+    // Team service creation (needs to be created before TaskService)
+    let team_service = Arc::new(TeamService::new(
+        Arc::new(db_pool.clone()),
+        TeamRepository::new(db_pool.clone()),
+        UserRepository::new(db_pool.clone()),
+        email_service.clone(),
+    ));
+
+    // Task service creation (depends on team_service and audit_log_service)
+    let task_service = Arc::new(TaskService::new(
+        db_pool.clone(),
+        team_service.clone(),
+        audit_log_service.clone(),
+    ));
 
     // ストレージサービスの初期化（必須）
     tracing::info!("📦 Initializing storage service...");
@@ -238,13 +266,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let payment_service = Arc::new(PaymentService::new(
         db_pool.clone(),
         subscription_service.clone(),
-    ));
-
-    let team_service = Arc::new(TeamService::new(
-        Arc::new(db_pool.clone()),
-        TeamRepository::new(db_pool.clone()),
-        UserRepository::new(db_pool.clone()),
-        email_service.clone(),
     ));
 
     let organization_service = Arc::new(OrganizationService::new(
@@ -325,6 +346,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         permission_service,
         security_service,
         attachment_service,
+        audit_log_service,
         activity_log_repo.clone(),
         jwt_manager.clone(),
         Arc::new(db_pool.clone()),
@@ -345,7 +367,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let security_router = security_router(app_state.clone());
     let system_router = system_router_with_state(Arc::new(app_state.clone()));
     let admin_router = admin_router(app_state.clone());
-    let hierarchy_router = organization_hierarchy_router().with_state(app_state.clone());
+    let hierarchy_router = organization_hierarchy_router(app_state.clone());
     let gdpr_router = gdpr_router_with_state(app_state.clone());
 
     // メインアプリケーションルーターの構築
@@ -365,8 +387,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(admin_router)
         .merge(hierarchy_router)
         .merge(gdpr_router)
-        .merge(attachment_routes().with_state(app_state.clone()))
-        .merge(activity_log_router().with_state(app_state.clone()))
+        .merge(attachment_routes(app_state.clone()))
+        .merge(activity_log_router(app_state.clone()))
+        .merge(audit_log_router(app_state.clone()))
+        .merge(multi_tenant_task_router(app_state.clone()))
+        // 統一権限チェックミドルウェアを使用した実験的実装
+        .merge(task_router_with_unified_permission(app_state.clone()))
+        .merge(team_router_with_unified_permission(app_state.clone()))
         .route(
             "/",
             axum::routing::get(|| async { "Task Backend API v1.0" }),
@@ -407,6 +434,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     tracing::info!("   • GDPR Compliance: /gdpr/*, /admin/gdpr/*");
     tracing::info!("   • Activity Logs: /activity-logs/me, /admin/activity-logs");
+    tracing::info!("   • Audit Logs: /audit-logs/me, /teams/*/audit-logs, /admin/audit-logs/*");
     tracing::info!("   • Health Check: /health");
 
     // サーバーの起動

@@ -2,8 +2,10 @@
 
 pub mod admin;
 pub mod analytics;
+pub mod audit_log_tests;
 pub mod auth;
 pub mod gdpr;
+pub mod middleware;
 pub mod organization;
 pub mod organization_hierarchy;
 pub mod payment;

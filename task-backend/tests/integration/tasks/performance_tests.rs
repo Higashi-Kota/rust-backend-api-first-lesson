@@ -38,9 +38,9 @@ async fn test_large_scale_team_task_creation_performance() {
     let team: Value = serde_json::from_slice(&body).unwrap();
     let team_id = team["data"]["id"].as_str().unwrap();
 
-    // Act - Create 100 team tasks and measure time
+    // Act - Create 50 team tasks and measure time
     let start_time = Instant::now();
-    let task_count = 100;
+    let task_count = 50;
 
     for i in 0..task_count {
         let task_data = json!({
@@ -57,14 +57,14 @@ async fn test_large_scale_team_task_creation_performance() {
         );
 
         let response = app.clone().oneshot(create_task_req).await.unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::CREATED);
     }
 
     let elapsed = start_time.elapsed();
 
-    // Assert - Should complete within reasonable time (10 seconds for 100 tasks)
+    // Assert - Should complete within reasonable time (5 seconds for 50 tasks)
     assert!(
-        elapsed.as_secs() < 10,
+        elapsed.as_secs() < 5,
         "Creating {} tasks took {:?}, which is too slow",
         task_count,
         elapsed

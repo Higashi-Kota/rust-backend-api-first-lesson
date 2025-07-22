@@ -18,7 +18,32 @@ use crate::common;
 // サービステスト用のセットアップヘルパー関数
 async fn setup_test_service() -> (common::db::TestDatabase, TaskService) {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+
+    // Dependencies for TaskService
+    let team_repo =
+        task_backend::repository::team_repository::TeamRepository::new(db.connection.clone());
+    let user_repo =
+        task_backend::repository::user_repository::UserRepository::new(db.connection.clone());
+    let email_config = task_backend::utils::email::EmailConfig::default();
+    let email_service =
+        std::sync::Arc::new(task_backend::utils::email::EmailService::new(email_config).unwrap());
+    let team_service = std::sync::Arc::new(task_backend::service::team_service::TeamService::new(
+        std::sync::Arc::new(db.connection.clone()),
+        team_repo,
+        user_repo,
+        email_service,
+    ));
+
+    let audit_log_repo = std::sync::Arc::new(
+        task_backend::repository::audit_log_repository::AuditLogRepository::new(
+            db.connection.clone(),
+        ),
+    );
+    let audit_log_service = std::sync::Arc::new(
+        task_backend::service::audit_log_service::AuditLogService::new(audit_log_repo),
+    );
+
+    let service = TaskService::new(db.connection.clone(), team_service, audit_log_service);
     (db, service)
 }
 

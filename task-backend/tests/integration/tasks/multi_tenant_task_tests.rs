@@ -56,7 +56,7 @@ async fn test_create_team_task_success() {
     let response = app.oneshot(create_task_req).await.unwrap();
 
     // Assert
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::CREATED);
 
     let body = body::to_bytes(response.into_body(), usize::MAX)
         .await

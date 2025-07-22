@@ -382,7 +382,7 @@ pub async fn download_via_share_link_handler(
 }
 
 /// 添付ファイル関連のルーティング設定
-pub fn attachment_routes() -> Router<AppState> {
+pub fn attachment_routes(app_state: AppState) -> Router {
     Router::new()
         // タスクに添付ファイルをアップロード
         .route(
@@ -433,6 +433,7 @@ pub fn attachment_routes() -> Router<AppState> {
             "/tasks/{task_id}/attachments/upload-url",
             post(generate_upload_url_handler),
         )
+        .with_state(app_state)
 }
 
 /// 直接アップロード用の署名付きURL生成ハンドラー

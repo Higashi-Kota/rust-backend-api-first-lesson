@@ -98,3 +98,25 @@ pub struct TaskFilterParams {
     pub assigned_to: Option<Uuid>,
     pub include_assigned: Option<bool>, // 自分に割り当てられたタスクも含むか
 }
+
+/// タスク引き継ぎリクエスト
+#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
+pub struct TransferTaskRequest {
+    pub new_assignee: Uuid,
+    #[validate(length(
+        max = 500,
+        message = "Transfer reason must be less than 500 characters"
+    ))]
+    pub reason: Option<String>,
+}
+
+/// タスク引き継ぎレスポンス
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferTaskResponse {
+    pub task_id: Uuid,
+    pub previous_assignee: Option<Uuid>,
+    pub new_assignee: Uuid,
+    pub transferred_at: i64, // Unix timestamp
+    pub transferred_by: Uuid,
+    pub reason: Option<String>,
+}

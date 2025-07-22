@@ -79,6 +79,9 @@ mod m20250719_000001_add_multitenant_fields_to_tasks;
 mod m20250719_000002_add_organization_id_to_users;
 mod m20250719_000003_add_task_performance_indexes;
 
+// 監査ログマイグレーション
+mod m20250720_000001_create_audit_logs_table;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -150,6 +153,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20250719_000001_add_multitenant_fields_to_tasks::Migration),
             Box::new(m20250719_000002_add_organization_id_to_users::Migration),
             Box::new(m20250719_000003_add_task_performance_indexes::Migration),
+            // 22. 監査ログシステム
+            Box::new(m20250720_000001_create_audit_logs_table::Migration),
         ]
     }
 }

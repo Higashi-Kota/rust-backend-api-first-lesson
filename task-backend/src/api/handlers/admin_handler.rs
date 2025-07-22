@@ -112,15 +112,9 @@ pub struct ChangeUserSubscriptionResponse {
 /// 管理者向けタスク詳細取得（制限なし）
 pub async fn admin_get_task(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Path(task_id): Path<Uuid>,
 ) -> AppResult<ApiResponse<TaskResponse>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let task_service = &app_state.task_service;
 
     // 管理者なので任意のタスクにアクセス可能
@@ -137,15 +131,9 @@ pub async fn admin_get_task(
 /// 管理者向けタスク一括作成
 pub async fn admin_bulk_create_tasks(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Json(request): Json<AdminBulkCreateTasksRequest>,
 ) -> AppResult<ApiResponse<AdminBulkOperationResponse>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     request
         .validate()
         .map_err(|e| AppError::BadRequest(e.to_string()))?;
@@ -180,15 +168,9 @@ pub async fn admin_bulk_create_tasks(
 /// 管理者向けタスク一括更新
 pub async fn admin_bulk_update_tasks(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Json(request): Json<AdminBulkUpdateTasksRequest>,
 ) -> AppResult<ApiResponse<AdminBulkOperationResponse>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     request
         .validate()
         .map_err(|e| AppError::BadRequest(e.to_string()))?;
@@ -223,15 +205,9 @@ pub async fn admin_bulk_update_tasks(
 /// 管理者向けタスク一括削除
 pub async fn admin_bulk_delete_tasks(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Json(request): Json<AdminBulkDeleteTasksRequest>,
 ) -> AppResult<ApiResponse<AdminBulkOperationResponse>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     request
         .validate()
         .map_err(|e| AppError::BadRequest(e.to_string()))?;
@@ -268,14 +244,8 @@ pub async fn admin_bulk_delete_tasks(
 /// 管理者向け期限切れ招待クリーンアップ
 pub async fn admin_cleanup_expired_invitations(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
 ) -> AppResult<ApiResponse<Vec<TeamInvitationResponse>>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let service = &app_state.team_invitation_service;
     let expired_invitations = service.mark_expired_invitations().await?;
 
@@ -290,15 +260,9 @@ pub async fn admin_cleanup_expired_invitations(
 /// 管理者向け古い招待削除
 pub async fn admin_delete_old_invitations(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let service = &app_state.team_invitation_service;
 
     let days = params
@@ -325,17 +289,10 @@ pub async fn admin_delete_old_invitations(
 /// 管理者向けタスク詳細統計取得
 pub async fn admin_get_task_stats(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUserWithRole,
+    _user: AuthenticatedUserWithRole,
     Query(query): Query<crate::api::dto::analytics_dto::TaskAnalyticsRequest>,
 ) -> AppResult<ApiResponse<crate::api::dto::analytics_dto::TaskStatsDetailResponse>> {
     use crate::api::dto::analytics_dto::*;
-
-    // 管理者権限チェック
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
 
     let task_service = &app_state.task_service;
     let user_service = &app_state.user_service;
@@ -663,17 +620,14 @@ pub async fn admin_get_task_statistics(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<AdminTaskStatsResponse>> {
-    // can_access_admin_featuresを使用して、管理者またはEnterpriseプランユーザーのアクセスを許可
+    // 権限チェックはadmin_permission_middlewareで実施済み
+    // 追加でEnterpriseプランユーザーのアクセスを許可
     if let Some(role) = user.role() {
         if !PermissionChecker::can_access_admin_features(role) {
             return Err(AppError::Forbidden(
                 "Administrator or Enterprise subscription required".to_string(),
             ));
         }
-    } else if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
     }
 
     let task_service = &app_state.task_service;
@@ -687,15 +641,9 @@ pub async fn admin_get_task_statistics(
 /// 管理者向けタスク作成（単一）
 pub async fn admin_create_task(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Json(request): Json<CreateTaskDto>,
 ) -> AppResult<ApiResponse<TaskDto>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let task_service = &app_state.task_service;
     let created_task = task_service.create_task(request).await?;
 
@@ -705,16 +653,10 @@ pub async fn admin_create_task(
 /// 管理者向けタスク更新（単一）
 pub async fn admin_update_task(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Path(task_id): Path<Uuid>,
     Json(request): Json<UpdateTaskDto>,
 ) -> AppResult<ApiResponse<TaskDto>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let task_service = &app_state.task_service;
     let updated_task = task_service.update_task(task_id, request).await?;
 
@@ -724,15 +666,9 @@ pub async fn admin_update_task(
 /// 管理者向けタスク削除（単一）
 pub async fn admin_delete_task(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Path(task_id): Path<Uuid>,
 ) -> AppResult<axum::http::StatusCode> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let task_service = &app_state.task_service;
     task_service.delete_task(task_id).await?;
 
@@ -742,14 +678,8 @@ pub async fn admin_delete_task(
 /// 管理者向け全タスク一覧取得
 pub async fn admin_list_all_tasks(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
 ) -> AppResult<ApiResponse<Vec<TaskDto>>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let task_service = &app_state.task_service;
     let tasks = task_service.list_tasks().await?;
 
@@ -759,15 +689,9 @@ pub async fn admin_list_all_tasks(
 /// 管理者向けタスク一覧取得（ページング付き）
 pub async fn admin_list_tasks_paginated(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> AppResult<ApiResponse<PaginatedTasksDto>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let page = params
         .get("page")
         .and_then(|p| p.parse::<u64>().ok())
@@ -789,15 +713,9 @@ pub async fn admin_list_tasks_paginated(
 /// 管理者向け特定ユーザーのタスク一覧取得
 pub async fn admin_list_user_tasks(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Path(user_id): Path<Uuid>,
 ) -> AppResult<ApiResponse<Vec<TaskDto>>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let task_service = &app_state.task_service;
     let tasks = task_service.list_tasks_for_user(user_id).await?;
 
@@ -809,16 +727,9 @@ pub async fn admin_list_user_tasks(
 /// 管理者向けロール一覧取得
 pub async fn admin_list_roles(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUserWithRole,
+    _user: AuthenticatedUserWithRole,
     Query(query): Query<AdminRoleListQuery>,
 ) -> AppResult<ApiResponse<AdminRoleListResponse>> {
-    // 管理者権限チェック
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let role_service = &app_state.role_service;
 
     // ページネーションパラメータを取得
@@ -873,17 +784,10 @@ pub async fn admin_list_roles(
 /// 管理者向けロール詳細取得（サブスクリプション情報付き）
 pub async fn admin_get_role_with_subscription(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUserWithRole,
+    _user: AuthenticatedUserWithRole,
     Path(role_id): Path<Uuid>,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<RoleWithSubscriptionResponse>> {
-    // 管理者権限チェック
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let role_service = &app_state.role_service;
 
     // サブスクリプション階層をクエリパラメータから取得
@@ -911,13 +815,6 @@ pub async fn admin_list_organizations(
     user: AuthenticatedUserWithRole,
     Query(query): Query<AdminOrganizationsRequest>,
 ) -> AppResult<ApiResponse<AdminOrganizationsResponse>> {
-    // 管理者権限チェック
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let organization_service = &app_state.organization_service;
 
     // ページネーションパラメータ
@@ -983,16 +880,9 @@ pub async fn admin_list_organizations(
 /// 管理者向けロール情報付き全ユーザー一覧取得
 pub async fn admin_list_users_with_roles(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUserWithRole,
+    _user: AuthenticatedUserWithRole,
     Query(query): Query<AdminUsersWithRolesRequest>,
 ) -> AppResult<ApiResponse<AdminUsersWithRolesResponse>> {
-    // 管理者権限チェック
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let user_service = &app_state.user_service;
 
     // ページネーションパラメータ
@@ -1056,13 +946,6 @@ pub async fn admin_check_user_member_status(
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only administrators can check user member status".to_string(),
-        ));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         target_user_id = %user_id,
@@ -1129,13 +1012,6 @@ pub async fn change_user_subscription(
     Path(user_id): Path<Uuid>,
     Json(request): Json<ChangeUserSubscriptionRequest>,
 ) -> AppResult<ApiResponse<ChangeUserSubscriptionResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only administrators can change user subscriptions".to_string(),
-        ));
-    }
-
     request.validate()?;
 
     info!(
@@ -1228,13 +1104,6 @@ pub async fn admin_list_bulk_operations(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<BulkOperationListQuery>,
 ) -> AppResult<ApiResponse<PaginatedResponse<BulkOperationHistoryResponse>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         "Admin listing bulk operation history"
@@ -1299,13 +1168,6 @@ pub async fn admin_get_user_bulk_operations(
     Path(user_id): Path<Uuid>,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<Vec<BulkOperationHistoryResponse>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let limit = params
         .get("limit")
         .and_then(|l| l.parse::<u64>().ok())
@@ -1349,13 +1211,6 @@ pub async fn admin_cleanup_bulk_operations(
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<CleanupResultResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let days = params
         .get("days")
         .and_then(|d| d.parse::<i64>().ok())
@@ -1396,13 +1251,6 @@ pub async fn admin_cleanup_daily_summaries(
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<CleanupResultResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let days = params
         .get("days")
         .and_then(|d| d.parse::<i64>().ok())
@@ -1443,13 +1291,6 @@ pub async fn admin_get_user_feature_metrics(
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<UserFeatureMetricsResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let user_id = params
         .get("user_id")
         .and_then(|id| Uuid::parse_str(id).ok())
@@ -1492,13 +1333,6 @@ pub async fn admin_cleanup_feature_metrics(
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<CleanupResultResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let days = params
         .get("days")
         .and_then(|d| d.parse::<i64>().ok())
@@ -1536,15 +1370,9 @@ pub async fn admin_cleanup_feature_metrics(
 /// 管理者向け機能使用状況のカウント取得
 pub async fn admin_get_feature_usage_counts(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let days = params
         .get("days")
         .and_then(|d| d.parse::<u32>().ok())
@@ -1579,12 +1407,12 @@ pub async fn admin_get_feature_usage_counts(
 
 /// Admin専用ルーター（統廃合済み）
 pub fn admin_router(app_state: crate::api::AppState) -> axum::Router {
+    use crate::middleware::authorization::admin_permission_middleware;
     use axum::routing::{delete, get, post, put};
 
     // admin_only_middlewareを使用してルーター全体に管理者権限チェックを適用
     axum::Router::new()
-        // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に以下のコメントを解除
-        // .layer(middleware::from_fn(admin_permission_middleware()))
+        .layer(axum::middleware::from_fn(admin_permission_middleware()))
         // 単一タスク操作
         .route("/admin/tasks", post(admin_create_task))
         .route("/admin/tasks", get(admin_list_all_tasks))
@@ -1923,13 +1751,6 @@ pub async fn get_all_subscription_history_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(pagination): Query<PaginationQuery>,
 ) -> AppResult<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only admins can view all subscription history".to_string(),
-        ));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         "Admin requesting all subscription history"
@@ -1961,13 +1782,6 @@ pub async fn search_subscription_history_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(search_query): Query<SubscriptionHistorySearchQuery>,
 ) -> AppResult<ApiResponse<PaginatedResponse<SubscriptionHistoryItemResponse>>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only admins can search subscription history".to_string(),
-        ));
-    }
-
     // Validation is handled by the unified query pattern
 
     info!(
@@ -2024,13 +1838,6 @@ pub async fn get_subscription_analytics_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<SubscriptionAnalyticsResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only admins can view subscription analytics".to_string(),
-        ));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         "Admin requesting subscription analytics"
@@ -2088,13 +1895,6 @@ pub async fn delete_user_subscription_history_handler(
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
 ) -> AppResult<(StatusCode, ApiResponse<DeleteHistoryResponse>)> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only admins can delete subscription history".to_string(),
-        ));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         target_user_id = %user_id,
@@ -2121,11 +1921,6 @@ pub async fn delete_subscription_history_by_id_handler(
     admin_user: AuthenticatedUserWithRole,
     Path(history_id): Path<Uuid>,
 ) -> AppResult<ApiResponse<bool>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         history_id = %history_id,
@@ -2181,13 +1976,6 @@ pub async fn admin_get_user_settings(
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
 ) -> AppResult<ApiResponse<UserSettingsDto>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         target_user_id = %user_id,
@@ -2211,13 +1999,6 @@ pub async fn admin_update_user_settings(
     Path(user_id): Path<Uuid>,
     Json(request): Json<UpdateUserSettingsRequest>,
 ) -> AppResult<ApiResponse<UserSettingsDto>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     request.validate()?;
 
     info!(
@@ -2252,13 +2033,6 @@ pub async fn admin_get_users_by_language(
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<UsersByLanguageResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let language = params
         .get("language")
         .ok_or_else(|| AppError::BadRequest("Language parameter is required".to_string()))?;
@@ -2289,13 +2063,6 @@ pub async fn admin_get_users_with_notification(
     admin_user: AuthenticatedUserWithRole,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<UsersWithNotificationResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     let notification_type = params.get("notification_type").ok_or_else(|| {
         AppError::BadRequest("Notification type parameter is required".to_string())
     })?;
@@ -2326,13 +2093,6 @@ pub async fn admin_delete_user_settings(
     admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
 ) -> AppResult<StatusCode> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Administrator access required".to_string(),
-        ));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         target_user_id = %user_id,

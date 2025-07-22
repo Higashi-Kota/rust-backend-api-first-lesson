@@ -8,9 +8,11 @@ use crate::api::dto::task_dto::{
 };
 use crate::api::dto::task_query_dto::TaskSearchQuery;
 use crate::api::dto::team_task_dto::{
-    AssignTaskRequest, CreateOrganizationTaskRequest, CreateTeamTaskRequest,
+    AssignTaskRequest, CreateOrganizationTaskRequest, CreateTeamTaskRequest, TransferTaskRequest,
+    TransferTaskResponse,
 };
 use crate::db::DbPool;
+use crate::domain::audit_log_model::{AuditAction, AuditResult};
 use crate::domain::permission::{Permission, PermissionResult, PermissionScope, Privilege};
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::task_visibility::TaskVisibility;
@@ -20,11 +22,14 @@ use crate::middleware::subscription_guard::check_feature_limit;
 use crate::repository::task_repository::TaskRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
+use crate::service::audit_log_service::{
+    AuditLogService, LogActionParams, TaskCreationParams, TaskTransferParams,
+};
 use crate::service::team_service::TeamService;
-use crate::utils::email::EmailService;
 use crate::utils::error_helper::{forbidden_error, internal_server_error, not_found_error};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
+use tracing::error;
 use uuid::Uuid;
 
 pub struct TaskService {
@@ -32,22 +37,21 @@ pub struct TaskService {
     user_repo: Arc<UserRepository>,
     team_repo: Arc<TeamRepository>,
     team_service: Arc<TeamService>,
+    audit_log_service: Arc<AuditLogService>,
 }
 
 impl TaskService {
-    pub fn new(db_pool: DbPool) -> Self {
+    pub fn new(
+        db_pool: DbPool,
+        team_service: Arc<TeamService>,
+        audit_log_service: Arc<AuditLogService>,
+    ) -> Self {
         Self {
             repo: Arc::new(TaskRepository::new(db_pool.clone())),
             user_repo: Arc::new(UserRepository::new(db_pool.clone())),
             team_repo: Arc::new(TeamRepository::new(db_pool.clone())),
-            team_service: Arc::new(TeamService::new(
-                Arc::new(db_pool.clone()),
-                TeamRepository::new(db_pool.clone()),
-                UserRepository::new(db_pool.clone()),
-                // Note: EmailService requires config, using dummy service for now
-                // In production, this should be injected from the main app state
-                Arc::new(EmailService::new(crate::utils::email::EmailConfig::default()).unwrap()),
-            )),
+            team_service,
+            audit_log_service,
         }
     }
 
@@ -80,6 +84,28 @@ impl TaskService {
         check_feature_limit(&user_tier, current_task_count, "tasks")?;
 
         let created_task = self.repo.create_for_user(user_id, payload).await?;
+
+        // 監査ログを記録
+        let log_params = LogActionParams {
+            user_id,
+            action: AuditAction::TaskCreated,
+            resource_type: "task".to_string(),
+            resource_id: Some(created_task.id),
+            team_id: None,
+            organization_id: None,
+            details: Some(serde_json::json!({
+                "title": created_task.title.clone(),
+                "visibility": "personal"
+            })),
+            ip_address: None,
+            user_agent: None,
+            result: AuditResult::Success,
+        };
+
+        if let Err(e) = self.audit_log_service.log_action(log_params).await {
+            error!("Failed to log task creation: {}", e);
+        }
+
         Ok(created_task.into())
     }
 
@@ -802,6 +828,29 @@ impl TaskService {
             )
             .await?;
 
+        // 監査ログの記録
+        if let Err(e) = self
+            .audit_log_service
+            .log_task_creation(TaskCreationParams {
+                user_id: user.claims.user_id,
+                task_id: task.id,
+                task_title: task.title.clone(),
+                team_id: Some(payload.team_id),
+                organization_id: team.organization_id,
+                visibility: "team".to_string(),
+                ip_address: None, // IP address - TODO: Extract from request context
+                user_agent: None, // User agent - TODO: Extract from request context
+            })
+            .await
+        {
+            tracing::error!(
+                error = %e,
+                user_id = %user.claims.user_id,
+                task_id = %task.id,
+                "Failed to record audit log for team task creation"
+            );
+        }
+
         Ok(task.into())
     }
 
@@ -855,6 +904,29 @@ impl TaskService {
             .repo
             .create_organization_task(payload.organization_id, create_dto, payload.assigned_to)
             .await?;
+
+        // 監査ログの記録
+        if let Err(e) = self
+            .audit_log_service
+            .log_task_creation(TaskCreationParams {
+                user_id: user.claims.user_id,
+                task_id: task.id,
+                task_title: task.title.clone(),
+                team_id: None,
+                organization_id: Some(payload.organization_id),
+                visibility: "organization".to_string(),
+                ip_address: None, // IP address - TODO: Extract from request context
+                user_agent: None, // User agent - TODO: Extract from request context
+            })
+            .await
+        {
+            tracing::error!(
+                error = %e,
+                user_id = %user.claims.user_id,
+                task_id = %task.id,
+                "Failed to record audit log for organization task creation"
+            );
+        }
 
         Ok(task.into())
     }
@@ -1142,5 +1214,182 @@ impl TaskService {
         } else {
             Ok(())
         }
+    }
+
+    /// タスクの引き継ぎ
+    pub async fn transfer_task(
+        &self,
+        user: &AuthenticatedUser,
+        task_id: Uuid,
+        request: TransferTaskRequest,
+    ) -> AppResult<TransferTaskResponse> {
+        // タスクを取得
+        let task = self
+            .repo
+            .find_by_id(task_id)
+            .await
+            .map_err(|e| {
+                internal_server_error(e, "task_service::transfer_task", "Failed to retrieve task")
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    "Task not found",
+                    "task_service::transfer_task",
+                    "The specified task was not found",
+                )
+            })?;
+
+        // ユーザーの所属チームを取得
+        let user_teams = self
+            .team_service
+            .get_user_team_ids(user.claims.user_id)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::transfer_task",
+                    "Failed to retrieve user teams",
+                )
+            })?;
+
+        // ユーザーの組織IDを取得
+        let user_model = self
+            .user_repo
+            .find_by_id(user.claims.user_id)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::transfer_task",
+                    "Failed to retrieve user information",
+                )
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    "User not found",
+                    "task_service::transfer_task",
+                    "User information could not be retrieved",
+                )
+            })?;
+
+        let user_organization_id = user_model.organization_id;
+
+        // 新しい担当者の確認
+        let new_assignee = self
+            .user_repo
+            .find_by_id(request.new_assignee)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::transfer_task",
+                    "Failed to retrieve new assignee information",
+                )
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    "New assignee not found",
+                    "task_service::transfer_task",
+                    "The specified new assignee was not found",
+                )
+            })?;
+
+        // 権限チェック：タスクの可視性に基づいて引き継ぎ権限を確認
+        let can_transfer = match task.visibility {
+            TaskVisibility::Personal => {
+                // 個人タスクは所有者のみ引き継ぎ可能
+                task.is_owned_by(&user.claims.user_id)
+            }
+            TaskVisibility::Team => {
+                // チームタスクはチームメンバーが引き継ぎ可能
+                if let Some(team_id) = task.team_id {
+                    // 新しい担当者もチームメンバーである必要がある
+                    let new_assignee_teams = self
+                        .team_service
+                        .get_user_team_ids(request.new_assignee)
+                        .await
+                        .map_err(|e| {
+                            internal_server_error(
+                                e,
+                                "task_service::transfer_task",
+                                "Failed to retrieve new assignee teams",
+                            )
+                        })?;
+
+                    user_teams.contains(&team_id) && new_assignee_teams.contains(&team_id)
+                } else {
+                    false
+                }
+            }
+            TaskVisibility::Organization => {
+                // 組織タスクは組織メンバーが引き継ぎ可能
+                task.organization_id == user_organization_id
+                    && new_assignee.organization_id == user_organization_id
+            }
+        };
+
+        if !can_transfer {
+            return Err(forbidden_error(
+                "User does not have permission to transfer this task",
+                "task_service::transfer_task",
+                "You don't have permission to transfer this task",
+            ));
+        }
+
+        // タスクの更新
+        let previous_assignee = task.assigned_to;
+
+        let _updated_task = self
+            .repo
+            .update_task_assignment(task_id, Some(request.new_assignee))
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::transfer_task",
+                    "Failed to update task assignment",
+                )
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    "Task not found after update",
+                    "task_service::transfer_task",
+                    "Task could not be found after update",
+                )
+            })?;
+
+        // 監査ログの記録
+        if let Err(e) = self
+            .audit_log_service
+            .log_task_transfer(TaskTransferParams {
+                user_id: user.claims.user_id,
+                task_id,
+                previous_assignee,
+                new_assignee: request.new_assignee,
+                team_id: task.team_id,
+                organization_id: task.organization_id,
+                reason: request.reason.clone(),
+                ip_address: None, // IP address - TODO: Extract from request context
+                user_agent: None, // User agent - TODO: Extract from request context
+            })
+            .await
+        {
+            // 監査ログの記録に失敗してもタスクの引き継ぎ自体は成功とする
+            tracing::error!(
+                error = %e,
+                user_id = %user.claims.user_id,
+                task_id = %task_id,
+                "Failed to record audit log for task transfer"
+            );
+        }
+
+        Ok(TransferTaskResponse {
+            task_id,
+            previous_assignee,
+            new_assignee: request.new_assignee,
+            transferred_at: Utc::now().timestamp(),
+            transferred_by: user.claims.user_id,
+            reason: request.reason,
+        })
     }
 }

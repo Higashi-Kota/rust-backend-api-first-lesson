@@ -21,7 +21,6 @@ use uuid::Uuid;
 use validator::Validate;
 
 /// チーム作成（統一権限チェックミドルウェア対応）
-#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
 pub async fn create_team_with_unified_permission(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
@@ -62,7 +61,8 @@ pub async fn create_team_handler(
         .validate()
         .map_err(|e| convert_validation_errors(e, "team_handler::create_team"))?;
 
-    // PermissionServiceを使用してチーム作成権限をチェック
+    // TODO: 統一権限チェックミドルウェアへ移行予定
+    // require_permission!(resources::TEAM, Action::Create)を使用
     app_state
         .permission_service
         .check_resource_access(user.user_id(), "team", None, "create")
@@ -393,8 +393,7 @@ pub fn team_router_with_state(app_state: AppState) -> Router {
 }
 
 /// 統一権限チェックミドルウェアを使用したチームルーター（実験的実装）
-#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
-pub fn team_router_with_unified_permission(app_state: AppState) -> Router<AppState> {
+pub fn team_router_with_unified_permission(app_state: AppState) -> Router {
     use crate::middleware::authorization::{permission_middleware, resources, Action};
     use crate::require_permission;
     use axum::middleware;

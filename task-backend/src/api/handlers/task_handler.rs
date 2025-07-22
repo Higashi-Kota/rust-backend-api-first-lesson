@@ -55,7 +55,8 @@ pub async fn create_task_handler(
     user: AuthenticatedUser,
     Json(payload): Json<CreateTaskDto>,
 ) -> AppResult<impl IntoResponse> {
-    // PermissionServiceを使用してタスク作成権限をチェック
+    // TODO: 統一権限チェックミドルウェアへ移行予定
+    // require_permission!(resources::TASK, Action::Create)を使用
     app_state
         .permission_service
         .check_resource_access(user.user_id(), "task", None, "create")
@@ -764,7 +765,6 @@ pub async fn bulk_update_status_handler(
 // --- Router Setup ---
 // スキーマを指定できるようにルーター構築関数を修正
 pub fn task_router(app_state: AppState) -> Router {
-    use super::task_handler_v2::multi_tenant_task_router;
     use crate::middleware::auth::is_auth_endpoint;
     use crate::utils::permission::PermissionChecker;
 
@@ -778,7 +778,6 @@ pub fn task_router(app_state: AppState) -> Router {
 
     // マルチテナント対応ルートと既存ルートを統合
     Router::new()
-        .merge(multi_tenant_task_router())
         // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に以下のコメントを解除
         // .merge(task_router_with_unified_permission(app_state.clone()))
         .route("/tasks", get(list_tasks_handler).post(create_task_handler))
@@ -817,8 +816,7 @@ pub fn task_router_with_state(app_state: AppState) -> Router {
 // Admin functionality moved to admin_handler.rs
 
 /// 統一権限チェックミドルウェアを使用したタスクルーター（実験的実装）
-#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
-pub fn task_router_with_unified_permission(app_state: AppState) -> Router<AppState> {
+pub fn task_router_with_unified_permission(app_state: AppState) -> Router {
     use crate::middleware::authorization::permission_middleware;
     use axum::middleware;
 

@@ -18,6 +18,7 @@ pub struct TestUser {
     pub email: String,
     pub username: String,
     pub access_token: String,
+    pub token: String, // Alias for access_token to match test expectations
     pub refresh_token: Option<String>,
 }
 
@@ -73,9 +74,10 @@ pub async fn signup_test_user(
     Ok(TestUser {
         id: user_id,
         user_id,
-        email: signup_data.email,
-        username: signup_data.username,
-        access_token,
+        email: signup_data.email.clone(),
+        username: signup_data.username.clone(),
+        access_token: access_token.clone(),
+        token: access_token,
         refresh_token,
     })
 }
@@ -111,15 +113,19 @@ pub async fn signin_test_user(
         .as_str()
         .map(|s| s.to_string());
 
+    let username = response["data"]["user"]["username"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let email = signin_data.identifier.clone();
+
     Ok(TestUser {
         id: user_id,
         user_id,
-        email: signin_data.identifier.clone(),
-        username: response["data"]["user"]["username"]
-            .as_str()
-            .unwrap()
-            .to_string(),
-        access_token,
+        email: email.clone(),
+        username: username.clone(),
+        access_token: access_token.clone(),
+        token: access_token,
         refresh_token,
     })
 }
@@ -196,12 +202,16 @@ pub async fn refresh_token(app: &Router, refresh_token: &str) -> Result<TestUser
         .as_str()
         .map(|s| s.to_string());
 
+    let email = data["user"]["email"].as_str().unwrap().to_string();
+    let username = data["user"]["username"].as_str().unwrap().to_string();
+
     Ok(TestUser {
         id: user_id,
         user_id,
-        email: data["user"]["email"].as_str().unwrap().to_string(),
-        username: data["user"]["username"].as_str().unwrap().to_string(),
-        access_token,
+        email: email.clone(),
+        username: username.clone(),
+        access_token: access_token.clone(),
+        token: access_token,
         refresh_token: new_refresh_token,
     })
 }

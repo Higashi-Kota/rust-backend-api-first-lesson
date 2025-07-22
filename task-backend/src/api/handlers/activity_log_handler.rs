@@ -154,8 +154,9 @@ async fn get_activity_logs_internal(
 }
 
 /// アクティビティログのルーター
-pub fn activity_log_router() -> Router<AppState> {
+pub fn activity_log_router(app_state: AppState) -> Router {
     Router::new()
         .route("/activity-logs/me", get(get_my_activity_logs))
         .route("/admin/activity-logs", get(get_all_activity_logs))
+        .with_state(app_state)
 }

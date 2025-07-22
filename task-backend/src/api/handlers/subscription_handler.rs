@@ -268,21 +268,11 @@ pub async fn get_subscription_history_handler(
 /// 管理者用サブスクリプション統計取得
 pub async fn get_subscription_stats_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
     Query(query): Query<AdminStatsQuery>,
 ) -> AppResult<ApiResponse<SubscriptionStatsResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for subscription stats"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         include_revenue = ?query.include_revenue,
         days = ?query.days,
         "Admin subscription stats request"
@@ -328,7 +318,7 @@ pub async fn get_subscription_stats_handler(
     };
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         total_users = %response.total_users,
         "Subscription stats retrieved"
     );
@@ -339,14 +329,9 @@ pub async fn get_subscription_stats_handler(
 /// 管理者向けサブスクリプション履歴取得（拡張版）
 pub async fn get_admin_subscription_history_extended_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
     Query(query): Query<SubscriptionHistoryExtendedQuery>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     // リポジトリを取得
     let subscription_history_repo = &app_state.subscription_history_repo;
 
@@ -475,19 +460,9 @@ pub struct SubscriptionHistoryExtendedQuery {
 /// 管理者向けサブスクリプション履歴取得
 pub async fn get_admin_subscription_history_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
     Query(query): Query<SubscriptionHistoryQuery>,
 ) -> AppResult<ApiResponse<AdminSubscriptionHistoryResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for subscription history"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     // バリデーション
     query.validate().map_err(|e| {
         convert_validation_errors(e, "subscription_handler::admin_get_subscription_history")
@@ -504,7 +479,7 @@ pub async fn get_admin_subscription_history_handler(
         .unwrap_or_else(|| end_date - Duration::days(30));
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         start_date = %start_date,
         end_date = %end_date,
         change_type = ?query.change_type,
@@ -561,7 +536,7 @@ pub async fn get_admin_subscription_history_handler(
     };
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         total_changes = %response.summary.total_changes,
         "Admin subscription history retrieved"
     );
@@ -572,20 +547,10 @@ pub async fn get_admin_subscription_history_handler(
 /// サブスクリプション統計取得（Phase 5.2版）
 pub async fn get_subscription_stats_v2_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<SubscriptionStatsResponseV2>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for subscription stats v2"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         "Admin subscription stats v2 request"
     );
 
@@ -698,7 +663,7 @@ pub async fn get_subscription_stats_v2_handler(
     };
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         total_changes = %total_changes,
         net_movement = %net_movement,
         "Subscription stats v2 retrieved"
@@ -774,17 +739,6 @@ pub async fn admin_change_subscription_handler(
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<AdminChangeSubscriptionRequest>,
 ) -> AppResult<ChangeSubscriptionResponse> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            target_user_id = %user_id,
-            "Access denied: Admin permission required for subscription change"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     // バリデーション
     payload.validate().map_err(|e| {
         convert_validation_errors(e, "subscription_handler::admin_change_user_subscription")
@@ -987,6 +941,37 @@ fn calculate_limit_change(old: Option<u32>, new: Option<u32>) -> Option<i64> {
 
 /// サブスクリプションルーターを作成
 pub fn subscription_router(app_state: AppState) -> Router {
+    use crate::middleware::authorization::admin_permission_middleware;
+
+    // 管理者専用ルート
+    let admin_routes = Router::new()
+        .route(
+            "/admin/subscriptions/stats",
+            get(get_subscription_stats_handler),
+        )
+        .route(
+            "/admin/subscription/history",
+            get(get_admin_subscription_history_extended_handler),
+        )
+        .route(
+            "/admin/subscription/history/v1",
+            get(get_admin_subscription_history_handler),
+        )
+        .route(
+            "/admin/subscription/stats",
+            get(get_subscription_stats_v2_handler),
+        )
+        // admin_change_user_subscription_handler is not implemented yet
+        // .route(
+        //     "/admin/subscriptions/{id}/change",
+        //     patch(admin_change_user_subscription_handler),
+        // )
+        .route(
+            "/admin/users/{id}/subscription",
+            patch(admin_change_subscription_handler),
+        )
+        .layer(axum::middleware::from_fn(admin_permission_middleware()));
+
     Router::new()
         // 一般ユーザー向けエンドポイント
         .route(
@@ -1012,27 +997,8 @@ pub fn subscription_router(app_state: AppState) -> Router {
             "/users/{id}/subscription/history",
             get(get_user_subscription_history_handler),
         )
-        // 管理者向けエンドポイント
-        .route(
-            "/admin/subscriptions/stats",
-            get(get_subscription_stats_handler),
-        )
-        .route(
-            "/admin/subscription/history",
-            get(get_admin_subscription_history_extended_handler),
-        )
-        .route(
-            "/admin/subscription/history/v1",
-            get(get_admin_subscription_history_handler),
-        )
-        .route(
-            "/admin/subscription/stats",
-            get(get_subscription_stats_v2_handler),
-        )
-        .route(
-            "/admin/users/{id}/subscription",
-            patch(admin_change_subscription_handler),
-        )
+        // 管理者向けルートをマージ
+        .merge(admin_routes)
         .with_state(app_state)
 }
 

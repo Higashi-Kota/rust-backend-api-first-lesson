@@ -10,7 +10,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use tracing::{info, warn};
+use tracing::info;
 use validator::Validate;
 
 /// トークン利用統計取得（管理者用）
@@ -18,16 +18,6 @@ pub async fn get_token_stats_handler(
     State(_app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<TokenStatsResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for token stats"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         "Token stats request"
@@ -55,20 +45,10 @@ pub async fn get_token_stats_handler(
 /// リフレッシュトークン監視（管理者用）
 pub async fn get_refresh_tokens_handler(
     State(_app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<RefreshTokenMonitorResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for refresh token monitoring"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         "Refresh token monitoring request"
     );
 
@@ -86,21 +66,11 @@ pub async fn get_refresh_tokens_handler(
 /// 期限切れトークン自動削除（管理者用）
 pub async fn cleanup_tokens_handler(
     State(_app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<CleanupTokensRequest>,
 ) -> AppResult<ApiResponse<CleanupTokensResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for token cleanup"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         cleanup_type = ?payload.cleanup_type,
         "Token cleanup request"
     );
@@ -151,20 +121,10 @@ pub async fn cleanup_tokens_handler(
 /// パスワードリセット監視（管理者用）
 pub async fn get_password_resets_handler(
     State(_app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<PasswordResetMonitorResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for password reset monitoring"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         "Password reset monitoring request"
     );
 
@@ -188,16 +148,6 @@ pub async fn revoke_all_tokens_handler(
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<RevokeAllTokensRequest>,
 ) -> AppResult<ApiResponse<RevokeAllTokensResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for token revocation"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         target_user_id = ?payload.user_id,
@@ -237,20 +187,10 @@ pub async fn revoke_all_tokens_handler(
 /// セッション分析（管理者用）
 pub async fn get_session_analytics_handler(
     State(_app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<SessionAnalyticsResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for session analytics"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         "Session analytics request"
     );
 
@@ -271,16 +211,6 @@ pub async fn generate_audit_report_handler(
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<AuditReportRequest>,
 ) -> AppResult<ApiResponse<AuditReportResponse>> {
-    // 管理者権限チェック
-    if !admin_user.is_admin() {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for audit report generation"
-        );
-        return Err(AppError::Forbidden("Admin access required".to_string()));
-    }
-
     info!(
         admin_id = %admin_user.user_id(),
         report_type = %payload.report_type,
@@ -311,7 +241,10 @@ pub async fn generate_audit_report_handler(
 
 /// セキュリティ管理ルーターを作成
 pub fn security_router(app_state: AppState) -> Router {
+    use crate::middleware::authorization::admin_permission_middleware;
     Router::new()
+        // 統一権限チェックミドルウェアを適用（管理者専用）
+        .layer(axum::middleware::from_fn(admin_permission_middleware()))
         // Phase 1.2 セキュリティ・トークン管理 API
         .route("/admin/security/token-stats", get(get_token_stats_handler))
         .route(

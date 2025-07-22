@@ -19,7 +19,6 @@ pub struct RequirePermission {
 
 /// リソースに対するアクション
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
 pub enum Action {
     View,
     Create,
@@ -59,7 +58,6 @@ macro_rules! require_permission {
 }
 
 /// 管理者権限チェック用のヘルパー関数
-#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
 pub fn admin_permission_middleware() -> impl Fn(
     Request,
     Next,
@@ -358,7 +356,6 @@ fn check_resource_permission(
 
 /// 権限コンテキスト（ミドルウェア処理後に利用可能）
 #[derive(Clone, Debug)]
-#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
 pub struct PermissionContext {
     pub user_id: Uuid,
     pub role: RoleWithPermissions,
@@ -366,7 +363,6 @@ pub struct PermissionContext {
     pub action: Action,
 }
 
-#[allow(dead_code)] // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に使用
 impl PermissionContext {
     /// ユーザーが管理者かどうかを確認
     pub fn is_admin(&self) -> bool {
