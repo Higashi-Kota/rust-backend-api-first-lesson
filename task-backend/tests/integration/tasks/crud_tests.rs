@@ -366,8 +366,8 @@ async fn test_update_task_of_another_user() {
 
     let update_res = app.clone().oneshot(update_req).await.unwrap();
 
-    // 他のユーザーのタスクは更新できない
-    assert_eq!(update_res.status(), StatusCode::NOT_FOUND);
+    // 他のユーザーのタスクは更新できない（権限エラーとして403を返す）
+    assert_eq!(update_res.status(), StatusCode::FORBIDDEN);
     let body = body::to_bytes(update_res.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -377,7 +377,7 @@ async fn test_update_task_of_another_user() {
     assert!(!error["success"].as_bool().unwrap());
     assert!(error["data"].is_null());
     assert!(error["error"].is_object());
-    assert_eq!(error["error"]["code"], "NOT_FOUND");
+    assert_eq!(error["error"]["code"], "FORBIDDEN");
 }
 
 #[tokio::test]
@@ -466,8 +466,8 @@ async fn test_delete_task_of_another_user() {
 
     let delete_res = app.clone().oneshot(delete_req).await.unwrap();
 
-    // 他のユーザーのタスクは削除できない
-    assert_eq!(delete_res.status(), StatusCode::NOT_FOUND);
+    // 他のユーザーのタスクは削除できない（権限エラーとして403を返す）
+    assert_eq!(delete_res.status(), StatusCode::FORBIDDEN);
     let body = body::to_bytes(delete_res.into_body(), usize::MAX)
         .await
         .unwrap();
@@ -477,7 +477,7 @@ async fn test_delete_task_of_another_user() {
     assert!(!error["success"].as_bool().unwrap());
     assert!(error["data"].is_null());
     assert!(error["error"].is_object());
-    assert_eq!(error["error"]["code"], "NOT_FOUND");
+    assert_eq!(error["error"]["code"], "FORBIDDEN");
 
     // 元のユーザーではまだアクセス可能であることを確認
     let get_req = auth_helper::create_authenticated_request(

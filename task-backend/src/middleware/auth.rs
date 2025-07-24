@@ -58,6 +58,12 @@ impl AuthenticatedUser {
         self.claims.is_admin()
     }
 
+    /// サブスクリプションティアを取得
+    #[allow(dead_code)]
+    pub fn subscription_tier(&self) -> String {
+        self.claims.subscription_tier.to_string()
+    }
+
     /// 組織読み取り権限をチェック
     pub fn ensure_can_read_organization(
         &self,

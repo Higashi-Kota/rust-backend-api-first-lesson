@@ -1,5 +1,5 @@
-// tests/integration/tasks/unified_search_tests.rs
-// 統一検索クエリパターンの統合テスト
+// tests/integration/tasks/search_tests.rs
+// 検索クエリパターンの統合テスト
 
 use crate::common::{
     app_helper::{create_request, setup_full_app},
@@ -14,7 +14,7 @@ use task_backend::types::ApiResponse;
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn test_unified_search_tasks_basic() {
+async fn test_search_tasks_basic() {
     // Arrange
     let (app, _schema, _db) = setup_full_app().await;
     let user = create_and_authenticate_user(&app).await;
@@ -67,7 +67,7 @@ async fn test_unified_search_tasks_basic() {
 }
 
 #[tokio::test]
-async fn test_unified_search_with_filters() {
+async fn test_search_with_filters() {
     // Arrange
     let (app, _schema, _db) = setup_full_app().await;
     let user = create_and_authenticate_user(&app).await;
@@ -116,7 +116,7 @@ async fn test_unified_search_with_filters() {
 }
 
 #[tokio::test]
-async fn test_unified_search_with_sorting() {
+async fn test_search_with_sorting() {
     // Arrange
     let (app, _schema, _db) = setup_full_app().await;
     let user = create_and_authenticate_user(&app).await;
@@ -166,13 +166,13 @@ async fn test_unified_search_with_sorting() {
 }
 
 #[tokio::test]
-async fn test_unified_search_with_pagination() {
+async fn test_search_with_pagination() {
     // Arrange
     let (app, _schema, _db) = setup_full_app().await;
     let user = create_and_authenticate_user(&app).await;
 
-    // 15個のタスクを作成
-    for i in 0..15 {
+    // 9個のタスクを作成（Freeティアの制限内）
+    for i in 0..9 {
         let task_data = json!({
             "title": format!("Task {:02}", i)
         });
@@ -208,17 +208,17 @@ async fn test_unified_search_with_pagination() {
 
     assert!(result.success);
     let data = result.data.unwrap();
-    assert_eq!(data.items.len(), 5);
+    assert_eq!(data.items.len(), 4); // 9個のタスクで、2ページ目は残り4個
     assert_eq!(data.pagination.page, 2);
     assert_eq!(data.pagination.per_page, 5);
-    assert_eq!(data.pagination.total_count, 15);
-    assert_eq!(data.pagination.total_pages, 3);
-    assert!(data.pagination.has_next);
+    assert_eq!(data.pagination.total_count, 9);
+    assert_eq!(data.pagination.total_pages, 2);
+    assert!(!data.pagination.has_next); // 2ページで終わり
     assert!(data.pagination.has_prev);
 }
 
 #[tokio::test]
-async fn test_unified_search_complex_query() {
+async fn test_search_complex_query() {
     // Arrange
     let (app, _schema, _db) = setup_full_app().await;
     let user = create_and_authenticate_user(&app).await;
@@ -272,7 +272,7 @@ async fn test_unified_search_complex_query() {
 }
 
 #[tokio::test]
-async fn test_unified_search_empty_result() {
+async fn test_search_empty_result() {
     // Arrange
     let (app, _schema, _db) = setup_full_app().await;
     let user = create_and_authenticate_user(&app).await;
@@ -300,7 +300,7 @@ async fn test_unified_search_empty_result() {
 }
 
 #[tokio::test]
-async fn test_unified_search_invalid_sort_field() {
+async fn test_search_invalid_sort_field() {
     // Arrange
     let (app, _schema, _db) = setup_full_app().await;
     let user = create_and_authenticate_user(&app).await;
@@ -326,7 +326,7 @@ async fn test_unified_search_invalid_sort_field() {
 }
 
 #[tokio::test]
-async fn test_unified_search_date_range_filter() {
+async fn test_search_date_range_filter() {
     // Arrange
     let (app, _schema, _db) = setup_full_app().await;
     let user = create_and_authenticate_user(&app).await;

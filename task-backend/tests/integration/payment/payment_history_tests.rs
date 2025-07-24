@@ -233,18 +233,18 @@ async fn test_feature_limits() {
     assert!(check_feature_limit(&SubscriptionTier::Free, 0, "teams").is_ok());
     assert!(check_feature_limit(&SubscriptionTier::Free, 1, "teams").is_err());
 
-    assert!(check_feature_limit(&SubscriptionTier::Free, 2, "team_members").is_ok());
-    assert!(check_feature_limit(&SubscriptionTier::Free, 3, "team_members").is_err());
+    assert!(check_feature_limit(&SubscriptionTier::Free, 4, "team_members").is_ok());
+    assert!(check_feature_limit(&SubscriptionTier::Free, 5, "team_members").is_err());
 
-    assert!(check_feature_limit(&SubscriptionTier::Free, 99, "tasks").is_ok());
-    assert!(check_feature_limit(&SubscriptionTier::Free, 100, "tasks").is_err());
+    assert!(check_feature_limit(&SubscriptionTier::Free, 9, "tasks").is_ok());
+    assert!(check_feature_limit(&SubscriptionTier::Free, 10, "tasks").is_err());
 
     // Pro tier limits
     assert!(check_feature_limit(&SubscriptionTier::Pro, 4, "teams").is_ok());
     assert!(check_feature_limit(&SubscriptionTier::Pro, 5, "teams").is_err());
 
-    assert!(check_feature_limit(&SubscriptionTier::Pro, 9, "team_members").is_ok());
-    assert!(check_feature_limit(&SubscriptionTier::Pro, 10, "team_members").is_err());
+    assert!(check_feature_limit(&SubscriptionTier::Pro, 49, "team_members").is_ok());
+    assert!(check_feature_limit(&SubscriptionTier::Pro, 50, "team_members").is_err());
 
     assert!(check_feature_limit(&SubscriptionTier::Pro, 999, "tasks").is_ok());
     assert!(check_feature_limit(&SubscriptionTier::Pro, 1000, "tasks").is_err());

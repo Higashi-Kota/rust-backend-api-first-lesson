@@ -5,9 +5,7 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::AppResult;
 // use crate::repository::permission_repository::PermissionRepository; // TODO: Implement when PermissionRepository is created
 use crate::error::AppError;
-use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::role_repository::RoleRepository;
-use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
 use std::sync::Arc;
@@ -18,8 +16,6 @@ pub struct PermissionService {
     // permission_repository: Arc<PermissionRepository>, // TODO: Implement when PermissionRepository is created
     role_repository: Arc<RoleRepository>,
     user_repository: Arc<UserRepository>,
-    team_repository: Arc<TeamRepository>,
-    organization_repository: Arc<OrganizationRepository>,
 }
 
 impl PermissionService {
@@ -27,19 +23,20 @@ impl PermissionService {
         // permission_repository: Arc<PermissionRepository>, // TODO: Implement when PermissionRepository is created
         role_repository: Arc<RoleRepository>,
         user_repository: Arc<UserRepository>,
-        team_repository: Arc<TeamRepository>,
-        organization_repository: Arc<OrganizationRepository>,
     ) -> Self {
         Self {
             // permission_repository,
             role_repository,
             user_repository,
-            team_repository,
-            organization_repository,
         }
     }
 
     /// ユーザーが管理者権限を持っているか確認
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use unified permission middleware with require_permission! macro instead"
+    )]
+    #[allow(dead_code)]
     pub async fn check_admin_permission(&self, user_id: Uuid) -> AppResult<()> {
         let role = self.get_user_role(user_id).await?;
         if !PermissionChecker::is_admin(&role) {
@@ -97,88 +94,6 @@ impl PermissionService {
         }
 
         Ok(())
-    }
-
-    /// ユーザーが組織の管理権限を持っているか確認
-    pub async fn check_organization_management_permission(
-        &self,
-        user_id: Uuid,
-        organization_id: Uuid,
-    ) -> AppResult<()> {
-        // 管理者は全組織を管理可能
-        if let Ok(role) = self.get_user_role(user_id).await {
-            if PermissionChecker::is_admin(&role) {
-                return Ok(());
-            }
-        }
-
-        // 組織のオーナーか確認
-        let organization = self
-            .organization_repository
-            .find_by_id(organization_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Organization not found".to_string()))?;
-
-        if organization.owner_id == user_id {
-            return Ok(());
-        }
-
-        // 組織の管理者か確認
-        if let Ok(Some(member)) = self
-            .organization_repository
-            .find_member_by_user_and_organization(user_id, organization_id)
-            .await
-        {
-            if member.role.can_manage() {
-                return Ok(());
-            }
-        }
-
-        Err(AppError::Forbidden(
-            "Organization management permission required".to_string(),
-        ))
-    }
-
-    /// ユーザーがチームの管理権限を持っているか確認
-    pub async fn check_team_management_permission(
-        &self,
-        user_id: Uuid,
-        team_id: Uuid,
-    ) -> AppResult<()> {
-        // 管理者は全チームを管理可能
-        if let Ok(role) = self.get_user_role(user_id).await {
-            if PermissionChecker::is_admin(&role) {
-                return Ok(());
-            }
-        }
-
-        // チームのオーナーか確認
-        let team = self
-            .team_repository
-            .find_by_id(team_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Team not found".to_string()))?;
-
-        if team.owner_id == user_id {
-            return Ok(());
-        }
-
-        // チーム管理者か確認
-        if let Ok(Some(member)) = self
-            .team_repository
-            .find_member_by_user_and_team(user_id, team_id)
-            .await
-        {
-            if let Ok(team_role) = member.role.parse::<crate::domain::team_model::TeamRole>() {
-                if matches!(team_role, crate::domain::team_model::TeamRole::Admin) {
-                    return Ok(());
-                }
-            }
-        }
-
-        Err(AppError::Forbidden(
-            "Team management permission required".to_string(),
-        ))
     }
 
     /// 権限タイプに基づいた権限チェック
@@ -239,19 +154,6 @@ impl PermissionService {
         if !PermissionChecker::can_access_admin_features(&role) {
             return Err(AppError::Forbidden(
                 "Admin features access denied".to_string(),
-            ));
-        }
-
-        Ok(())
-    }
-
-    /// ユーザー一覧表示権限を確認
-    pub async fn check_list_users_permission(&self, user_id: Uuid) -> AppResult<()> {
-        let role = self.get_user_role(user_id).await?;
-
-        if !PermissionChecker::can_list_users(&role) {
-            return Err(AppError::Forbidden(
-                "User listing permission denied".to_string(),
             ));
         }
 

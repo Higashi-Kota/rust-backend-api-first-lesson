@@ -43,6 +43,10 @@ pub mod resources {
     pub const ANALYTICS: &str = "analytics";
     pub const PAYMENT: &str = "payment";
     pub const SUBSCRIPTION: &str = "subscription";
+    pub const AUDIT_LOG: &str = "audit_log";
+    pub const GDPR: &str = "gdpr";
+    pub const INVITATION: &str = "invitation";
+    pub const SECURITY: &str = "security";
 }
 
 /// 権限チェックミドルウェアマクロ
@@ -293,25 +297,18 @@ fn check_resource_permission(
         }
 
         // チーム権限
-        (resources::TEAM, Action::View) => PermissionChecker::can_view_resource(
-            role,
-            resource,
-            context.and_then(|c| c.owner_id),
-            requesting_user_id,
-        ),
+        (resources::TEAM, Action::View) => true, // 誰でも閲覧可能（詳細はサービス層でチェック）
         (resources::TEAM, Action::Create) => PermissionChecker::can_create_resource(role, resource),
         (resources::TEAM, Action::Update | Action::Delete) => {
-            if let Some(ctx) = context {
-                // チームの場合は所有者チェックが必要
-                PermissionChecker::can_update_resource(
-                    role,
-                    resource,
-                    ctx.owner_id,
-                    requesting_user_id,
-                )
-            } else {
-                false
-            }
+            // チームメンバーシップは非同期でチェックする必要があるため、
+            // ミドルウェアでは基本的な権限のみチェックし、
+            // 詳細な権限チェックはサービス層で実施
+            // メンバー以上のロールを持っているユーザーのみ許可
+            matches!(
+                role.name,
+                crate::domain::role_model::RoleName::Member
+                    | crate::domain::role_model::RoleName::Admin
+            )
         }
 
         // ユーザー権限
@@ -343,6 +340,24 @@ fn check_resource_permission(
             PermissionChecker::can_delete_resource(role, resource, None, requesting_user_id)
         }
 
+        // 組織権限
+        (resources::ORGANIZATION, Action::View) => true, // 誰でも閲覧可能（詳細はサービス層でチェック）
+        (resources::ORGANIZATION, Action::Create) => {
+            // メンバー以上のロールが組織を作成可能
+            PermissionChecker::can_create_resource(role, resource)
+        }
+        (resources::ORGANIZATION, Action::Update | Action::Delete) => {
+            // 組織メンバーシップは非同期でチェックする必要があるため、
+            // ミドルウェアでは基本的な権限のみチェックし、
+            // 詳細な権限チェックはサービス層で実施
+            // メンバー以上のロールを持っているユーザーのみ許可
+            matches!(
+                role.name,
+                crate::domain::role_model::RoleName::Member
+                    | crate::domain::role_model::RoleName::Admin
+            )
+        }
+
         // 管理者専用リソース
         (
             resources::ROLE | resources::ANALYTICS | resources::PAYMENT | resources::SUBSCRIPTION,
@@ -356,23 +371,12 @@ fn check_resource_permission(
 
 /// 権限コンテキスト（ミドルウェア処理後に利用可能）
 #[derive(Clone, Debug)]
+#[allow(dead_code)] // Public API for downstream consumers
 pub struct PermissionContext {
     pub user_id: Uuid,
     pub role: RoleWithPermissions,
     pub resource: &'static str,
     pub action: Action,
-}
-
-impl PermissionContext {
-    /// ユーザーが管理者かどうかを確認
-    pub fn is_admin(&self) -> bool {
-        PermissionChecker::is_admin(&self.role)
-    }
-
-    /// リソースへのアクセス権限を確認
-    pub fn can_access(&self) -> bool {
-        check_resource_permission(&self.role, self.resource, self.action, self.user_id, None)
-    }
 }
 
 #[cfg(test)]

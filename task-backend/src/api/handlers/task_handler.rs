@@ -1,11 +1,15 @@
 // src/api/handlers/task_handler.rs
 use crate::api::dto::common::PaginationQuery;
-use crate::api::dto::common::PaginationQuery as CommonPaginationQuery;
+use crate::api::dto::dynamic_permission_dto::{DynamicTaskResponse, SubscriptionTier, TierLimits};
 use crate::api::dto::task_dto::{
     BatchCreateTaskDto, BatchDeleteResponseDto, BatchDeleteTaskDto, BatchUpdateResponseDto,
-    BatchUpdateTaskDto, CreateTaskDto, PaginatedTasksDto, TaskDto, TaskResponse, UpdateTaskDto,
+    BatchUpdateTaskDto, CreateTaskDto, PaginatedTasksDto, TaskDto, UpdateTaskDto,
 };
 use crate::api::dto::task_query_dto::TaskSearchQuery;
+use crate::api::dto::team_task_dto::{
+    AssignTaskRequest, CreateOrganizationTaskRequest, CreateTeamTaskRequest, TransferTaskRequest,
+    TransferTaskResponse,
+};
 use crate::api::AppState;
 use crate::domain::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
@@ -13,8 +17,9 @@ use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::authorization::{resources, Action};
 use crate::require_permission;
 use crate::types::ApiResponse;
+use crate::utils::error_helper::{convert_validation_errors, internal_server_error};
 use axum::{
-    extract::{FromRequestParts, Json, Path, Query, State},
+    extract::{Extension, FromRequestParts, Json, Path, Query, State},
     http::{request::Parts, StatusCode},
     response::IntoResponse,
     routing::{delete, get, patch, post},
@@ -23,6 +28,7 @@ use axum::{
 use chrono::Utc;
 use tracing::info;
 use uuid::Uuid;
+use validator::Validate;
 
 // カスタムUUID抽出器
 pub struct UuidPath(pub Uuid);
@@ -164,128 +170,6 @@ pub async fn list_tasks_handler(
     Ok(ApiResponse::success(tasks))
 }
 
-/// 動的権限を使用するタスク一覧取得（新エンドポイント）
-pub async fn list_tasks_dynamic_handler(
-    State(app_state): State<AppState>,
-    user: AuthenticatedUser,
-) -> AppResult<ApiResponse<TaskResponse>> {
-    info!(
-        user_id = %user.claims.user_id,
-        subscription_tier = %user.claims.get_subscription_tier().as_str(),
-        "Listing user tasks with dynamic permissions"
-    );
-
-    let response = app_state
-        .task_service
-        .list_tasks_dynamic(&user, None)
-        .await?;
-
-    info!(
-        user_id = %user.claims.user_id,
-        task_count = %response.task_count(),
-        features = ?response.features(),
-        "Tasks retrieved successfully with dynamic permissions"
-    );
-
-    Ok(ApiResponse::success(response))
-}
-
-pub async fn update_task_handler(
-    State(app_state): State<AppState>,
-    user: AuthenticatedUser,
-    UuidPath(id): UuidPath,
-    Json(payload): Json<UpdateTaskDto>,
-) -> AppResult<ApiResponse<TaskDto>> {
-    // The task service will check ownership
-
-    // バリデーション強化
-    let mut validation_errors = Vec::new();
-
-    if let Some(title) = &payload.title {
-        if title.trim().is_empty() {
-            validation_errors.push("Title cannot be empty".to_string());
-        } else if title.len() > 100 {
-            validation_errors.push("Title must be 100 characters or less".to_string());
-        }
-    }
-
-    if let Some(description) = &payload.description {
-        if description.len() > 1000 {
-            validation_errors.push("Description must be 1000 characters or less".to_string());
-        }
-    }
-
-    // Status validation is now handled by TaskStatus enum through serde
-
-    if let Some(due_date) = payload.due_date {
-        // 日付形式のチェックは行うが、過去日付は許容する
-        // 代わりに、あまりにも過去の日付（例：10年以上前）は拒否する
-        let ten_years_ago = Utc::now() - chrono::Duration::days(365 * 10);
-        if due_date < ten_years_ago {
-            validation_errors.push("Due date is too far in the past".to_string());
-        }
-    }
-
-    // ペイロードが空（何も更新しない）の場合の検証
-    if payload.title.is_none()
-        && payload.description.is_none()
-        && payload.status.is_none()
-        && payload.due_date.is_none()
-    {
-        validation_errors.push("Update payload cannot be empty".to_string());
-    }
-
-    if !validation_errors.is_empty() {
-        return Err(AppError::BadRequest(validation_errors.join(", ")));
-    }
-
-    info!(
-        user_id = %user.claims.user_id,
-        task_id = %id,
-        "Updating task"
-    );
-
-    let task_dto = app_state
-        .task_service
-        .update_task_for_user(user.claims.user_id, id, payload)
-        .await?;
-
-    info!(
-        user_id = %user.claims.user_id,
-        task_id = %id,
-        "Task updated successfully"
-    );
-
-    Ok(ApiResponse::success(task_dto))
-}
-
-pub async fn delete_task_handler(
-    State(app_state): State<AppState>,
-    user: AuthenticatedUser,
-    UuidPath(id): UuidPath,
-) -> AppResult<StatusCode> {
-    // The task service will check ownership
-
-    info!(
-        user_id = %user.claims.user_id,
-        task_id = %id,
-        "Deleting task"
-    );
-
-    app_state
-        .task_service
-        .delete_task_for_user(user.claims.user_id, id)
-        .await?;
-
-    info!(
-        user_id = %user.claims.user_id,
-        task_id = %id,
-        "Task deleted successfully"
-    );
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
 // --- Batch Handlers ---
 
 pub async fn create_tasks_batch_handler(
@@ -293,6 +177,33 @@ pub async fn create_tasks_batch_handler(
     user: AuthenticatedUser,
     Json(payload): Json<BatchCreateTaskDto>,
 ) -> AppResult<impl IntoResponse> {
+    // Freeティアユーザーはバッチ作成不可
+    use crate::domain::subscription_tier::SubscriptionTier;
+    let user_data = app_state
+        .user_service
+        .get_user_by_id(user.user_id())
+        .await
+        .map_err(|e| {
+            internal_server_error(
+                e,
+                "task_handler::create_tasks_batch",
+                "Failed to fetch user",
+            )
+        })?;
+
+    // 管理者はEnterpriseティアとして扱う
+    let user_tier = if user.is_admin() {
+        SubscriptionTier::Enterprise
+    } else {
+        SubscriptionTier::from_str(&user_data.subscription_tier).unwrap_or(SubscriptionTier::Free)
+    };
+
+    if user_tier == SubscriptionTier::Free {
+        return Err(AppError::Forbidden(
+            "Batch task creation is a premium feature. Please upgrade your subscription to use this feature.".to_string(),
+        ));
+    }
+
     // バリデーション強化
     if payload.tasks.is_empty() {
         return Err(AppError::BadRequest(
@@ -514,32 +425,6 @@ pub async fn search_tasks_handler(
     Ok(ApiResponse::success(paginated_tasks))
 }
 
-/// 動的権限を使用する検索（新エンドポイント）
-pub async fn search_tasks_dynamic_handler(
-    State(app_state): State<AppState>,
-    user: AuthenticatedUser,
-    Query(query): Query<TaskSearchQuery>,
-) -> AppResult<ApiResponse<TaskResponse>> {
-    info!(
-        user_id = %user.claims.user_id,
-        subscription_tier = %user.claims.get_subscription_tier().as_str(),
-        "Searching tasks with dynamic permissions"
-    );
-
-    let response = app_state
-        .task_service
-        .search_tasks_dynamic(&user, Some(query))
-        .await?;
-
-    info!(
-        user_id = %user.claims.user_id,
-        filtered_count = %response.total_count(),
-        "Tasks searched successfully with dynamic permissions"
-    );
-
-    Ok(ApiResponse::success(response))
-}
-
 // ページネーション付きタスク一覧ハンドラー
 pub async fn list_tasks_paginated_handler(
     State(app_state): State<AppState>,
@@ -557,50 +442,192 @@ pub async fn list_tasks_paginated_handler(
     Ok(ApiResponse::success(paginated_tasks))
 }
 
-/// 動的権限を使用するページネーション（新エンドポイント）
-pub async fn list_tasks_paginated_dynamic_handler(
-    State(app_state): State<AppState>,
-    user: AuthenticatedUser,
-    Query(params): Query<PaginationQuery>,
-) -> AppResult<ApiResponse<TaskResponse>> {
-    let (page, per_page) = params.get_pagination();
-    let page = page as u64;
-    let per_page = per_page as u64;
+// --- Multi-tenant Handlers (from task_handler_v2.rs) ---
 
-    // ページネーションパラメータをTaskSearchQueryに変換
-    let query = TaskSearchQuery {
-        pagination: CommonPaginationQuery {
-            page: page as u32,
-            per_page: per_page as u32,
-        },
-        ..Default::default()
-    };
+/// スコープベースのタスク一覧取得ハンドラー
+pub async fn list_tasks_with_scope(
+    State(app_state): State<AppState>,
+    Extension(auth_user): Extension<AuthenticatedUser>,
+    Query(query): Query<TaskSearchQuery>,
+) -> AppResult<impl IntoResponse> {
+    info!(
+        user_id = %auth_user.claims.user_id,
+        visibility = ?query.visibility,
+        team_id = ?query.team_id,
+        "Listing tasks with scope filter"
+    );
+
+    let tasks = app_state
+        .task_service
+        .get_tasks_with_scope(&auth_user, query)
+        .await?;
+
+    Ok(ApiResponse::<PaginatedTasksDto>::success(tasks))
+}
+
+/// チームタスク作成ハンドラー
+pub async fn create_team_task(
+    State(app_state): State<AppState>,
+    Extension(auth_user): Extension<AuthenticatedUser>,
+    Path(team_id): Path<Uuid>,
+    Json(mut payload): Json<CreateTeamTaskRequest>,
+) -> AppResult<impl IntoResponse> {
+    // パスパラメータのteam_idをペイロードに設定
+    payload.team_id = team_id;
+
+    // バリデーション
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "task_handler::create_team_task"))?;
 
     info!(
-        user_id = %user.claims.user_id,
-        subscription_tier = %user.claims.get_subscription_tier().as_str(),
-        page = %page,
-        per_page = %per_page,
-        "Paginated tasks with dynamic permissions"
+        user_id = %auth_user.claims.user_id,
+        team_id = %payload.team_id,
+        title = %payload.title,
+        "Creating team task"
+    );
+
+    let task_dto = app_state
+        .task_service
+        .create_team_task(&auth_user, payload)
+        .await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiResponse::<TaskDto>::success(task_dto)),
+    ))
+}
+
+/// 組織タスク作成ハンドラー
+pub async fn create_organization_task(
+    State(app_state): State<AppState>,
+    Extension(auth_user): Extension<AuthenticatedUser>,
+    Path(organization_id): Path<Uuid>,
+    Json(mut payload): Json<CreateOrganizationTaskRequest>,
+) -> AppResult<impl IntoResponse> {
+    // パスパラメータのorganization_idをペイロードに設定
+    payload.organization_id = organization_id;
+
+    // バリデーション
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "task_handler::create_organization_task"))?;
+
+    info!(
+        user_id = %auth_user.claims.user_id,
+        organization_id = %payload.organization_id,
+        title = %payload.title,
+        "Creating organization task"
+    );
+
+    let task_dto = app_state
+        .task_service
+        .create_organization_task(&auth_user, payload)
+        .await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(ApiResponse::<TaskDto>::success(task_dto)),
+    ))
+}
+
+/// タスク割り当てハンドラー
+pub async fn assign_task(
+    State(app_state): State<AppState>,
+    Extension(auth_user): Extension<AuthenticatedUser>,
+    Path(task_id): Path<Uuid>,
+    Json(payload): Json<AssignTaskRequest>,
+) -> AppResult<impl IntoResponse> {
+    // バリデーション
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "task_handler::assign_task"))?;
+
+    info!(
+        user_id = %auth_user.claims.user_id,
+        task_id = %task_id,
+        assigned_to = ?payload.assigned_to,
+        "Assigning task"
+    );
+
+    let task_dto = app_state
+        .task_service
+        .assign_task(&auth_user, task_id, payload)
+        .await?;
+
+    Ok(ApiResponse::<TaskDto>::success(task_dto))
+}
+
+/// マルチテナントタスク更新ハンドラー
+pub async fn update_multi_tenant_task(
+    State(app_state): State<AppState>,
+    Extension(auth_user): Extension<AuthenticatedUser>,
+    Path(task_id): Path<Uuid>,
+    Json(payload): Json<UpdateTaskDto>,
+) -> AppResult<impl IntoResponse> {
+    // バリデーション
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "task_handler::update_multi_tenant_task"))?;
+
+    info!(
+        user_id = %auth_user.claims.user_id,
+        task_id = %task_id,
+        "Updating multi-tenant task"
+    );
+
+    let task_dto = app_state
+        .task_service
+        .update_task_for_user(auth_user.claims.user_id, task_id, payload)
+        .await?;
+
+    Ok(ApiResponse::<TaskDto>::success(task_dto))
+}
+
+/// マルチテナントタスク削除ハンドラー
+pub async fn delete_multi_tenant_task(
+    State(app_state): State<AppState>,
+    Extension(auth_user): Extension<AuthenticatedUser>,
+    Path(task_id): Path<Uuid>,
+) -> AppResult<StatusCode> {
+    info!(
+        user_id = %auth_user.claims.user_id,
+        task_id = %task_id,
+        "Deleting multi-tenant task"
+    );
+
+    app_state
+        .task_service
+        .delete_task_for_user(auth_user.claims.user_id, task_id)
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// タスク引き継ぎハンドラー
+pub async fn transfer_task(
+    State(app_state): State<AppState>,
+    Extension(auth_user): Extension<AuthenticatedUser>,
+    Path(task_id): Path<Uuid>,
+    Json(payload): Json<TransferTaskRequest>,
+) -> AppResult<impl IntoResponse> {
+    payload
+        .validate()
+        .map_err(|e| convert_validation_errors(e, "task_handler::transfer_task"))?;
+
+    info!(
+        user_id = %auth_user.claims.user_id,
+        task_id = %task_id,
+        new_assignee = %payload.new_assignee,
+        "Transferring task to new assignee"
     );
 
     let response = app_state
         .task_service
-        .search_tasks_dynamic(&user, Some(query))
+        .transfer_task(&auth_user, task_id, payload)
         .await?;
 
-    info!(
-        user_id = %user.claims.user_id,
-        task_count = %response.task_count(),
-        "Paginated tasks retrieved successfully"
-    );
-
-    Ok(ApiResponse::success(response))
-}
-
-// ヘルスチェックハンドラーを追加
-async fn health_check_handler() -> &'static str {
-    "OK"
+    Ok(ApiResponse::<TransferTaskResponse>::success(response))
 }
 
 // --- 追加エンドポイント ---
@@ -760,50 +787,154 @@ pub async fn bulk_update_status_handler(
     })))
 }
 
+/// 動的権限ベースのタスク取得
+pub async fn get_tasks_dynamic_permissions(
+    State(app_state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Query(params): Query<TaskSearchQuery>,
+) -> AppResult<impl IntoResponse> {
+    info!(
+        user_id = %user.user_id(),
+        "Fetching tasks with dynamic permissions"
+    );
+
+    // ユーザーのサブスクリプションティアを取得（現在はモック）
+    let tier = if user.is_admin() {
+        SubscriptionTier::Enterprise
+    } else {
+        // TODO: 実際のサブスクリプション情報をデータベースから取得
+        SubscriptionTier::Free
+    };
+
+    // ティアに基づく制限を取得
+    let limits = TierLimits::for_tier(tier);
+
+    // タスクを取得
+    let tasks = app_state
+        .task_service
+        .search_tasks_for_user(user.user_id(), params)
+        .await?;
+
+    // ティアに基づいてレスポンスをフォーマット
+    let response = match tier {
+        SubscriptionTier::Free => {
+            let task_count = tasks.items.len();
+            let limit_reached = limits.max_tasks.is_some_and(|max| task_count >= max);
+
+            DynamicTaskResponse::Free {
+                tasks: tasks.items,
+                quota_info: format!(
+                    "You are using {} of {} tasks",
+                    task_count,
+                    limits.max_tasks.unwrap_or(0)
+                ),
+                limit_reached,
+            }
+        }
+        SubscriptionTier::Pro => DynamicTaskResponse::Pro {
+            tasks: tasks.items,
+            features: vec![
+                "Bulk operations".to_string(),
+                "Advanced analytics".to_string(),
+                "Priority support".to_string(),
+            ],
+            export_available: true,
+        },
+        SubscriptionTier::Enterprise => DynamicTaskResponse::Unlimited {
+            items: tasks.items,
+            pagination: tasks.pagination,
+        },
+    };
+
+    Ok(ApiResponse::success(response))
+}
+
+// ヘルスチェックハンドラーを追加
+pub async fn health_check_handler() -> &'static str {
+    "OK"
+}
+
 // --- Admin functionality moved to admin_handler.rs ---
 
 // --- Router Setup ---
-// スキーマを指定できるようにルーター構築関数を修正
+// 統一されたタスクルーター（統一権限チェックミドルウェア適用済み）
 pub fn task_router(app_state: AppState) -> Router {
-    use crate::middleware::auth::is_auth_endpoint;
-    use crate::utils::permission::PermissionChecker;
-
-    // 権限チェック関数を使用した例（実際にはハンドラー内で使用）
-    let _is_auth = is_auth_endpoint("/auth/signin");
-
-    // PermissionChecker::check_scopeの使用例
-    let global_scope = crate::domain::permission::PermissionScope::Global;
-    let team_scope = crate::domain::permission::PermissionScope::Team;
-    let _scope_check = PermissionChecker::check_scope(&global_scope, &team_scope);
-
-    // マルチテナント対応ルートと既存ルートを統合
     Router::new()
-        // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に以下のコメントを解除
-        // .merge(task_router_with_unified_permission(app_state.clone()))
-        .route("/tasks", get(list_tasks_handler).post(create_task_handler))
-        .route("/tasks/paginated", get(list_tasks_paginated_handler))
-        // 統一クエリパターン
-        .route("/tasks/search", get(search_tasks_handler))
-        // 動的権限システム用の新エンドポイント
-        .route("/tasks/dynamic", get(list_tasks_dynamic_handler))
-        .route("/tasks/dynamic/search", get(search_tasks_dynamic_handler))
+        // === 基本的なタスク操作 ===
+        // タスク一覧取得・作成
         .route(
-            "/tasks/dynamic/paginated",
-            get(list_tasks_paginated_dynamic_handler),
+            "/tasks",
+            get(list_tasks_handler)
+                .route_layer(require_permission!(resources::TASK, Action::View))
+                .post(create_task_handler)
+                .route_layer(require_permission!(resources::TASK, Action::Create)),
         )
+        // ページネーション付きタスク一覧
         .route(
-            "/tasks/{id}",
-            get(get_task_handler)
-                .patch(update_task_handler)
-                .delete(delete_task_handler),
+            "/tasks/paginated",
+            get(list_tasks_paginated_handler)
+                .route_layer(require_permission!(resources::TASK, Action::View)),
         )
-        .route("/tasks/batch/create", post(create_tasks_batch_handler))
+        // タスク検索
+        .route(
+            "/tasks/search",
+            get(search_tasks_handler)
+                .route_layer(require_permission!(resources::TASK, Action::View)),
+        )
+        // 個別タスク操作（取得・更新・削除）
+        // マルチテナント対応: チームタスクも個人タスクも同じエンドポイントで処理
+        .route("/tasks/{id}", get(get_task_handler))
+        .route("/tasks/{id}", patch(update_multi_tenant_task))
+        .route("/tasks/{id}", delete(delete_multi_tenant_task))
+        // === バッチ操作 ===
+        .route(
+            "/tasks/batch/create",
+            post(create_tasks_batch_handler)
+                .route_layer(require_permission!(resources::TASK, Action::Create)),
+        )
         .route("/tasks/batch/update", patch(update_tasks_batch_handler))
-        .route("/tasks/batch/delete", post(delete_tasks_batch_handler))
+        .route(
+            "/tasks/batch/delete",
+            post(delete_tasks_batch_handler)
+                .route_layer(require_permission!(resources::TASK, Action::View)),
+        )
         .route("/tasks/batch/status", patch(bulk_update_status_handler))
-        // 統計情報とユーティリティ
-        .route("/tasks/stats", get(get_user_task_stats_handler))
-        // ヘルスチェックエンドポイントを追加
+        // === マルチテナント機能 ===
+        // スコープベースのタスク取得
+        .route(
+            "/tasks/scoped",
+            get(list_tasks_with_scope)
+                .route_layer(require_permission!(resources::TASK, Action::View)),
+        )
+        // チームタスク作成
+        .route(
+            "/teams/{team_id}/tasks",
+            post(create_team_task)
+                .route_layer(require_permission!(resources::TEAM, Action::Update)),
+        )
+        // 組織タスク作成
+        .route(
+            "/organizations/{organization_id}/tasks",
+            post(create_organization_task)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
+        )
+        // タスク割り当て
+        .route("/tasks/{id}/assign", post(assign_task))
+        // タスク引き継ぎ
+        .route("/tasks/{id}/transfer", post(transfer_task))
+        // === 統計・ユーティリティ ===
+        .route(
+            "/tasks/stats",
+            get(get_user_task_stats_handler)
+                .route_layer(require_permission!(resources::TASK, Action::View)),
+        )
+        // === 動的権限 ===
+        .route(
+            "/tasks/dynamic",
+            get(get_tasks_dynamic_permissions)
+                .route_layer(require_permission!(resources::TASK, Action::View)),
+        )
+        // ヘルスチェック（認証不要）
         .route("/health", get(health_check_handler))
         .with_state(app_state)
 }
@@ -814,42 +945,3 @@ pub fn task_router_with_state(app_state: AppState) -> Router {
 }
 
 // Admin functionality moved to admin_handler.rs
-
-/// 統一権限チェックミドルウェアを使用したタスクルーター（実験的実装）
-pub fn task_router_with_unified_permission(app_state: AppState) -> Router {
-    use crate::middleware::authorization::permission_middleware;
-    use axum::middleware;
-
-    Router::new()
-        // タスク一覧取得エンドポイント
-        .route("/tasks/unified", get(list_tasks_handler))
-        // タスク作成エンドポイントに権限チェックを適用（require_permission!マクロを使用）
-        .route(
-            "/tasks/unified/create",
-            post(create_task_handler)
-                .route_layer(require_permission!(resources::TASK, Action::Create)),
-        )
-        // タスク個別操作エンドポイント
-        .route(
-            "/tasks/unified/{id}",
-            get(get_task_handler).layer(middleware::from_fn(permission_middleware(
-                resources::TASK,
-                Action::View,
-            ))),
-        )
-        .route(
-            "/tasks/unified/{id}",
-            patch(update_task_handler).layer(middleware::from_fn(permission_middleware(
-                resources::TASK,
-                Action::Update,
-            ))),
-        )
-        .route(
-            "/tasks/unified/{id}",
-            delete(delete_task_handler).layer(middleware::from_fn(permission_middleware(
-                resources::TASK,
-                Action::Delete,
-            ))),
-        )
-        .with_state(app_state)
-}

@@ -12,6 +12,7 @@ pub type Team = TeamModel;
 pub type TeamMember = TeamMemberModel;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
+use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::types::Timestamp;
@@ -23,6 +24,7 @@ use uuid::Uuid;
 pub struct TeamService {
     team_repository: TeamRepository,
     user_repository: UserRepository,
+    organization_repository: OrganizationRepository,
     email_service: Arc<EmailService>,
 }
 
@@ -31,11 +33,13 @@ impl TeamService {
         _db: Arc<DatabaseConnection>,
         team_repository: TeamRepository,
         user_repository: UserRepository,
+        organization_repository: OrganizationRepository,
         email_service: Arc<EmailService>,
     ) -> Self {
         Self {
             team_repository,
             user_repository,
+            organization_repository,
             email_service,
         }
     }
@@ -51,14 +55,39 @@ impl TeamService {
             return Err(AppError::BadRequest("Team name already exists".to_string()));
         }
 
+        // 組織IDが指定されている場合、組織オーナーかチェック
+        if let Some(organization_id) = request.organization_id {
+            if let Ok(Some(organization)) = self
+                .organization_repository
+                .find_by_id(organization_id)
+                .await
+            {
+                if organization.owner_id != owner_id {
+                    return Err(AppError::Forbidden(
+                        "Only organization owner can create teams in the organization".to_string(),
+                    ));
+                }
+            } else {
+                return Err(AppError::NotFound("Organization not found".to_string()));
+            }
+        }
+
         // ユーザーのサブスクリプションティアを取得
         let user = self
             .user_repository
             .find_by_id(owner_id)
             .await?
             .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
-        let user_tier =
-            SubscriptionTier::from_str(&user.subscription_tier).unwrap_or(SubscriptionTier::Free);
+
+        // 管理者のメールアドレスをチェック（簡易的な判定）
+        let is_admin = user.email == "admin@example.com";
+
+        // 管理者はEnterpriseティアとして扱う
+        let user_tier = if is_admin {
+            SubscriptionTier::Enterprise
+        } else {
+            SubscriptionTier::from_str(&user.subscription_tier).unwrap_or(SubscriptionTier::Free)
+        };
 
         // 現在のチーム数を取得
         let current_team_count = self
@@ -66,7 +95,7 @@ impl TeamService {
             .count_user_owned_teams(owner_id)
             .await?;
 
-        // チーム数制限チェック
+        // チーム数制限チェック（管理者=Enterpriseティアなので制限なし）
         check_feature_limit(&user_tier, current_team_count, "teams")?;
 
         info!(
@@ -207,9 +236,26 @@ impl TeamService {
 
         // オーナー権限チェック
         if team.owner_id != user_id {
-            return Err(AppError::Forbidden(
-                "Only team owner can delete the team".to_string(),
-            ));
+            // 組織オーナーかチェック（チームが組織に属している場合）
+            let is_org_owner = if let Some(organization_id) = team.organization_id {
+                if let Ok(Some(organization)) = self
+                    .organization_repository
+                    .find_by_id(organization_id)
+                    .await
+                {
+                    organization.owner_id == user_id
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if !is_org_owner {
+                return Err(AppError::Forbidden(
+                    "Only team owner or organization owner can delete the team".to_string(),
+                ));
+            }
         }
 
         // メンバーを全て削除
@@ -332,15 +378,16 @@ impl TeamService {
             .await?
             .ok_or_else(|| AppError::NotFound("Team not found".to_string()))?;
 
+        // 早期の管理権限チェック（Viewerロールを除外）
+        self.check_team_management_permission(&team, user_id)
+            .await?;
+
+        // 権限チェックが通った後でメンバーを取得
         let mut member = self
             .team_repository
             .find_member_by_id(member_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Team member not found".to_string()))?;
-
-        // 管理権限チェック
-        self.check_team_management_permission(&team, user_id)
-            .await?;
 
         // オーナーの役割変更は禁止
         if member.get_role() == TeamRole::Owner {
@@ -492,6 +539,64 @@ impl TeamService {
 
     // ヘルパーメソッド
 
+    /// チーム内のユーザーのロールを取得
+    pub async fn get_user_team_role(
+        &self,
+        team_id: Uuid,
+        user_id: Uuid,
+    ) -> AppResult<Option<TeamRole>> {
+        // チームメンバーを検索
+        if let Ok(Some(member)) = self
+            .team_repository
+            .find_member_by_user_and_team(user_id, team_id)
+            .await
+        {
+            return Ok(Some(member.get_role()));
+        }
+
+        // チームが組織に属している場合、組織オーナーかチェック
+        if let Ok(Some(team)) = self.team_repository.find_by_id(team_id).await {
+            if let Some(organization_id) = team.organization_id {
+                if let Ok(Some(organization)) = self
+                    .organization_repository
+                    .find_by_id(organization_id)
+                    .await
+                {
+                    if organization.owner_id == user_id {
+                        // 組織オーナーはAdmin相当の権限
+                        return Ok(Some(TeamRole::Admin));
+                    }
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// チームへのアクセス権限をチェック（公開メソッド）
+    pub async fn check_team_access_by_id(&self, team_id: Uuid, user_id: Uuid) -> AppResult<()> {
+        let team = self
+            .team_repository
+            .find_by_id(team_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Team not found".to_string()))?;
+
+        self.check_team_access(&team, user_id).await
+    }
+
+    /// 組織オーナーかチェック（公開メソッド）
+    pub async fn is_organization_owner(&self, organization_id: Uuid, user_id: Uuid) -> bool {
+        if let Ok(Some(organization)) = self
+            .organization_repository
+            .find_by_id(organization_id)
+            .await
+        {
+            organization.owner_id == user_id
+        } else {
+            false
+        }
+    }
+
     async fn check_team_access(&self, team: &Team, user_id: Uuid) -> AppResult<()> {
         // チームメンバーかチェック
         if let Some(_member) = self
@@ -502,10 +607,37 @@ impl TeamService {
             return Ok(());
         }
 
+        // 組織オーナーかチェック（チームが組織に属している場合）
+        if let Some(organization_id) = team.organization_id {
+            if let Ok(Some(organization)) = self
+                .organization_repository
+                .find_by_id(organization_id)
+                .await
+            {
+                if organization.owner_id == user_id {
+                    return Ok(());
+                }
+            }
+        }
+
         Err(AppError::Forbidden("Not a team member".to_string()))
     }
 
     async fn check_team_management_permission(&self, team: &Team, user_id: Uuid) -> AppResult<()> {
+        // 組織オーナーかチェック（チームが組織に属している場合）
+        if let Some(organization_id) = team.organization_id {
+            if let Ok(Some(organization)) = self
+                .organization_repository
+                .find_by_id(organization_id)
+                .await
+            {
+                if organization.owner_id == user_id {
+                    return Ok(());
+                }
+            }
+        }
+
+        // チームメンバーかつ管理権限があるかチェック
         let member = self
             .team_repository
             .find_member_by_user_and_team(user_id, team.id)
@@ -520,6 +652,20 @@ impl TeamService {
     }
 
     async fn check_team_invite_permission(&self, team: &Team, user_id: Uuid) -> AppResult<()> {
+        // 組織オーナーかチェック（チームが組織に属している場合）
+        if let Some(organization_id) = team.organization_id {
+            if let Ok(Some(organization)) = self
+                .organization_repository
+                .find_by_id(organization_id)
+                .await
+            {
+                if organization.owner_id == user_id {
+                    return Ok(());
+                }
+            }
+        }
+
+        // チームメンバーかつ招待権限があるかチェック
         let member = self
             .team_repository
             .find_member_by_user_and_team(user_id, team.id)

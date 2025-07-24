@@ -271,6 +271,22 @@ pub async fn create_member_with_jwt(app: &Router) -> String {
     member_user.access_token
 }
 
+/// 管理者ユーザーとして認証されたTestUserを返す
+pub async fn get_admin_user(app: &Router) -> TestUser {
+    // 初期管理者でログイン
+    let signin_req = SigninRequest {
+        identifier: "admin@example.com".to_string(),
+        password: "Adm1n$ecurE2024!".to_string(),
+    };
+
+    match signin_test_user(app, signin_req).await {
+        Ok(admin_user) => admin_user,
+        Err(e) => {
+            panic!("Failed to login admin user: {}", e);
+        }
+    }
+}
+
 /// テスト用のメンバーユーザーを作成して認証済みユーザー情報を返す
 pub async fn create_and_authenticate_member(app: &Router) -> TestUser {
     let member_signup = create_test_user_data();

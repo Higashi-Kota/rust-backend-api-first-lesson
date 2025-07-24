@@ -157,6 +157,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         Arc::new(db.connection.clone()),
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
+        OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
     ));
 
@@ -173,6 +174,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         Arc::new(db.connection.clone()),
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
+        OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
     ));
 
@@ -237,12 +239,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
     );
 
     // Create PermissionService
-    let permission_service = Arc::new(PermissionService::new(
-        role_repo.clone(),
-        user_repo.clone(),
-        Arc::new(TeamRepository::new(db.connection.clone())),
-        Arc::new(OrganizationRepository::new(db.connection.clone())),
-    ));
+    let permission_service = Arc::new(PermissionService::new(role_repo.clone(), user_repo.clone()));
 
     let bulk_operation_history_repo = Arc::new(
         task_backend::repository::bulk_operation_history_repository::BulkOperationHistoryRepository::new(
@@ -439,6 +436,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         Arc::new(db.connection.clone()),
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
+        OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
     ));
 
@@ -455,6 +453,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         Arc::new(db.connection.clone()),
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
+        OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
     ));
 
@@ -516,12 +515,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
     );
 
     // Create PermissionService
-    let permission_service = Arc::new(PermissionService::new(
-        role_repo.clone(),
-        user_repo.clone(),
-        Arc::new(TeamRepository::new(db.connection.clone())),
-        Arc::new(OrganizationRepository::new(db.connection.clone())),
-    ));
+    let permission_service = Arc::new(PermissionService::new(role_repo.clone(), user_repo.clone()));
 
     // テスト用のモックストレージサービスを作成
     let storage_service: Arc<dyn StorageService> =
@@ -603,11 +597,6 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         .merge(user_handler::user_router(app_state.clone()))
         .merge(task_backend::api::handlers::role_handler::role_router_with_state(app_state.clone()))
         .merge(task_backend::api::handlers::task_handler::task_router_with_state(app_state.clone()))
-        .merge(
-            task_backend::api::handlers::task_handler_v2::multi_tenant_task_router(
-                app_state.clone(),
-            ),
-        )
         .merge(task_backend::api::handlers::team_handler::team_router_with_state(app_state.clone()))
         .merge(
             task_backend::api::handlers::organization_handler::organization_router_with_state(
@@ -784,6 +773,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         Arc::new(db.connection.clone()),
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
+        OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
     ));
 
@@ -800,6 +790,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         Arc::new(db.connection.clone()),
         TeamRepository::new(db.connection.clone()),
         UserRepository::new(db.connection.clone()),
+        OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
     ));
 
@@ -861,12 +852,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
     );
 
     // Create PermissionService
-    let permission_service = Arc::new(PermissionService::new(
-        role_repo.clone(),
-        user_repo.clone(),
-        Arc::new(TeamRepository::new(db.connection.clone())),
-        Arc::new(OrganizationRepository::new(db.connection.clone())),
-    ));
+    let permission_service = Arc::new(PermissionService::new(role_repo.clone(), user_repo.clone()));
 
     // テスト用のモックストレージサービスを作成
     let storage_service: Arc<dyn StorageService> =
@@ -949,11 +935,6 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         .merge(task_backend::api::handlers::task_handler::task_router(
             app_state.clone(),
         ))
-        .merge(
-            task_backend::api::handlers::task_handler_v2::multi_tenant_task_router(
-                app_state.clone(),
-            ),
-        )
         .merge(task_backend::api::handlers::role_handler::role_router(
             app_state.clone(),
         ))

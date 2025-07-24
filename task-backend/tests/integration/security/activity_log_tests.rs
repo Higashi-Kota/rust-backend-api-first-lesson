@@ -207,12 +207,15 @@ async fn test_admin_can_see_all_logs() {
 
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    // 管理者が全ログを取得
+    // アクティビティログが非同期で記録されるため、少し待機
+    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+
+    // 管理者が全ログを取得（ページサイズを大きくして全てのログを取得）
     let response = app
         .clone()
         .oneshot(create_request(
             "GET",
-            "/admin/activity-logs",
+            "/admin/activity-logs?per_page=100",
             Some(admin_token.to_string()),
         ))
         .await
@@ -225,10 +228,15 @@ async fn test_admin_can_see_all_logs() {
         .unwrap();
     let body: Value = serde_json::from_slice(&body_bytes).unwrap();
 
+    // レスポンスはActivityLogResponseの構造（logs, total, page, per_page）
     // 一般ユーザーのログが含まれていることを確認
     let logs = body["logs"].as_array().unwrap();
     let user_log_found = logs.iter().any(|log| log["user_id"] == user.id.to_string());
-    assert!(user_log_found);
+    assert!(
+        user_log_found,
+        "User log not found in response. Available logs: {:?}",
+        logs
+    );
 }
 
 /// 一般ユーザーは管理者用エンドポイントにアクセスできないことを確認

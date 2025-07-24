@@ -427,11 +427,6 @@ impl UserClaims {
             }
         }
     }
-
-    /// サブスクリプション階層を取得
-    pub fn get_subscription_tier(&self) -> SubscriptionTier {
-        self.subscription_tier
-    }
 }
 
 impl SafeUserWithRole {

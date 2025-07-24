@@ -14,6 +14,8 @@ use crate::domain::user_model::SafeUser;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
+use crate::middleware::authorization::{resources, Action};
+use crate::require_permission;
 use crate::types::{ApiResponse, Timestamp};
 use crate::utils::error_helper::convert_validation_errors;
 use crate::utils::permission::PermissionChecker;
@@ -472,19 +474,7 @@ pub async fn advanced_search_users_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<ApiResponse<UserListResponse>> {
-    // ユーザー一覧表示権限チェック（PermissionServiceを使用）
-    if let Err(e) = app_state
-        .permission_service
-        .check_list_users_permission(admin_user.user_id())
-        .await
-    {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Permission required for advanced user search"
-        );
-        return Err(e);
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     let (page, per_page) = query.pagination.get_pagination();
 
@@ -570,11 +560,7 @@ pub async fn get_user_analytics_handler(
     State(app_state): State<AppState>,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<UserAnalyticsResponse>> {
-    // 管理者権限チェック（PermissionServiceを使用）
-    app_state
-        .permission_service
-        .check_admin_permission(admin_user.user_id())
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -604,19 +590,7 @@ pub async fn get_users_by_role_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<ApiResponse<UserListResponse>> {
-    // ユーザー一覧表示権限チェック（PermissionServiceを使用）
-    if let Err(e) = app_state
-        .permission_service
-        .check_list_users_permission(admin_user.user_id())
-        .await
-    {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Permission required for role-based user search"
-        );
-        return Err(e);
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     let (page, per_page) = query.pagination.get_pagination();
 
@@ -676,11 +650,7 @@ pub async fn get_users_by_subscription_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<SubscriptionQuery>,
 ) -> AppResult<ApiResponse<SubscriptionAnalyticsResponse>> {
-    // 管理者権限チェック（PermissionServiceを使用）
-    app_state
-        .permission_service
-        .check_admin_permission(admin_user.user_id())
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -712,11 +682,7 @@ pub async fn bulk_user_operations_handler(
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<BulkUserOperationsRequest>,
 ) -> AppResult<ApiResponse<BulkOperationResponse>> {
-    // 管理者権限チェック（PermissionServiceを使用）
-    app_state
-        .permission_service
-        .check_admin_permission(admin_user.user_id())
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     // バリデーション
     payload
@@ -768,19 +734,7 @@ pub async fn list_users_handler(
     admin_user: AuthenticatedUserWithRole,
     Query(query): Query<UserSearchQuery>,
 ) -> AppResult<ApiResponse<UserListResponse>> {
-    // ユーザー一覧表示権限チェック（PermissionServiceを使用）
-    if let Err(e) = app_state
-        .permission_service
-        .check_list_users_permission(admin_user.user_id())
-        .await
-    {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Permission required for user list"
-        );
-        return Err(e);
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     // バリデーション
     query
@@ -858,20 +812,7 @@ pub async fn get_user_by_id_handler(
     UuidPath(user_id): UuidPath,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<UserProfileResponse>> {
-    // ユーザーアクセス権限チェック（PermissionServiceを使用）
-    if let Err(e) = app_state
-        .permission_service
-        .check_user_access(admin_user.user_id(), user_id)
-        .await
-    {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            target_user_id = %user_id,
-            "Access denied: Cannot access user profile"
-        );
-        return Err(e);
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     info!(
         admin_id = %admin_user.user_id(),
@@ -1071,28 +1012,44 @@ pub fn user_router(app_state: AppState) -> Router {
             post(upgrade_user_subscription_handler),
         )
         // 管理者用エンドポイント
-        .route("/admin/users", get(list_users_handler))
+        .route(
+            "/admin/users",
+            get(list_users_handler).route_layer(require_permission!(resources::USER, Action::View)),
+        )
         .route(
             "/admin/users/advanced-search",
-            get(advanced_search_users_handler),
+            get(advanced_search_users_handler)
+                .route_layer(require_permission!(resources::USER, Action::View)),
         )
-        .route("/admin/users/analytics", get(get_user_analytics_handler))
+        .route(
+            "/admin/users/analytics",
+            get(get_user_analytics_handler)
+                .route_layer(require_permission!(resources::USER, Action::Admin)),
+        )
         .route(
             "/admin/users/by-role/{role}",
-            get(get_users_by_role_handler),
+            get(get_users_by_role_handler)
+                .route_layer(require_permission!(resources::USER, Action::View)),
         )
         .route(
             "/admin/users/by-subscription",
-            get(get_users_by_subscription_handler),
+            get(get_users_by_subscription_handler)
+                .route_layer(require_permission!(resources::USER, Action::Admin)),
         )
         .route(
             "/admin/users/bulk-operations",
-            post(bulk_user_operations_handler),
+            post(bulk_user_operations_handler)
+                .route_layer(require_permission!(resources::USER, Action::Admin)),
         )
-        .route("/admin/users/{id}", get(get_user_by_id_handler))
+        .route(
+            "/admin/users/{id}",
+            get(get_user_by_id_handler)
+                .route_layer(require_permission!(resources::USER, Action::View)),
+        )
         .route(
             "/admin/users/{id}/status",
-            patch(update_account_status_handler),
+            patch(update_account_status_handler)
+                .route_layer(require_permission!(resources::USER, Action::Update)),
         )
         // ヘルスチェック
         .route("/users/health", get(user_health_check_handler))

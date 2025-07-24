@@ -13,11 +13,11 @@ use crate::common::{app_helper, auth_helper, test_data};
 async fn test_paginated_tasks_with_authentication() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
 
-    // ユーザー登録とログイン
-    let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+    // 管理者としてログイン（タスク数制限を回避）
+    let user = auth_helper::get_admin_user(&app).await;
 
-    // ページネーション用のタスクを作成（12個）
-    for i in 1..=12 {
+    // ページネーション用のタスクを作成（10個、管理者でもFreeティアの制限）
+    for i in 1..=10 {
         let task_data = test_data::create_test_task_with_title(&format!("Pagination Task {}", i));
         let create_req = auth_helper::create_authenticated_request(
             "POST",
@@ -60,10 +60,10 @@ async fn test_paginated_tasks_with_authentication() {
     let pagination = &page1_result["data"]["pagination"];
     assert_eq!(pagination["page"], 1);
     assert_eq!(pagination["per_page"], 5);
-    assert_eq!(pagination["total_count"], 12);
+    assert_eq!(pagination["total_count"], 10);
     assert_eq!(pagination["has_next"], true);
     assert_eq!(pagination["has_prev"], false);
-    assert_eq!(pagination["total_pages"], 3);
+    assert_eq!(pagination["total_pages"], 2);
 }
 
 #[tokio::test]
@@ -401,11 +401,11 @@ async fn test_paginated_tasks_large_page_size() {
 async fn test_paginated_tasks_default_parameters() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
 
-    // ユーザー登録とログイン
-    let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+    // 管理者としてログイン（タスク数制限を回避）
+    let user = auth_helper::get_admin_user(&app).await;
 
-    // 複数のタスクを作成
-    for i in 1..=15 {
+    // 複数のタスクを作成（管理者でもFreeティアなので10個まで）
+    for i in 1..=10 {
         let task_data =
             test_data::create_test_task_with_title(&format!("Default Param Task {}", i));
         let create_req = auth_helper::create_authenticated_request(
@@ -439,7 +439,7 @@ async fn test_paginated_tasks_default_parameters() {
     let pagination = &result["data"]["pagination"];
     assert_eq!(pagination["page"], 1);
     assert!(pagination["per_page"].as_i64().unwrap() > 0);
-    assert_eq!(pagination["total_count"], 15);
+    assert_eq!(pagination["total_count"], 10);
 
     let tasks = result["data"]["items"].as_array().unwrap();
     assert!(!tasks.is_empty());

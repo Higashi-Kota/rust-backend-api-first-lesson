@@ -90,48 +90,43 @@ async fn test_subscription_tier_response_format() {
 
     // レスポンス形式をチェック
     let data = &body["data"];
-    match data {
-        Value::Object(map) => {
-            // 任意のTaskResponseバリアントを受け入れる
-            let has_valid_variant = map.contains_key("Limited")
-                || map.contains_key("Enhanced")
-                || map.contains_key("Unlimited")
-                || map.contains_key("Free")
-                || map.contains_key("Pro")
-                || map.contains_key("Enterprise");
-            assert!(
-                has_valid_variant,
-                "Response should contain a valid TaskResponse variant"
-            );
+    assert!(data.is_object());
 
-            // バリアント別の検証
-            if let Some(limited_data) = map.get("Limited") {
-                assert!(limited_data.is_object());
-                assert!(limited_data["items"].is_array());
-                assert!(limited_data["pagination"].is_object());
-            } else if let Some(enhanced_data) = map.get("Enhanced") {
-                assert!(enhanced_data.is_object());
-                assert!(enhanced_data["items"].is_array());
-                assert!(enhanced_data["pagination"].is_object());
-            } else if let Some(unlimited_data) = map.get("Unlimited") {
-                assert!(unlimited_data.is_object());
-                assert!(unlimited_data["items"].is_array());
-                assert!(unlimited_data["pagination"].is_object());
-            } else if let Some(free_data) = map.get("Free") {
-                assert!(free_data["tasks"].is_array());
-                assert!(free_data["quota_info"].is_string());
-                assert!(free_data["limit_reached"].is_boolean());
-            } else if let Some(pro_data) = map.get("Pro") {
-                assert!(pro_data["tasks"].is_array());
-                assert!(pro_data["features"].is_array());
-                assert!(pro_data["export_available"].is_boolean());
-            } else if let Some(enterprise_data) = map.get("enterprise") {
-                assert!(enterprise_data["data"]["tasks"].is_array());
-                assert!(enterprise_data["bulk_operations"].is_boolean());
-                assert!(enterprise_data["unlimited_access"].is_boolean());
-            }
+    // tier fieldを確認
+    let tier = data["tier"].as_str().expect("tier field should be present");
+
+    // tier別の検証
+    match tier {
+        "Free" => {
+            assert!(data["tasks"].is_array());
+            assert!(data["quota_info"].is_string());
+            assert!(data["limit_reached"].is_boolean());
         }
-        _ => panic!("Expected TaskResponse object, got: {:?}", body),
+        "Pro" => {
+            assert!(data["tasks"].is_array());
+            assert!(data["features"].is_array());
+            assert!(data["export_available"].is_boolean());
+        }
+        "Enterprise" => {
+            assert!(data["data"].is_object());
+            assert!(data["data"]["items"].is_array());
+            assert!(data["data"]["pagination"].is_object());
+            assert!(data["bulk_operations"].is_boolean());
+            assert!(data["unlimited_access"].is_boolean());
+        }
+        "Limited" => {
+            assert!(data["items"].is_array());
+            assert!(data["pagination"].is_object());
+        }
+        "Enhanced" => {
+            assert!(data["items"].is_array());
+            assert!(data["pagination"].is_object());
+        }
+        "Unlimited" => {
+            assert!(data["items"].is_array());
+            assert!(data["pagination"].is_object());
+        }
+        _ => panic!("Unexpected tier: {}", tier),
     }
 }
 
@@ -160,38 +155,29 @@ async fn test_admin_gets_enterprise_level_access() {
 
     // 管理者はEnterprise級のアクセスを持つべき
     let data = &body["data"];
-    match data {
-        Value::Object(map) => {
-            if map.contains_key("Enterprise") {
-                let enterprise_data = &map["Enterprise"];
-                assert!(enterprise_data["bulk_operations"]
-                    .as_bool()
-                    .unwrap_or(false));
-                assert!(enterprise_data["unlimited_access"]
-                    .as_bool()
-                    .unwrap_or(false));
-            } else if map.contains_key("Unlimited") {
-                // Unlimited variantでも管理者としてOK
-                let unlimited_data = &map["Unlimited"];
-                assert!(unlimited_data.is_object());
-                assert!(unlimited_data["items"].is_array());
-                assert!(unlimited_data["pagination"].is_object());
-            } else if map.contains_key("Limited") {
-                // Limited variantでも管理者としてOK
-                let limited_data = &map["Limited"];
-                assert!(limited_data.is_object());
-                assert!(limited_data["items"].is_array());
-                assert!(limited_data["pagination"].is_object());
-            } else {
-                // 管理者は何らかの高レベルアクセスを持つべき
-                assert!(
-                    map.contains_key("Enhanced") || map.contains_key("Pro"),
-                    "Admin should have high-level access, got: {:?}",
-                    map.keys().collect::<Vec<_>>()
-                );
-            }
+    assert!(data.is_object(), "Expected object in data field");
+
+    // tier fieldをチェック
+    let tier = data["tier"].as_str().unwrap();
+    match tier {
+        "Enterprise" => {
+            assert!(data["data"]["items"].is_array());
+            assert!(data["data"]["pagination"].is_object());
+            assert!(data["bulk_operations"].as_bool().unwrap_or(false));
+            assert!(data["unlimited_access"].as_bool().unwrap_or(false));
         }
-        _ => panic!("Expected TaskResponse object for admin"),
+        "Unlimited" => {
+            // Unlimited variantでも管理者としてOK
+            assert!(data["items"].is_array());
+            assert!(data["pagination"].is_object());
+        }
+        "Pro" => {
+            // Pro variantでも管理者としてOK
+            assert!(data["tasks"].is_array());
+            assert!(data["features"].is_array());
+            assert!(data["export_available"].is_boolean());
+        }
+        _ => panic!("Admin should have high-level access tier, got: {}", tier),
     }
 }
 
@@ -248,28 +234,17 @@ async fn test_dynamic_permissions_user_isolation() {
 
     // User2はUser1のタスクを見ることができない
     let data2 = &body2["data"];
-    let task_count = match data2 {
-        Value::Object(ref map) => {
-            if let Some(limited_data) = map.get("Limited") {
-                limited_data["items"].as_array().unwrap().len()
-            } else if let Some(enhanced_data) = map.get("Enhanced") {
-                enhanced_data["items"].as_array().unwrap().len()
-            } else if let Some(unlimited_data) = map.get("Unlimited") {
-                unlimited_data["items"].as_array().unwrap().len()
-            } else if let Some(free_data) = map.get("Free") {
-                free_data["tasks"].as_array().unwrap().len()
-            } else if let Some(pro_data) = map.get("Pro") {
-                pro_data["tasks"].as_array().unwrap().len()
-            } else if let Some(enterprise_data) = map.get("Enterprise") {
-                enterprise_data["tasks"].as_array().unwrap().len()
-            } else {
-                panic!(
-                    "Unexpected response format: {:?}",
-                    map.keys().collect::<Vec<_>>()
-                );
-            }
-        }
-        _ => panic!("Expected TaskResponse object"),
+    assert!(data2.is_object());
+
+    let tier = data2["tier"]
+        .as_str()
+        .expect("tier field should be present");
+    let task_count = match tier {
+        "Free" => data2["tasks"].as_array().unwrap().len(),
+        "Pro" => data2["tasks"].as_array().unwrap().len(),
+        "Enterprise" => data2["data"]["items"].as_array().unwrap().len(),
+        "Limited" | "Enhanced" | "Unlimited" => data2["items"].as_array().unwrap().len(),
+        _ => panic!("Unexpected tier: {}", tier),
     };
 
     assert_eq!(task_count, 0, "User2 should not see User1's tasks");
@@ -412,37 +387,30 @@ async fn test_debug_response_structure() {
             if let Some(data_obj) = data.as_object() {
                 println!("data field keys: {:?}", data_obj.keys().collect::<Vec<_>>());
 
-                // Check for various possible variant names
-                for variant in &[
-                    "Limited",
-                    "Enhanced",
-                    "Unlimited",
-                    "Free",
-                    "Pro",
-                    "Enterprise",
-                ] {
-                    if let Some(variant_data) = data_obj.get(*variant) {
-                        println!("\nFound variant: {}", variant);
-                        println!(
-                            "{} type: {:?}",
-                            variant,
-                            if variant_data.is_object() {
-                                "Object"
-                            } else if variant_data.is_array() {
-                                "Array"
-                            } else {
-                                "Other"
-                            }
-                        );
+                // Check for tier field
+                if let Some(tier) = data_obj.get("tier") {
+                    println!("\nFound tier: {:?}", tier);
+                }
 
-                        if let Some(variant_obj) = variant_data.as_object() {
-                            println!(
-                                "{} keys: {:?}",
-                                variant,
-                                variant_obj.keys().collect::<Vec<_>>()
-                            );
+                // Print all fields for debugging
+                for (key, value) in data_obj {
+                    println!(
+                        "{}: {:?}",
+                        key,
+                        if value.is_object() {
+                            "Object"
+                        } else if value.is_array() {
+                            "Array"
+                        } else if value.is_string() {
+                            "String"
+                        } else if value.is_boolean() {
+                            "Boolean"
+                        } else if value.is_number() {
+                            "Number"
+                        } else {
+                            "Other"
                         }
-                    }
+                    );
                 }
             }
         }
@@ -512,25 +480,30 @@ async fn test_debug_admin_response_structure() {
     if let Some(data) = body.get("data").and_then(|d| d.as_object()) {
         println!("data field keys: {:?}", data.keys().collect::<Vec<_>>());
 
-        // Check which variant admin gets
-        for variant in &[
-            "Limited",
-            "Enhanced",
-            "Unlimited",
-            "Free",
-            "Pro",
-            "Enterprise",
-        ] {
-            if let Some(variant_data) = data.get(*variant) {
-                println!("\nAdmin has variant: {}", variant);
-                if let Some(variant_obj) = variant_data.as_object() {
-                    println!(
-                        "{} keys: {:?}",
-                        variant,
-                        variant_obj.keys().collect::<Vec<_>>()
-                    );
+        // Check tier field
+        if let Some(tier) = data.get("tier") {
+            println!("\nAdmin has tier: {:?}", tier);
+        }
+
+        // Print all fields for debugging
+        for (key, value) in data {
+            println!(
+                "{}: {:?}",
+                key,
+                if value.is_object() {
+                    "Object"
+                } else if value.is_array() {
+                    "Array"
+                } else if value.is_string() {
+                    "String"
+                } else if value.is_boolean() {
+                    "Boolean"
+                } else if value.is_number() {
+                    "Number"
+                } else {
+                    "Other"
                 }
-            }
+            );
         }
     }
 }

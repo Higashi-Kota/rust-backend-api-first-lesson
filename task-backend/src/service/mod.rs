@@ -4,6 +4,7 @@ pub mod audit_log_service;
 pub mod auth_service;
 pub mod feature_tracking_service;
 pub mod gdpr_service;
+pub mod membership_cache_service;
 pub mod organization_hierarchy_service;
 pub mod organization_service;
 pub mod payment_service;

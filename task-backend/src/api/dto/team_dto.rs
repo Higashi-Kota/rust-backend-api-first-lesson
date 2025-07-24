@@ -17,6 +17,9 @@ pub struct CreateTeamRequest {
     pub description: Option<String>,
 
     pub organization_id: Option<Uuid>,
+
+    /// 部署ID（部署に所属するチームの場合）
+    pub department_id: Option<Uuid>,
 }
 
 /// チーム更新リクエスト
@@ -201,6 +204,7 @@ mod tests {
             name: "Test Team".to_string(),
             description: Some("A test team".to_string()),
             organization_id: None,
+            department_id: None,
         };
         assert!(valid_request.validate().is_ok());
 
@@ -209,6 +213,7 @@ mod tests {
             name: "".to_string(),
             description: None,
             organization_id: None,
+            department_id: None,
         };
         assert!(invalid_request.validate().is_err());
 
@@ -217,6 +222,7 @@ mod tests {
             name: "a".repeat(101),
             description: None,
             organization_id: None,
+            department_id: None,
         };
         assert!(long_name_request.validate().is_err());
 
@@ -225,6 +231,7 @@ mod tests {
             name: "Test Team".to_string(),
             description: Some("a".repeat(501)),
             organization_id: None,
+            department_id: None,
         };
         assert!(long_desc_request.validate().is_err());
     }

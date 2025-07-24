@@ -13,8 +13,8 @@ use crate::common::{app_helper, auth_helper, test_data};
 async fn test_batch_create_tasks_with_authentication() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
 
-    // ユーザー登録とログイン
-    let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+    // 管理者としてログイン（バッチ作成はプレミアム機能なので）
+    let user = auth_helper::get_admin_user(&app).await;
 
     // バッチ作成データ
     let batch_create_payload = json!({
@@ -46,9 +46,16 @@ async fn test_batch_create_tasks_with_authentication() {
 
     let res = app.clone().oneshot(req).await.unwrap();
 
-    assert_eq!(res.status(), StatusCode::CREATED);
+    let status = res.status();
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let result: Value = serde_json::from_slice(&body).unwrap();
+
+    // デバッグ用にレスポンスを出力
+    if status != StatusCode::CREATED {
+        eprintln!("Batch create response: status={}, body={}", status, result);
+    }
+
+    assert_eq!(status, StatusCode::CREATED);
 
     // 作成されたタスクの検証
     assert!(result["data"]["created_tasks"].is_array());
@@ -105,8 +112,8 @@ async fn test_batch_create_tasks_without_authentication() {
 async fn test_batch_update_tasks_with_authentication() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
 
-    // ユーザー登録とログイン
-    let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+    // 管理者としてログイン（バッチ操作はプレミアム機能なので）
+    let user = auth_helper::get_admin_user(&app).await;
 
     // まず複数のタスクを作成
     let mut task_ids = Vec::new();
@@ -259,8 +266,8 @@ async fn test_batch_update_tasks_of_another_user() {
 async fn test_batch_delete_tasks_with_authentication() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
 
-    // ユーザー登録とログイン
-    let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+    // 管理者としてログイン（バッチ操作はプレミアム機能なので）
+    let user = auth_helper::get_admin_user(&app).await;
 
     // まず複数のタスクを作成
     let mut task_ids = Vec::new();
@@ -381,8 +388,8 @@ async fn test_batch_delete_tasks_of_another_user() {
 async fn test_batch_operations_with_invalid_data() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
 
-    // ユーザー登録とログイン
-    let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+    // 管理者としてログイン（バッチ操作はプレミアム機能なので）
+    let user = auth_helper::get_admin_user(&app).await;
 
     // 無効なデータでバッチ作成試行
     let invalid_batch_payload = json!({
@@ -419,8 +426,8 @@ async fn test_batch_operations_with_invalid_data() {
 async fn test_batch_operations_empty_arrays() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
 
-    // ユーザー登録とログイン
-    let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+    // 管理者としてログイン（バッチ操作はプレミアム機能なので）
+    let user = auth_helper::get_admin_user(&app).await;
 
     // 空の配列でバッチ作成
     let empty_batch_payload = json!({
@@ -450,8 +457,8 @@ async fn test_batch_operations_empty_arrays() {
 async fn test_batch_operations_malformed_json() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
 
-    // ユーザー登録とログイン
-    let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+    // 管理者としてログイン（バッチ操作はプレミアム機能なので）
+    let user = auth_helper::get_admin_user(&app).await;
 
     // 不正なJSONでバッチ作成試行
     let malformed_json = r#"{"tasks": [invalid json}"#;
@@ -489,8 +496,8 @@ async fn test_batch_operations_malformed_json() {
 async fn test_batch_operations_large_dataset() {
     let (app, _schema_name, _db) = app_helper::setup_full_app().await;
 
-    // ユーザー登録とログイン
-    let user = auth_helper::setup_authenticated_user(&app).await.unwrap();
+    // 管理者としてログイン（バッチ操作はプレミアム機能なので）
+    let user = auth_helper::get_admin_user(&app).await;
 
     // 大量のタスクでバッチ作成
     let mut tasks = Vec::new();

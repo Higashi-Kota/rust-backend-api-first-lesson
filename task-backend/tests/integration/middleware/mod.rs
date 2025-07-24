@@ -1,3 +1,3 @@
 // tests/integration/middleware/mod.rs
 
-pub mod unified_permission_tests;
+pub mod permission_tests;

@@ -2,16 +2,16 @@
 
 use crate::api::dto::team_dto::*;
 use crate::api::dto::team_query_dto::TeamSearchQuery;
-use crate::api::handlers::team_invitation_handler;
 use crate::api::AppState;
 use crate::error::AppResult;
 use crate::middleware::auth::AuthenticatedUser;
-use crate::middleware::authorization::PermissionContext;
+use crate::middleware::authorization::{resources, Action};
+use crate::require_permission;
 use crate::shared::types::PaginatedResponse;
 use crate::types::ApiResponse;
 use crate::utils::error_helper::convert_validation_errors;
 use axum::{
-    extract::{Extension, Path, Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, patch, post},
     Json, Router,
@@ -19,36 +19,6 @@ use axum::{
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
-
-/// チーム作成（統一権限チェックミドルウェア対応）
-pub async fn create_team_with_unified_permission(
-    State(app_state): State<AppState>,
-    user: AuthenticatedUser,
-    Extension(permission_ctx): Extension<PermissionContext>,
-    Json(payload): Json<CreateTeamRequest>,
-) -> AppResult<(StatusCode, ApiResponse<TeamResponse>)> {
-    // PermissionContextを使用して権限を確認
-    info!(
-        user_id = %permission_ctx.user_id,
-        resource = permission_ctx.resource,
-        action = ?permission_ctx.action,
-        is_admin = permission_ctx.is_admin(),
-        can_access = permission_ctx.can_access(),
-        "Creating team with unified permission check"
-    );
-
-    // バリデーション
-    payload.validate().map_err(|e| {
-        convert_validation_errors(e, "team_handler::create_team_with_unified_permission")
-    })?;
-
-    let team_response = app_state
-        .team_service
-        .create_team(payload, user.user_id())
-        .await?;
-
-    Ok((StatusCode::CREATED, ApiResponse::success(team_response)))
-}
 
 /// チーム作成
 pub async fn create_team_handler(
@@ -61,14 +31,7 @@ pub async fn create_team_handler(
         .validate()
         .map_err(|e| convert_validation_errors(e, "team_handler::create_team"))?;
 
-    // TODO: 統一権限チェックミドルウェアへ移行予定
-    // require_permission!(resources::TEAM, Action::Create)を使用
-    app_state
-        .permission_service
-        .check_resource_access(user.user_id(), "team", None, "create")
-        .await?;
-
-    // サブスクリプション制限はTeamServiceで処理されるため、ここでは重複チェックしない
+    // 権限チェックはミドルウェアで実施済み
 
     let team_response = app_state
         .team_service
@@ -118,11 +81,7 @@ pub async fn update_team_handler(
         .validate()
         .map_err(|e| convert_validation_errors(e, "team_handler::update_team"))?;
 
-    // PermissionServiceを使用してチーム管理権限をチェック
-    app_state
-        .permission_service
-        .check_team_management_permission(user.user_id(), team_id)
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     let team_response = app_state
         .team_service
@@ -138,11 +97,7 @@ pub async fn delete_team_handler(
     user: AuthenticatedUser,
     Path(team_id): Path<Uuid>,
 ) -> AppResult<(StatusCode, ApiResponse<()>)> {
-    // PermissionServiceを使用してチーム管理権限をチェック
-    app_state
-        .permission_service
-        .check_team_management_permission(user.user_id(), team_id)
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     app_state
         .team_service
@@ -164,11 +119,7 @@ pub async fn invite_team_member_handler(
         .validate()
         .map_err(|e| convert_validation_errors(e, "team_handler::invite_team_member"))?;
 
-    // PermissionServiceを使用してチーム管理権限をチェック
-    app_state
-        .permission_service
-        .check_team_management_permission(user.user_id(), team_id)
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     let member_response = app_state
         .team_service
@@ -280,109 +231,132 @@ pub async fn search_teams_handler(
 
 // --- ルーター ---
 
-/// チームルーターを作成
+/// チームルーターを作成（統一権限チェックミドルウェアを使用）
 pub fn team_router(app_state: AppState) -> Router {
+    use crate::api::handlers::team_invitation_handler::{
+        accept_invitation, bulk_member_invite, bulk_update_invitation_status, cancel_invitation,
+        check_team_invitation, cleanup_expired_invitations, count_user_invitations,
+        create_single_invitation, decline_invitation, delete_old_invitations,
+        get_invitation_statistics, get_invitations_by_creator, get_invitations_by_email,
+        get_invitations_with_pagination, get_team_invitations, get_user_invitations,
+        resend_invitation,
+    };
+
     Router::new()
-        // TODO: 統一権限チェックミドルウェアを既存APIに適用する際に以下のコメントを解除
-        // .merge(team_router_with_unified_permission(app_state.clone()))
-        // チーム管理
-        .route("/teams", post(create_team_handler))
-        .route("/teams", get(list_teams_handler))
-        .route("/teams/search", get(search_teams_handler))
-        .route("/teams/{id}", get(get_team_handler))
-        .route("/teams/{id}", patch(update_team_handler))
-        .route("/teams/{id}", delete(delete_team_handler))
-        // チームメンバー管理
-        .route("/teams/{id}/members", post(invite_team_member_handler))
+        // === 基本的なチーム操作 ===
+        .route(
+            "/teams",
+            post(create_team_handler), // 権限チェックはハンドラー内で実施（organization_idの有無により異なるため）
+        )
+        .route(
+            "/teams",
+            get(list_teams_handler), // チーム一覧は認証のみで閲覧可能
+        )
+        .route(
+            "/teams/search",
+            get(search_teams_handler), // 検索も認証のみで可能
+        )
+        .route(
+            "/teams/{id}",
+            get(get_team_handler).route_layer(require_permission!(resources::TEAM, Action::View)),
+        )
+        .route(
+            "/teams/{id}",
+            patch(update_team_handler)
+                .route_layer(require_permission!(resources::TEAM, Action::Update)),
+        )
+        .route(
+            "/teams/{id}",
+            delete(delete_team_handler)
+                .route_layer(require_permission!(resources::TEAM, Action::Delete)),
+        )
+        // === チームメンバー管理 ===
+        .route(
+            "/teams/{id}/members",
+            post(invite_team_member_handler)
+                .route_layer(require_permission!(resources::TEAM, Action::Update)),
+        )
         .route(
             "/teams/{team_id}/members/{member_id}",
-            get(get_team_member_details_handler),
+            get(get_team_member_details_handler)
+                .route_layer(require_permission!(resources::TEAM, Action::View)),
         )
         .route(
             "/teams/{team_id}/members/{member_id}/role",
-            patch(update_team_member_role_handler),
+            patch(update_team_member_role_handler)
+                .route_layer(require_permission!(resources::TEAM, Action::Update)),
         )
         .route(
             "/teams/{team_id}/members/{member_id}",
-            delete(remove_team_member_handler),
+            delete(remove_team_member_handler)
+                .route_layer(require_permission!(resources::TEAM, Action::Update)),
         )
-        // Phase 2.2: チーム招待・権限管理 API
+        // === チーム招待管理 ===
         .route(
             "/teams/{id}/bulk-member-invite",
-            post(team_invitation_handler::bulk_member_invite),
+            post(bulk_member_invite)
+                .route_layer(require_permission!(resources::TEAM, Action::Update)),
         )
         .route(
             "/teams/{id}/invitations",
-            get(team_invitation_handler::get_team_invitations),
+            get(get_team_invitations)
+                .route_layer(require_permission!(resources::TEAM, Action::View)),
         )
         .route(
             "/teams/{id}/invitations/{invite_id}/decline",
-            patch(team_invitation_handler::decline_invitation),
+            patch(decline_invitation), // 招待を受けた本人のみが拒否可能（特殊な権限チェック）
         )
-        // 新規招待API
         .route(
             "/teams/{id}/invitations/single",
-            post(team_invitation_handler::create_single_invitation),
+            post(create_single_invitation)
+                .route_layer(require_permission!(resources::TEAM, Action::Update)),
         )
         .route(
             "/teams/{id}/invitations/paginated",
-            get(team_invitation_handler::get_invitations_with_pagination),
+            get(get_invitations_with_pagination)
+                .route_layer(require_permission!(resources::TEAM, Action::View)),
         )
         .route(
             "/teams/{team_id}/invitations/check/{email}",
-            get(team_invitation_handler::check_team_invitation),
+            get(check_team_invitation)
+                .route_layer(require_permission!(resources::TEAM, Action::View)),
         )
-        // ユーザー招待関連API
-        .route(
-            "/invitations/by-email",
-            get(team_invitation_handler::get_invitations_by_email),
-        )
-        .route(
-            "/invitations/stats",
-            get(team_invitation_handler::count_user_invitations),
-        )
+        // === ユーザー招待関連API ===
+        .route("/invitations/by-email", get(get_invitations_by_email))
+        .route("/invitations/stats", get(count_user_invitations))
         .route(
             "/invitations/bulk-update",
-            post(team_invitation_handler::bulk_update_invitation_status),
+            post(bulk_update_invitation_status),
         )
-        // 管理者向け招待API
+        .route("/users/invitations", get(get_user_invitations))
+        .route("/invitations/by-creator", get(get_invitations_by_creator))
+        // === 管理者向け招待API ===
         .route(
             "/admin/invitations/expired/cleanup",
-            post(team_invitation_handler::cleanup_expired_invitations),
+            post(cleanup_expired_invitations)
+                .route_layer(require_permission!(resources::INVITATION, Action::Admin)),
         )
         .route(
             "/admin/invitations/old/delete",
-            delete(team_invitation_handler::delete_old_invitations),
+            delete(delete_old_invitations)
+                .route_layer(require_permission!(resources::INVITATION, Action::Admin)),
         )
-        // 招待受諾・キャンセル・再送API
-        .route(
-            "/invitations/{id}/accept",
-            post(team_invitation_handler::accept_invitation),
-        )
+        // === 招待受諾・キャンセル・再送API ===
+        .route("/invitations/{id}/accept", post(accept_invitation))
         .route(
             "/teams/{team_id}/invitations/{invite_id}/cancel",
-            delete(team_invitation_handler::cancel_invitation),
+            delete(cancel_invitation)
+                .route_layer(require_permission!(resources::TEAM, Action::Update)),
         )
-        .route(
-            "/invitations/{id}/resend",
-            post(team_invitation_handler::resend_invitation),
-        )
-        // 追加の統計・管理API
+        .route("/invitations/{id}/resend", post(resend_invitation))
+        // === 追加の統計・管理API ===
         .route(
             "/teams/{id}/invitations/statistics",
-            get(team_invitation_handler::get_invitation_statistics),
+            get(get_invitation_statistics)
+                .route_layer(require_permission!(resources::TEAM, Action::View)),
         )
-        .route(
-            "/invitations/by-creator",
-            get(team_invitation_handler::get_invitations_by_creator),
-        )
-        .route(
-            "/users/invitations",
-            get(team_invitation_handler::get_user_invitations),
-        )
-        // チーム統計
+        // === チーム統計 ===
         .route("/teams/stats", get(get_team_stats_handler))
-        // チーム一覧（ページング付き）
         .route("/teams/paginated", get(get_teams_with_pagination_handler))
         .with_state(app_state)
 }
@@ -390,42 +364,4 @@ pub fn team_router(app_state: AppState) -> Router {
 /// チームルーターをAppStateから作成
 pub fn team_router_with_state(app_state: AppState) -> Router {
     team_router(app_state)
-}
-
-/// 統一権限チェックミドルウェアを使用したチームルーター（実験的実装）
-pub fn team_router_with_unified_permission(app_state: AppState) -> Router {
-    use crate::middleware::authorization::{permission_middleware, resources, Action};
-    use crate::require_permission;
-    use axum::middleware;
-
-    Router::new()
-        // 統一権限チェックを使用したチーム作成
-        .route(
-            "/teams/unified",
-            post(create_team_with_unified_permission)
-                .route_layer(require_permission!(resources::TEAM, Action::Create)),
-        )
-        // 統一権限チェックを使用したチーム操作
-        .route(
-            "/teams/unified/{id}",
-            get(get_team_handler).layer(middleware::from_fn(permission_middleware(
-                resources::TEAM,
-                Action::View,
-            ))),
-        )
-        .route(
-            "/teams/unified/{id}",
-            patch(update_team_handler).layer(middleware::from_fn(permission_middleware(
-                resources::TEAM,
-                Action::Update,
-            ))),
-        )
-        .route(
-            "/teams/unified/{id}",
-            delete(delete_team_handler).layer(middleware::from_fn(permission_middleware(
-                resources::TEAM,
-                Action::Delete,
-            ))),
-        )
-        .with_state(app_state)
 }

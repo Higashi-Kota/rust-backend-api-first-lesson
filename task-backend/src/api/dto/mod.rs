@@ -7,6 +7,7 @@ pub mod attachment_dto;
 pub mod attachment_query_dto;
 pub mod auth_dto;
 pub mod common;
+pub mod dynamic_permission_dto;
 pub mod gdpr_dto;
 pub mod organization_dto;
 pub mod organization_hierarchy_dto;

@@ -18,24 +18,15 @@ mod types;
 mod utils;
 
 use crate::api::handlers::{
-    activity_log_handler::activity_log_router,
-    admin_handler::admin_router,
-    analytics_handler::analytics_router_with_state,
-    attachment_handler::attachment_routes,
-    audit_log_handler::audit_log_router,
-    auth_handler::auth_router_with_state,
-    gdpr_handler::gdpr_router_with_state,
-    organization_handler::organization_router_with_state,
+    activity_log_handler::activity_log_router, admin_handler::admin_router,
+    analytics_handler::analytics_router_with_state, attachment_handler::attachment_routes,
+    audit_log_handler::audit_log_router, auth_handler::auth_router_with_state,
+    gdpr_handler::gdpr_router_with_state, organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
-    payment_handler::payment_router_with_state,
-    permission_handler::permission_router_with_state,
-    role_handler::role_router_with_state,
-    security_handler::security_router,
-    subscription_handler::subscription_router_with_state,
-    system_handler::system_router_with_state,
-    task_handler::{task_router_with_state, task_router_with_unified_permission},
-    task_handler_v2::multi_tenant_task_router,
-    team_handler::{team_router_with_state, team_router_with_unified_permission},
+    payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
+    role_handler::role_router_with_state, security_handler::security_router,
+    subscription_handler::subscription_router_with_state, system_handler::system_router_with_state,
+    task_handler::task_router_with_state, team_handler::team_router_with_state,
     user_handler::user_router_with_state,
 };
 use crate::api::AppState;
@@ -165,8 +156,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db_pool.clone()));
     let password_reset_token_repo = Arc::new(PasswordResetTokenRepository::new(db_pool.clone()));
     let email_verification_token_repo = Arc::new(crate::repository::email_verification_token_repository::EmailVerificationTokenRepository::new(db_pool.clone()));
-    let organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
-    let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
+    // let organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
+    // let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
     let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db_pool.clone()));
     let daily_activity_summary_repo = Arc::new(
         crate::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
@@ -232,6 +223,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(db_pool.clone()),
         TeamRepository::new(db_pool.clone()),
         UserRepository::new(db_pool.clone()),
+        OrganizationRepository::new(db_pool.clone()),
         email_service.clone(),
     ));
 
@@ -296,12 +288,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
     // Permission service creation
-    let permission_service = Arc::new(PermissionService::new(
-        role_repo.clone(),
-        user_repo.clone(),
-        team_repo.clone(),
-        organization_repo.clone(),
-    ));
+    let permission_service = Arc::new(PermissionService::new(role_repo.clone(), user_repo.clone()));
 
     tracing::info!("🎯 Business services created.");
 
@@ -390,10 +377,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(attachment_routes(app_state.clone()))
         .merge(activity_log_router(app_state.clone()))
         .merge(audit_log_router(app_state.clone()))
-        .merge(multi_tenant_task_router(app_state.clone()))
-        // 統一権限チェックミドルウェアを使用した実験的実装
-        .merge(task_router_with_unified_permission(app_state.clone()))
-        .merge(team_router_with_unified_permission(app_state.clone()))
         .route(
             "/",
             axum::routing::get(|| async { "Task Backend API v1.0" }),

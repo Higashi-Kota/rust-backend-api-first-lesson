@@ -15,7 +15,7 @@ use crate::{
     domain::activity_log_model,
     middleware::auth::AuthenticatedUser,
     repository::activity_log_repository::{ActivityLogFilter, ActivityLogRepository},
-    utils::error_helper::{forbidden_error, internal_server_error},
+    utils::error_helper::internal_server_error,
 };
 
 #[derive(Debug, Deserialize)]
@@ -88,23 +88,11 @@ pub async fn get_my_activity_logs(
 
 /// 管理者用：すべてのアクティビティログを取得
 pub async fn get_all_activity_logs(
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Query(query): Query<ActivityLogQuery>,
     State(app_state): State<AppState>,
 ) -> Result<Response, Response> {
-    // 統一権限チェックシステムを使用した管理者権限チェック
-    app_state
-        .permission_service
-        .check_admin_permission(user.claims.user_id)
-        .await
-        .map_err(|_| {
-            forbidden_error(
-                "Admin permission required",
-                "activity_log_handler::get_all_activity_logs",
-                "Only administrators can view all activity logs",
-            )
-            .into_response()
-        })?;
+    // 権限チェックはミドルウェアで実施済み
 
     get_activity_logs_internal(query, app_state.activity_log_repo.clone()).await
 }
@@ -155,8 +143,15 @@ async fn get_activity_logs_internal(
 
 /// アクティビティログのルーター
 pub fn activity_log_router(app_state: AppState) -> Router {
+    use crate::middleware::authorization::{resources, Action};
+    use crate::require_permission;
+
     Router::new()
         .route("/activity-logs/me", get(get_my_activity_logs))
-        .route("/admin/activity-logs", get(get_all_activity_logs))
+        .route(
+            "/admin/activity-logs",
+            get(get_all_activity_logs)
+                .route_layer(require_permission!(resources::AUDIT_LOG, Action::View)),
+        )
         .with_state(app_state)
 }

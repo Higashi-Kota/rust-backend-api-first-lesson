@@ -241,36 +241,46 @@ pub async fn generate_audit_report_handler(
 
 /// セキュリティ管理ルーターを作成
 pub fn security_router(app_state: AppState) -> Router {
-    use crate::middleware::authorization::admin_permission_middleware;
+    use crate::middleware::authorization::{resources, Action};
+    use crate::require_permission;
+
     Router::new()
-        // 統一権限チェックミドルウェアを適用（管理者専用）
-        .layer(axum::middleware::from_fn(admin_permission_middleware()))
         // Phase 1.2 セキュリティ・トークン管理 API
-        .route("/admin/security/token-stats", get(get_token_stats_handler))
+        .route(
+            "/admin/security/token-stats",
+            get(get_token_stats_handler)
+                .route_layer(require_permission!(resources::SECURITY, Action::Admin)),
+        )
         .route(
             "/admin/security/refresh-tokens",
-            get(get_refresh_tokens_handler),
+            get(get_refresh_tokens_handler)
+                .route_layer(require_permission!(resources::SECURITY, Action::Admin)),
         )
         .route(
             "/admin/security/cleanup-tokens",
-            post(cleanup_tokens_handler),
+            post(cleanup_tokens_handler)
+                .route_layer(require_permission!(resources::SECURITY, Action::Admin)),
         )
         .route(
             "/admin/security/password-resets",
-            get(get_password_resets_handler),
+            get(get_password_resets_handler)
+                .route_layer(require_permission!(resources::SECURITY, Action::Admin)),
         )
         // 新規実装: Phase 1.2 残り3エンドポイント
         .route(
             "/admin/security/revoke-all-tokens",
-            post(revoke_all_tokens_handler),
+            post(revoke_all_tokens_handler)
+                .route_layer(require_permission!(resources::SECURITY, Action::Admin)),
         )
         .route(
             "/admin/security/session-analytics",
-            get(get_session_analytics_handler),
+            get(get_session_analytics_handler)
+                .route_layer(require_permission!(resources::SECURITY, Action::Admin)),
         )
         .route(
             "/admin/security/audit-report",
-            post(generate_audit_report_handler),
+            post(generate_audit_report_handler)
+                .route_layer(require_permission!(resources::SECURITY, Action::Admin)),
         )
         .with_state(app_state)
 }

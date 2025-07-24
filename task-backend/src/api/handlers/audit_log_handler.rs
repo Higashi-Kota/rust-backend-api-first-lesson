@@ -2,6 +2,8 @@
 use crate::api::AppState;
 use crate::error::AppResult;
 use crate::middleware::auth::AuthenticatedUser;
+use crate::middleware::authorization::{resources, Action};
+use crate::require_permission;
 use crate::service::audit_log_service::PaginatedAuditLogs;
 use crate::types::ApiResponse;
 use crate::utils::error_helper::{forbidden_error, internal_server_error};
@@ -59,14 +61,7 @@ pub async fn get_user_audit_logs(
     Path(user_id): Path<Uuid>,
     Query(query): Query<AuditLogQuery>,
 ) -> AppResult<impl IntoResponse> {
-    // 管理者権限の確認
-    if !auth_user.claims.is_admin() {
-        return Err(forbidden_error(
-            "Admin access required",
-            "audit_log_handler::get_user_audit_logs",
-            "Only administrators can view other users' audit logs",
-        ));
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     info!(
         admin_id = %auth_user.claims.user_id,
@@ -104,6 +99,8 @@ pub async fn get_team_audit_logs(
             )
         })?;
 
+    // 権限チェックはミドルウェアで管理者権限を確認済み
+    // ここでは追加でチームメンバーシップを確認
     if !is_member && !auth_user.claims.is_admin() {
         return Err(forbidden_error(
             "Not a team member",
@@ -144,14 +141,7 @@ pub async fn cleanup_old_audit_logs(
     auth_user: AuthenticatedUser,
     axum::Json(request): axum::Json<CleanupRequest>,
 ) -> AppResult<impl IntoResponse> {
-    // 管理者権限の確認
-    if !auth_user.claims.is_admin() {
-        return Err(forbidden_error(
-            "Admin access required",
-            "audit_log_handler::cleanup_old_audit_logs",
-            "Only administrators can cleanup audit logs",
-        ));
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     info!(
         admin_id = %auth_user.claims.user_id,
@@ -177,14 +167,16 @@ pub fn audit_log_router(app_state: AppState) -> Router {
         // 特定ユーザーの監査ログ（管理者のみ）
         .route(
             "/admin/audit-logs/users/{user_id}",
-            get(get_user_audit_logs),
+            get(get_user_audit_logs)
+                .route_layer(require_permission!(resources::AUDIT_LOG, Action::Admin)),
         )
-        // チームの監査ログ
+        // チームの監査ログ（チームメンバーシップはハンドラー内でチェック）
         .route("/teams/{team_id}/audit-logs", get(get_team_audit_logs))
         // 古いログのクリーンアップ（管理者のみ）
         .route(
             "/admin/audit-logs/cleanup",
-            axum::routing::post(cleanup_old_audit_logs),
+            axum::routing::post(cleanup_old_audit_logs)
+                .route_layer(require_permission!(resources::AUDIT_LOG, Action::Admin)),
         )
         .with_state(app_state)
 }

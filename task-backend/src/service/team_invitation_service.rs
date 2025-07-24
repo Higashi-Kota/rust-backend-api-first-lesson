@@ -1,7 +1,9 @@
 // task-backend/src/service/team_invitation_service.rs
 
+use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::team_invitation_model::{Model as TeamInvitationModel, TeamInvitationStatus};
 use crate::error::{AppError, AppResult};
+use crate::middleware::subscription_guard::check_feature_limit;
 use crate::repository::team_invitation_repository::TeamInvitationRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
@@ -34,11 +36,36 @@ impl TeamInvitationService {
         message: Option<String>,
         inviter_id: Uuid,
     ) -> AppResult<Vec<TeamInvitationModel>> {
-        let _team = self
+        let team = self
             .team_repository
             .find_by_id(team_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Team not found".to_string()))?;
+
+        // チームオーナーのサブスクリプションティアを取得
+        let owner = self
+            .user_repository
+            .find_by_id(team.owner_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Team owner not found".to_string()))?;
+        let user_tier =
+            SubscriptionTier::from_str(&owner.subscription_tier).unwrap_or(SubscriptionTier::Free);
+
+        // 現在のチームメンバー数を取得
+        let current_member_count = self.team_repository.count_members(team_id).await?;
+
+        // 既存の保留中の招待数を取得
+        let pending_invitations_count = self
+            .team_invitation_repository
+            .count_pending_invitations_by_team(team_id)
+            .await? as usize;
+
+        // 合計メンバー数（既存メンバー + 保留中の招待 + 新規招待）
+        let total_potential_members =
+            current_member_count + pending_invitations_count + emails.len();
+
+        // メンバー数制限チェック
+        check_feature_limit(&user_tier, total_potential_members, "team_members")?;
 
         let expires_at = Some(Utc::now() + Duration::days(7));
         let mut invitations = Vec::new();

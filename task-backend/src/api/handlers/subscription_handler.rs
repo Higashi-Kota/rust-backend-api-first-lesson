@@ -941,25 +941,30 @@ fn calculate_limit_change(old: Option<u32>, new: Option<u32>) -> Option<i64> {
 
 /// サブスクリプションルーターを作成
 pub fn subscription_router(app_state: AppState) -> Router {
-    use crate::middleware::authorization::admin_permission_middleware;
+    use crate::middleware::authorization::{resources, Action};
+    use crate::require_permission;
 
     // 管理者専用ルート
     let admin_routes = Router::new()
         .route(
             "/admin/subscriptions/stats",
-            get(get_subscription_stats_handler),
+            get(get_subscription_stats_handler)
+                .route_layer(require_permission!(resources::SUBSCRIPTION, Action::Admin)),
         )
         .route(
             "/admin/subscription/history",
-            get(get_admin_subscription_history_extended_handler),
+            get(get_admin_subscription_history_extended_handler)
+                .route_layer(require_permission!(resources::SUBSCRIPTION, Action::Admin)),
         )
         .route(
             "/admin/subscription/history/v1",
-            get(get_admin_subscription_history_handler),
+            get(get_admin_subscription_history_handler)
+                .route_layer(require_permission!(resources::SUBSCRIPTION, Action::Admin)),
         )
         .route(
             "/admin/subscription/stats",
-            get(get_subscription_stats_v2_handler),
+            get(get_subscription_stats_v2_handler)
+                .route_layer(require_permission!(resources::SUBSCRIPTION, Action::Admin)),
         )
         // admin_change_user_subscription_handler is not implemented yet
         // .route(
@@ -968,9 +973,9 @@ pub fn subscription_router(app_state: AppState) -> Router {
         // )
         .route(
             "/admin/users/{id}/subscription",
-            patch(admin_change_subscription_handler),
-        )
-        .layer(axum::middleware::from_fn(admin_permission_middleware()));
+            patch(admin_change_subscription_handler)
+                .route_layer(require_permission!(resources::SUBSCRIPTION, Action::Admin)),
+        );
 
     Router::new()
         // 一般ユーザー向けエンドポイント
