@@ -452,6 +452,11 @@ impl TaskRepository {
             }
         }
 
+        if let Some(priority_val) = payload.priority {
+            active_model.priority = Set(priority_val);
+            changed = true;
+        }
+
         if payload.due_date.is_some() {
             active_model.due_date = Set(payload.due_date);
             changed = true;
