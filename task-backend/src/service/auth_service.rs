@@ -6,6 +6,7 @@ use crate::domain::refresh_token_model::CreateRefreshToken;
 use crate::domain::role_model::RoleName;
 use crate::domain::user_model::UserClaims;
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::repository::activity_log_repository::ActivityLogRepository;
 use crate::repository::email_verification_token_repository::EmailVerificationTokenRepository;
 use crate::repository::login_attempt_repository::LoginAttemptRepository;
@@ -207,6 +208,14 @@ impl AuthService {
         ip_address: Option<String>,
         user_agent: Option<String>,
     ) -> AppResult<AuthResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Sign in attempt",
+            "identifier" => &signin_data.identifier,
+            "ip_address" => &ip_address,
+            "user_agent" => &user_agent
+        );
+
         // バリデーション
         signin_data
             .validate()
@@ -220,9 +229,11 @@ impl AuthService {
         {
             Some(user) => user,
             None => {
-                warn!(
-                    identifier = %signin_data.identifier,
-                    "Login attempt with invalid credentials"
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "Login attempt with invalid credentials",
+                    "identifier" => &signin_data.identifier,
+                    "ip_address" => &ip_address
                 );
 
                 // 失敗したログイン試行を記録
@@ -241,10 +252,12 @@ impl AuthService {
 
         // アカウント状態チェック
         if !user.can_authenticate() {
-            warn!(
-                user_id = %user.id,
-                is_active = %user.is_active,
-                "Login attempt for inactive account"
+            log_with_context!(
+                tracing::Level::WARN,
+                "Login attempt for inactive account",
+                "user_id" => user.id,
+                "is_active" => user.is_active,
+                "identifier" => &signin_data.identifier
             );
 
             // 失敗したログイン試行を記録
@@ -265,19 +278,22 @@ impl AuthService {
             .password_manager
             .verify_password(&signin_data.password, &user.password_hash)
             .map_err(|e| {
-                error!(
-                    user_id = %user.id,
-                    error = %e,
-                    "Password verification failed"
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Password verification failed",
+                    "user_id" => user.id,
+                    "error" => &e.to_string()
                 );
                 AppError::InternalServerError("Authentication failed".to_string())
             })?;
 
         if !is_valid {
-            warn!(
-                user_id = %user.id,
-                identifier = %signin_data.identifier,
-                "Login attempt with incorrect password"
+            log_with_context!(
+                tracing::Level::WARN,
+                "Login attempt with incorrect password",
+                "user_id" => user.id,
+                "identifier" => &signin_data.identifier,
+                "ip_address" => &ip_address
             );
 
             // 失敗したログイン試行を記録
@@ -357,20 +373,30 @@ impl AuthService {
             )
             .await
         {
-            error!(
-                user_id = %user_with_role.id,
-                email = %user_with_role.email,
-                error = %e,
-                "Failed to send login security notification"
+            log_with_context!(
+                tracing::Level::ERROR,
+                "Failed to send login security notification",
+                "user_id" => user_with_role.id,
+                "email" => &user_with_role.email,
+                "error" => &e.to_string()
             );
             // メール送信失敗はエラーとせず、ログに記録のみ
         } else {
-            info!(
-                user_id = %user_with_role.id,
-                email = %user_with_role.email,
-                "Login security notification sent successfully"
+            log_with_context!(
+                tracing::Level::INFO,
+                "Login security notification sent successfully",
+                "user_id" => user_with_role.id,
+                "email" => &user_with_role.email
             );
         }
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Sign in successful",
+            "user_id" => user_with_role.id,
+            "email" => &user_with_role.email,
+            "role" => &user_with_role.role.name
+        );
 
         Ok(AuthResponse {
             user: user_with_role.into(),

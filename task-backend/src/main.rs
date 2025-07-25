@@ -9,6 +9,7 @@ mod config;
 mod db;
 mod domain;
 mod error;
+mod logging;
 mod middleware;
 mod repository;
 mod service;
@@ -82,15 +83,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(fmt::layer())
         .init();
 
-    tracing::info!("🚀 Starting Task Backend server...");
+    log_with_context!(tracing::Level::INFO, "🚀 Starting Task Backend server...");
 
     // 統合設定を読み込む
     let app_config = AppConfig::from_env().expect("Failed to load unified configuration");
-    tracing::info!("📋 Unified configuration loaded");
-    tracing::info!("   • Environment: {}", app_config.environment);
-    tracing::info!("   • Server: {}:{}", app_config.host, app_config.port);
-    tracing::info!("   • Database: configured");
-    tracing::info!("   • JWT: configured");
+    log_with_context!(tracing::Level::INFO, "📋 Unified configuration loaded");
+    log_with_context!(
+        tracing::Level::INFO,
+        "   • Environment",
+        "environment" => &app_config.environment
+    );
+    log_with_context!(
+        tracing::Level::INFO,
+        "   • Server",
+        "host" => &app_config.host,
+        "port" => app_config.port
+    );
+    log_with_context!(tracing::Level::INFO, "   • Database: configured");
+    log_with_context!(tracing::Level::INFO, "   • JWT: configured");
     tracing::info!(
         "   • Email: configured (dev mode: {})",
         std::env::var("EMAIL_DEVELOPMENT_MODE").unwrap_or_else(|_| "false".to_string())
@@ -388,6 +398,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .layer(cors_layer())
         .layer(axum_middleware::from_fn(security_headers_middleware))
+        .layer(axum_middleware::from_fn(
+            crate::logging::inject_request_context,
+        ))
+        .layer(axum_middleware::from_fn(crate::logging::logging_middleware))
         .layer(axum_middleware::from_fn_with_state(
             middleware::activity_logger::ActivityLogger::new(activity_log_repo.clone()),
             middleware::activity_logger::log_activity,

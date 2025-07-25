@@ -8,6 +8,7 @@ use crate::domain::bulk_operation_history_model::{
 use crate::domain::user_model::{SafeUser, SafeUserWithRole};
 use crate::domain::user_settings_model;
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::repository::bulk_operation_history_repository::BulkOperationHistoryRepository;
 use crate::repository::email_verification_token_repository::EmailVerificationTokenRepository;
 use crate::repository::user_repository::UserRepository;
@@ -42,11 +43,38 @@ impl UserService {
 
     /// ユーザー情報取得
     pub async fn get_user_profile(&self, user_id: Uuid) -> AppResult<SafeUser> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting user profile",
+            "user_id" => user_id
+        );
+
         let user = self
             .user_repo
             .find_by_id(user_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+            .await
+            .inspect_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to get user profile",
+                    "user_id" => user_id,
+                    "error" => &e.to_string()
+                );
+            })?
+            .ok_or_else(|| {
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "User not found",
+                    "user_id" => user_id
+                );
+                AppError::NotFound("User not found".to_string())
+            })?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "User profile retrieved successfully",
+            "user_id" => user_id
+        );
 
         if !user.is_active {
             warn!(user_id = %user_id, "Profile access attempt for inactive account");
@@ -58,8 +86,21 @@ impl UserService {
 
     /// ユーザー名の更新
     pub async fn update_username(&self, user_id: Uuid, new_username: &str) -> AppResult<SafeUser> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Updating username",
+            "user_id" => user_id,
+            "new_username" => new_username
+        );
+
         // ユーザー名の重複チェック
         if self.user_repo.is_username_taken(new_username).await? {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Username already taken",
+                "user_id" => user_id,
+                "username" => new_username
+            );
             return Err(AppError::BadRequest(
                 "Username is already taken".to_string(),
             ));
@@ -69,13 +110,30 @@ impl UserService {
         let updated_user = self
             .user_repo
             .update_username(user_id, new_username.to_string())
-            .await?
-            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+            .await
+            .inspect_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to update username",
+                    "user_id" => user_id,
+                    "new_username" => new_username,
+                    "error" => &e.to_string()
+                );
+            })?
+            .ok_or_else(|| {
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "User not found for username update",
+                    "user_id" => user_id
+                );
+                AppError::NotFound("User not found".to_string())
+            })?;
 
-        info!(
-            user_id = %user_id,
-            new_username = %new_username,
-            "Username updated successfully"
+        log_with_context!(
+            tracing::Level::INFO,
+            "Username updated successfully",
+            "user_id" => user_id,
+            "new_username" => new_username
         );
 
         Ok(updated_user.into())
@@ -83,8 +141,21 @@ impl UserService {
 
     /// メールアドレスの更新
     pub async fn update_email(&self, user_id: Uuid, new_email: &str) -> AppResult<SafeUser> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Updating email",
+            "user_id" => user_id,
+            "new_email" => new_email
+        );
+
         // メールアドレスの重複チェック
         if self.user_repo.is_email_taken(new_email).await? {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Email already registered",
+                "user_id" => user_id,
+                "email" => new_email
+            );
             return Err(AppError::BadRequest(
                 "Email address is already registered".to_string(),
             ));
@@ -94,13 +165,30 @@ impl UserService {
         let updated_user = self
             .user_repo
             .update_email(user_id, new_email.to_string())
-            .await?
-            .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+            .await
+            .inspect_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to update email",
+                    "user_id" => user_id,
+                    "new_email" => new_email,
+                    "error" => &e.to_string()
+                );
+            })?
+            .ok_or_else(|| {
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "User not found for email update",
+                    "user_id" => user_id
+                );
+                AppError::NotFound("User not found".to_string())
+            })?;
 
-        info!(
-            user_id = %user_id,
-            new_email = %new_email,
-            "Email updated successfully"
+        log_with_context!(
+            tracing::Level::INFO,
+            "Email updated successfully",
+            "user_id" => user_id,
+            "new_email" => new_email
         );
 
         Ok(updated_user.into())

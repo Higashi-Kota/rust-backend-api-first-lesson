@@ -3,6 +3,7 @@
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::team_invitation_model::{Model as TeamInvitationModel, TeamInvitationStatus};
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::middleware::subscription_guard::check_feature_limit;
 use crate::repository::team_invitation_repository::TeamInvitationRepository;
 use crate::repository::team_repository::TeamRepository;
@@ -36,6 +37,13 @@ impl TeamInvitationService {
         message: Option<String>,
         inviter_id: Uuid,
     ) -> AppResult<Vec<TeamInvitationModel>> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Creating bulk member invitations",
+            "team_id" => team_id,
+            "inviter_id" => inviter_id,
+            "email_count" => emails.len()
+        );
         let team = self
             .team_repository
             .find_by_id(team_id)
@@ -104,6 +112,13 @@ impl TeamInvitationService {
             .create_bulk_invitations(&invitations)
             .await?;
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "Bulk invitations created successfully",
+            "team_id" => team_id,
+            "created_count" => created_invitations.len()
+        );
+
         Ok(created_invitations)
     }
 
@@ -137,6 +152,12 @@ impl TeamInvitationService {
         invitation_id: Uuid,
         reason: Option<String>,
     ) -> AppResult<TeamInvitationModel> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Declining invitation",
+            "team_id" => team_id,
+            "invitation_id" => invitation_id
+        );
         let invitation = self
             .team_invitation_repository
             .find_by_id(invitation_id)
@@ -163,6 +184,13 @@ impl TeamInvitationService {
                 AppError::InternalServerError("Failed to decline invitation".to_string())
             })?;
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "Invitation declined successfully",
+            "team_id" => team_id,
+            "invitation_id" => invitation_id
+        );
+
         Ok(updated_invitation)
     }
 
@@ -171,6 +199,12 @@ impl TeamInvitationService {
         invitation_id: Uuid,
         user_id: Option<Uuid>,
     ) -> AppResult<TeamInvitationModel> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Accepting invitation",
+            "invitation_id" => invitation_id,
+            "user_id" => user_id
+        );
         let invitation = self
             .team_invitation_repository
             .find_by_id(invitation_id)
@@ -191,6 +225,13 @@ impl TeamInvitationService {
                 AppError::InternalServerError("Failed to accept invitation".to_string())
             })?;
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "Invitation accepted successfully",
+            "invitation_id" => invitation_id,
+            "team_id" => updated_invitation.team_id
+        );
+
         Ok(updated_invitation)
     }
 
@@ -200,6 +241,13 @@ impl TeamInvitationService {
         invitation_id: Uuid,
         requester_id: Uuid,
     ) -> AppResult<TeamInvitationModel> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Cancelling invitation",
+            "team_id" => team_id,
+            "invitation_id" => invitation_id,
+            "requester_id" => requester_id
+        );
         let invitation = self
             .team_invitation_repository
             .find_by_id(invitation_id)
@@ -231,6 +279,13 @@ impl TeamInvitationService {
             .ok_or_else(|| {
                 AppError::InternalServerError("Failed to cancel invitation".to_string())
             })?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Invitation cancelled successfully",
+            "team_id" => team_id,
+            "invitation_id" => invitation_id
+        );
 
         Ok(updated_invitation)
     }
@@ -296,6 +351,11 @@ impl TeamInvitationService {
     }
 
     pub async fn cleanup_old_invitations(&self, older_than_days: u32) -> AppResult<u64> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Cleaning up old invitations",
+            "older_than_days" => older_than_days
+        );
         let cutoff_date = Utc::now() - Duration::days(older_than_days as i64);
         let old_invitations = self
             .team_invitation_repository
@@ -318,6 +378,12 @@ impl TeamInvitationService {
             }
         }
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "Old invitations cleaned up",
+            "deleted_count" => deleted_count
+        );
+
         Ok(deleted_count)
     }
 
@@ -327,6 +393,12 @@ impl TeamInvitationService {
         new_message: Option<String>,
         requester_id: Uuid,
     ) -> AppResult<TeamInvitationModel> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Resending invitation",
+            "invitation_id" => invitation_id,
+            "requester_id" => requester_id
+        );
         let mut invitation = self
             .team_invitation_repository
             .find_by_id(invitation_id)
@@ -362,6 +434,13 @@ impl TeamInvitationService {
             .team_invitation_repository
             .update_invitation(&invitation)
             .await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Invitation resent successfully",
+            "invitation_id" => invitation_id,
+            "team_id" => updated_invitation.team_id
+        );
 
         Ok(updated_invitation)
     }
@@ -432,6 +511,13 @@ impl TeamInvitationService {
         new_status: TeamInvitationStatus,
         requester_id: Uuid,
     ) -> AppResult<u64> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Bulk updating invitation status",
+            "invitation_count" => invitation_ids.len(),
+            "new_status" => format!("{:?}", new_status),
+            "requester_id" => requester_id
+        );
         // 各招待の権限確認
         for &invitation_id in invitation_ids {
             let invitation = self
@@ -450,9 +536,18 @@ impl TeamInvitationService {
             }
         }
 
-        self.team_invitation_repository
+        let result = self
+            .team_invitation_repository
             .bulk_update_status(invitation_ids, new_status)
-            .await
+            .await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Bulk invitation status update completed",
+            "updated_count" => result
+        );
+
+        Ok(result)
     }
 
     /// 単一招待を作成
@@ -463,6 +558,13 @@ impl TeamInvitationService {
         message: Option<String>,
         inviter_id: Uuid,
     ) -> AppResult<TeamInvitationModel> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Creating single invitation",
+            "team_id" => team_id,
+            "email" => &email,
+            "inviter_id" => inviter_id
+        );
         // チーム存在確認
         let _team = self
             .team_repository
@@ -504,9 +606,20 @@ impl TeamInvitationService {
             TeamInvitationModel::new(team_id, email, inviter_id, message, expires_at);
         invitation.invited_user_id = invited_user_id;
 
-        self.team_invitation_repository
+        let result = self
+            .team_invitation_repository
             .create_invitation(&invitation)
-            .await
+            .await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Single invitation created successfully",
+            "team_id" => team_id,
+            "invitation_id" => result.id,
+            "email" => &result.invited_email
+        );
+
+        Ok(result)
     }
 
     pub async fn validate_invitation_permissions(

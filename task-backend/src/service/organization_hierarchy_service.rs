@@ -7,6 +7,7 @@ use crate::domain::{
     },
 };
 use crate::error::AppError;
+use crate::log_with_context;
 use crate::repository::{
     department_member_repository::DepartmentMemberRepository,
     organization_analytics_repository::OrganizationAnalyticsRepository,
@@ -40,6 +41,14 @@ impl OrganizationHierarchyService {
         manager_user_id: Option<Uuid>,
         created_by: Uuid,
     ) -> Result<organization_department_model::Model, AppError> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Creating department",
+            "organization_id" => organization_id,
+            "name" => &name,
+            "parent_department_id" => parent_department_id,
+            "created_by" => created_by
+        );
         // 同名部門のチェック（同一親部門内で）
         if let Some(_existing) = OrganizationDepartmentRepository::find_by_name_and_organization(
             db,
@@ -96,6 +105,14 @@ impl OrganizationHierarchyService {
 
         let department = OrganizationDepartmentRepository::create(db, new_department).await?;
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "Department created successfully",
+            "organization_id" => organization_id,
+            "department_id" => department.id,
+            "name" => &department.name
+        );
+
         // 作成者を部門マネージャーとして追加
         if let Some(manager_id) = manager_user_id {
             let member = department_member_model::ActiveModel {
@@ -124,6 +141,11 @@ impl OrganizationHierarchyService {
         manager_user_id: Option<Uuid>,
         new_parent_id: Option<Uuid>,
     ) -> Result<organization_department_model::Model, AppError> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Updating department",
+            "department_id" => department_id
+        );
         let department = OrganizationDepartmentRepository::find_by_id(db, department_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Department not found".to_string()))?;
@@ -182,7 +204,16 @@ impl OrganizationHierarchyService {
         }
 
         active_model.updated_at = Set(Utc::now());
-        OrganizationDepartmentRepository::update_by_id(db, department_id, active_model).await
+        let updated_department =
+            OrganizationDepartmentRepository::update_by_id(db, department_id, active_model).await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Department updated successfully",
+            "department_id" => department_id
+        );
+
+        Ok(updated_department)
     }
 
     // 部門の削除（子部門を親部門に移動）
@@ -190,6 +221,11 @@ impl OrganizationHierarchyService {
         db: &DatabaseConnection,
         department_id: Uuid,
     ) -> Result<(), AppError> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Deleting department",
+            "department_id" => department_id
+        );
         let department = OrganizationDepartmentRepository::find_by_id(db, department_id)
             .await?
             .ok_or_else(|| AppError::NotFound("Department not found".to_string()))?;
@@ -235,7 +271,15 @@ impl OrganizationHierarchyService {
         }
 
         // 部門の論理削除
-        OrganizationDepartmentRepository::delete_by_id(db, department_id).await
+        OrganizationDepartmentRepository::delete_by_id(db, department_id).await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Department deleted successfully",
+            "department_id" => department_id
+        );
+
+        Ok(())
     }
 
     // 組織分析ダッシュボードの取得
@@ -291,9 +335,18 @@ impl OrganizationHierarchyService {
         compliance_settings: Option<ComplianceSettings>,
         updated_by: Uuid,
     ) -> Result<permission_matrix_model::Model, AppError> {
+        let entity_type_str = entity_type.to_string();
+
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Setting permission matrix",
+            "entity_type" => &entity_type_str,
+            "entity_id" => entity_id,
+            "updated_by" => updated_by
+        );
         let new_matrix = permission_matrix_model::ActiveModel {
             id: Set(Uuid::new_v4()),
-            entity_type: Set(entity_type.to_string()),
+            entity_type: Set(entity_type_str.clone()),
             entity_id: Set(entity_id),
             matrix_version: Set("v1.0".to_string()),
             matrix_data: Set(serde_json::to_value(matrix_data).unwrap_or_default()),
@@ -309,7 +362,18 @@ impl OrganizationHierarchyService {
             updated_at: Set(Utc::now()),
         };
 
-        PermissionMatrixRepository::update_by_entity(db, entity_type, entity_id, new_matrix).await
+        let result =
+            PermissionMatrixRepository::update_by_entity(db, entity_type, entity_id, new_matrix)
+                .await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Permission matrix set successfully",
+            "entity_type" => &entity_type_str,
+            "entity_id" => entity_id
+        );
+
+        Ok(result)
     }
 
     // 権限マトリックスの取得
@@ -449,6 +513,14 @@ impl OrganizationHierarchyService {
         role: DepartmentRole,
         added_by: Uuid,
     ) -> Result<department_member_model::Model, AppError> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Adding department member",
+            "department_id" => department_id,
+            "user_id" => user_id,
+            "role" => &role.to_string(),
+            "added_by" => added_by
+        );
         // 既存メンバーシップのチェック
         if DepartmentMemberRepository::is_member_of_department(db, user_id, department_id).await? {
             return Err(AppError::Conflict(
@@ -468,7 +540,17 @@ impl OrganizationHierarchyService {
             updated_at: Set(Utc::now()),
         };
 
-        DepartmentMemberRepository::create(db, new_member).await
+        let member = DepartmentMemberRepository::create(db, new_member).await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Department member added successfully",
+            "department_id" => department_id,
+            "user_id" => user_id,
+            "role" => &role.to_string()
+        );
+
+        Ok(member)
     }
 
     // 部門メンバーの削除
@@ -477,8 +559,23 @@ impl OrganizationHierarchyService {
         department_id: Uuid,
         user_id: Uuid,
     ) -> Result<(), AppError> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Removing department member",
+            "department_id" => department_id,
+            "user_id" => user_id
+        );
         DepartmentMemberRepository::deactivate_by_department_and_user(db, department_id, user_id)
-            .await
+            .await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Department member removed successfully",
+            "department_id" => department_id,
+            "user_id" => user_id
+        );
+
+        Ok(())
     }
 
     // ヘルパー関数：子部門の階層パス更新（非再帰版）
@@ -539,6 +636,15 @@ impl OrganizationHierarchyService {
         period_end: DateTime<Utc>,
         calculated_by: Uuid,
     ) -> Result<organization_analytics_model::Model, AppError> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Creating analytics metric",
+            "organization_id" => organization_id,
+            "department_id" => department_id,
+            "analytics_type" => &analytics_type.to_string(),
+            "metric_name" => &metric_name,
+            "period" => &period.to_string()
+        );
         // 重複チェック
         if OrganizationAnalyticsRepository::exists_analytics_for_period(
             db,
@@ -571,6 +677,16 @@ impl OrganizationHierarchyService {
             updated_at: Set(Utc::now()),
         };
 
-        OrganizationAnalyticsRepository::create(db, new_analytics).await
+        let metric = OrganizationAnalyticsRepository::create(db, new_analytics).await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Analytics metric created successfully",
+            "organization_id" => organization_id,
+            "metric_id" => metric.id,
+            "metric_name" => &metric.metric_name
+        );
+
+        Ok(metric)
     }
 }

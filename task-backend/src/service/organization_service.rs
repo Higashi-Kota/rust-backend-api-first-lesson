@@ -6,6 +6,7 @@ use crate::domain::audit_log_model::{AuditAction, AuditResult};
 use crate::domain::organization_model::{Organization, OrganizationMember, OrganizationRole};
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
 use crate::repository::team_repository::TeamRepository;
@@ -14,7 +15,6 @@ use crate::service::audit_log_service::{AuditLogService, LogActionParams};
 use crate::types::Timestamp;
 use serde_json;
 use std::sync::Arc;
-use tracing::warn;
 use uuid::Uuid;
 
 pub struct OrganizationService {
@@ -593,7 +593,11 @@ impl OrganizationService {
         };
 
         if let Err(e) = self.audit_log_service.log_action(log_params).await {
-            warn!("Failed to log organization member role change: {}", e);
+            log_with_context!(
+                tracing::Level::WARN,
+                "Failed to log organization member role change",
+                "error" => &e.to_string()
+            );
         }
 
         self.build_organization_member_response(&updated_member)

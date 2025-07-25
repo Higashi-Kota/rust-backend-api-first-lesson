@@ -1,8 +1,8 @@
 use crate::domain::feature_usage_metrics_model::{FeatureUsageInput, Model as FeatureUsageMetric};
 use crate::error::AppResult;
+use crate::log_with_context;
 use crate::repository::feature_usage_metrics_repository::FeatureUsageMetricsRepository;
 use std::sync::Arc;
-use tracing::info;
 use uuid::Uuid;
 
 /// 機能使用状況追跡サービス
@@ -23,6 +23,13 @@ impl FeatureTrackingService {
         action_type: &str,
         metadata: Option<serde_json::Value>,
     ) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Tracking feature usage",
+            "user_id" => user_id,
+            "feature_name" => feature_name,
+            "action_type" => action_type
+        );
         let input = FeatureUsageInput {
             feature_name: feature_name.to_string(),
             action_type: action_type.to_string(),
@@ -31,11 +38,12 @@ impl FeatureTrackingService {
 
         self.feature_usage_repo.create(user_id, input).await?;
 
-        info!(
-            user_id = %user_id,
-            feature_name = feature_name,
-            action_type = action_type,
-            "Feature usage tracked"
+        log_with_context!(
+            tracing::Level::INFO,
+            "Feature usage tracked successfully",
+            "user_id" => user_id,
+            "feature_name" => feature_name,
+            "action_type" => action_type
         );
 
         Ok(())
@@ -47,6 +55,12 @@ impl FeatureTrackingService {
         user_id: Uuid,
         days: i64,
     ) -> AppResult<Vec<FeatureUsageMetric>> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting user feature usage",
+            "user_id" => user_id,
+            "days" => days
+        );
         let start_date = chrono::Utc::now() - chrono::Duration::days(days);
         let end_date = chrono::Utc::now();
 
