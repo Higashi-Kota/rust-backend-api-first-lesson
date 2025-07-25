@@ -1716,6 +1716,9 @@ async fn permission_health_check_handler() -> &'static str {
 
 /// 権限管理ルーターを作成
 pub fn permission_router(app_state: AppState) -> Router {
+    use crate::middleware::authorization::{resources, Action};
+    use crate::require_permission;
+
     Router::new()
         // 権限チェックエンドポイント
         .route("/permissions/check", post(check_permission_handler))
@@ -1740,12 +1743,21 @@ pub fn permission_router(app_state: AppState) -> Router {
         )
         .route(
             "/admin/permissions/audit",
-            get(get_system_permission_audit_handler),
+            get(get_system_permission_audit_handler)
+                .route_layer(require_permission!(resources::ROLE, Action::Admin)),
         )
         // 機能アクセスエンドポイント
         .route("/features/available", get(get_feature_access_handler))
-        .route("/features/admin", get(get_admin_features_handler))
-        .route("/features/analytics", get(get_analytics_features_handler))
+        .route(
+            "/features/admin",
+            get(get_admin_features_handler)
+                .route_layer(require_permission!(resources::ROLE, Action::Admin)),
+        )
+        .route(
+            "/features/analytics",
+            get(get_analytics_features_handler)
+                .route_layer(require_permission!(resources::ANALYTICS, Action::View)),
+        )
         // NEW: Dead code utilization endpoints
         .route(
             "/permissions/denial-check",

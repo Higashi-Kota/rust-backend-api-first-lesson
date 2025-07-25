@@ -8,6 +8,8 @@ use crate::api::dto::gdpr_dto::{
 use crate::api::AppState;
 use crate::error::AppResult;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::middleware::authorization::{resources, Action};
+use crate::require_permission;
 use crate::service::gdpr_service::GdprService;
 use crate::types::ApiResponse;
 use axum::{
@@ -223,11 +225,13 @@ pub fn gdpr_router(app_state: AppState) -> Router {
         // Admin endpoints
         .route(
             "/admin/gdpr/users/{user_id}/export",
-            post(admin_export_user_data_handler),
+            post(admin_export_user_data_handler)
+                .route_layer(require_permission!(resources::GDPR, Action::Admin)),
         )
         .route(
             "/admin/gdpr/users/{user_id}/delete",
-            delete(admin_delete_user_data_handler),
+            delete(admin_delete_user_data_handler)
+                .route_layer(require_permission!(resources::GDPR, Action::Admin)),
         )
         .with_state(app_state)
 }

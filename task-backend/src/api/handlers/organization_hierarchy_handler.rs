@@ -437,7 +437,7 @@ pub async fn create_analytics_metric(
 }
 
 // ルーター設定
-pub fn organization_hierarchy_router() -> axum::Router<crate::api::AppState> {
+pub fn organization_hierarchy_router(app_state: crate::api::AppState) -> axum::Router {
     use axum::routing::{delete, get, post, put};
 
     axum::Router::new()
@@ -482,6 +482,7 @@ pub fn organization_hierarchy_router() -> axum::Router<crate::api::AppState> {
             "/organizations/{organization_id}/data-export",
             post(export_organization_data),
         )
+        .with_state(app_state)
 }
 
 /// 部門のフラットリストから階層構造を構築するヘルパー関数

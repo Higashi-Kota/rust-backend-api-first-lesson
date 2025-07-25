@@ -18,6 +18,7 @@ pub struct TestUser {
     pub email: String,
     pub username: String,
     pub access_token: String,
+    pub token: String, // Alias for access_token to match test expectations
     pub refresh_token: Option<String>,
 }
 
@@ -73,9 +74,10 @@ pub async fn signup_test_user(
     Ok(TestUser {
         id: user_id,
         user_id,
-        email: signup_data.email,
-        username: signup_data.username,
-        access_token,
+        email: signup_data.email.clone(),
+        username: signup_data.username.clone(),
+        access_token: access_token.clone(),
+        token: access_token,
         refresh_token,
     })
 }
@@ -111,15 +113,19 @@ pub async fn signin_test_user(
         .as_str()
         .map(|s| s.to_string());
 
+    let username = response["data"]["user"]["username"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let email = signin_data.identifier.clone();
+
     Ok(TestUser {
         id: user_id,
         user_id,
-        email: signin_data.identifier.clone(),
-        username: response["data"]["user"]["username"]
-            .as_str()
-            .unwrap()
-            .to_string(),
-        access_token,
+        email: email.clone(),
+        username: username.clone(),
+        access_token: access_token.clone(),
+        token: access_token,
         refresh_token,
     })
 }
@@ -196,12 +202,16 @@ pub async fn refresh_token(app: &Router, refresh_token: &str) -> Result<TestUser
         .as_str()
         .map(|s| s.to_string());
 
+    let email = data["user"]["email"].as_str().unwrap().to_string();
+    let username = data["user"]["username"].as_str().unwrap().to_string();
+
     Ok(TestUser {
         id: user_id,
         user_id,
-        email: data["user"]["email"].as_str().unwrap().to_string(),
-        username: data["user"]["username"].as_str().unwrap().to_string(),
-        access_token,
+        email: email.clone(),
+        username: username.clone(),
+        access_token: access_token.clone(),
+        token: access_token,
         refresh_token: new_refresh_token,
     })
 }
@@ -261,6 +271,22 @@ pub async fn create_member_with_jwt(app: &Router) -> String {
     member_user.access_token
 }
 
+/// 管理者ユーザーとして認証されたTestUserを返す
+pub async fn get_admin_user(app: &Router) -> TestUser {
+    // 初期管理者でログイン
+    let signin_req = SigninRequest {
+        identifier: "admin@example.com".to_string(),
+        password: "Adm1n$ecurE2024!".to_string(),
+    };
+
+    match signin_test_user(app, signin_req).await {
+        Ok(admin_user) => admin_user,
+        Err(e) => {
+            panic!("Failed to login admin user: {}", e);
+        }
+    }
+}
+
 /// テスト用のメンバーユーザーを作成して認証済みユーザー情報を返す
 pub async fn create_and_authenticate_member(app: &Router) -> TestUser {
     let member_signup = create_test_user_data();
@@ -309,4 +335,19 @@ pub async fn authenticate_as_admin(app: &Router) -> TestUser {
     signin_test_user(app, signin_req)
         .await
         .expect("Failed to authenticate as admin")
+}
+
+/// 特定の認証情報でユーザーを作成するヘルパー（テスト用）
+pub async fn create_user_with_credentials(
+    app: &Router,
+    email: &str,
+    username: &str,
+    password: &str,
+) -> Result<TestUser, String> {
+    let signup_data = SignupRequest {
+        email: email.to_string(),
+        username: username.to_string(),
+        password: password.to_string(),
+    };
+    signup_test_user(app, signup_data).await
 }

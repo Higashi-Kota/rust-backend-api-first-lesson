@@ -7,14 +7,16 @@ use crate::api::AppState;
 use crate::domain::{daily_activity_summary_model, subscription_tier::SubscriptionTier};
 use crate::error::AppResult;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
+use crate::middleware::authorization::{resources, Action};
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     daily_activity_summary_repository::DailyActivitySummaryRepository,
     subscription_history_repository::SubscriptionHistoryRepository,
 };
+use crate::require_permission;
 use crate::types::ApiResponse;
 use crate::types::Timestamp;
-use crate::utils::error_helper::convert_validation_errors;
+use crate::utils::error_helper::{convert_validation_errors, internal_server_error};
 use axum::{
     extract::{Json, Path, Query, State},
     routing::{get, post},
@@ -35,13 +37,9 @@ use validator::Validate;
 /// システム全体の統計を取得（管理者のみ）- 拡張版
 pub async fn get_system_analytics_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
-    // 管理者権限チェック（PermissionServiceを使用）
-    app_state
-        .permission_service
-        .check_admin_permission(admin_user.user_id())
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     // 各サービスから統計情報を収集
     let user_service = &app_state.user_service;
@@ -146,22 +144,10 @@ pub async fn get_system_analytics_handler(
 /// システム全体の統計を取得（管理者のみ）
 pub async fn get_system_stats_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<ApiResponse<SystemStatsResponse>> {
-    // 管理者権限チェック（PermissionServiceを使用）
-    if let Err(e) = app_state
-        .permission_service
-        .check_admin_permission(admin_user.user_id())
-        .await
-    {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for system stats"
-        );
-        return Err(e);
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     // バリデーション
     query
@@ -172,7 +158,7 @@ pub async fn get_system_stats_handler(
     let include_trends = query.include_trends.unwrap_or(false);
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         days = %days,
         include_trends = %include_trends,
         "System stats requested"
@@ -390,7 +376,7 @@ pub async fn get_system_stats_handler(
     };
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         total_users = %stats.overview.total_users,
         active_users = %stats.overview.active_users_last_30_days,
         "System stats generated"
@@ -499,23 +485,11 @@ pub async fn get_user_activity_handler(
 /// 管理者用ユーザーアクティビティ統計を取得
 pub async fn get_user_activity_admin_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
     Path(target_user_id): Path<Uuid>,
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<ApiResponse<UserActivityResponse>> {
-    // 管理者権限チェック（PermissionServiceを使用）
-    if let Err(e) = app_state
-        .permission_service
-        .check_admin_permission(admin_user.user_id())
-        .await
-    {
-        warn!(
-            user_id = %admin_user.user_id(),
-            target_user_id = %target_user_id,
-            "Access denied: Admin permission required for user activity stats"
-        );
-        return Err(e);
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     // バリデーション
     query.validate().map_err(|e| {
@@ -527,7 +501,7 @@ pub async fn get_user_activity_admin_handler(
     let period_start = period_end - Duration::days(days as i64);
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         target_user_id = %target_user_id,
         days = %days,
         "Admin user activity stats requested"
@@ -591,7 +565,7 @@ pub async fn get_user_activity_admin_handler(
     };
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         target_user_id = %target_user_id,
         total_tasks_created = %response.summary.total_tasks_created,
         completion_rate = %response.summary.completion_rate_percentage,
@@ -681,11 +655,7 @@ pub async fn get_task_stats_handler(
         .unwrap_or_else(|_| generate_mock_task_trends());
 
     // 管理者権限をチェックして詳細情報を含めるか決定
-    let has_admin_permission = app_state
-        .permission_service
-        .check_admin_permission(user.claims.user_id)
-        .await
-        .is_ok();
+    let has_admin_permission = user.claims.is_admin();
 
     let user_performance = if detailed && has_admin_permission {
         Some(
@@ -1078,28 +1048,80 @@ pub async fn advanced_export_handler(
     Ok(ApiResponse::success(export_result.item))
 }
 
+/// サブスクリプションティアに基づいたアナリティクス機能の制限チェック
+pub async fn check_analytics_access_by_tier(
+    State(_app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<ApiResponse<AnalyticsAccessInfo>> {
+    info!(
+        user_id = %user.user_id(),
+        subscription_tier = %user.subscription_tier(),
+        "Checking analytics access by subscription tier"
+    );
+
+    // subscription_tierメソッドを使用してティアを取得
+    let tier_str = user.subscription_tier();
+    let tier = SubscriptionTier::from_str(&tier_str).unwrap_or(SubscriptionTier::Free);
+
+    // ティアに基づいたアクセス権限を決定
+    let access_info = match tier {
+        SubscriptionTier::Free => AnalyticsAccessInfo {
+            user_id: user.user_id(),
+            subscription_tier: tier,
+            can_access_basic_analytics: true,
+            can_access_advanced_analytics: false,
+            can_export_data: false,
+            max_date_range_days: 7,
+            available_export_formats: vec![],
+            rate_limit_per_hour: 10,
+        },
+        SubscriptionTier::Pro => AnalyticsAccessInfo {
+            user_id: user.user_id(),
+            subscription_tier: tier,
+            can_access_basic_analytics: true,
+            can_access_advanced_analytics: true,
+            can_export_data: true,
+            max_date_range_days: 90,
+            available_export_formats: vec!["csv".to_string(), "json".to_string()],
+            rate_limit_per_hour: 100,
+        },
+        SubscriptionTier::Enterprise => AnalyticsAccessInfo {
+            user_id: user.user_id(),
+            subscription_tier: tier,
+            can_access_basic_analytics: true,
+            can_access_advanced_analytics: true,
+            can_export_data: true,
+            max_date_range_days: 365,
+            available_export_formats: vec![
+                "csv".to_string(),
+                "json".to_string(),
+                "excel".to_string(),
+                "pdf".to_string(),
+            ],
+            rate_limit_per_hour: 1000,
+        },
+    };
+
+    info!(
+        user_id = %user.user_id(),
+        tier = ?tier,
+        can_access_advanced = %access_info.can_access_advanced_analytics,
+        "Analytics access determined by subscription tier"
+    );
+
+    Ok(ApiResponse::success(access_info))
+}
+
 /// 日次活動サマリー更新ハンドラー（管理者のみ）
 pub async fn update_daily_summary_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<()>> {
-    // 管理者権限チェック（PermissionServiceを使用）
-    if let Err(e) = app_state
-        .permission_service
-        .check_admin_permission(admin_user.user_id())
-        .await
-    {
-        warn!(
-            user_id = %admin_user.user_id(),
-            role = ?admin_user.role().map(|r| &r.name),
-            "Access denied: Admin permission required for daily summary update"
-        );
-        return Err(e);
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     let today = Utc::now().date_naive();
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         date = %today,
         "Updating daily activity summary"
     );
@@ -1159,6 +1181,76 @@ pub async fn update_daily_summary_handler(
     );
 
     Ok(ApiResponse::success(()))
+}
+
+/// 高度な分析エンドポイント（プレミアム機能）
+pub async fn get_advanced_analytics_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Query(query): Query<StatsPeriodQuery>,
+) -> AppResult<ApiResponse<serde_json::Value>> {
+    // Freeティアユーザーはアクセス不可
+    let user_data = app_state
+        .user_service
+        .get_user_by_id(user.user_id())
+        .await
+        .map_err(|e| {
+            internal_server_error(
+                e,
+                "analytics_handler::get_advanced_analytics",
+                "Failed to fetch user",
+            )
+        })?;
+
+    let user_tier =
+        SubscriptionTier::from_str(&user_data.subscription_tier).unwrap_or(SubscriptionTier::Free);
+
+    if user_tier == SubscriptionTier::Free {
+        return Err(crate::error::AppError::Forbidden(
+            "Advanced analytics is a premium feature. Please upgrade your subscription to access this feature.".to_string(),
+        ));
+    }
+
+    let days = query.days.unwrap_or(30);
+
+    info!(
+        user_id = %user.user_id(),
+        days = %days,
+        "Advanced analytics requested"
+    );
+
+    // 高度な分析データを生成
+    let advanced_stats = json!({
+        "trend_analysis": {
+            "productivity_trend": "increasing",
+            "completion_rate_trend": "stable",
+            "engagement_trend": "improving"
+        },
+        "predictive_insights": {
+            "estimated_monthly_tasks": 120,
+            "burnout_risk": "low",
+            "productivity_forecast": "high"
+        },
+        "team_comparisons": {
+            "vs_team_average": "+15%",
+            "performance_rank": 3,
+            "collaboration_score": 85
+        },
+        "ai_recommendations": [
+            {
+                "type": "workflow",
+                "suggestion": "Consider breaking down large tasks into smaller subtasks",
+                "impact": "20% faster completion"
+            },
+            {
+                "type": "timing",
+                "suggestion": "Your most productive hours are 9-11 AM",
+                "impact": "Focus on critical tasks during this time"
+            }
+        ]
+    });
+
+    Ok(ApiResponse::success(advanced_stats))
 }
 
 // --- Helper Functions ---
@@ -1708,19 +1800,15 @@ fn generate_mock_user_performance() -> Vec<UserTaskPerformance> {
 /// 機能使用状況統計取得（管理者のみ）
 pub async fn get_feature_usage_stats_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<ApiResponse<FeatureUsageStatsResponse>> {
-    // 管理者権限チェック（PermissionServiceを使用）
-    app_state
-        .permission_service
-        .check_admin_permission(admin_user.user_id())
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     let days = query.days.unwrap_or(30) as i64;
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         days = %days,
         "Admin getting feature usage stats"
     );
@@ -1801,20 +1889,16 @@ pub async fn get_feature_usage_stats_handler(
 /// ユーザーの機能使用状況取得（管理者のみ）
 pub async fn get_user_feature_usage_handler(
     State(app_state): State<AppState>,
-    admin_user: AuthenticatedUserWithRole,
+    _admin_user: AuthenticatedUserWithRole,
     Path(user_id): Path<Uuid>,
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<ApiResponse<UserFeatureUsageResponse>> {
-    // 管理者権限チェック（PermissionServiceを使用）
-    app_state
-        .permission_service
-        .check_admin_permission(admin_user.user_id())
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     let days = query.days.unwrap_or(30) as i64;
 
     info!(
-        admin_id = %admin_user.user_id(),
+        admin_id = %_admin_user.user_id(),
         target_user_id = %user_id,
         days = %days,
         "Admin getting user feature usage"
@@ -1966,10 +2050,15 @@ pub struct TrackFeatureUsageRequest {
 pub fn analytics_router(app_state: AppState) -> Router {
     Router::new()
         // システム統計（管理者のみ）
-        .route("/admin/analytics/system", get(get_system_analytics_handler))
+        .route(
+            "/admin/analytics/system",
+            get(get_system_analytics_handler)
+                .route_layer(require_permission!(resources::ANALYTICS, Action::Admin)),
+        )
         .route(
             "/admin/analytics/system/stats",
-            get(get_system_stats_handler),
+            get(get_system_stats_handler)
+                .route_layer(require_permission!(resources::ANALYTICS, Action::Admin)),
         )
         // ユーザー統計
         .route("/analytics/activity", get(get_user_activity_handler))
@@ -1977,7 +2066,8 @@ pub fn analytics_router(app_state: AppState) -> Router {
         // 管理者用ユーザー統計
         .route(
             "/admin/analytics/users/{id}/activity",
-            get(get_user_activity_admin_handler),
+            get(get_user_activity_admin_handler)
+                .route_layer(require_permission!(resources::ANALYTICS, Action::Admin)),
         )
         // User Analytics & Management APIs (新機能)
         .route(
@@ -1985,23 +2075,33 @@ pub fn analytics_router(app_state: AppState) -> Router {
             get(get_user_behavior_analytics_handler),
         )
         .route("/exports/advanced", post(advanced_export_handler))
+        // 高度な分析（プレミアム機能）
+        .route("/analytics/advanced", get(get_advanced_analytics_handler))
         // 日次活動サマリー更新（管理者のみ）
         .route(
             "/admin/analytics/daily-summary/update",
-            post(update_daily_summary_handler),
+            post(update_daily_summary_handler)
+                .route_layer(require_permission!(resources::ANALYTICS, Action::Admin)),
         )
         // Feature tracking endpoints
         .route(
             "/admin/analytics/features/usage",
-            get(get_feature_usage_stats_handler),
+            get(get_feature_usage_stats_handler)
+                .route_layer(require_permission!(resources::ANALYTICS, Action::Admin)),
         )
         .route(
             "/admin/analytics/users/{user_id}/features",
-            get(get_user_feature_usage_handler),
+            get(get_user_feature_usage_handler)
+                .route_layer(require_permission!(resources::ANALYTICS, Action::Admin)),
         )
         .route(
             "/analytics/track-feature",
             post(track_feature_usage_handler),
+        )
+        // サブスクリプションティアベースのアクセスチェック
+        .route(
+            "/analytics/check-access",
+            get(check_analytics_access_by_tier),
         )
         .with_state(app_state)
 }

@@ -74,6 +74,17 @@ mod m20250706_000004_enhance_login_attempts_tracking;
 mod m20250706_000005_create_session_analytics_summaries;
 mod m20250706_000006_create_task_analytics_summaries;
 
+// マルチテナント機能拡張マイグレーション
+mod m20250719_000001_add_multitenant_fields_to_tasks;
+mod m20250719_000002_add_organization_id_to_users;
+mod m20250719_000003_add_task_performance_indexes;
+
+// 監査ログマイグレーション
+mod m20250720_000001_create_audit_logs_table;
+
+// マルチテナント機能完全性のための追加インデックス
+mod m20250725_000001_add_multitenant_single_indexes;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -141,6 +152,14 @@ impl MigratorTrait for Migrator {
             Box::new(m20250706_000004_enhance_login_attempts_tracking::Migration),
             Box::new(m20250706_000005_create_session_analytics_summaries::Migration),
             Box::new(m20250706_000006_create_task_analytics_summaries::Migration),
+            // 21. マルチテナント機能拡張
+            Box::new(m20250719_000001_add_multitenant_fields_to_tasks::Migration),
+            Box::new(m20250719_000002_add_organization_id_to_users::Migration),
+            Box::new(m20250719_000003_add_task_performance_indexes::Migration),
+            // 22. 監査ログシステム
+            Box::new(m20250720_000001_create_audit_logs_table::Migration),
+            // 23. マルチテナント機能の単一カラムインデックス追加
+            Box::new(m20250725_000001_add_multitenant_single_indexes::Migration),
         ]
     }
 }

@@ -1,6 +1,7 @@
 // src/domain/mod.rs
 pub mod activity_log_model;
 pub mod attachment_share_link_model;
+pub mod audit_log_model;
 pub mod bulk_operation_history_model;
 pub mod daily_activity_summary_model;
 pub mod department_member_model;
@@ -24,6 +25,7 @@ pub mod subscription_tier;
 pub mod task_attachment_model;
 pub mod task_model;
 pub mod task_status;
+pub mod task_visibility;
 pub mod team_invitation_model;
 pub mod team_member_model;
 pub mod team_model;

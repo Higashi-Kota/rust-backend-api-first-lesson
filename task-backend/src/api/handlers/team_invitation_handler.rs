@@ -212,14 +212,10 @@ pub async fn get_invitation_statistics(
 
 pub async fn cleanup_expired_invitations(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
 ) -> AppResult<ApiResponse<Vec<TeamInvitationResponse>>> {
     let service = &app_state.team_invitation_service;
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only administrators can cleanup expired invitations".to_string(),
-        ));
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     let expired_invitations = service.mark_expired_invitations().await?;
     let responses: Vec<TeamInvitationResponse> = expired_invitations
@@ -247,15 +243,11 @@ pub async fn get_invitations_by_creator(
 
 pub async fn delete_old_invitations(
     State(app_state): State<crate::api::AppState>,
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
     let service = &app_state.team_invitation_service;
-    if !user.is_admin() {
-        return Err(AppError::Forbidden(
-            "Only administrators can delete old invitations".to_string(),
-        ));
-    }
+    // 権限チェックはミドルウェアで実施済み
 
     let days = params
         .get("days")

@@ -1,5 +1,6 @@
 use crate::api::dto::common::PaginationQuery;
 use crate::domain::task_status::TaskStatus;
+use crate::domain::task_visibility::TaskVisibility;
 use crate::types::{optional_timestamp, SortQuery};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -24,6 +25,12 @@ pub struct TaskSearchQuery {
     pub created_after: Option<DateTime<Utc>>,
     #[serde(default, with = "optional_timestamp")]
     pub created_before: Option<DateTime<Utc>>,
+
+    // マルチテナント対応フィルタ
+    pub visibility: Option<TaskVisibility>,
+    pub team_id: Option<Uuid>,
+    pub organization_id: Option<Uuid>,
+    pub include_assigned: Option<bool>, // 自分に割り当てられたタスクも含むか
 }
 
 impl TaskSearchQuery {
@@ -36,6 +43,8 @@ impl TaskSearchQuery {
             "due_date",
             "priority",
             "status",
+            "visibility",
+            "assigned_to",
         ]
     }
 }

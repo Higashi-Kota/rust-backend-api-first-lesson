@@ -390,9 +390,9 @@ async fn test_team_member_invitation_with_limits() {
     let team: serde_json::Value = serde_json::from_slice(&body).unwrap();
     let team_id = team["data"]["id"].as_str().unwrap();
 
-    // Act - Freeティアは3メンバーまで（オーナー含む）
-    // すでにオーナーが1人いるので、2人まで招待可能
-    for _i in 1..=2 {
+    // Act - Freeティアは5メンバーまで（オーナー含む）
+    // すでにオーナーが1人いるので、4人まで招待可能
+    for _i in 1..=4 {
         let member = create_and_authenticate_user(&app).await;
         let invite_request = json!({
             "user_id": member.id,
@@ -413,10 +413,10 @@ async fn test_team_member_invitation_with_limits() {
         assert_eq!(response.status(), StatusCode::CREATED);
     }
 
-    // 3人目の招待は失敗
-    let member3 = create_and_authenticate_user(&app).await;
-    let invite_request3 = json!({
-        "user_id": member3.id,
+    // 5人目の招待は失敗
+    let member5 = create_and_authenticate_user(&app).await;
+    let invite_request5 = json!({
+        "user_id": member5.id,
         "role": "Member"
     });
 
@@ -426,7 +426,7 @@ async fn test_team_member_invitation_with_limits() {
             "POST",
             &format!("/teams/{}/members", team_id),
             &owner.access_token,
-            &invite_request3,
+            &invite_request5,
         ))
         .await
         .unwrap();
@@ -439,7 +439,7 @@ async fn test_team_member_invitation_with_limits() {
 
     if status != StatusCode::FORBIDDEN {
         eprintln!(
-            "Response for 3rd member: status={}, body={:?}",
+            "Response for 5th member: status={}, body={:?}",
             status, error
         );
     }

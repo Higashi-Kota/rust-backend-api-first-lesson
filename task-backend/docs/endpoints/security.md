@@ -148,9 +148,105 @@ curl -X GET "http://localhost:5000/admin/security/password-resets?days=7&include
 }
 ```
 
+## アクティビティログ監視
+
+### 5. ユーザー自身のアクティビティログ取得 (GET /activity-logs/me)
+
+ユーザー自身のアクティビティログを取得します。
+
+**リクエスト例:**
+```bash
+curl -X GET "http://localhost:5000/activity-logs/me?page=1&per_page=20" \
+  -H "Authorization: Bearer <access_token>"
+```
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "logs": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "user_id": "550e8400-e29b-41d4-a716-446655440100",
+      "action": "create_task",
+      "resource_type": "task",
+      "resource_id": "550e8400-e29b-41d4-a716-446655440200",
+      "ip_address": "192.168.1.100",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0",
+      "details": null,
+      "created_at": "2025-07-19T10:30:00Z"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440002",
+      "user_id": "550e8400-e29b-41d4-a716-446655440100",
+      "action": "update_task",
+      "resource_type": "task",
+      "resource_id": "550e8400-e29b-41d4-a716-446655440200",
+      "ip_address": "192.168.1.100",
+      "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126.0",
+      "details": {
+        "fields_updated": ["title", "description"]
+      },
+      "created_at": "2025-07-19T10:35:00Z"
+    }
+  ],
+  "total": 245,
+  "page": 1,
+  "per_page": 20
+}
+```
+
+### 6. 全ユーザーのアクティビティログ取得 (GET /admin/activity-logs)
+
+管理者用：全ユーザーのアクティビティログを取得します。
+
+**リクエスト例:**
+```bash
+# 基本的な取得
+curl -X GET "http://localhost:5000/admin/activity-logs?page=1&per_page=50" \
+  -H "Authorization: Bearer <admin_access_token>"
+
+# フィルタリング付き
+curl -X GET "http://localhost:5000/admin/activity-logs?user_id=550e8400-e29b-41d4-a716-446655440100&resource_type=task&action=create_task&from=2025-07-19T00:00:00Z&to=2025-07-19T23:59:59Z" \
+  -H "Authorization: Bearer <admin_access_token>"
+```
+
+**クエリパラメータ:**
+- `user_id` (optional): 特定ユーザーのログのみフィルタ
+- `resource_type` (optional): リソースタイプでフィルタ（task, team, organization等）
+- `action` (optional): アクションでフィルタ（create, update, delete等）
+- `from` (optional): 開始日時（ISO 8601形式）
+- `to` (optional): 終了日時（ISO 8601形式）
+- `page` (optional): ページ番号（デフォルト: 1）
+- `per_page` (optional): ページあたりの件数（デフォルト: 20、最大: 100）
+
+**レスポンス例 (200 OK):**
+```json
+{
+  "logs": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440003",
+      "user_id": "550e8400-e29b-41d4-a716-446655440300",
+      "action": "create_team",
+      "resource_type": "team",
+      "resource_id": "550e8400-e29b-41d4-a716-446655440400",
+      "ip_address": "10.0.0.5",
+      "user_agent": "TaskBackend Mobile App v2.1.0",
+      "details": {
+        "team_name": "Engineering Team",
+        "member_count": 5
+      },
+      "created_at": "2025-07-19T09:00:00Z"
+    }
+  ],
+  "total": 15420,
+  "page": 1,
+  "per_page": 50
+}
+```
+
 ## セッション・アクセス管理
 
-### 5. 全トークン取り消し (POST /admin/security/revoke-all-tokens)
+### 7. 全トークン取り消し (POST /admin/security/revoke-all-tokens)
 
 特定ユーザーまたは全ユーザーのトークンを取り消します。
 
@@ -177,7 +273,7 @@ curl -X POST http://localhost:5000/admin/security/revoke-all-tokens \
   }'
 ```
 
-### 6. セッション分析 (GET /admin/security/session-analytics)
+### 8. セッション分析 (GET /admin/security/session-analytics)
 
 ユーザーセッションの詳細分析データを取得します。
 
@@ -227,7 +323,7 @@ curl -X GET "http://localhost:5000/admin/security/session-analytics?period=7d&in
 
 ## セキュリティ監査・レポート
 
-### 7. セキュリティ監査レポート生成 (POST /admin/security/audit-report)
+### 9. セキュリティ監査レポート生成 (POST /admin/security/audit-report)
 
 包括的なセキュリティ監査レポートを生成します。
 

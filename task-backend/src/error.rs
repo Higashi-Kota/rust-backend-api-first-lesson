@@ -45,6 +45,10 @@ pub enum AppError {
 
     #[error("External service error: {0}")]
     ExternalServiceError(String),
+
+    #[error("Too many requests: {0}")]
+    #[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
+    TooManyRequests(String),
 }
 
 // axum でエラーをHTTPレスポンスに変換するための実装
@@ -74,6 +78,7 @@ impl IntoResponse for AppError {
                 eprintln!("External service error: {}", message);
                 StatusCode::SERVICE_UNAVAILABLE
             }
+            AppError::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
         };
 
         let error_response = ApiResponse::<()>::error(self);
@@ -168,6 +173,11 @@ impl AppError {
             AppError::Validation(err) => ErrorDetail {
                 code: "VALIDATION_ERROR".to_string(),
                 message: err.to_string(),
+                field: None,
+            },
+            AppError::TooManyRequests(msg) => ErrorDetail {
+                code: "TOO_MANY_REQUESTS".to_string(),
+                message: msg.clone(),
                 field: None,
             },
         }

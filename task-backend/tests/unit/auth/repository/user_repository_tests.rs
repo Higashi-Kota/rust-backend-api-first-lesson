@@ -42,6 +42,7 @@ async fn test_user_model_creation_and_validation() {
         created_at: Set(Utc::now()),
         updated_at: Set(Utc::now()),
         stripe_customer_id: Set(None),
+        organization_id: Set(None),
     };
 
     // Assert: モデルのフィールドを確認
@@ -103,6 +104,7 @@ async fn test_safe_user_conversion() {
         created_at: Utc::now(),
         updated_at: Utc::now(),
         stripe_customer_id: None,
+        organization_id: None,
     };
 
     // Act: SafeUserに変換

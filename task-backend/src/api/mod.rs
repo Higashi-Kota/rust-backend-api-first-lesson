@@ -1,19 +1,20 @@
 // task-backend/src/api/mod.rs
 use crate::config::AppConfig;
 use crate::repository::{
+    activity_log_repository::ActivityLogRepository,
     bulk_operation_history_repository::BulkOperationHistoryRepository,
     daily_activity_summary_repository::DailyActivitySummaryRepository,
     feature_usage_metrics_repository::FeatureUsageMetricsRepository,
     subscription_history_repository::SubscriptionHistoryRepository,
 };
 use crate::service::{
-    attachment_service::AttachmentService, auth_service::AuthService,
-    feature_tracking_service::FeatureTrackingService, organization_service::OrganizationService,
-    payment_service::PaymentService, permission_service::PermissionService,
-    role_service::RoleService, security_service::SecurityService,
-    subscription_service::SubscriptionService, task_service::TaskService,
-    team_invitation_service::TeamInvitationService, team_service::TeamService,
-    user_service::UserService,
+    attachment_service::AttachmentService, audit_log_service::AuditLogService,
+    auth_service::AuthService, feature_tracking_service::FeatureTrackingService,
+    organization_service::OrganizationService, payment_service::PaymentService,
+    permission_service::PermissionService, role_service::RoleService,
+    security_service::SecurityService, subscription_service::SubscriptionService,
+    task_service::TaskService, team_invitation_service::TeamInvitationService,
+    team_service::TeamService, user_service::UserService,
 };
 use crate::utils::jwt::JwtManager;
 use sea_orm::DatabaseConnection;
@@ -42,6 +43,8 @@ pub struct AppState {
     pub permission_service: Arc<PermissionService>,
     pub security_service: Arc<SecurityService>,
     pub attachment_service: Arc<AttachmentService>,
+    pub audit_log_service: Arc<AuditLogService>,
+    pub activity_log_repo: Arc<ActivityLogRepository>,
     pub jwt_manager: Arc<JwtManager>,
     pub db: Arc<DatabaseConnection>,
     pub db_pool: Arc<DatabaseConnection>,
@@ -126,6 +129,8 @@ impl AppState {
         permission_service: Arc<PermissionService>,
         security_service: Arc<SecurityService>,
         attachment_service: Arc<AttachmentService>,
+        audit_log_service: Arc<AuditLogService>,
+        activity_log_repo: Arc<ActivityLogRepository>,
         jwt_manager: Arc<JwtManager>,
         db_pool: Arc<DatabaseConnection>,
         app_config: &AppConfig,
@@ -150,6 +155,8 @@ impl AppState {
             permission_service,
             security_service,
             attachment_service,
+            audit_log_service,
+            activity_log_repo,
             jwt_manager,
             db: db_pool.clone(),
             db_pool,

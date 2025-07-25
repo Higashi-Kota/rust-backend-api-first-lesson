@@ -1,11 +1,17 @@
 use task_backend::domain::task_status::TaskStatus;
 // tests/unit/repository_tests.rs
 use chrono::Utc;
+use sea_orm::{EntityTrait, Set};
 use task_backend::{
     api::dto::task_dto::{BatchUpdateTaskItemDto, CreateTaskDto, UpdateTaskDto},
     api::dto::task_query_dto::TaskSearchQuery,
+    domain::{
+        role_model::{ActiveModel as RoleActiveModel, Entity as RoleEntity},
+        user_model::{ActiveModel as UserActiveModel, Entity as UserEntity},
+    },
     repository::task_repository::TaskRepository,
 };
+use uuid::{self, Uuid};
 
 use crate::common;
 
@@ -14,6 +20,50 @@ async fn setup_test_repository() -> (common::db::TestDatabase, TaskRepository) {
     let db = common::db::TestDatabase::new().await;
     let repo = TaskRepository::new(db.connection.clone());
     (db, repo)
+}
+
+// テスト用ユーザーを作成するヘルパー関数
+async fn create_test_user(db: &common::db::TestDatabase) -> Uuid {
+    let user_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    // 基本的なロールレコードを挿入
+    let role_model = RoleActiveModel {
+        id: Set(role_id),
+        name: Set("test_role".to_string()),
+        display_name: Set("Test Role".to_string()),
+        description: Set(Some("Test role for unit tests".to_string())),
+        is_active: Set(true),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+    };
+    RoleEntity::insert(role_model)
+        .exec(&db.connection)
+        .await
+        .unwrap();
+
+    // ユーザーレコードを挿入
+    let user_model = UserActiveModel {
+        id: Set(user_id),
+        username: Set(format!("testuser_{}", user_id)),
+        email: Set(format!("test_{}@example.com", user_id)),
+        password_hash: Set("test_hash".to_string()),
+        email_verified: Set(true),
+        is_active: Set(true),
+        role_id: Set(role_id),
+        organization_id: Set(None),
+        subscription_tier: Set("free".to_string()),
+        stripe_customer_id: Set(None),
+        last_login_at: Set(None),
+        created_at: Set(chrono::Utc::now()),
+        updated_at: Set(chrono::Utc::now()),
+    };
+    UserEntity::insert(user_model)
+        .exec(&db.connection)
+        .await
+        .unwrap();
+
+    user_id
 }
 
 #[tokio::test]
@@ -120,8 +170,9 @@ async fn test_delete_task() {
 }
 
 #[tokio::test]
-async fn test_find_with_filter() {
-    let (_db, repo) = setup_test_repository().await;
+async fn test_find_with_filter_for_user() {
+    let (db, repo) = setup_test_repository().await;
+    let test_user_id = create_test_user(&db).await;
 
     // テスト用タスクをいくつか作成
     let task1 = CreateTaskDto {
@@ -148,9 +199,9 @@ async fn test_find_with_filter() {
         due_date: Some(Utc::now() + chrono::Duration::days(3)),
     };
 
-    repo.create(task1).await.unwrap();
-    repo.create(task2).await.unwrap();
-    repo.create(task3).await.unwrap();
+    repo.create_for_user(test_user_id, task1).await.unwrap();
+    repo.create_for_user(test_user_id, task2).await.unwrap();
+    repo.create_for_user(test_user_id, task3).await.unwrap();
 
     // ステータスでフィルタリング
     let filter = TaskSearchQuery {
@@ -158,7 +209,10 @@ async fn test_find_with_filter() {
         ..Default::default()
     };
 
-    let (filtered_tasks, count) = repo.find_with_filter(&filter).await.unwrap();
+    let (filtered_tasks, count) = repo
+        .find_with_filter_for_user(test_user_id, &filter)
+        .await
+        .unwrap();
 
     // "todo"ステータスのタスクが2つあることを確認
     assert_eq!(filtered_tasks.len(), 2);
@@ -170,7 +224,10 @@ async fn test_find_with_filter() {
         ..Default::default()
     };
 
-    let (filtered_tasks, count) = repo.find_with_filter(&filter).await.unwrap();
+    let (filtered_tasks, count) = repo
+        .find_with_filter_for_user(test_user_id, &filter)
+        .await
+        .unwrap();
 
     // "Important"を含むタスクが2つあることを確認
     assert_eq!(filtered_tasks.len(), 2);
@@ -183,7 +240,10 @@ async fn test_find_with_filter() {
         ..Default::default()
     };
 
-    let (filtered_tasks, count) = repo.find_with_filter(&filter).await.unwrap();
+    let (filtered_tasks, count) = repo
+        .find_with_filter_for_user(test_user_id, &filter)
+        .await
+        .unwrap();
 
     // "todo"ステータスで"Important"を含むタスクが2つあることを確認
     assert_eq!(filtered_tasks.len(), 2);
@@ -196,7 +256,10 @@ async fn test_find_with_filter() {
         ..Default::default()
     };
 
-    let (filtered_tasks, _) = repo.find_with_filter(&filter).await.unwrap();
+    let (filtered_tasks, _) = repo
+        .find_with_filter_for_user(test_user_id, &filter)
+        .await
+        .unwrap();
 
     // 一致するタスクがないことを確認
     assert!(filtered_tasks.is_empty());

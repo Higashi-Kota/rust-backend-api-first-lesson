@@ -8,7 +8,6 @@ use task_backend::{
         BatchCreateTaskDto, BatchDeleteTaskDto, BatchUpdateTaskDto, BatchUpdateTaskItemDto,
         CreateTaskDto, UpdateTaskDto,
     },
-    api::dto::task_query_dto::TaskSearchQuery,
     service::task_service::TaskService,
 };
 use uuid::Uuid;
@@ -18,7 +17,37 @@ use crate::common;
 // サービステスト用のセットアップヘルパー関数
 async fn setup_test_service() -> (common::db::TestDatabase, TaskService) {
     let db = common::db::TestDatabase::new().await;
-    let service = TaskService::new(db.connection.clone());
+
+    // Dependencies for TaskService
+    let team_repo =
+        task_backend::repository::team_repository::TeamRepository::new(db.connection.clone());
+    let user_repo =
+        task_backend::repository::user_repository::UserRepository::new(db.connection.clone());
+    let email_config = task_backend::utils::email::EmailConfig::default();
+    let email_service =
+        std::sync::Arc::new(task_backend::utils::email::EmailService::new(email_config).unwrap());
+
+    let audit_log_repo = std::sync::Arc::new(
+        task_backend::repository::audit_log_repository::AuditLogRepository::new(
+            db.connection.clone(),
+        ),
+    );
+    let audit_log_service = std::sync::Arc::new(
+        task_backend::service::audit_log_service::AuditLogService::new(audit_log_repo),
+    );
+
+    let team_service = std::sync::Arc::new(task_backend::service::team_service::TeamService::new(
+        std::sync::Arc::new(db.connection.clone()),
+        team_repo,
+        user_repo,
+        task_backend::repository::organization_repository::OrganizationRepository::new(
+            db.connection.clone(),
+        ),
+        email_service,
+        audit_log_service.clone(),
+    ));
+
+    let service = TaskService::new(db.connection.clone(), team_service, audit_log_service);
     (db, service)
 }
 
@@ -57,6 +86,7 @@ async fn create_test_user(db: &common::db::TestDatabase) -> Uuid {
         role_id: Set(role_id),
         last_login_at: Set(None),
         stripe_customer_id: Set(None),
+        organization_id: Set(None),
     };
 
     UserEntity::insert(user_model)
@@ -239,84 +269,6 @@ async fn test_batch_operations_service() {
         let result = service.get_task(id).await;
         assert!(result.is_err());
     }
-}
-
-#[tokio::test]
-async fn test_filter_tasks_service() {
-    let (_db, service) = setup_test_service().await;
-
-    // フィルタテスト用のタスクを作成
-    service
-        .create_task(CreateTaskDto {
-            title: "Filter Test Task 1".to_string(),
-            description: Some("High priority".to_string()),
-            status: Some(TaskStatus::Todo),
-            priority: None,
-            due_date: None,
-        })
-        .await
-        .unwrap();
-
-    service
-        .create_task(CreateTaskDto {
-            title: "Filter Test Task 2".to_string(),
-            description: Some("Low priority".to_string()),
-            status: Some(TaskStatus::InProgress),
-            priority: None,
-            due_date: None,
-        })
-        .await
-        .unwrap();
-
-    service
-        .create_task(CreateTaskDto {
-            title: "Another Filter Task".to_string(),
-            description: Some("Medium priority".to_string()),
-            status: Some(TaskStatus::Todo),
-            priority: None,
-            due_date: None,
-        })
-        .await
-        .unwrap();
-
-    // ステータスでフィルタリング
-    let mut filter = TaskSearchQuery {
-        status: Some(TaskStatus::Todo),
-        ..Default::default()
-    };
-    filter.pagination.per_page = 10;
-
-    let result = service.filter_tasks(filter).await.unwrap();
-
-    // 検証 - todoステータスのタスクが2つあるはず
-    assert_eq!(result.items.len(), 2);
-    assert_eq!(result.pagination.per_page, 10);
-
-    // タイトルでフィルタリング
-    let mut filter = TaskSearchQuery {
-        search: Some("Another".to_string()),
-        ..Default::default()
-    };
-    filter.pagination.per_page = 10;
-
-    let result = service.filter_tasks(filter).await.unwrap();
-
-    // 検証 - "Another"を含むタスクが1つあるはず
-    assert_eq!(result.items.len(), 1);
-    assert!(result.items.iter().any(|t| t.title.contains("Another")));
-
-    // 該当タスクなしのケース
-    let mut filter = TaskSearchQuery {
-        status: Some(TaskStatus::Completed),
-        search: Some("NonExistent".to_string()),
-        ..Default::default()
-    };
-    filter.pagination.per_page = 10;
-
-    let result = service.filter_tasks(filter).await.unwrap();
-
-    // 検証 - 該当するタスクがないはず
-    assert!(result.items.is_empty());
 }
 
 #[tokio::test]

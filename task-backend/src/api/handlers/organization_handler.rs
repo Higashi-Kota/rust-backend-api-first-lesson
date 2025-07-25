@@ -5,12 +5,15 @@ use crate::api::dto::organization_query_dto::OrganizationSearchQuery;
 use crate::domain::organization_model::Organization;
 use crate::error::AppResult;
 use crate::middleware::auth::AuthenticatedUser;
+use crate::middleware::authorization::{resources, Action};
+use crate::require_permission;
 use crate::shared::types::PaginatedResponse;
 use crate::types::ApiResponse;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    routing::{delete, get, patch, post, put},
+    Json, Router,
 };
 use serde_json::json;
 use tracing::info;
@@ -75,11 +78,7 @@ pub async fn update_organization_handler(
     // バリデーション
     payload.validate()?;
 
-    // 組織管理権限チェック（PermissionServiceを使用）
-    app_state
-        .permission_service
-        .check_organization_management_permission(user.user_id(), organization_id)
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     let organization_response = app_state
         .organization_service
@@ -95,11 +94,7 @@ pub async fn delete_organization_handler(
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
 ) -> AppResult<(StatusCode, ApiResponse<serde_json::Value>)> {
-    // 組織管理権限チェック（PermissionServiceを使用）
-    app_state
-        .permission_service
-        .check_organization_management_permission(user.user_id(), organization_id)
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     app_state
         .organization_service
@@ -182,11 +177,7 @@ pub async fn update_organization_settings_handler(
     Path(organization_id): Path<Uuid>,
     Json(payload): Json<UpdateOrganizationSettingsRequest>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
-    // 組織管理権限チェック（PermissionServiceを使用）
-    app_state
-        .permission_service
-        .check_organization_management_permission(user.user_id(), organization_id)
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     let organization_response = app_state
         .organization_service
@@ -284,11 +275,7 @@ pub async fn get_organization_subscription_history_handler(
     user: AuthenticatedUser,
     Path(organization_id): Path<Uuid>,
 ) -> AppResult<ApiResponse<Vec<serde_json::Value>>> {
-    // 組織へのアクセス権限をチェック
-    app_state
-        .permission_service
-        .check_organization_management_permission(user.user_id(), organization_id)
-        .await?;
+    // 権限チェックはミドルウェアで実施済み
 
     // 組織を取得してオーナーIDを確認
     let organization = app_state
@@ -345,63 +332,101 @@ pub async fn search_organizations_handler(
     Ok(ApiResponse::success(paginated_response))
 }
 
-/// 組織ルーターを構築
+/// 組織ルーターを構築（統一権限チェックミドルウェアを使用）
 pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::Router {
-    use axum::{
-        routing::{delete, get, patch, post, put},
-        Router,
-    };
+    use crate::api::handlers::organization_hierarchy_handler::get_organization_hierarchy;
 
     Router::new()
-        // 静的ルートを先に定義
-        .route("/organizations/stats", get(get_organization_stats_handler))
+        // === 基本的な組織操作 ===
+        .route(
+            "/organizations",
+            post(create_organization_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Create)),
+        )
+        .route(
+            "/organizations",
+            get(get_organizations_handler), // 組織一覧は認証のみで閲覧可能
+        )
+        .route(
+            "/organizations/search",
+            get(search_organizations_handler), // 検索も認証のみで可能
+        )
+        .route(
+            "/organizations/stats",
+            get(get_organization_stats_handler), // 統計情報は認証のみで可能
+        )
         .route(
             "/organizations/paginated",
-            get(get_organizations_paginated_handler),
+            get(get_organizations_paginated_handler), // ページング付き一覧も認証のみで可能
         )
-        // 検索
-        .route("/organizations/search", get(search_organizations_handler))
-        // リソースルート
-        .route("/organizations", post(create_organization_handler))
-        .route("/organizations", get(get_organizations_handler))
-        .route("/organizations/{id}", get(get_organization_handler))
-        .route("/organizations/{id}", patch(update_organization_handler))
-        .route("/organizations/{id}", delete(delete_organization_handler))
+        .route(
+            "/organizations/{id}",
+            get(get_organization_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
+        )
+        .route(
+            "/organizations/{id}",
+            patch(update_organization_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
+        )
+        .route(
+            "/organizations/{id}",
+            delete(delete_organization_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Delete)),
+        )
+        // === 組織メンバー管理 ===
+        .route(
+            "/organizations/{id}/members",
+            post(invite_organization_member_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
+        )
+        .route(
+            "/organizations/{organization_id}/members/{member_id}",
+            get(get_organization_member_details_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
+        )
+        .route(
+            "/organizations/{organization_id}/members/{member_id}/role",
+            patch(update_organization_member_role_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
+        )
+        .route(
+            "/organizations/{organization_id}/members/{member_id}",
+            delete(remove_organization_member_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
+        )
+        // === 組織階層管理 ===
+        .route(
+            "/organizations/{id}/hierarchy",
+            get(get_organization_hierarchy)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
+        )
+        // === 組織設定・容量管理 ===
         .route(
             "/organizations/{id}/capacity",
-            get(check_organization_capacity_handler),
+            get(check_organization_capacity_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
         )
         .route(
             "/organizations/{id}/settings",
-            patch(update_organization_settings_handler),
+            patch(update_organization_settings_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
+        )
+        // === サブスクリプション管理 ===
+        .route(
+            "/organizations/{id}/subscription",
+            patch(update_organization_subscription_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
         )
         .route(
             "/organizations/{id}/subscription",
-            patch(update_organization_subscription_handler),
-        )
-        .route(
-            "/organizations/{id}/subscription",
-            put(update_organization_subscription_handler),
+            put(update_organization_subscription_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
         )
         .route(
             "/organizations/{id}/subscription/history",
-            get(get_organization_subscription_history_handler),
-        )
-        .route(
-            "/organizations/{id}/members",
-            post(invite_organization_member_handler),
-        )
-        .route(
-            "/organizations/{id}/members/{member_id}",
-            get(get_organization_member_details_handler),
-        )
-        .route(
-            "/organizations/{id}/members/{member_id}",
-            patch(update_organization_member_role_handler),
-        )
-        .route(
-            "/organizations/{id}/members/{member_id}",
-            delete(remove_organization_member_handler),
+            get(get_organization_subscription_history_handler)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
         )
         .with_state(app_state)
 }

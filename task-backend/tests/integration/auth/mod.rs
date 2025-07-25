@@ -2,8 +2,8 @@
 
 pub mod account_management_tests;
 pub mod email_integration_tests;
-pub mod email_verification_test;
-pub mod password_reset_test;
+pub mod email_verification_tests;
+pub mod password_reset_flow_tests;
 pub mod password_reset_tests;
 pub mod refresh_tests;
 pub mod signin_tests;

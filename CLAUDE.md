@@ -216,6 +216,42 @@ self.repo.count_tasks()
 
   → **すべてのテストにパスすること（新旧含む）**
 
+### 9. **統一権限チェックシステムの使用**
+
+#### 新規APIエンドポイントの権限設定
+
+* **すべての新規APIエンドポイントには統一権限チェックミドルウェアを適用すること**
+  ```rust
+  use crate::require_permission;
+  use crate::middleware::authorization::{resources, Action};
+  
+  .route(
+      "/resources/{id}",
+      get(handler).route_layer(require_permission!(resources::RESOURCE, Action::View))
+  )
+  ```
+
+* **管理者専用エンドポイントは `admin_permission_middleware()` を使用**
+  ```rust
+  .route_layer(admin_permission_middleware())
+  ```
+
+* **直接的な権限チェック（`is_admin()`など）の使用は禁止**
+  - すべての権限チェックは統一ミドルウェアを通じて実施
+  - サービス層での追加チェックが必要な場合は、明確な理由をコメントで記載
+
+#### 権限チェックの階層
+
+1. **ミドルウェアレベル**: 基本的なロールベース権限チェック
+2. **サービスレベル**: リソース固有の詳細な権限チェック（所有者確認など）
+
+#### テスト時の権限考慮
+
+* 権限テストは必ず以下の3パターンを含めること：
+  - 正常系（権限あり）
+  - 権限なしエラー（403 Forbidden）
+  - 認証なしエラー（401 Unauthorized）
+
 ---
 
 ## 🧪 テスト要件
@@ -394,3 +430,5 @@ assert_eq!(response["count"], 10);
 3. **APIドキュメントと実装が一致**
 4. **テストが実装の実際の動作を検証**
 5. **プロダクションコードがクリーンで保守しやすい**
+
+---

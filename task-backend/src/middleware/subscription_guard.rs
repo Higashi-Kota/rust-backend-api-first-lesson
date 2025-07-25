@@ -14,11 +14,11 @@ pub fn check_feature_limit(
         (SubscriptionTier::Pro, "teams") => 5,
         (SubscriptionTier::Enterprise, "teams") => usize::MAX,
 
-        (SubscriptionTier::Free, "team_members") => 3,
-        (SubscriptionTier::Pro, "team_members") => 10,
+        (SubscriptionTier::Free, "team_members") => 5,
+        (SubscriptionTier::Pro, "team_members") => 50,
         (SubscriptionTier::Enterprise, "team_members") => usize::MAX,
 
-        (SubscriptionTier::Free, "tasks") => 100,
+        (SubscriptionTier::Free, "tasks") => 10,
         (SubscriptionTier::Pro, "tasks") => 1000,
         (SubscriptionTier::Enterprise, "tasks") => usize::MAX,
 
@@ -52,8 +52,8 @@ mod tests {
         assert!(check_feature_limit(&SubscriptionTier::Free, 0, "teams").is_ok());
         assert!(check_feature_limit(&SubscriptionTier::Free, 1, "teams").is_err());
 
-        assert!(check_feature_limit(&SubscriptionTier::Free, 2, "team_members").is_ok());
-        assert!(check_feature_limit(&SubscriptionTier::Free, 3, "team_members").is_err());
+        assert!(check_feature_limit(&SubscriptionTier::Free, 4, "team_members").is_ok());
+        assert!(check_feature_limit(&SubscriptionTier::Free, 5, "team_members").is_err());
 
         // Pro tier tests
         assert!(check_feature_limit(&SubscriptionTier::Pro, 4, "teams").is_ok());

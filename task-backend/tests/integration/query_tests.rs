@@ -1,5 +1,5 @@
-// tests/integration/unified_query_tests.rs
-// 統一クエリパターンの統合テスト例
+// tests/integration/query_tests.rs
+// クエリパターンの統合テスト例
 
 use task_backend::api::dto::attachment_query_dto::AttachmentSearchQuery;
 use task_backend::api::dto::task_query_dto::TaskSearchQuery;

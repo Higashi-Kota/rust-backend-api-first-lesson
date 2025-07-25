@@ -1,6 +1,5 @@
 // task-backend/src/utils/permission.rs
 
-use crate::domain::permission::PermissionScope;
 use crate::domain::role_model::{RoleName, RoleWithPermissions};
 use crate::domain::subscription_tier::SubscriptionTier;
 use uuid::Uuid;
@@ -12,12 +11,6 @@ impl PermissionChecker {
     /// 管理者権限があるかチェック
     pub fn is_admin(role: &RoleWithPermissions) -> bool {
         role.is_admin() && role.is_active
-    }
-
-    /// 権限スコープが要求されたスコープを満たしているかチェック
-    pub fn check_scope(current_scope: &PermissionScope, required_scope: &PermissionScope) -> bool {
-        // current_scopeがrequired_scope以上の権限を持っているかチェック
-        current_scope.includes(required_scope)
     }
 
     /// 一般ユーザー権限があるかチェック
@@ -55,6 +48,7 @@ impl PermissionChecker {
             "role" => Self::is_admin(role),
             "task" => true, // 全ロールでタスク作成可能
             "team" => true, // 全ロールでチーム作成可能
+            "organization" => Self::is_member(role) || Self::is_admin(role), // メンバー以上が組織作成可能
             _ => false,
         }
     }
@@ -96,6 +90,14 @@ impl PermissionChecker {
                     Self::is_admin(role)
                 }
             }
+            "organization" => {
+                // 組織オーナーは編集可能、管理者は全組織編集可能
+                if let Some(owner) = owner_id {
+                    owner == requesting_user_id || Self::is_admin(role)
+                } else {
+                    Self::is_admin(role)
+                }
+            }
             _ => false,
         }
     }
@@ -124,6 +126,14 @@ impl PermissionChecker {
             }
             "team" => {
                 // チームオーナーは削除可能、管理者は全チーム削除可能
+                if let Some(owner) = owner_id {
+                    owner == requesting_user_id || Self::is_admin(role)
+                } else {
+                    Self::is_admin(role)
+                }
+            }
+            "organization" => {
+                // 組織オーナーは削除可能、管理者は全組織削除可能
                 if let Some(owner) = owner_id {
                     owner == requesting_user_id || Self::is_admin(role)
                 } else {
@@ -165,6 +175,15 @@ impl PermissionChecker {
                 // TODO: チームメンバーかどうかの確認が必要
                 if let Some(_owner) = owner_id {
                     true // 一時的に全ユーザーがチームを表示可能
+                } else {
+                    Self::is_admin(role)
+                }
+            }
+            "organization" => {
+                // 組織メンバーは表示可能、管理者は全組織表示可能
+                // TODO: 組織メンバーかどうかの確認が必要
+                if let Some(_owner) = owner_id {
+                    true // 一時的に全ユーザーが組織を表示可能
                 } else {
                     Self::is_admin(role)
                 }

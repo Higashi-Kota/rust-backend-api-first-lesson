@@ -78,6 +78,26 @@ pub fn conflict_error(message: &str, context: &str) -> AppError {
     AppError::Conflict(message.to_string())
 }
 
+/// 認証エラーをログ付きで生成
+pub fn unauthorized_error(message: &str, context: &str, user_message: &str) -> AppError {
+    warn!(
+        context = %context,
+        message = %message,
+        "Unauthorized access attempt"
+    );
+    AppError::Unauthorized(user_message.to_string())
+}
+
+/// 認可エラー（権限不足）をログ付きで生成
+pub fn forbidden_error(message: &str, context: &str, user_message: &str) -> AppError {
+    warn!(
+        context = %context,
+        message = %message,
+        "Forbidden access attempt"
+    );
+    AppError::Forbidden(user_message.to_string())
+}
+
 // =============================================================================
 // テスト
 // =============================================================================

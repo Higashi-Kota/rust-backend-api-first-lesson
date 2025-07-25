@@ -3,6 +3,8 @@ pub mod app_helper;
 pub mod auth_helper;
 pub mod db;
 pub mod mock_storage;
+pub mod permission_helpers;
+pub mod request;
 pub mod stripe_helper;
 pub mod test_data;
 

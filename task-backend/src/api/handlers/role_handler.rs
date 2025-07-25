@@ -65,10 +65,7 @@ pub async fn list_roles_handler(
     user: AuthenticatedUserWithRole,
     Query(query): Query<RoleSearchQuery>,
 ) -> AppResult<ApiResponse<PaginatedResponse<RoleResponse>>> {
-    // 管理者権限チェック
-    app_state
-        .role_service
-        .check_admin_permission(&user.claims)?;
+    // 権限チェックはミドルウェアで実施済み
 
     let (page, per_page) = query.pagination.get_pagination();
 
@@ -153,10 +150,7 @@ pub async fn create_role_handler(
     user: AuthenticatedUserWithRole,
     Json(mut payload): Json<CreateRoleRequest>,
 ) -> AppResult<impl IntoResponse> {
-    // 管理者権限チェック
-    app_state
-        .role_service
-        .check_admin_permission(&user.claims)?;
+    // 権限チェックはミドルウェアで実施済み
 
     // バリデーションとサニタイズ
     payload
@@ -211,10 +205,7 @@ pub async fn update_role_handler(
     user: AuthenticatedUserWithRole,
     Json(mut payload): Json<UpdateRoleRequest>,
 ) -> AppResult<ApiResponse<OperationResult<RoleResponse>>> {
-    // 管理者権限チェック
-    app_state
-        .role_service
-        .check_admin_permission(&user.claims)?;
+    // 権限チェックはミドルウェアで実施済み
 
     // 更新内容があるかチェック
     if !payload.has_updates() {
@@ -291,10 +282,7 @@ pub async fn delete_role_handler(
     UuidPath(role_id): UuidPath,
     user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
-    // 管理者権限チェック
-    app_state
-        .role_service
-        .check_admin_permission(&user.claims)?;
+    // 権限チェックはミドルウェアで実施済み
 
     info!(
         admin_id = %user.user_id(),
@@ -328,10 +316,7 @@ pub async fn assign_role_to_user_handler(
     user: AuthenticatedUserWithRole,
     Json(payload): Json<AssignRoleRequest>,
 ) -> AppResult<ApiResponse<AssignRoleResponse>> {
-    // 管理者権限チェック
-    app_state
-        .role_service
-        .check_admin_permission(&user.claims)?;
+    // 権限チェックはミドルウェアで実施済み
 
     info!(
         admin_id = %user.user_id(),
@@ -371,20 +356,33 @@ pub async fn assign_role_to_user_handler(
 
 /// ロールルーターを作成
 pub fn role_router(app_state: AppState) -> Router {
+    use crate::middleware::authorization::{resources, Action};
+    use crate::require_permission;
+
     let router = Router::new()
         // ロール管理
         .route(
             "/admin/roles",
-            get(list_roles_handler).post(create_role_handler),
+            get(list_roles_handler)
+                .route_layer(require_permission!(resources::ROLE, Action::View))
+                .post(create_role_handler)
+                .route_layer(require_permission!(resources::ROLE, Action::Create)),
         )
         .route(
             "/admin/roles/{id}",
             get(get_role_handler)
+                .route_layer(require_permission!(resources::ROLE, Action::View))
                 .patch(update_role_handler)
-                .delete(delete_role_handler),
+                .route_layer(require_permission!(resources::ROLE, Action::Update))
+                .delete(delete_role_handler)
+                .route_layer(require_permission!(resources::ROLE, Action::Delete)),
         )
         // ユーザーロール管理
-        .route("/admin/users/{id}/role", post(assign_role_to_user_handler));
+        .route(
+            "/admin/users/{id}/role",
+            post(assign_role_to_user_handler)
+                .route_layer(require_permission!(resources::ROLE, Action::Admin)),
+        );
 
     router.with_state(app_state)
 }

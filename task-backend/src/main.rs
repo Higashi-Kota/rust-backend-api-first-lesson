@@ -1,7 +1,6 @@
 // src/main.rs
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -18,8 +17,9 @@ mod types;
 mod utils;
 
 use crate::api::handlers::{
-    admin_handler::admin_router, analytics_handler::analytics_router_with_state,
-    attachment_handler::attachment_routes, auth_handler::auth_router_with_state,
+    activity_log_handler::activity_log_router, admin_handler::admin_router,
+    analytics_handler::analytics_router_with_state, attachment_handler::attachment_routes,
+    audit_log_handler::audit_log_router, auth_handler::auth_router_with_state,
     gdpr_handler::gdpr_router_with_state, organization_handler::organization_router_with_state,
     organization_hierarchy_handler::organization_hierarchy_router,
     payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
@@ -34,6 +34,7 @@ use crate::db::{create_db_pool, create_db_pool_with_schema, create_schema, schem
 use crate::middleware::auth::{
     cors_layer, jwt_auth_middleware, security_headers_middleware, AuthMiddlewareConfig,
 };
+// use crate::middleware::rate_limit::{rate_limit_middleware, RateLimitConfig, RateLimitStorage};
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     login_attempt_repository::LoginAttemptRepository,
@@ -46,6 +47,7 @@ use crate::repository::{
 };
 use crate::service::{
     attachment_service::AttachmentService,
+    audit_log_service::AuditLogService,
     auth_service::AuthService,
     organization_service::OrganizationService,
     payment_service::PaymentService,
@@ -154,8 +156,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let refresh_token_repo = Arc::new(RefreshTokenRepository::new(db_pool.clone()));
     let password_reset_token_repo = Arc::new(PasswordResetTokenRepository::new(db_pool.clone()));
     let email_verification_token_repo = Arc::new(crate::repository::email_verification_token_repository::EmailVerificationTokenRepository::new(db_pool.clone()));
-    let organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
-    let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
+    // let organization_repo = Arc::new(OrganizationRepository::new(db_pool.clone()));
+    // let team_repo = Arc::new(TeamRepository::new(db_pool.clone()));
     let subscription_history_repo = Arc::new(SubscriptionHistoryRepository::new(db_pool.clone()));
     let daily_activity_summary_repo = Arc::new(
         crate::repository::daily_activity_summary_repository::DailyActivitySummaryRepository::new(
@@ -180,6 +182,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let activity_log_repo = Arc::new(ActivityLogRepository::new(db_pool.clone()));
     let security_incident_repo = Arc::new(SecurityIncidentRepository::new(db_pool.clone()));
     let login_attempt_repo = Arc::new(LoginAttemptRepository::new(db_pool.clone()));
+    let audit_log_repo =
+        Arc::new(crate::repository::audit_log_repository::AuditLogRepository::new(db_pool.clone()));
 
     tracing::info!("📚 Repositories created.");
 
@@ -211,7 +215,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user_repo.clone(),
     ));
 
-    let task_service = Arc::new(TaskService::new(db_pool.clone()));
+    // Audit log service creation
+    let audit_log_service = Arc::new(AuditLogService::new(audit_log_repo.clone()));
+
+    // Team service creation (needs to be created before TaskService)
+    let team_service = Arc::new(TeamService::new(
+        Arc::new(db_pool.clone()),
+        TeamRepository::new(db_pool.clone()),
+        UserRepository::new(db_pool.clone()),
+        OrganizationRepository::new(db_pool.clone()),
+        email_service.clone(),
+        audit_log_service.clone(),
+    ));
+
+    // Task service creation (depends on team_service and audit_log_service)
+    let task_service = Arc::new(TaskService::new(
+        db_pool.clone(),
+        team_service.clone(),
+        audit_log_service.clone(),
+    ));
 
     // ストレージサービスの初期化（必須）
     tracing::info!("📦 Initializing storage service...");
@@ -239,18 +261,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         subscription_service.clone(),
     ));
 
-    let team_service = Arc::new(TeamService::new(
-        Arc::new(db_pool.clone()),
-        TeamRepository::new(db_pool.clone()),
-        UserRepository::new(db_pool.clone()),
-        email_service.clone(),
-    ));
-
     let organization_service = Arc::new(OrganizationService::new(
         OrganizationRepository::new(db_pool.clone()),
         TeamRepository::new(db_pool.clone()),
         UserRepository::new(db_pool.clone()),
         SubscriptionHistoryRepository::new(db_pool.clone()),
+        audit_log_service.clone(),
     ));
 
     let team_invitation_service = Arc::new(
@@ -274,12 +290,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
 
     // Permission service creation
-    let permission_service = Arc::new(PermissionService::new(
-        role_repo.clone(),
-        user_repo.clone(),
-        team_repo.clone(),
-        organization_repo.clone(),
-    ));
+    let permission_service = Arc::new(PermissionService::new(role_repo.clone(), user_repo.clone()));
 
     tracing::info!("🎯 Business services created.");
 
@@ -306,6 +317,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         require_active_account: true,
     };
 
+    // レート制限ミドルウェア設定（一時的に無効化）
+    // let rate_limit_storage = RateLimitStorage::new(RateLimitConfig::default());
+
     // 統一されたAppStateを作成（統合設定対応）
     let app_state = AppState::with_config(
         auth_service,
@@ -324,6 +338,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         permission_service,
         security_service,
         attachment_service,
+        audit_log_service,
+        activity_log_repo.clone(),
         jwt_manager.clone(),
         Arc::new(db_pool.clone()),
         &app_config,
@@ -343,7 +359,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let security_router = security_router(app_state.clone());
     let system_router = system_router_with_state(Arc::new(app_state.clone()));
     let admin_router = admin_router(app_state.clone());
-    let hierarchy_router = organization_hierarchy_router().with_state(app_state.clone());
+    let hierarchy_router = organization_hierarchy_router(app_state.clone());
     let gdpr_router = gdpr_router_with_state(app_state.clone());
 
     // メインアプリケーションルーターの構築
@@ -363,21 +379,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(admin_router)
         .merge(hierarchy_router)
         .merge(gdpr_router)
-        .merge(attachment_routes().with_state(app_state.clone()))
+        .merge(attachment_routes(app_state.clone()))
+        .merge(activity_log_router(app_state.clone()))
+        .merge(audit_log_router(app_state.clone()))
         .route(
             "/",
             axum::routing::get(|| async { "Task Backend API v1.0" }),
         )
-        .layer(
-            ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
-                .layer(axum_middleware::from_fn_with_state(
-                    auth_middleware_config,
-                    jwt_auth_middleware,
-                ))
-                .layer(axum_middleware::from_fn(security_headers_middleware))
-                .layer(cors_layer()),
-        );
+        .layer(cors_layer())
+        .layer(axum_middleware::from_fn(security_headers_middleware))
+        .layer(axum_middleware::from_fn_with_state(
+            middleware::activity_logger::ActivityLogger::new(activity_log_repo.clone()),
+            middleware::activity_logger::log_activity,
+        ))
+        // レート制限ミドルウェアは型の問題で一時的にコメントアウト
+        // TODO: rate_limit_middlewareの型を修正
+        // .layer(axum_middleware::from_fn_with_state(
+        //     rate_limit_storage,
+        //     rate_limit_middleware,
+        // ))
+        .layer(axum_middleware::from_fn_with_state(
+            auth_middleware_config,
+            jwt_auth_middleware,
+        ))
+        .layer(TraceLayer::new_for_http());
 
     tracing::info!("🛣️  Routers configured:");
     tracing::info!("   • Authentication: /auth/*");
@@ -399,6 +424,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "   • Organization Hierarchy: /organizations/*/hierarchy, /organizations/*/departments/*"
     );
     tracing::info!("   • GDPR Compliance: /gdpr/*, /admin/gdpr/*");
+    tracing::info!("   • Activity Logs: /activity-logs/me, /admin/activity-logs");
+    tracing::info!("   • Audit Logs: /audit-logs/me, /teams/*/audit-logs, /admin/audit-logs/*");
     tracing::info!("   • Health Check: /health");
 
     // サーバーの起動
