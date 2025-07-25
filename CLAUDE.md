@@ -2,7 +2,6 @@
 
 - [マルチテナント機能要件定義](./マルチテナント機能要件定義.md) - チーム・組織単位でのデータ共有・操作機能の実装
 
-
 ## 🧩 実装ガイドライン
 
 ### 1. **ドメイン統合の原則**
@@ -433,44 +432,3 @@ assert_eq!(response["count"], 10);
 5. **プロダクションコードがクリーンで保守しやすい**
 
 ---
-
-## 次回実装内容とテスト内容
-
-- ✅ **650テストがパス** （0件の失敗）
-- ⏸️ **4テストがignore** （アーキテクチャ上の制限）
-
-### アーキテクチャ制限によるignoreテスト（PostgreSQL統一での解決方法）
-
-1. **削除済みユーザートークンアクセステスト** (`test_deleted_user_token_access`)
-   - 原因: JWTトークンのステートレス性
-   - 解決方法: PostgreSQLベースのトークン無効化テーブル
-     - `revoked_tokens`テーブルの作成（token_jti, user_id, revoked_at, expires_at）
-     - JTI（JWT ID）クレームを使用したトークン識別
-     - 認証ミドルウェアでDBチェック（キャッシュレイヤーで高速化）
-     - 定期的な期限切れトークンのクリーンアップジョブ
-     - インデックス最適化で性能問題を軽減
-
-2. **APIレート制限テスト** (`test_api_rate_limit_by_tier`)
-   - 原因: ステートフルなミドルウェアアーキテクチャが必要
-   - 解決方法: PostgreSQLベースのレート制限実装
-     - `api_rate_limits`テーブル（user_id, endpoint, window_start, request_count）
-     - スライディングウィンドウ方式での実装
-     - ティア別のレート制限設定（Free: 100/時、Pro: 1000/時、Enterprise: 無制限）
-     - `rate_limit.rs`の統合（DBバックエンドに変更）
-     - バッチ更新とインメモリカウンターの併用で性能最適化
-
-3. **動的レスポンスフィルタリングテスト** (`test_dynamic_response_filtering`)
-   - 原因: レスポンスフィルタリング機能が未実装
-   - 解決方法: 権限ベースのフィールドフィルタリング実装
-     - `field_permissions`テーブル（role_id, resource_type, field_name, permission）
-     - DTOレベルでの条件付きフィールドシリアライゼーション
-     - ユーザーのロール/権限に基づくレスポンス内容の動的変更
-     - フィールドレベルの権限定義をDBで管理
-
-4. **動的権限機能テスト** (`test_dynamic_permissions`)
-   - 原因: 実行時の動的権限変更機能が未実装
-   - 解決方法: コンテキストベースの権限システム実装
-     - `dynamic_permissions`テーブル（user_id, permission, context_type, context_value, expires_at）
-     - 時間帯、IP、デバイス等のコンテキスト情報をJSONで保存
-     - 一時的な権限昇格/降格の履歴管理
-     - PostgreSQLのJSONB型を活用した柔軟なコンテキスト定義

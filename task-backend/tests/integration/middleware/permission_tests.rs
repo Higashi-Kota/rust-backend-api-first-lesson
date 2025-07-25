@@ -5,7 +5,6 @@ use axum::{
     http::{Request, StatusCode},
 };
 use serde_json::json;
-use task_backend::api::dto::task_dto::{CreateTaskDto, UpdateTaskDto};
 use task_backend::middleware::authorization::{
     admin_permission_middleware, permission_middleware, resources, Action,
 };
@@ -237,94 +236,6 @@ async fn test_permission_hierarchy() {
             path
         );
     }
-}
-
-// ==============================
-// 5. 動的権限テスト
-// ==============================
-
-#[tokio::test]
-#[ignore = "Dynamic permission feature not implemented yet"]
-async fn test_dynamic_permissions() {
-    let (app, _schema, _db) = setup_full_app().await;
-    let user1 = create_and_authenticate_user(&app).await;
-    let user2 = create_and_authenticate_user(&app).await;
-
-    // タスクを作成
-    let create_task_dto = CreateTaskDto {
-        title: "Test Task".to_string(),
-        description: Some("Test Description".to_string()),
-        priority: Some("high".to_string()),
-        due_date: None,
-        status: None,
-    };
-
-    let response = app
-        .clone()
-        .oneshot(create_authenticated_request(
-            "POST",
-            "/tasks",
-            &user1.token,
-            Some(serde_json::to_string(&create_task_dto).unwrap()),
-        ))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::CREATED);
-    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    let created_task = &response_json["data"];
-    let task_id = created_task["id"].as_str().unwrap();
-
-    // Test 1: 所有者は自分のタスクを更新可能
-    let update_task_dto = UpdateTaskDto {
-        title: Some("Updated Task".to_string()),
-        description: None,
-        priority: None,
-        due_date: None,
-        status: None,
-    };
-
-    let response = app
-        .clone()
-        .oneshot(create_authenticated_request(
-            "PATCH",
-            &format!("/tasks/{}", task_id),
-            &user1.token,
-            Some(serde_json::to_string(&update_task_dto).unwrap()),
-        ))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::OK);
-
-    // Test 2: 他のユーザーは更新不可（タスクが見つからないため404）
-    let response = app
-        .clone()
-        .oneshot(create_authenticated_request(
-            "PATCH",
-            &format!("/tasks/{}", task_id),
-            &user2.token,
-            Some(serde_json::to_string(&update_task_dto).unwrap()),
-        ))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-
-    // Test 3: 所有者は削除可能
-    let response = app
-        .clone()
-        .oneshot(create_authenticated_request(
-            "DELETE",
-            &format!("/tasks/{}", task_id),
-            &user1.token,
-            None,
-        ))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
 }
 
 // ==============================

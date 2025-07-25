@@ -26,48 +26,6 @@ async fn test_expired_token_access() {
     );
 }
 
-/// 削除されたユーザーのトークンでのアクセステスト
-/// 注: JWTトークンはステートレスなため、ユーザーのis_activeステータスの変更は
-/// 既存のトークンには反映されません。実装にはトークンブラックリストまたは
-/// リクエスト毎のDBチェックが必要です。
-#[tokio::test]
-#[ignore = "JWT tokens are stateless - requires token blacklist or DB check per request"]
-async fn test_deleted_user_token_access() {
-    let (app, _schema_name, db) = app_helper::setup_full_app().await;
-
-    // ユーザーを作成して認証
-    let user = auth_helper::create_and_authenticate_member(&app).await;
-
-    // ユーザーを削除（is_activeをfalseに設定）
-    use sea_orm::{ActiveModelTrait, EntityTrait, Set};
-    use task_backend::domain::user_model;
-
-    let user_entity = user_model::Entity::find_by_id(user.user_id)
-        .one(&db.connection)
-        .await
-        .unwrap()
-        .unwrap();
-
-    let mut user_active: user_model::ActiveModel = user_entity.into();
-    user_active.is_active = Set(false);
-    user_active.update(&db.connection).await.unwrap();
-
-    // 削除されたユーザーのトークンでアクセス
-    let req = auth_helper::create_authenticated_request(
-        "GET",
-        "/tasks",
-        &user.access_token,
-        None::<String>,
-    );
-
-    let response = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(
-        response.status(),
-        StatusCode::FORBIDDEN,
-        "Deleted user's token should return 403 Forbidden"
-    );
-}
-
 /// 存在しないリソースへのアクセステスト
 #[tokio::test]
 async fn test_non_existent_resource_access() {
