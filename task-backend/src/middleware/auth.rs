@@ -59,7 +59,6 @@ impl AuthenticatedUser {
     }
 
     /// サブスクリプションティアを取得
-    #[allow(dead_code)]
     pub fn subscription_tier(&self) -> String {
         self.claims.subscription_tier.to_string()
     }

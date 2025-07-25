@@ -18,6 +18,7 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::task_visibility::TaskVisibility;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
+use crate::middleware::authorization::PermissionContext;
 use crate::middleware::subscription_guard::check_feature_limit;
 use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::task_repository::TaskRepository;
@@ -171,6 +172,96 @@ impl TaskService {
     async fn check_task_modify_access(&self, user_id: Uuid, task_id: Uuid) -> AppResult<()> {
         self.check_task_access_internal(user_id, task_id, true)
             .await
+    }
+
+    /// PermissionContextを使用したタスクアクセスチェック
+    pub async fn check_task_access_with_context(
+        &self,
+        permission_ctx: &PermissionContext,
+        task_id: Uuid,
+    ) -> AppResult<()> {
+        // PermissionContextにはミドルウェアで検証済みの権限情報が含まれる
+        // リソースタイプとアクションが一致していることを確認
+        if permission_ctx.resource != "task" {
+            return Err(forbidden_error(
+                "Invalid permission context for task resource",
+                "task_service::check_task_access_with_context",
+                "Permission context mismatch",
+            ));
+        }
+
+        // ミドルウェアで既に権限チェックが行われているため、
+        // ここではタスク固有の追加チェックのみ実施
+        let task = self
+            .repo
+            .find_by_id(task_id)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "task_service::check_task_access_with_context",
+                    "Failed to fetch task",
+                )
+            })?
+            .ok_or_else(|| {
+                not_found_error(
+                    &format!("Task with id {} not found", task_id),
+                    "task_service::check_task_access_with_context",
+                    "Task not found",
+                )
+            })?;
+
+        // タスクの可視性に基づく追加チェック
+        match task.visibility {
+            TaskVisibility::Personal => {
+                // 個人タスクは所有者のみアクセス可能
+                if task.user_id != Some(permission_ctx.user_id) {
+                    return Err(forbidden_error(
+                        "Cannot access personal task of another user",
+                        "task_service::check_task_access_with_context",
+                        "Access denied to personal task",
+                    ));
+                }
+            }
+            TaskVisibility::Team => {
+                // チームタスクはチームメンバーのみアクセス可能
+                if let Some(team_id) = task.team_id {
+                    // チームアクセス権限をチェック
+                    self.team_service
+                        .check_team_access_by_id(team_id, permission_ctx.user_id)
+                        .await
+                        .map_err(|_| {
+                            forbidden_error(
+                                "User is not a member of the team",
+                                "task_service::check_task_access_with_context",
+                                "Access denied to team task",
+                            )
+                        })?;
+                }
+            }
+            TaskVisibility::Organization => {
+                // 組織タスクは組織メンバーのみアクセス可能
+                if let Some(org_id) = task.organization_id {
+                    // 組織オーナーかチェック
+                    let is_org_owner = self
+                        .team_service
+                        .is_organization_owner(org_id, permission_ctx.user_id)
+                        .await;
+
+                    if !is_org_owner {
+                        // 組織オーナーでない場合は、組織に属するチームのメンバーかチェック
+                        // 注: 実際のプロダクションでは、組織メンバーシップテーブルを使用すべき
+                        return Err(forbidden_error(
+                            "User is not a member of the organization",
+                            "task_service::check_task_access_with_context",
+                            "Access denied to organization task",
+                        ));
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     /// 内部的な権限チェックメソッド

@@ -31,20 +31,6 @@ impl PermissionService {
         }
     }
 
-    /// ユーザーが管理者権限を持っているか確認
-    #[deprecated(
-        since = "0.2.0",
-        note = "Use unified permission middleware with require_permission! macro instead"
-    )]
-    #[allow(dead_code)]
-    pub async fn check_admin_permission(&self, user_id: Uuid) -> AppResult<()> {
-        let role = self.get_user_role(user_id).await?;
-        if !PermissionChecker::is_admin(&role) {
-            return Err(AppError::Forbidden("Admin permission required".to_string()));
-        }
-        Ok(())
-    }
-
     /// ユーザーがリソースへのアクセス権限を持っているか確認
     pub async fn check_resource_access(
         &self,

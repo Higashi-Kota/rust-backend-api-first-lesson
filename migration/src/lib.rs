@@ -82,6 +82,9 @@ mod m20250719_000003_add_task_performance_indexes;
 // 監査ログマイグレーション
 mod m20250720_000001_create_audit_logs_table;
 
+// マルチテナント機能完全性のための追加インデックス
+mod m20250725_000001_add_multitenant_single_indexes;
+
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -155,6 +158,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20250719_000003_add_task_performance_indexes::Migration),
             // 22. 監査ログシステム
             Box::new(m20250720_000001_create_audit_logs_table::Migration),
+            // 23. マルチテナント機能の単一カラムインデックス追加
+            Box::new(m20250725_000001_add_multitenant_single_indexes::Migration),
         ]
     }
 }

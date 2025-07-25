@@ -2,6 +2,7 @@
 
 use crate::api::dto::organization_dto::*;
 use crate::api::dto::organization_query_dto::OrganizationSearchQuery;
+use crate::domain::audit_log_model::{AuditAction, AuditResult};
 use crate::domain::organization_model::{Organization, OrganizationMember, OrganizationRole};
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
@@ -9,7 +10,11 @@ use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
 use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
+use crate::service::audit_log_service::{AuditLogService, LogActionParams};
 use crate::types::Timestamp;
+use serde_json;
+use std::sync::Arc;
+use tracing::warn;
 use uuid::Uuid;
 
 pub struct OrganizationService {
@@ -17,6 +22,7 @@ pub struct OrganizationService {
     team_repository: TeamRepository,
     user_repository: UserRepository,
     subscription_history_repository: SubscriptionHistoryRepository,
+    audit_log_service: Arc<AuditLogService>,
 }
 
 impl OrganizationService {
@@ -25,12 +31,14 @@ impl OrganizationService {
         team_repository: TeamRepository,
         user_repository: UserRepository,
         subscription_history_repository: SubscriptionHistoryRepository,
+        audit_log_service: Arc<AuditLogService>,
     ) -> Self {
         Self {
             organization_repository,
             team_repository,
             user_repository,
             subscription_history_repository,
+            audit_log_service,
         }
     }
 
@@ -558,8 +566,36 @@ impl OrganizationService {
             return Err(AppError::BadRequest("Cannot change owner role".to_string()));
         }
 
-        member.update_role(request.role);
+        let old_role = member.role.clone();
+        let new_role = request.role;
+
+        member.update_role(new_role.clone());
         let updated_member = self.organization_repository.update_member(&member).await?;
+
+        // 監査ログの記録
+        let log_params = LogActionParams {
+            user_id,
+            action: AuditAction::OrganizationUpdated,
+            resource_type: "organization_member".to_string(),
+            resource_id: Some(member_id),
+            team_id: None,
+            organization_id: Some(organization_id),
+            details: Some(serde_json::json!({
+                "organization_id": organization_id,
+                "member_user_id": member.user_id,
+                "old_role": old_role.to_string(),
+                "new_role": new_role.to_string(),
+                "changed_by": user_id
+            })),
+            ip_address: None,
+            user_agent: None,
+            result: AuditResult::Success,
+        };
+
+        if let Err(e) = self.audit_log_service.log_action(log_params).await {
+            warn!("Failed to log organization member role change: {}", e);
+        }
+
         self.build_organization_member_response(&updated_member)
             .await
     }

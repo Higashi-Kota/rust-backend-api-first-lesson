@@ -159,12 +159,13 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         UserRepository::new(db.connection.clone()),
         OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
+        audit_log_service_local.clone(),
     ));
 
     let task_service = Arc::new(TaskService::new(
         db.connection.clone(),
         team_service_for_task,
-        audit_log_service_local,
+        audit_log_service_local.clone(),
     ));
     let subscription_service = Arc::new(SubscriptionService::new(
         db.connection.clone(),
@@ -176,6 +177,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
         UserRepository::new(db.connection.clone()),
         OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
+        audit_log_service_local.clone(),
     ));
 
     let organization_service = Arc::new(
@@ -184,6 +186,7 @@ pub async fn setup_auth_app() -> (Router, String, common::db::TestDatabase) {
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
             task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
             task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
+            audit_log_service_local.clone(),
         ),
     );
 
@@ -438,12 +441,13 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         UserRepository::new(db.connection.clone()),
         OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
+        audit_log_service_local.clone(),
     ));
 
     let task_service = Arc::new(TaskService::new(
         db.connection.clone(),
         team_service_for_task,
-        audit_log_service_local,
+        audit_log_service_local.clone(),
     ));
     let subscription_service = Arc::new(SubscriptionService::new(
         db.connection.clone(),
@@ -455,6 +459,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
         UserRepository::new(db.connection.clone()),
         OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
+        audit_log_service_local.clone(),
     ));
 
     let organization_service = Arc::new(
@@ -465,6 +470,7 @@ pub async fn setup_full_app() -> (Router, String, common::db::TestDatabase) {
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
             task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
             task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
+            audit_log_service_local.clone(),
         ),
     );
 
@@ -775,12 +781,13 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         UserRepository::new(db.connection.clone()),
         OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
+        audit_log_service_local.clone(),
     ));
 
     let task_service = Arc::new(TaskService::new(
         db.connection.clone(),
         team_service_for_task,
-        audit_log_service_local,
+        audit_log_service_local.clone(),
     ));
     let subscription_service = Arc::new(SubscriptionService::new(
         db.connection.clone(),
@@ -792,6 +799,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
         UserRepository::new(db.connection.clone()),
         OrganizationRepository::new(db.connection.clone()),
         email_service.clone(),
+        audit_log_service_local.clone(),
     ));
 
     let organization_service = Arc::new(
@@ -802,6 +810,7 @@ pub async fn setup_full_app_with_storage() -> (Router, String, common::db::TestD
             task_backend::repository::team_repository::TeamRepository::new(db.connection.clone()),
             task_backend::repository::user_repository::UserRepository::new(db.connection.clone()),
             task_backend::repository::subscription_history_repository::SubscriptionHistoryRepository::new(db.connection.clone()),
+            audit_log_service_local.clone(),
         ),
     );
 

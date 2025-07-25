@@ -47,7 +47,7 @@ pub enum AppError {
     ExternalServiceError(String),
 
     #[error("Too many requests: {0}")]
-    #[allow(dead_code)]
+    #[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
     TooManyRequests(String),
 }
 

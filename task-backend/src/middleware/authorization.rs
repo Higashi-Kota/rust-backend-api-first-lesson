@@ -371,9 +371,9 @@ fn check_resource_permission(
 
 /// 権限コンテキスト（ミドルウェア処理後に利用可能）
 #[derive(Clone, Debug)]
-#[allow(dead_code)] // Public API for downstream consumers
 pub struct PermissionContext {
     pub user_id: Uuid,
+    #[allow(dead_code)] // 将来の拡張用
     pub role: RoleWithPermissions,
     pub resource: &'static str,
     pub action: Action,

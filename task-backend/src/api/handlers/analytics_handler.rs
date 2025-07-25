@@ -1048,6 +1048,70 @@ pub async fn advanced_export_handler(
     Ok(ApiResponse::success(export_result.item))
 }
 
+/// サブスクリプションティアに基づいたアナリティクス機能の制限チェック
+pub async fn check_analytics_access_by_tier(
+    State(_app_state): State<AppState>,
+    user: AuthenticatedUser,
+) -> AppResult<ApiResponse<AnalyticsAccessInfo>> {
+    info!(
+        user_id = %user.user_id(),
+        subscription_tier = %user.subscription_tier(),
+        "Checking analytics access by subscription tier"
+    );
+
+    // subscription_tierメソッドを使用してティアを取得
+    let tier_str = user.subscription_tier();
+    let tier = SubscriptionTier::from_str(&tier_str).unwrap_or(SubscriptionTier::Free);
+
+    // ティアに基づいたアクセス権限を決定
+    let access_info = match tier {
+        SubscriptionTier::Free => AnalyticsAccessInfo {
+            user_id: user.user_id(),
+            subscription_tier: tier,
+            can_access_basic_analytics: true,
+            can_access_advanced_analytics: false,
+            can_export_data: false,
+            max_date_range_days: 7,
+            available_export_formats: vec![],
+            rate_limit_per_hour: 10,
+        },
+        SubscriptionTier::Pro => AnalyticsAccessInfo {
+            user_id: user.user_id(),
+            subscription_tier: tier,
+            can_access_basic_analytics: true,
+            can_access_advanced_analytics: true,
+            can_export_data: true,
+            max_date_range_days: 90,
+            available_export_formats: vec!["csv".to_string(), "json".to_string()],
+            rate_limit_per_hour: 100,
+        },
+        SubscriptionTier::Enterprise => AnalyticsAccessInfo {
+            user_id: user.user_id(),
+            subscription_tier: tier,
+            can_access_basic_analytics: true,
+            can_access_advanced_analytics: true,
+            can_export_data: true,
+            max_date_range_days: 365,
+            available_export_formats: vec![
+                "csv".to_string(),
+                "json".to_string(),
+                "excel".to_string(),
+                "pdf".to_string(),
+            ],
+            rate_limit_per_hour: 1000,
+        },
+    };
+
+    info!(
+        user_id = %user.user_id(),
+        tier = ?tier,
+        can_access_advanced = %access_info.can_access_advanced_analytics,
+        "Analytics access determined by subscription tier"
+    );
+
+    Ok(ApiResponse::success(access_info))
+}
+
 /// 日次活動サマリー更新ハンドラー（管理者のみ）
 pub async fn update_daily_summary_handler(
     State(app_state): State<AppState>,
@@ -2033,6 +2097,11 @@ pub fn analytics_router(app_state: AppState) -> Router {
         .route(
             "/analytics/track-feature",
             post(track_feature_usage_handler),
+        )
+        // サブスクリプションティアベースのアクセスチェック
+        .route(
+            "/analytics/check-access",
+            get(check_analytics_access_by_tier),
         )
         .with_state(app_state)
 }

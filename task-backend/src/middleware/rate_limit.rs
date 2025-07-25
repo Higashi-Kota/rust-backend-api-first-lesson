@@ -23,9 +23,11 @@ use crate::{
 
 /// レート制限の設定
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
 pub struct RateLimitConfig {
+    #[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
     pub window_duration: Duration,
+    #[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
     pub limits_by_tier: HashMap<SubscriptionTier, usize>,
 }
 
@@ -45,7 +47,7 @@ impl Default for RateLimitConfig {
 
 /// ユーザーごとのレート制限状態
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
 struct UserRateLimit {
     count: usize,
     window_start: Instant,
@@ -53,14 +55,14 @@ struct UserRateLimit {
 
 /// レート制限のストレージ
 #[derive(Clone)]
-#[allow(dead_code)]
+#[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
 pub struct RateLimitStorage {
     limits: Arc<Mutex<HashMap<Uuid, UserRateLimit>>>,
     config: RateLimitConfig,
 }
 
 impl RateLimitStorage {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
     pub fn new(config: RateLimitConfig) -> Self {
         Self {
             limits: Arc::new(Mutex::new(HashMap::new())),
@@ -70,7 +72,7 @@ impl RateLimitStorage {
 }
 
 /// レート制限ミドルウェア
-#[allow(dead_code)]
+#[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
 pub async fn rate_limit_middleware(
     State(storage): State<RateLimitStorage>,
     user: Option<AuthenticatedUser>,
@@ -129,7 +131,7 @@ pub async fn rate_limit_middleware(
 
 /// テスト用のレート制限ミドルウェア（すぐに制限に達する）
 #[cfg(test)]
-#[allow(dead_code)]
+#[allow(dead_code)] // レート制限ミドルウェアが一時的に無効化されているため
 pub async fn test_rate_limit_middleware(
     user: Option<AuthenticatedUser>,
     State(storage): State<RateLimitStorage>,

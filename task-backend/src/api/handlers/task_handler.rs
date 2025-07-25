@@ -14,7 +14,7 @@ use crate::api::AppState;
 use crate::domain::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
-use crate::middleware::authorization::{resources, Action};
+use crate::middleware::authorization::{resources, Action, PermissionContext};
 use crate::require_permission;
 use crate::types::ApiResponse;
 use crate::utils::error_helper::{convert_validation_errors, internal_server_error};
@@ -139,6 +139,37 @@ pub async fn get_task_handler(
     );
 
     // get_task_for_user already checks if the user owns the task
+    let task_dto = app_state
+        .task_service
+        .get_task_for_user(user.claims.user_id, id)
+        .await?;
+
+    Ok(ApiResponse::success(task_dto))
+}
+
+/// PermissionContextを活用したタスク取得ハンドラー
+/// ミドルウェアで検証済みの権限情報を使用
+pub async fn get_task_with_context_handler(
+    State(app_state): State<AppState>,
+    user: AuthenticatedUser,
+    Extension(permission_ctx): Extension<PermissionContext>,
+    UuidPath(id): UuidPath,
+) -> AppResult<ApiResponse<TaskDto>> {
+    info!(
+        user_id = %user.claims.user_id,
+        task_id = %id,
+        resource = %permission_ctx.resource,
+        action = ?permission_ctx.action,
+        "Getting task with permission context"
+    );
+
+    // PermissionContextを使用した追加の権限チェック
+    app_state
+        .task_service
+        .check_task_access_with_context(&permission_ctx, id)
+        .await?;
+
+    // タスクを取得
     let task_dto = app_state
         .task_service
         .get_task_for_user(user.claims.user_id, id)
@@ -886,6 +917,12 @@ pub fn task_router(app_state: AppState) -> Router {
         .route("/tasks/{id}", get(get_task_handler))
         .route("/tasks/{id}", patch(update_multi_tenant_task))
         .route("/tasks/{id}", delete(delete_multi_tenant_task))
+        // PermissionContextを使用した詳細な権限チェック付きタスク取得
+        .route(
+            "/tasks/{id}/with-context",
+            get(get_task_with_context_handler)
+                .route_layer(require_permission!(resources::TASK, Action::View)),
+        )
         // === バッチ操作 ===
         .route(
             "/tasks/batch/create",

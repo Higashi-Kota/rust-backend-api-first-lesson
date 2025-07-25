@@ -11,6 +11,7 @@ pub mod image_optimization_tests;
 pub mod multi_tenant_task_tests;
 pub mod pagination_tests;
 pub mod permission_isolation_tests;
+pub mod scope_tests;
 pub mod search_tests;
 pub mod share_link_tests;
 pub mod transfer_task_tests;

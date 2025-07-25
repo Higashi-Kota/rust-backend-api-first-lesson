@@ -26,15 +26,6 @@ async fn setup_test_service() -> (common::db::TestDatabase, TaskService) {
     let email_config = task_backend::utils::email::EmailConfig::default();
     let email_service =
         std::sync::Arc::new(task_backend::utils::email::EmailService::new(email_config).unwrap());
-    let team_service = std::sync::Arc::new(task_backend::service::team_service::TeamService::new(
-        std::sync::Arc::new(db.connection.clone()),
-        team_repo,
-        user_repo,
-        task_backend::repository::organization_repository::OrganizationRepository::new(
-            db.connection.clone(),
-        ),
-        email_service,
-    ));
 
     let audit_log_repo = std::sync::Arc::new(
         task_backend::repository::audit_log_repository::AuditLogRepository::new(
@@ -44,6 +35,17 @@ async fn setup_test_service() -> (common::db::TestDatabase, TaskService) {
     let audit_log_service = std::sync::Arc::new(
         task_backend::service::audit_log_service::AuditLogService::new(audit_log_repo),
     );
+
+    let team_service = std::sync::Arc::new(task_backend::service::team_service::TeamService::new(
+        std::sync::Arc::new(db.connection.clone()),
+        team_repo,
+        user_repo,
+        task_backend::repository::organization_repository::OrganizationRepository::new(
+            db.connection.clone(),
+        ),
+        email_service,
+        audit_log_service.clone(),
+    ));
 
     let service = TaskService::new(db.connection.clone(), team_service, audit_log_service);
     (db, service)

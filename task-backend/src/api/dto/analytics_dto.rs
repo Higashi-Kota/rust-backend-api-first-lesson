@@ -795,6 +795,19 @@ pub struct DecliningArea {
     pub intervention_suggestions: Vec<String>,
 }
 
+/// アナリティクスアクセス情報
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AnalyticsAccessInfo {
+    pub user_id: Uuid,
+    pub subscription_tier: SubscriptionTier,
+    pub can_access_basic_analytics: bool,
+    pub can_access_advanced_analytics: bool,
+    pub can_export_data: bool,
+    pub max_date_range_days: i64,
+    pub available_export_formats: Vec<String>,
+    pub rate_limit_per_hour: u32,
+}
+
 /// 階層メトリクス
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TierMetrics {

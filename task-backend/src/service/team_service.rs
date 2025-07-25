@@ -2,9 +2,11 @@
 
 use crate::api::dto::team_dto::*;
 use crate::api::dto::team_query_dto::TeamSearchQuery;
+use crate::domain::audit_log_model::{AuditAction, AuditResult};
 use crate::domain::team_member_model::Model as TeamMemberModel;
 use crate::domain::team_model::{Model as TeamModel, TeamRole};
 use crate::middleware::subscription_guard::check_feature_limit;
+use crate::service::audit_log_service::{AuditLogService, LogActionParams};
 use crate::utils::email::EmailService;
 
 // Type aliases for domain models
@@ -17,6 +19,7 @@ use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::types::Timestamp;
 use sea_orm::DatabaseConnection;
+use serde_json;
 use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -26,6 +29,7 @@ pub struct TeamService {
     user_repository: UserRepository,
     organization_repository: OrganizationRepository,
     email_service: Arc<EmailService>,
+    audit_log_service: Arc<AuditLogService>,
 }
 
 impl TeamService {
@@ -35,12 +39,14 @@ impl TeamService {
         user_repository: UserRepository,
         organization_repository: OrganizationRepository,
         email_service: Arc<EmailService>,
+        audit_log_service: Arc<AuditLogService>,
     ) -> Self {
         Self {
             team_repository,
             user_repository,
             organization_repository,
             email_service,
+            audit_log_service,
         }
     }
 
@@ -394,8 +400,36 @@ impl TeamService {
             return Err(AppError::BadRequest("Cannot change owner role".to_string()));
         }
 
-        member.role = request.role.to_string();
+        let old_role = member.get_role();
+        let new_role = request.role;
+
+        member.role = new_role.to_string();
         let updated_member = self.team_repository.update_member(&member).await?;
+
+        // 監査ログの記録
+        let log_params = LogActionParams {
+            user_id,
+            action: AuditAction::TeamRoleChanged,
+            resource_type: "team_member".to_string(),
+            resource_id: Some(member_id),
+            team_id: Some(team_id),
+            organization_id: None,
+            details: Some(serde_json::json!({
+                "team_id": team_id,
+                "member_user_id": member.user_id,
+                "old_role": old_role.to_string(),
+                "new_role": new_role.to_string(),
+                "changed_by": user_id
+            })),
+            ip_address: None,
+            user_agent: None,
+            result: AuditResult::Success,
+        };
+
+        if let Err(e) = self.audit_log_service.log_action(log_params).await {
+            warn!("Failed to log team member role change: {}", e);
+        }
+
         self.build_team_member_response(&updated_member).await
     }
 

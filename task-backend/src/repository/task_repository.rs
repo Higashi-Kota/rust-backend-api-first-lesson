@@ -108,7 +108,62 @@ impl TaskRepository {
         self.prepare_connection().await?;
 
         let mut db_query = TaskEntity::find();
-        let mut conditions = Condition::all().add(task_model::Column::UserId.eq(user_id)); // ユーザーフィルタを追加
+        let mut conditions = Condition::all();
+
+        // スコープに基づく基本条件の設定
+        match query.visibility {
+            Some(TaskVisibility::Personal) => {
+                // 個人タスクのみ、または include_assigned が true の場合は割り当てられたタスクも含む
+                if query.include_assigned.unwrap_or(false) {
+                    conditions = conditions.add(
+                        Condition::any()
+                            .add(
+                                Condition::all()
+                                    .add(
+                                        task_model::Column::Visibility
+                                            .eq(TaskVisibility::Personal.as_str()),
+                                    )
+                                    .add(task_model::Column::UserId.eq(user_id)),
+                            )
+                            .add(task_model::Column::AssignedTo.eq(user_id)),
+                    );
+                } else {
+                    conditions = conditions
+                        .add(task_model::Column::Visibility.eq(TaskVisibility::Personal.as_str()))
+                        .add(task_model::Column::UserId.eq(user_id));
+                }
+            }
+            Some(TaskVisibility::Team) => {
+                // チームタスク（team_id指定時はそのチームのみ）
+                conditions = conditions
+                    .add(task_model::Column::Visibility.eq(TaskVisibility::Team.as_str()));
+                if let Some(team_id) = query.team_id {
+                    conditions = conditions.add(task_model::Column::TeamId.eq(team_id));
+                }
+            }
+            Some(TaskVisibility::Organization) => {
+                // 組織タスク（organization_id指定時はその組織のみ）
+                conditions = conditions
+                    .add(task_model::Column::Visibility.eq(TaskVisibility::Organization.as_str()));
+                if let Some(org_id) = query.organization_id {
+                    conditions = conditions.add(task_model::Column::OrganizationId.eq(org_id));
+                }
+            }
+            None => {
+                // スコープ指定なしの場合は個人タスクのみ（後方互換性）
+                conditions = conditions.add(task_model::Column::UserId.eq(user_id));
+            }
+        }
+
+        // include_assignedオプションの処理
+        if query.include_assigned.unwrap_or(false) && query.visibility.is_none() {
+            // スコープ指定なしでinclude_assignedがtrueの場合、割り当てられたタスクも含める
+            conditions = Condition::all().add(
+                Condition::any()
+                    .add(task_model::Column::UserId.eq(user_id))
+                    .add(task_model::Column::AssignedTo.eq(user_id)),
+            );
+        }
 
         // ステータスフィルタ
         if let Some(status) = &query.status {
