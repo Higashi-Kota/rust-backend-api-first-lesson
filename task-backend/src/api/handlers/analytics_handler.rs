@@ -6,6 +6,7 @@ use crate::api::dto::common::OperationResult;
 use crate::api::AppState;
 use crate::domain::{daily_activity_summary_model, subscription_tier::SubscriptionTier};
 use crate::error::AppResult;
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::middleware::authorization::{resources, Action};
 use crate::repository::{
@@ -18,7 +19,7 @@ use crate::types::ApiResponse;
 use crate::types::Timestamp;
 use crate::utils::error_helper::{convert_validation_errors, internal_server_error};
 use axum::{
-    extract::{Json, Path, Query, State},
+    extract::{Json, Query, State},
     routing::{get, post},
     Router,
 };
@@ -486,7 +487,7 @@ pub async fn get_user_activity_handler(
 pub async fn get_user_activity_admin_handler(
     State(app_state): State<AppState>,
     _admin_user: AuthenticatedUserWithRole,
-    Path(target_user_id): Path<Uuid>,
+    ValidatedUuid(target_user_id): ValidatedUuid,
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<ApiResponse<UserActivityResponse>> {
     // 権限チェックはミドルウェアで実施済み
@@ -1890,7 +1891,7 @@ pub async fn get_feature_usage_stats_handler(
 pub async fn get_user_feature_usage_handler(
     State(app_state): State<AppState>,
     _admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Query(query): Query<StatsPeriodQuery>,
 ) -> AppResult<ApiResponse<UserFeatureUsageResponse>> {
     // 権限チェックはミドルウェアで実施済み

@@ -252,6 +252,169 @@ self.repo.count_tasks()
   - 権限なしエラー（403 Forbidden）
   - 認証なしエラー（401 Unauthorized）
 
+### 10. **統一ロギングパターンの使用**
+
+#### ロギング実装の必須要件
+
+* **すべてのサービス層でlog_with_context!マクロを使用すること**
+  ```rust
+  use crate::log_with_context;
+  
+  log_with_context!(
+      tracing::Level::DEBUG,
+      "Creating resource",
+      "user_id" => user_id,
+      "resource_type" => "task"
+  );
+  ```
+
+* **ログレベルの使い分け**
+  - `DEBUG`: 操作開始時、詳細な処理内容
+  - `INFO`: 操作成功時、重要なイベント
+  - `WARN`: 警告すべき状況（権限不足、リトライなど）
+  - `ERROR`: エラー発生時、処理失敗
+
+* **3段階ログパターンの実装**
+  ```rust
+  // 1. 操作開始（DEBUG）
+  log_with_context!(
+      tracing::Level::DEBUG,
+      "Starting operation",
+      "user_id" => user_id,
+      "operation" => "create_task"
+  );
+  
+  // 2. 操作成功（INFO）
+  log_with_context!(
+      tracing::Level::INFO,
+      "Operation completed successfully",
+      "user_id" => user_id,
+      "resource_id" => created_id
+  );
+  
+  // 3. エラー時（ERROR）
+  .map_err(|e| {
+      log_with_context!(
+          tracing::Level::ERROR,
+          "Operation failed",
+          "user_id" => user_id,
+          "error" => &e.to_string()
+      );
+      e
+  })?;
+  ```
+
+#### ミドルウェア設定
+
+* **main.rsでのミドルウェア追加（順序重要）**
+  ```rust
+  .layer(axum_middleware::from_fn(crate::logging::logging_middleware))
+  .layer(axum_middleware::from_fn(crate::logging::inject_request_context))
+  ```
+
+* **RequestContextの自動付与**
+  - request_id: 各リクエストに一意のID
+  - user_id: 認証済みユーザーのID（オプション）
+  - path: リクエストパス
+  - method: HTTPメソッド
+
+#### ログ出力の構造化
+
+* **すべてのログは構造化され、以下の情報を含む**
+  - message: ログメッセージ
+  - request_id: リクエスト追跡用ID
+  - 任意のkey-valueペア（user_id, resource_idなど）
+
+* **HTTPレスポンスログの自動レベル調整**
+  - 5xx: ERROR
+  - 4xx: WARN
+  - その他: INFO
+
+#### 既存のtracing直接使用の禁止
+
+* **以下の直接使用は禁止（log_with_context!を使用）**
+  - `tracing::debug!`
+  - `tracing::info!`
+  - `tracing::warn!`
+  - `tracing::error!`
+
+### 11. **UUID/ID検証パターンの統一実装**
+
+#### 統一UUID Extractorの使用
+
+* **すべてのパスパラメータのUUID検証でValidatedUuidを使用すること**
+  ```rust
+  use crate::extractors::ValidatedUuid;
+  
+  // ✅ 推奨
+  pub async fn get_resource_handler(
+      ValidatedUuid(resource_id): ValidatedUuid,
+      State(state): State<AppState>,
+  ) -> Result<ApiResponse<ResourceDto>> {
+      // resource_idは検証済みのUuid
+  }
+  
+  // ❌ 避けるべき
+  pub async fn get_resource_handler(
+      Path(resource_id): Path<Uuid>,
+      State(state): State<AppState>,
+  ) -> Result<ApiResponse<ResourceDto>> {
+      // 個別のUUID検証が必要
+  }
+  ```
+
+#### 複数パラメータの処理
+
+* **複数のUUIDパラメータを含むパスには専用の構造体を定義**
+  ```rust
+  use crate::extractors::deserialize_uuid;
+  use serde::Deserialize;
+  
+  #[derive(Deserialize)]
+  pub struct TeamMemberPath {
+      #[serde(deserialize_with = "deserialize_uuid")]
+      pub team_id: Uuid,
+      #[serde(deserialize_with = "deserialize_uuid")]
+      pub member_id: Uuid,
+  }
+  
+  pub async fn update_member_handler(
+      Path(params): Path<TeamMemberPath>,
+      State(state): State<AppState>,
+  ) -> Result<ApiResponse<MemberDto>> {
+      // params.team_id, params.member_idで検証済みのUUIDにアクセス
+  }
+  ```
+
+#### ルーティングパスパラメータの命名規則
+
+* **Axum 0.8のパスパラメータ形式 `{param}` を使用**
+* **パラメータ名は対応する構造体のフィールド名と完全一致させること**
+  ```rust
+  // ✅ 正しい例
+  .route("/teams/{team_id}/members/{member_id}", patch(update_member))
+  // TeamMemberPath構造体のフィールド名と一致
+  
+  // ❌ 間違った例
+  .route("/teams/{id}/members/{member}", patch(update_member))
+  // フィールド名と不一致
+  ```
+
+#### エラーメッセージの統一
+
+* **すべてのUUID検証エラーは統一フォーマットを使用**
+  - フォーマット: `"Invalid UUID format: 'xxx'"`
+  - エラータイプ: `AppError::BadRequest`
+  - 一貫性のあるユーザー体験を提供
+
+#### 実装の利点
+
+1. **検証ロジックの一元化**: UUID検証が単一の場所に集約
+2. **エラーメッセージの一貫性**: すべてのエンドポイントで同じエラー形式
+3. **型安全性の向上**: コンパイル時にUUID検証を保証
+4. **保守性の向上**: 検証ロジックの変更が容易
+5. **テストの簡素化**: Extractor自体のテストで網羅的な検証が可能
+
 ---
 
 ## 🧪 テスト要件

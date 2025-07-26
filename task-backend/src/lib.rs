@@ -4,6 +4,7 @@ pub mod config;
 pub mod db;
 pub mod domain;
 pub mod error;
+pub mod extractors;
 pub mod logging;
 pub mod middleware;
 pub mod repository;

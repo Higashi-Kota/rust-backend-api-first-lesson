@@ -5,12 +5,12 @@ use crate::api::dto::subscription_dto::*;
 use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::types::{optional_timestamp, ApiResponse, Timestamp};
 use crate::utils::error_helper::convert_validation_errors;
 use axum::{
-    extract::{FromRequestParts, Json, Path, Query, State},
-    http::request::Parts,
+    extract::{Json, Query, State},
     routing::{get, patch, post},
     Router,
 };
@@ -18,7 +18,6 @@ use chrono::{DateTime, Duration, Utc};
 use serde::Deserialize;
 use serde_json::json;
 use tracing::{info, warn};
-use uuid::Uuid;
 use validator::Validate;
 
 /// 管理者用統計クエリパラメータ
@@ -26,29 +25,6 @@ use validator::Validate;
 pub struct AdminStatsQuery {
     pub include_revenue: Option<bool>,
     pub days: Option<u32>,
-}
-
-// --- カスタム抽出器 ---
-
-/// UUID パス抽出器
-pub struct UuidPath(pub Uuid);
-
-impl<S> FromRequestParts<S> for UuidPath
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let Path(path_str) = Path::<String>::from_request_parts(parts, state)
-            .await
-            .map_err(|_| AppError::BadRequest("Invalid path parameter".to_string()))?;
-
-        let uuid = Uuid::parse_str(&path_str)
-            .map_err(|_| AppError::BadRequest(format!("Invalid UUID format: '{}'", path_str)))?;
-
-        Ok(UuidPath(uuid))
-    }
 }
 
 // --- Handler Functions ---
@@ -675,7 +651,7 @@ pub async fn get_subscription_stats_v2_handler(
 /// ユーザー別サブスクリプション履歴取得
 pub async fn get_user_subscription_history_handler(
     State(app_state): State<AppState>,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     authenticated_user: AuthenticatedUserWithRole,
     Query(query): Query<PaginationQuery>,
 ) -> AppResult<ApiResponse<SubscriptionHistoryResponse>> {
@@ -735,7 +711,7 @@ pub async fn get_user_subscription_history_handler(
 /// 管理者用ユーザーのサブスクリプション変更
 pub async fn admin_change_subscription_handler(
     State(app_state): State<AppState>,
-    UuidPath(user_id): UuidPath,
+    ValidatedUuid(user_id): ValidatedUuid,
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<AdminChangeSubscriptionRequest>,
 ) -> AppResult<ChangeSubscriptionResponse> {
@@ -793,7 +769,7 @@ pub async fn admin_change_subscription_handler(
 pub async fn get_subscription_history_detail_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(history_id): Path<Uuid>,
+    ValidatedUuid(history_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<SubscriptionHistoryDetailResponse>> {
     info!(
         user_id = %user.user_id(),

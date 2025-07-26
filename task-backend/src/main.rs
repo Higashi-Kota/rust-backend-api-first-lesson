@@ -9,6 +9,7 @@ mod config;
 mod db;
 mod domain;
 mod error;
+mod extractors;
 mod logging;
 mod middleware;
 mod repository;

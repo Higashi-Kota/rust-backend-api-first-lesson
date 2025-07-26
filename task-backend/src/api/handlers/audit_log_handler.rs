@@ -1,6 +1,7 @@
 // src/api/handlers/audit_log_handler.rs
 use crate::api::AppState;
 use crate::error::AppResult;
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::authorization::{resources, Action};
 use crate::require_permission;
@@ -8,14 +9,13 @@ use crate::service::audit_log_service::PaginatedAuditLogs;
 use crate::types::ApiResponse;
 use crate::utils::error_helper::{forbidden_error, internal_server_error};
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     response::IntoResponse,
     routing::get,
     Router,
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
-use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct AuditLogQuery {
@@ -58,7 +58,7 @@ pub async fn get_my_audit_logs(
 pub async fn get_user_audit_logs(
     State(app_state): State<AppState>,
     auth_user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Query(query): Query<AuditLogQuery>,
 ) -> AppResult<impl IntoResponse> {
     // 権限チェックはミドルウェアで実施済み
@@ -83,7 +83,7 @@ pub async fn get_user_audit_logs(
 pub async fn get_team_audit_logs(
     State(app_state): State<AppState>,
     auth_user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
     Query(query): Query<AuditLogQuery>,
 ) -> AppResult<impl IntoResponse> {
     // チームメンバーシップの確認

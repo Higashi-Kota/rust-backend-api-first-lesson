@@ -4,6 +4,7 @@ use crate::api::dto::team_dto::*;
 use crate::api::dto::team_query_dto::TeamSearchQuery;
 use crate::api::AppState;
 use crate::error::AppResult;
+use crate::extractors::{deserialize_uuid, ValidatedMultiPath, ValidatedUuid};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::authorization::{resources, Action};
 use crate::require_permission;
@@ -11,14 +12,24 @@ use crate::shared::types::PaginatedResponse;
 use crate::types::ApiResponse;
 use crate::utils::error_helper::convert_validation_errors;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     routing::{delete, get, patch, post},
     Json, Router,
 };
+use serde::Deserialize;
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
+
+// 複数パラメータ用のPath構造体
+#[derive(Deserialize)]
+pub struct TeamMemberPath {
+    #[serde(deserialize_with = "deserialize_uuid")]
+    pub team_id: Uuid,
+    #[serde(deserialize_with = "deserialize_uuid")]
+    pub member_id: Uuid,
+}
 
 /// チーム作成
 pub async fn create_team_handler(
@@ -45,7 +56,7 @@ pub async fn create_team_handler(
 pub async fn get_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<TeamResponse>> {
     let team_response = app_state
         .team_service
@@ -73,7 +84,7 @@ pub async fn list_teams_handler(
 pub async fn update_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
     Json(payload): Json<UpdateTeamRequest>,
 ) -> AppResult<ApiResponse<TeamResponse>> {
     // バリデーション
@@ -95,7 +106,7 @@ pub async fn update_team_handler(
 pub async fn delete_team_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
 ) -> AppResult<(StatusCode, ApiResponse<()>)> {
     // 権限チェックはミドルウェアで実施済み
 
@@ -111,7 +122,7 @@ pub async fn delete_team_handler(
 pub async fn invite_team_member_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
     Json(payload): Json<InviteTeamMemberRequest>,
 ) -> AppResult<(StatusCode, ApiResponse<TeamMemberResponse>)> {
     // バリデーション
@@ -133,12 +144,12 @@ pub async fn invite_team_member_handler(
 pub async fn update_team_member_role_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path((team_id, member_id)): Path<(Uuid, Uuid)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<TeamMemberPath>,
     Json(payload): Json<UpdateTeamMemberRoleRequest>,
 ) -> AppResult<ApiResponse<TeamMemberResponse>> {
     let member_response = app_state
         .team_service
-        .update_team_member_role(team_id, member_id, payload, user.user_id())
+        .update_team_member_role(params.team_id, params.member_id, payload, user.user_id())
         .await?;
 
     Ok(ApiResponse::success(member_response))
@@ -148,11 +159,11 @@ pub async fn update_team_member_role_handler(
 pub async fn remove_team_member_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path((team_id, member_id)): Path<(Uuid, Uuid)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<TeamMemberPath>,
 ) -> AppResult<(StatusCode, ApiResponse<()>)> {
     app_state
         .team_service
-        .remove_team_member(team_id, member_id, user.user_id())
+        .remove_team_member(params.team_id, params.member_id, user.user_id())
         .await?;
 
     Ok((StatusCode::NO_CONTENT, ApiResponse::success(())))
@@ -196,11 +207,11 @@ pub async fn get_teams_with_pagination_handler(
 pub async fn get_team_member_details_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path((team_id, member_id)): Path<(Uuid, Uuid)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<TeamMemberPath>,
 ) -> AppResult<ApiResponse<TeamMemberDetailResponse>> {
     let member_detail = app_state
         .team_service
-        .get_team_member_detail(team_id, member_id, user.user_id())
+        .get_team_member_detail(params.team_id, params.member_id, user.user_id())
         .await?;
 
     Ok(ApiResponse::success(member_detail))
@@ -303,7 +314,7 @@ pub fn team_router(app_state: AppState) -> Router {
                 .route_layer(require_permission!(resources::TEAM, Action::View)),
         )
         .route(
-            "/teams/{id}/invitations/{invite_id}/decline",
+            "/teams/{team_id}/invitations/{invitation_id}/decline",
             patch(decline_invitation), // 招待を受けた本人のみが拒否可能（特殊な権限チェック）
         )
         .route(
@@ -344,7 +355,7 @@ pub fn team_router(app_state: AppState) -> Router {
         // === 招待受諾・キャンセル・再送API ===
         .route("/invitations/{id}/accept", post(accept_invitation))
         .route(
-            "/teams/{team_id}/invitations/{invite_id}/cancel",
+            "/teams/{team_id}/invitations/{invitation_id}/cancel",
             delete(cancel_invitation)
                 .route_layer(require_permission!(resources::TEAM, Action::Update)),
         )

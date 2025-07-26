@@ -13,12 +13,13 @@ use crate::api::dto::user_dto::{
 };
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::error::{AppError, AppResult};
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::types::ApiResponse;
 use crate::types::{optional_timestamp, Timestamp};
 use crate::utils::permission::{PermissionChecker, PermissionType};
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     Json,
 };
@@ -113,7 +114,7 @@ pub struct ChangeUserSubscriptionResponse {
 pub async fn admin_get_task(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<TaskResponse>> {
     let task_service = &app_state.task_service;
 
@@ -654,7 +655,7 @@ pub async fn admin_create_task(
 pub async fn admin_update_task(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
     Json(request): Json<UpdateTaskDto>,
 ) -> AppResult<ApiResponse<TaskDto>> {
     let task_service = &app_state.task_service;
@@ -667,7 +668,7 @@ pub async fn admin_update_task(
 pub async fn admin_delete_task(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
 ) -> AppResult<axum::http::StatusCode> {
     let task_service = &app_state.task_service;
     task_service.delete_task(task_id).await?;
@@ -714,7 +715,7 @@ pub async fn admin_list_tasks_paginated(
 pub async fn admin_list_user_tasks(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<Vec<TaskDto>>> {
     let task_service = &app_state.task_service;
     let tasks = task_service.list_tasks_for_user(user_id).await?;
@@ -785,7 +786,7 @@ pub async fn admin_list_roles(
 pub async fn admin_get_role_with_subscription(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUserWithRole,
-    Path(role_id): Path<Uuid>,
+    ValidatedUuid(role_id): ValidatedUuid,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<RoleWithSubscriptionResponse>> {
     let role_service = &app_state.role_service;
@@ -944,7 +945,7 @@ pub async fn admin_list_users_with_roles(
 pub async fn admin_check_user_member_status(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
     info!(
         admin_id = %admin_user.user_id(),
@@ -1009,7 +1010,7 @@ pub async fn admin_check_user_member_status(
 pub async fn change_user_subscription(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<ChangeUserSubscriptionRequest>,
 ) -> AppResult<ApiResponse<ChangeUserSubscriptionResponse>> {
     request.validate()?;
@@ -1165,7 +1166,7 @@ pub async fn admin_list_bulk_operations(
 pub async fn admin_get_user_bulk_operations(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<Vec<BulkOperationHistoryResponse>>> {
     let limit = params
@@ -1893,7 +1894,7 @@ pub async fn get_subscription_analytics_handler(
 pub async fn delete_user_subscription_history_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<(StatusCode, ApiResponse<DeleteHistoryResponse>)> {
     info!(
         admin_id = %admin_user.user_id(),
@@ -1919,7 +1920,7 @@ pub async fn delete_user_subscription_history_handler(
 pub async fn delete_subscription_history_by_id_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(history_id): Path<Uuid>,
+    ValidatedUuid(history_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<bool>> {
     info!(
         admin_id = %admin_user.user_id(),
@@ -1974,7 +1975,7 @@ pub struct DeleteHistoryResponse {
 pub async fn admin_get_user_settings(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<UserSettingsDto>> {
     info!(
         admin_id = %admin_user.user_id(),
@@ -1996,7 +1997,7 @@ pub async fn admin_get_user_settings(
 pub async fn admin_update_user_settings(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<UpdateUserSettingsRequest>,
 ) -> AppResult<ApiResponse<UserSettingsDto>> {
     request.validate()?;
@@ -2091,7 +2092,7 @@ pub async fn admin_get_users_with_notification(
 pub async fn admin_delete_user_settings(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<StatusCode> {
     info!(
         admin_id = %admin_user.user_id(),

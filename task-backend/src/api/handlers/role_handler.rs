@@ -4,10 +4,11 @@ use crate::api::dto::role_dto::*;
 use crate::api::dto::OperationResult;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::AuthenticatedUserWithRole;
 use crate::types::{ApiResponse, SortQuery};
 use axum::{
-    extract::{Json, Path, Query, State},
+    extract::{Json, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -16,6 +17,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json;
 use tracing::{info, warn};
+#[cfg(test)]
 use uuid::Uuid;
 use validator::Validate;
 
@@ -29,32 +31,6 @@ pub struct RoleSearchQuery {
     #[serde(flatten)]
     pub sort: SortQuery,
     pub active_only: Option<bool>,
-}
-
-// --- カスタム抽出器 ---
-
-/// UUID パス抽出器
-pub struct UuidPath(pub Uuid);
-
-impl<S> axum::extract::FromRequestParts<S> for UuidPath
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-
-    async fn from_request_parts(
-        parts: &mut axum::http::request::Parts,
-        state: &S,
-    ) -> Result<Self, Self::Rejection> {
-        let Path(path_str) = Path::<String>::from_request_parts(parts, state)
-            .await
-            .map_err(|_| AppError::BadRequest("Invalid path parameter".to_string()))?;
-
-        let uuid = Uuid::parse_str(&path_str)
-            .map_err(|_| AppError::BadRequest(format!("Invalid UUID format: '{}'", path_str)))?;
-
-        Ok(UuidPath(uuid))
-    }
 }
 
 // --- ロール管理ハンドラー ---
@@ -109,7 +85,7 @@ pub async fn list_roles_handler(
 /// 特定ロール取得
 pub async fn get_role_handler(
     State(app_state): State<AppState>,
-    UuidPath(role_id): UuidPath,
+    ValidatedUuid(role_id): ValidatedUuid,
     user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<RoleResponse>> {
     // RoleWithPermissionsのcan_view_resourceメソッドを活用
@@ -201,7 +177,7 @@ pub async fn create_role_handler(
 /// ロール更新
 pub async fn update_role_handler(
     State(app_state): State<AppState>,
-    UuidPath(role_id): UuidPath,
+    ValidatedUuid(role_id): ValidatedUuid,
     user: AuthenticatedUserWithRole,
     Json(mut payload): Json<UpdateRoleRequest>,
 ) -> AppResult<ApiResponse<OperationResult<RoleResponse>>> {
@@ -279,7 +255,7 @@ pub async fn update_role_handler(
 /// ロール削除
 pub async fn delete_role_handler(
     State(app_state): State<AppState>,
-    UuidPath(role_id): UuidPath,
+    ValidatedUuid(role_id): ValidatedUuid,
     user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
     // 権限チェックはミドルウェアで実施済み
@@ -312,7 +288,7 @@ pub async fn delete_role_handler(
 /// ユーザーにロール割り当て
 pub async fn assign_role_to_user_handler(
     State(app_state): State<AppState>,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     user: AuthenticatedUserWithRole,
     Json(payload): Json<AssignRoleRequest>,
 ) -> AppResult<ApiResponse<AssignRoleResponse>> {
@@ -413,7 +389,7 @@ mod tests {
     fn test_uuid_path_parsing() {
         let valid_uuid = "550e8400-e29b-41d4-a716-446655440000";
         let uuid = Uuid::parse_str(valid_uuid).unwrap();
-        let uuid_path = UuidPath(uuid);
+        let uuid_path = ValidatedUuid(uuid);
 
         assert_eq!(uuid_path.0, uuid);
     }

@@ -4,6 +4,7 @@ pub mod admin;
 pub mod analytics;
 pub mod audit_log_tests;
 pub mod auth;
+pub mod extractors;
 pub mod gdpr;
 pub mod middleware;
 pub mod organization;
