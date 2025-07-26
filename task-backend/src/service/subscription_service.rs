@@ -6,6 +6,7 @@ use crate::domain::subscription_history_model::{
 };
 use crate::domain::user_model::Model as User;
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::repository::subscription_history_repository::{
     SubscriptionHistoryRepository, UserSubscriptionStats,
 };
@@ -86,7 +87,11 @@ impl SubscriptionService {
             .await
         {
             // メール送信失敗はログに記録するが、処理は継続
-            tracing::warn!("Failed to send subscription change email: {}", e);
+            log_with_context!(
+                tracing::Level::WARN,
+                "Failed to send subscription change email",
+                "error" => &e.to_string()
+            );
         }
 
         Ok((updated_user, history))

@@ -1,6 +1,7 @@
 // src/service/audit_log_service.rs
 use crate::domain::audit_log_model::{AuditAction, AuditLogBuilder, AuditResult};
 use crate::error::AppResult;
+use crate::log_with_context;
 use crate::repository::audit_log_repository::AuditLogRepository;
 use crate::utils::error_helper::internal_server_error;
 use chrono::{Duration, Utc};
@@ -58,6 +59,18 @@ impl AuditLogService {
 
     // 監査ログを記録
     pub async fn log_action(&self, params: LogActionParams) -> AppResult<()> {
+        let action_str = format!("{:?}", params.action);
+        let result_str = format!("{:?}", params.result);
+
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Recording audit log",
+            "user_id" => params.user_id,
+            "action" => &action_str,
+            "resource_type" => &params.resource_type,
+            "resource_id" => params.resource_id,
+            "result" => &result_str
+        );
         let mut builder =
             AuditLogBuilder::new(params.user_id, params.action, &params.resource_type)
                 .result(params.result);
@@ -84,6 +97,11 @@ impl AuditLogService {
         let audit_log = builder.build();
 
         self.audit_log_repo.create(audit_log).await.map_err(|e| {
+            log_with_context!(
+                tracing::Level::ERROR,
+                "Failed to create audit log",
+                "error" => &e.to_string()
+            );
             internal_server_error(
                 e,
                 "audit_log_service::log_action",
@@ -91,11 +109,27 @@ impl AuditLogService {
             )
         })?;
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "Audit log recorded successfully",
+            "user_id" => params.user_id,
+            "action" => &action_str,
+            "resource_type" => &params.resource_type
+        );
+
         Ok(())
     }
 
     // タスク引き継ぎの監査ログを記録
     pub async fn log_task_transfer(&self, params: TaskTransferParams) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Recording task transfer audit log",
+            "user_id" => params.user_id,
+            "task_id" => params.task_id,
+            "previous_assignee" => params.previous_assignee,
+            "new_assignee" => params.new_assignee
+        );
         let details = serde_json::json!({
             "previous_assignee": params.previous_assignee,
             "new_assignee": params.new_assignee,
@@ -120,6 +154,14 @@ impl AuditLogService {
 
     // タスク作成の監査ログを記録
     pub async fn log_task_creation(&self, params: TaskCreationParams) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Recording task creation audit log",
+            "user_id" => params.user_id,
+            "task_id" => params.task_id,
+            "task_title" => &params.task_title,
+            "visibility" => &params.visibility
+        );
         let details = serde_json::json!({
             "title": params.task_title,
             "visibility": params.visibility,
@@ -148,6 +190,13 @@ impl AuditLogService {
         page: u64,
         per_page: u64,
     ) -> AppResult<PaginatedAuditLogs> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Retrieving user audit logs",
+            "user_id" => user_id,
+            "page" => page,
+            "per_page" => per_page
+        );
         let offset = (page - 1) * per_page;
         let limit = per_page;
 
@@ -156,6 +205,12 @@ impl AuditLogService {
             .find_by_user(user_id, limit, offset)
             .await
             .map_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to retrieve user audit logs",
+                    "user_id" => user_id,
+                    "error" => &e.to_string()
+                );
                 internal_server_error(
                     e,
                     "audit_log_service::get_user_audit_logs",
@@ -168,6 +223,12 @@ impl AuditLogService {
             .count_by_user(user_id)
             .await
             .map_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to count user audit logs",
+                    "user_id" => user_id,
+                    "error" => &e.to_string()
+                );
                 internal_server_error(
                     e,
                     "audit_log_service::get_user_audit_logs",
@@ -191,6 +252,13 @@ impl AuditLogService {
         page: u64,
         per_page: u64,
     ) -> AppResult<PaginatedAuditLogs> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Retrieving team audit logs",
+            "team_id" => team_id,
+            "page" => page,
+            "per_page" => per_page
+        );
         let offset = (page - 1) * per_page;
         let limit = per_page;
 
@@ -199,6 +267,12 @@ impl AuditLogService {
             .find_by_team(team_id, limit, offset)
             .await
             .map_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to retrieve team audit logs",
+                    "team_id" => team_id,
+                    "error" => &e.to_string()
+                );
                 internal_server_error(
                     e,
                     "audit_log_service::get_team_audit_logs",
@@ -211,6 +285,12 @@ impl AuditLogService {
             .count_by_team(team_id)
             .await
             .map_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to count team audit logs",
+                    "team_id" => team_id,
+                    "error" => &e.to_string()
+                );
                 internal_server_error(
                     e,
                     "audit_log_service::get_team_audit_logs",
@@ -229,6 +309,11 @@ impl AuditLogService {
 
     // 古いログの削除（デフォルトは90日以上前のログ）
     pub async fn cleanup_old_logs(&self, days_to_keep: i64) -> AppResult<u64> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Cleaning up old audit logs",
+            "days_to_keep" => days_to_keep
+        );
         let cutoff_date = Utc::now() - Duration::days(days_to_keep);
 
         let deleted_count = self
@@ -236,12 +321,24 @@ impl AuditLogService {
             .delete_old_logs(cutoff_date)
             .await
             .map_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to delete old audit logs",
+                    "error" => &e.to_string()
+                );
                 internal_server_error(
                     e,
                     "audit_log_service::cleanup_old_logs",
                     "Failed to delete old audit logs",
                 )
             })?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Old audit logs cleaned up successfully",
+            "deleted_count" => deleted_count,
+            "days_kept" => days_to_keep
+        );
 
         Ok(deleted_count)
     }

@@ -9,6 +9,7 @@ use crate::domain::task_attachment_model::{
     MAX_FILE_SIZE_FREE, MAX_FILE_SIZE_PRO,
 };
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::repository::attachment_repository::{AttachmentRepository, CreateAttachmentDto};
 use crate::repository::attachment_share_link_repository::{
     AttachmentShareLinkRepository, CreateShareLinkDto,
@@ -90,11 +91,12 @@ impl AttachmentService {
                     &optimization_config,
                 ) {
                     Ok(result) => {
-                        tracing::info!(
-                            "Image optimized: {} -> {} bytes ({}% reduction)",
-                            result.original_size,
-                            result.optimized_size,
-                            result.compression_ratio
+                        log_with_context!(
+                            tracing::Level::INFO,
+                            "Image optimized",
+                            "original_size" => result.original_size,
+                            "optimized_size" => result.optimized_size,
+                            "reduction_percentage" => result.compression_ratio
                         );
 
                         // 元のファイルも保持する場合
@@ -124,7 +126,11 @@ impl AttachmentService {
                     }
                     Err(e) => {
                         // 最適化に失敗した場合は元のファイルをそのまま使用
-                        tracing::warn!("Image optimization failed: {}, using original", e);
+                        log_with_context!(
+                            tracing::Level::WARN,
+                            "Image optimization failed, using original",
+                            "error" => &e.to_string()
+                        );
                         (
                             file_data,
                             mime_type.clone(),

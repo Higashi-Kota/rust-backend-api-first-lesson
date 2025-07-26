@@ -5,6 +5,7 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::AppResult;
 // use crate::repository::permission_repository::PermissionRepository; // TODO: Implement when PermissionRepository is created
 use crate::error::AppError;
+use crate::log_with_context;
 use crate::repository::role_repository::RoleRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::utils::permission::{PermissionChecker, PermissionType, ResourceContext};
@@ -39,6 +40,14 @@ impl PermissionService {
         resource_id: Option<Uuid>,
         action: &str,
     ) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Checking resource access",
+            "user_id" => user_id,
+            "resource_type" => resource_type,
+            "resource_id" => resource_id,
+            "action" => action
+        );
         let role = self.get_user_role(user_id).await?;
 
         let has_permission = match action {
@@ -56,6 +65,14 @@ impl PermissionService {
         };
 
         if !has_permission {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Permission denied for resource access",
+                "user_id" => user_id,
+                "resource_type" => resource_type,
+                "resource_id" => resource_id,
+                "action" => action
+            );
             return Err(AppError::Forbidden(format!(
                 "Permission denied for {} action on {} resource",
                 action, resource_type
@@ -71,9 +88,21 @@ impl PermissionService {
         requesting_user_id: Uuid,
         target_user_id: Uuid,
     ) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Checking user access",
+            "requesting_user_id" => requesting_user_id,
+            "target_user_id" => target_user_id
+        );
         let role = self.get_user_role(requesting_user_id).await?;
 
         if !PermissionChecker::can_access_user(&role, requesting_user_id, target_user_id) {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Permission denied for user access",
+                "requesting_user_id" => requesting_user_id,
+                "target_user_id" => target_user_id
+            );
             return Err(AppError::Forbidden(
                 "Cannot access other user's data".to_string(),
             ));
@@ -89,6 +118,12 @@ impl PermissionService {
         permission_type: PermissionType,
         context: Option<ResourceContext>,
     ) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Checking permission type",
+            "user_id" => user_id,
+            "permission_type" => format!("{:?}", permission_type)
+        );
         let role = self.get_user_role(user_id).await?;
 
         let has_permission = match permission_type {
@@ -127,6 +162,12 @@ impl PermissionService {
         };
 
         if !has_permission {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Permission denied for permission type",
+                "user_id" => user_id,
+                "permission_type" => format!("{:?}", permission_type)
+            );
             return Err(AppError::Forbidden("Permission denied".to_string()));
         }
 
@@ -135,9 +176,19 @@ impl PermissionService {
 
     /// ユーザーの管理機能へのアクセス権限を確認
     pub async fn check_admin_features_access(&self, user_id: Uuid) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Checking admin features access",
+            "user_id" => user_id
+        );
         let role = self.get_user_role(user_id).await?;
 
         if !PermissionChecker::can_access_admin_features(&role) {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Admin features access denied",
+                "user_id" => user_id
+            );
             return Err(AppError::Forbidden(
                 "Admin features access denied".to_string(),
             ));
@@ -175,6 +226,12 @@ impl PermissionService {
         user_id: Uuid,
         checks: Vec<(PermissionType, Option<ResourceContext>)>,
     ) -> AppResult<Vec<bool>> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Checking multiple permissions",
+            "user_id" => user_id,
+            "checks_count" => checks.len()
+        );
         let role = self.get_user_role(user_id).await?;
 
         let results = checks

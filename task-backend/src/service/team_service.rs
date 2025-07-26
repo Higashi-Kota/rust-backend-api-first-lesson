@@ -5,6 +5,7 @@ use crate::api::dto::team_query_dto::TeamSearchQuery;
 use crate::domain::audit_log_model::{AuditAction, AuditResult};
 use crate::domain::team_member_model::Model as TeamMemberModel;
 use crate::domain::team_model::{Model as TeamModel, TeamRole};
+use crate::log_with_context;
 use crate::middleware::subscription_guard::check_feature_limit;
 use crate::service::audit_log_service::{AuditLogService, LogActionParams};
 use crate::utils::email::EmailService;
@@ -21,7 +22,6 @@ use crate::types::Timestamp;
 use sea_orm::DatabaseConnection;
 use serde_json;
 use std::sync::Arc;
-use tracing::{info, warn};
 use uuid::Uuid;
 
 pub struct TeamService {
@@ -56,8 +56,20 @@ impl TeamService {
         request: CreateTeamRequest,
         owner_id: Uuid,
     ) -> AppResult<TeamResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Creating team",
+            "owner_id" => owner_id,
+            "team_name" => &request.name
+        );
         // チーム名の重複チェック
         if let Some(_existing) = self.team_repository.find_by_name(&request.name).await? {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Team creation failed: name already exists",
+                "owner_id" => owner_id,
+                "team_name" => &request.name
+            );
             return Err(AppError::BadRequest("Team name already exists".to_string()));
         }
 
@@ -69,11 +81,23 @@ impl TeamService {
                 .await
             {
                 if organization.owner_id != owner_id {
+                    log_with_context!(
+                        tracing::Level::WARN,
+                        "Team creation failed: not organization owner",
+                        "owner_id" => owner_id,
+                        "organization_id" => organization_id
+                    );
                     return Err(AppError::Forbidden(
                         "Only organization owner can create teams in the organization".to_string(),
                     ));
                 }
             } else {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Team creation failed: organization not found",
+                    "owner_id" => owner_id,
+                    "organization_id" => organization_id
+                );
                 return Err(AppError::NotFound("Organization not found".to_string()));
             }
         }
@@ -104,12 +128,13 @@ impl TeamService {
         // チーム数制限チェック（管理者=Enterpriseティアなので制限なし）
         check_feature_limit(&user_tier, current_team_count, "teams")?;
 
-        info!(
-            owner_id = %owner_id,
-            team_name = %request.name,
-            current_teams = current_team_count,
-            user_tier = %user_tier.as_str(),
-            "Starting team creation"
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Team creation validation passed",
+            "owner_id" => owner_id,
+            "team_name" => &request.name,
+            "current_teams" => current_team_count,
+            "user_tier" => user_tier.as_str()
         );
 
         // チームのサブスクリプション階層はオーナーと同じ
@@ -130,11 +155,12 @@ impl TeamService {
         let owner_member = TeamMember::new_member(created_team.id, owner_id, TeamRole::Owner, None);
         let created_member = self.team_repository.add_member(&owner_member).await?;
 
-        info!(
-            owner_id = %owner_id,
-            team_id = %created_team.id,
-            team_name = %created_team.name,
-            "Team created successfully"
+        log_with_context!(
+            tracing::Level::INFO,
+            "Team created successfully",
+            "owner_id" => owner_id,
+            "team_id" => created_team.id,
+            "team_name" => &created_team.name
         );
 
         // レスポンスを作成
@@ -144,6 +170,12 @@ impl TeamService {
 
     /// チーム詳細を取得
     pub async fn get_team_by_id(&self, team_id: Uuid, user_id: Uuid) -> AppResult<TeamResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting team by id",
+            "team_id" => team_id,
+            "user_id" => user_id
+        );
         let team = self
             .team_repository
             .find_by_id(team_id)
@@ -168,6 +200,13 @@ impl TeamService {
         query: TeamSearchQuery,
         user_id: Uuid,
     ) -> AppResult<Vec<TeamListResponse>> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting teams",
+            "user_id" => user_id,
+            "organization_id" => query.organization_id,
+            "owner_id" => query.owner_id
+        );
         let teams = if let Some(org_id) = query.organization_id {
             // 組織のチーム一覧
             self.team_repository.find_by_organization_id(org_id).await?
@@ -197,6 +236,12 @@ impl TeamService {
         request: UpdateTeamRequest,
         user_id: Uuid,
     ) -> AppResult<TeamResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Updating team",
+            "team_id" => team_id,
+            "user_id" => user_id
+        );
         let mut team = self
             .team_repository
             .find_by_id(team_id)
@@ -212,6 +257,12 @@ impl TeamService {
             // 名前の重複チェック（異なるチームで）
             if let Some(existing) = self.team_repository.find_by_name(&name).await? {
                 if existing.id != team_id {
+                    log_with_context!(
+                        tracing::Level::WARN,
+                        "Team update failed: name already exists",
+                        "team_id" => team_id,
+                        "new_name" => &name
+                    );
                     return Err(AppError::BadRequest("Team name already exists".to_string()));
                 }
             }
@@ -229,11 +280,24 @@ impl TeamService {
             .await?;
         let member_responses = self.build_team_member_responses(&members).await?;
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "Team updated successfully",
+            "team_id" => team_id,
+            "user_id" => user_id
+        );
+
         Ok(TeamResponse::from((updated_team, member_responses)))
     }
 
     /// チームを削除
     pub async fn delete_team(&self, team_id: Uuid, user_id: Uuid) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Deleting team",
+            "team_id" => team_id,
+            "user_id" => user_id
+        );
         let team = self
             .team_repository
             .find_by_id(team_id)
@@ -258,6 +322,12 @@ impl TeamService {
             };
 
             if !is_org_owner {
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "Team deletion failed: insufficient permissions",
+                    "team_id" => team_id,
+                    "user_id" => user_id
+                );
                 return Err(AppError::Forbidden(
                     "Only team owner or organization owner can delete the team".to_string(),
                 ));
@@ -275,6 +345,14 @@ impl TeamService {
 
         // チームを削除
         self.team_repository.delete_team(team_id).await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Team deleted successfully",
+            "team_id" => team_id,
+            "user_id" => user_id
+        );
+
         Ok(())
     }
 
@@ -285,6 +363,14 @@ impl TeamService {
         request: InviteTeamMemberRequest,
         inviter_id: Uuid,
     ) -> AppResult<TeamMemberResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Inviting team member",
+            "team_id" => team_id,
+            "inviter_id" => inviter_id,
+            "user_id" => request.user_id,
+            "email" => &request.email
+        );
         let team = self
             .team_repository
             .find_by_id(team_id)
@@ -330,6 +416,12 @@ impl TeamService {
             .find_member_by_user_and_team(user_id, team_id)
             .await?
         {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Team invitation failed: user already member",
+                "team_id" => team_id,
+                "user_id" => user_id
+            );
             return Err(AppError::BadRequest(
                 "User is already a team member".to_string(),
             ));
@@ -364,10 +456,26 @@ impl TeamService {
             .await
         {
             // メール送信失敗はログに記録するが、処理は継続
-            warn!("Failed to send team invitation email: {}", e);
+            log_with_context!(
+                tracing::Level::WARN,
+                "Failed to send team invitation email",
+                "team_id" => team_id,
+                "user_id" => user_id,
+                "error" => &e.to_string()
+            );
         }
 
-        self.build_team_member_response(&created_member).await
+        let response = self.build_team_member_response(&created_member).await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Team member invited successfully",
+            "team_id" => team_id,
+            "inviter_id" => inviter_id,
+            "invited_user_id" => user_id
+        );
+
+        Ok(response)
     }
 
     /// チームメンバーの役割を更新
@@ -378,6 +486,14 @@ impl TeamService {
         request: UpdateTeamMemberRoleRequest,
         user_id: Uuid,
     ) -> AppResult<TeamMemberResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Updating team member role",
+            "team_id" => team_id,
+            "member_id" => member_id,
+            "user_id" => user_id,
+            "new_role" => &request.role.to_string()
+        );
         let team = self
             .team_repository
             .find_by_id(team_id)
@@ -397,6 +513,12 @@ impl TeamService {
 
         // オーナーの役割変更は禁止
         if member.get_role() == TeamRole::Owner {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Role update failed: cannot change owner role",
+                "team_id" => team_id,
+                "member_id" => member_id
+            );
             return Err(AppError::BadRequest("Cannot change owner role".to_string()));
         }
 
@@ -427,10 +549,25 @@ impl TeamService {
         };
 
         if let Err(e) = self.audit_log_service.log_action(log_params).await {
-            warn!("Failed to log team member role change: {}", e);
+            log_with_context!(
+                tracing::Level::WARN,
+                "Failed to log team member role change",
+                "error" => &e.to_string()
+            );
         }
 
-        self.build_team_member_response(&updated_member).await
+        let response = self.build_team_member_response(&updated_member).await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Team member role updated successfully",
+            "team_id" => team_id,
+            "member_id" => member_id,
+            "old_role" => &old_role.to_string(),
+            "new_role" => &new_role.to_string()
+        );
+
+        Ok(response)
     }
 
     /// チームメンバーを削除
@@ -440,6 +577,13 @@ impl TeamService {
         member_id: Uuid,
         user_id: Uuid,
     ) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Removing team member",
+            "team_id" => team_id,
+            "member_id" => member_id,
+            "user_id" => user_id
+        );
         // チームの存在確認
         self.team_repository
             .find_by_id(team_id)
@@ -454,6 +598,12 @@ impl TeamService {
 
         // オーナーは削除不可
         if member.get_role() == TeamRole::Owner {
+            log_with_context!(
+                tracing::Level::WARN,
+                "Member removal failed: cannot remove owner",
+                "team_id" => team_id,
+                "member_id" => member_id
+            );
             return Err(AppError::BadRequest("Cannot remove team owner".to_string()));
         }
 
@@ -469,6 +619,15 @@ impl TeamService {
         }
 
         self.team_repository.remove_member(member_id).await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Team member removed successfully",
+            "team_id" => team_id,
+            "member_id" => member_id,
+            "removed_by" => user_id
+        );
+
         Ok(())
     }
 

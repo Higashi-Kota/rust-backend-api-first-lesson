@@ -17,6 +17,7 @@ use crate::domain::permission::Permission;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::task_visibility::TaskVisibility;
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::authorization::PermissionContext;
 use crate::middleware::subscription_guard::check_feature_limit;
@@ -31,7 +32,6 @@ use crate::service::team_service::TeamService;
 use crate::utils::error_helper::{forbidden_error, internal_server_error, not_found_error};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
-use tracing::error;
 use uuid::Uuid;
 
 pub struct TaskService {
@@ -72,6 +72,13 @@ impl TaskService {
         user_id: Uuid,
         payload: CreateTaskDto,
     ) -> AppResult<TaskDto> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Creating task for user",
+            "user_id" => user_id,
+            "title" => &payload.title
+        );
+
         // ユーザーのサブスクリプションティアを取得
         let user = self
             .user_repo
@@ -107,8 +114,20 @@ impl TaskService {
         };
 
         if let Err(e) = self.audit_log_service.log_action(log_params).await {
-            error!("Failed to log task creation: {}", e);
+            log_with_context!(
+                tracing::Level::ERROR,
+                "Failed to log task creation",
+                "error" => &e.to_string()
+            );
         }
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Task created successfully",
+            "user_id" => user_id,
+            "task_id" => created_task.id,
+            "title" => &created_task.title
+        );
 
         Ok(created_task.into())
     }
@@ -910,11 +929,12 @@ impl TaskService {
             })
             .await
         {
-            tracing::error!(
-                error = %e,
-                user_id = %user.claims.user_id,
-                task_id = %task.id,
-                "Failed to record audit log for team task creation"
+            log_with_context!(
+                tracing::Level::ERROR,
+                "Failed to record audit log for team task creation",
+                "error" => &e.to_string(),
+                "user_id" => user.claims.user_id,
+                "task_id" => task.id,
             );
         }
 
@@ -1010,11 +1030,12 @@ impl TaskService {
             })
             .await
         {
-            tracing::error!(
-                error = %e,
-                user_id = %user.claims.user_id,
-                task_id = %task.id,
-                "Failed to record audit log for organization task creation"
+            log_with_context!(
+                tracing::Level::ERROR,
+                "Failed to record audit log for organization task creation",
+                "error" => &e.to_string(),
+                "user_id" => user.claims.user_id,
+                "task_id" => task.id,
             );
         }
 
@@ -1307,11 +1328,12 @@ impl TaskService {
             .await
         {
             // 監査ログの記録に失敗してもタスクの引き継ぎ自体は成功とする
-            tracing::error!(
-                error = %e,
-                user_id = %user.claims.user_id,
-                task_id = %task_id,
-                "Failed to record audit log for task transfer"
+            log_with_context!(
+                tracing::Level::ERROR,
+                "Failed to record audit log for task transfer",
+                "error" => &e.to_string(),
+                "user_id" => user.claims.user_id,
+                "task_id" => task_id,
             );
         }
 

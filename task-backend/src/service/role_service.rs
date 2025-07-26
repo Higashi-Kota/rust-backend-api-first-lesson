@@ -2,12 +2,12 @@
 use crate::domain::role_model::{RoleName, RoleWithPermissions};
 use crate::domain::user_model::{SafeUserWithRole, UserClaims};
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::repository::role_repository::{CreateRoleData, RoleRepository, UpdateRoleData};
 use crate::repository::user_repository::UserRepository;
 use crate::utils::transaction::{execute_with_retry, RetryConfig};
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
-use tracing::{error, info, warn};
 use uuid::Uuid;
 
 /// ロールサービス
@@ -40,12 +40,21 @@ impl RoleService {
         page: i32,
         per_page: i32,
     ) -> AppResult<(Vec<RoleWithPermissions>, usize)> {
-        info!(page = %page, per_page = %per_page, "Fetching all roles with pagination");
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Fetching all roles with pagination",
+            "page" => page,
+            "per_page" => per_page
+        );
 
         // 現在の実装では全件取得してからページネーションしているが、
         // 将来的にロール数が増えた場合はリポジトリ層でページネーションを実装する
         let all_roles = self.role_repository.find_all().await.map_err(|e| {
-            error!(error = %e, "Failed to fetch all roles");
+            log_with_context!(
+                tracing::Level::ERROR,
+                "Failed to fetch all roles",
+                "error" => &e.to_string()
+            );
             AppError::InternalServerError("Failed to fetch roles".to_string())
         })?;
 
@@ -64,10 +73,19 @@ impl RoleService {
         page: i32,
         per_page: i32,
     ) -> AppResult<(Vec<RoleWithPermissions>, usize)> {
-        info!(page = %page, per_page = %per_page, "Fetching active roles with pagination");
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Fetching active roles with pagination",
+            "page" => page,
+            "per_page" => per_page
+        );
 
         let all_roles = self.role_repository.find_all_active().await.map_err(|e| {
-            error!(error = %e, "Failed to fetch active roles");
+            log_with_context!(
+                tracing::Level::ERROR,
+                "Failed to fetch active roles",
+                "error" => &e.to_string()
+            );
             AppError::InternalServerError("Failed to fetch active roles".to_string())
         })?;
 
@@ -82,17 +100,30 @@ impl RoleService {
 
     /// IDでロールを取得
     pub async fn get_role_by_id(&self, id: Uuid) -> AppResult<RoleWithPermissions> {
-        info!(role_id = %id, "Fetching role by ID");
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Fetching role by ID",
+            "role_id" => id
+        );
 
         self.role_repository
             .find_by_id(id)
             .await
             .map_err(|e| {
-                error!(error = %e, role_id = %id, "Failed to fetch role by ID");
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to fetch role by ID",
+                    "role_id" => id,
+                    "error" => &e.to_string()
+                );
                 AppError::InternalServerError("Failed to fetch role".to_string())
             })?
             .ok_or_else(|| {
-                warn!(role_id = %id, "Role not found");
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "Role not found",
+                    "role_id" => id
+                );
                 AppError::NotFound("Role not found".to_string())
             })
     }
@@ -103,17 +134,31 @@ impl RoleService {
         id: Uuid,
         subscription_tier: crate::domain::subscription_tier::SubscriptionTier,
     ) -> AppResult<RoleWithPermissions> {
-        info!(role_id = %id, subscription_tier = %subscription_tier, "Fetching role by ID with subscription");
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Fetching role by ID with subscription",
+            "role_id" => id,
+            "subscription_tier" => &subscription_tier.to_string()
+        );
 
         self.role_repository
             .find_by_id_with_subscription(id, subscription_tier)
             .await
             .map_err(|e| {
-                error!(error = %e, role_id = %id, "Failed to fetch role by ID with subscription");
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to fetch role by ID with subscription",
+                    "role_id" => id,
+                    "error" => &e.to_string()
+                );
                 AppError::InternalServerError("Failed to fetch role".to_string())
             })?
             .ok_or_else(|| {
-                warn!(role_id = %id, "Role not found");
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "Role not found",
+                    "role_id" => id
+                );
                 AppError::NotFound("Role not found".to_string())
             })
     }
@@ -124,24 +169,25 @@ impl RoleService {
         requesting_user: &UserClaims,
         create_data: CreateRoleInput,
     ) -> AppResult<RoleWithPermissions> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Creating new role",
+            "admin_id" => requesting_user.user_id,
+            "role_name" => &create_data.name
+        );
         // UserClaimsのcan_create_resourceメソッドを活用
         if !requesting_user.can_create_resource("role") {
-            warn!(
-                user_id = %requesting_user.user_id,
-                resource = "role",
-                "Insufficient permissions to create role"
+            log_with_context!(
+                tracing::Level::WARN,
+                "Insufficient permissions to create role",
+                "user_id" => requesting_user.user_id,
+                "resource" => "role"
             );
             return Err(AppError::Forbidden("Cannot create roles".to_string()));
         }
 
         // 入力バリデーション
         create_data.validate()?;
-
-        info!(
-            admin_id = %requesting_user.user_id,
-            role_name = %create_data.name,
-            "Creating new role"
-        );
 
         // ロール名の形式チェック
         let role_name = create_data.name.to_lowercase();
@@ -163,15 +209,21 @@ impl RoleService {
             .create(repo_create_data)
             .await
             .map_err(|e| {
-                error!(error = %e, role_name = %create_data.name, "Failed to create role");
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to create role",
+                    "role_name" => &create_data.name,
+                    "error" => &e.to_string()
+                );
                 AppError::InternalServerError("Failed to create role".to_string())
             })?;
 
-        info!(
-            admin_id = %requesting_user.user_id,
-            role_id = %created_role.id,
-            role_name = %created_role.name,
-            "Role created successfully"
+        log_with_context!(
+            tracing::Level::INFO,
+            "Role created successfully",
+            "admin_id" => requesting_user.user_id,
+            "role_id" => created_role.id,
+            "role_name" => &created_role.name.to_string()
         );
 
         Ok(created_role)
@@ -184,17 +236,17 @@ impl RoleService {
         role_id: Uuid,
         update_data: UpdateRoleInput,
     ) -> AppResult<RoleWithPermissions> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Updating role",
+            "admin_id" => requesting_user.user_id,
+            "role_id" => role_id
+        );
         // 管理者権限チェック
         self.check_admin_permission(requesting_user)?;
 
         // 入力バリデーション
         update_data.validate()?;
-
-        info!(
-            admin_id = %requesting_user.user_id,
-            role_id = %role_id,
-            "Updating role"
-        );
 
         // 既存ロールの確認
         let existing_role = self.get_role_by_id(role_id).await?;
@@ -222,15 +274,21 @@ impl RoleService {
             .update(role_id, repo_update_data)
             .await
             .map_err(|e| {
-                error!(error = %e, role_id = %role_id, "Failed to update role");
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to update role",
+                    "role_id" => role_id,
+                    "error" => &e.to_string()
+                );
                 AppError::InternalServerError("Failed to update role".to_string())
             })?;
 
-        info!(
-            admin_id = %requesting_user.user_id,
-            role_id = %role_id,
-            role_name = %updated_role.name,
-            "Role updated successfully"
+        log_with_context!(
+            tracing::Level::INFO,
+            "Role updated successfully",
+            "admin_id" => requesting_user.user_id,
+            "role_id" => role_id,
+            "role_name" => &updated_role.name.to_string()
         );
 
         Ok(updated_role)
@@ -238,22 +296,23 @@ impl RoleService {
 
     /// ロールを削除（管理者のみ）
     pub async fn delete_role(&self, requesting_user: &UserClaims, role_id: Uuid) -> AppResult<()> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Deleting role",
+            "admin_id" => requesting_user.user_id,
+            "role_id" => role_id
+        );
         // UserClaimsのcan_delete_resourceメソッドを活用
         if !requesting_user.can_delete_resource("role", None) {
-            warn!(
-                user_id = %requesting_user.user_id,
-                resource = "role",
-                role_id = %role_id,
-                "Insufficient permissions to delete role"
+            log_with_context!(
+                tracing::Level::WARN,
+                "Insufficient permissions to delete role",
+                "user_id" => requesting_user.user_id,
+                "resource" => "role",
+                "role_id" => role_id
             );
             return Err(AppError::Forbidden("Cannot delete roles".to_string()));
         }
-
-        info!(
-            admin_id = %requesting_user.user_id,
-            role_id = %role_id,
-            "Deleting role"
-        );
 
         // 既存ロールの確認
         let existing_role = self.get_role_by_id(role_id).await?;
@@ -271,7 +330,12 @@ impl RoleService {
             .find_by_role_id(role_id)
             .await
             .map_err(|e| {
-                error!(error = %e, role_id = %role_id, "Failed to check users with role");
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to check users with role",
+                    "role_id" => role_id,
+                    "error" => &e.to_string()
+                );
                 AppError::InternalServerError("Failed to check role usage".to_string())
             })?;
 
@@ -284,15 +348,21 @@ impl RoleService {
         }
 
         self.role_repository.delete(role_id).await.map_err(|e| {
-            error!(error = %e, role_id = %role_id, "Failed to delete role");
+            log_with_context!(
+                tracing::Level::ERROR,
+                "Failed to delete role",
+                "role_id" => role_id,
+                "error" => &e.to_string()
+            );
             AppError::InternalServerError("Failed to delete role".to_string())
         })?;
 
-        info!(
-            admin_id = %requesting_user.user_id,
-            role_id = %role_id,
-            role_name = %existing_role.name,
-            "Role deleted successfully"
+        log_with_context!(
+            tracing::Level::INFO,
+            "Role deleted successfully",
+            "admin_id" => requesting_user.user_id,
+            "role_id" => role_id,
+            "role_name" => &existing_role.name.to_string()
         );
 
         Ok(())
@@ -308,11 +378,12 @@ impl RoleService {
         match permission_result {
             crate::domain::permission::PermissionResult::Allowed { .. } => Ok(()),
             crate::domain::permission::PermissionResult::Denied { reason } => {
-                warn!(
-                    user_id = %user.user_id,
-                    role = ?user.role.as_ref().map(|r| &r.name),
-                    reason = %reason,
-                    "Insufficient permissions for role management"
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "Insufficient permissions for role management",
+                    "user_id" => user.user_id,
+                    "role" => user.role.as_ref().map_or_else(|| "none".to_string(), |r| r.name.to_string()),
+                    "reason" => &reason
                 );
                 Err(AppError::Forbidden(reason))
             }
@@ -328,25 +399,26 @@ impl RoleService {
         user_id: Uuid,
         role_id: Uuid,
     ) -> AppResult<SafeUserWithRole> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Assigning role to user",
+            "admin_id" => requesting_user.user_id,
+            "target_user_id" => user_id,
+            "role_id" => role_id
+        );
         // UserClaimsのcan_update_resourceメソッドを活用 - ユーザーリソースの更新
         if !requesting_user.can_update_resource("user", Some(user_id)) {
-            warn!(
-                user_id = %requesting_user.user_id,
-                target_user_id = %user_id,
-                resource = "user",
-                "Insufficient permissions to assign role to user"
+            log_with_context!(
+                tracing::Level::WARN,
+                "Insufficient permissions to assign role to user",
+                "user_id" => requesting_user.user_id,
+                "target_user_id" => user_id,
+                "resource" => "user"
             );
             return Err(AppError::Forbidden(
                 "Cannot assign roles to users".to_string(),
             ));
         }
-
-        info!(
-            admin_id = %requesting_user.user_id,
-            target_user_id = %user_id,
-            role_id = %role_id,
-            "Assigning role to user with retry capability"
-        );
 
         // ロールの存在確認
         let role = self.get_role_by_id(role_id).await?;
@@ -368,11 +440,21 @@ impl RoleService {
                         .update_user_role(user_id, role_id)
                         .await
                         .map_err(|e| {
-                            error!(error = %e, user_id = %user_id, role_id = %role_id, "Failed to assign role to user");
+                            log_with_context!(
+                                tracing::Level::ERROR,
+                                "Failed to assign role to user",
+                                "user_id" => user_id,
+                                "role_id" => role_id,
+                                "error" => &e.to_string()
+                            );
                             AppError::InternalServerError("Failed to assign role".to_string())
                         })?
                         .ok_or_else(|| {
-                            warn!(user_id = %user_id, "User not found for role assignment");
+                            log_with_context!(
+                                tracing::Level::WARN,
+                                "User not found for role assignment",
+                                "user_id" => user_id
+                            );
                             AppError::NotFound("User not found".to_string())
                         })
                 })
@@ -383,12 +465,13 @@ impl RoleService {
 
         let user_with_role = updated_user.to_safe_user_with_role(role);
 
-        info!(
-            admin_id = %requesting_user.user_id,
-            target_user_id = %user_id,
-            role_id = %role_id,
-            role_name = %user_with_role.role.name,
-            "Role assigned to user successfully"
+        log_with_context!(
+            tracing::Level::INFO,
+            "Role assigned to user successfully",
+            "admin_id" => requesting_user.user_id,
+            "target_user_id" => user_id,
+            "role_id" => role_id,
+            "role_name" => &user_with_role.role.name.to_string()
         );
 
         Ok(user_with_role)

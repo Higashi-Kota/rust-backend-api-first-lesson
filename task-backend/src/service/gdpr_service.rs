@@ -4,6 +4,7 @@ use crate::api::dto::gdpr_dto::*;
 use crate::db::DbPool;
 use crate::domain::user_consent_model::{self, ConsentType};
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::repository::refresh_token_repository::RefreshTokenRepository;
 use crate::repository::subscription_history_repository::SubscriptionHistoryRepository;
 use crate::repository::task_repository::TaskRepository;
@@ -18,7 +19,6 @@ use sea_orm::{
 use sea_orm_migration::sea_orm::IntoActiveModel;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -49,6 +49,14 @@ impl GdprService {
         user_id: Uuid,
         request: DataExportRequest,
     ) -> AppResult<DataExportResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Exporting user data for GDPR compliance",
+            "user_id" => user_id,
+            "include_tasks" => request.include_tasks,
+            "include_teams" => request.include_teams,
+            "include_subscription_history" => request.include_subscription_history
+        );
         // Get user data
         let user_with_role = self
             .user_repo
@@ -139,6 +147,14 @@ impl GdprService {
         // For now, activity logs are not implemented, so return None
         let activity_logs = None;
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "User data exported successfully",
+            "user_id" => user_id,
+            "tasks_count" => tasks.as_ref().map_or(0, |t| t.len()),
+            "teams_count" => teams.as_ref().map_or(0, |t| t.len())
+        );
+
         Ok(DataExportResponse {
             user_data,
             tasks,
@@ -155,6 +171,12 @@ impl GdprService {
         user_id: Uuid,
         request: DataDeletionRequest,
     ) -> AppResult<DataDeletionResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Starting GDPR data deletion",
+            "user_id" => user_id,
+            "confirm_deletion" => request.confirm_deletion
+        );
         if !request.confirm_deletion {
             return Err(AppError::BadRequest(
                 "Deletion must be confirmed".to_string(),
@@ -168,9 +190,11 @@ impl GdprService {
             .await?
             .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
-        info!(
-            "Starting GDPR data deletion for user: {} ({})",
-            user_id, user.email
+        log_with_context!(
+            tracing::Level::INFO,
+            "Starting GDPR data deletion for user",
+            "user_id" => user_id,
+            "email" => &user.email
         );
 
         let mut deleted_records = DeletedRecordsSummary {
@@ -233,9 +257,15 @@ impl GdprService {
         self.user_repo.delete(user_id).await?;
         deleted_records.user_data = true;
 
-        info!(
-            "Completed GDPR data deletion for user: {}. Deleted records: {:?}",
-            user_id, deleted_records
+        log_with_context!(
+            tracing::Level::INFO,
+            "Completed GDPR data deletion",
+            "user_id" => user_id,
+            "user_data_deleted" => deleted_records.user_data,
+            "tasks_deleted" => deleted_records.tasks_count,
+            "teams_deleted" => deleted_records.teams_count,
+            "subscription_history_deleted" => deleted_records.subscription_history_count,
+            "refresh_tokens_deleted" => deleted_records.refresh_tokens_count
         );
 
         Ok(DataDeletionResponse {
@@ -250,6 +280,11 @@ impl GdprService {
         &self,
         user_id: Uuid,
     ) -> AppResult<ComplianceStatusResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting GDPR compliance status",
+            "user_id" => user_id
+        );
         // Verify user exists
         self.user_repo
             .find_by_id(user_id)
@@ -277,6 +312,11 @@ impl GdprService {
 
     /// Get user consent status
     pub async fn get_consent_status(&self, user_id: Uuid) -> AppResult<ConsentStatusResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting user consent status",
+            "user_id" => user_id
+        );
         // Verify user exists
         self.user_repo
             .find_by_id(user_id)
@@ -355,6 +395,14 @@ impl GdprService {
         ip_address: Option<String>,
         user_agent: Option<String>,
     ) -> AppResult<ConsentStatusResponse> {
+        let consents_count = request.consents.len();
+
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Updating user consents",
+            "user_id" => user_id,
+            "consents_count" => consents_count
+        );
         // Verify user exists
         self.user_repo
             .find_by_id(user_id)
@@ -420,7 +468,12 @@ impl GdprService {
             }
         }
 
-        info!("Updated consents for user: {}", user_id);
+        log_with_context!(
+            tracing::Level::INFO,
+            "Updated consents successfully",
+            "user_id" => user_id,
+            "updated_count" => consents_count
+        );
 
         // Return updated consent status
         self.get_consent_status(user_id).await
@@ -452,6 +505,12 @@ impl GdprService {
         user_id: Uuid,
         limit: Option<u64>,
     ) -> AppResult<ConsentHistoryResponse> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting consent history",
+            "user_id" => user_id,
+            "limit" => limit.unwrap_or(100)
+        );
         // Verify user exists
         self.user_repo
             .find_by_id(user_id)

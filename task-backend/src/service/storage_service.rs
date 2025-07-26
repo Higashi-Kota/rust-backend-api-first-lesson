@@ -10,6 +10,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::error::AppResult;
+use crate::log_with_context;
 use crate::utils::error_helper::internal_server_error;
 use std::sync::Arc;
 
@@ -223,6 +224,12 @@ impl StorageService for S3StorageService {
                 )
             })?;
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "Download URL generated successfully",
+            "key" => key
+        );
+
         Ok(presigned_request.uri().to_string())
     }
 
@@ -250,6 +257,12 @@ impl StorageService for S3StorageService {
                     "Failed to generate presigned upload URL",
                 )
             })?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Upload URL generated successfully",
+            "key" => key
+        );
 
         Ok(presigned_request.uri().to_string())
     }

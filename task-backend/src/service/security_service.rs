@@ -2,6 +2,7 @@
 
 use crate::api::dto::security_dto::*;
 use crate::error::AppResult;
+use crate::log_with_context;
 use crate::repository::{
     activity_log_repository::ActivityLogRepository,
     login_attempt_repository::LoginAttemptRepository,
@@ -45,6 +46,7 @@ impl SecurityService {
 
     /// リフレッシュトークン統計を取得
     pub async fn get_refresh_token_stats(&self) -> AppResult<RefreshTokenStats> {
+        log_with_context!(tracing::Level::DEBUG, "Getting refresh token statistics");
         let stats = self.refresh_token_repo.get_token_stats().await?;
 
         // 最古・最新のトークン年齢を実際に計算
@@ -76,6 +78,10 @@ impl SecurityService {
 
     /// パスワードリセットトークン統計を取得
     pub async fn get_password_reset_stats(&self) -> AppResult<PasswordResetTokenStats> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting password reset token statistics"
+        );
         let stats = self.password_reset_repo.get_token_stats().await?;
 
         // 実際のデータから計算
@@ -99,7 +105,14 @@ impl SecurityService {
 
     /// 期限切れリフレッシュトークンをクリーンアップ
     pub async fn cleanup_expired_refresh_tokens(&self) -> AppResult<CleanupResult> {
+        log_with_context!(tracing::Level::DEBUG, "Cleaning up expired refresh tokens");
         let result = self.refresh_token_repo.cleanup_expired_tokens().await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Cleaned up expired refresh tokens",
+            "deleted_count" => result.deleted_count
+        );
 
         Ok(CleanupResult {
             deleted_count: result.deleted_count,
@@ -109,7 +122,17 @@ impl SecurityService {
 
     /// 期限切れパスワードリセットトークンをクリーンアップ
     pub async fn cleanup_expired_password_reset_tokens(&self) -> AppResult<CleanupResult> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Cleaning up expired password reset tokens"
+        );
         let result = self.password_reset_repo.cleanup_expired_tokens().await?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Cleaned up expired password reset tokens",
+            "deleted_count" => result.total_deleted
+        );
 
         Ok(CleanupResult {
             deleted_count: result.total_deleted,
@@ -171,6 +194,13 @@ impl SecurityService {
         request: &RevokeAllTokensRequest,
         current_user_id: Option<Uuid>,
     ) -> AppResult<RevokeResult> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Revoking tokens",
+            "user_id" => request.user_id,
+            "exclude_current_user" => request.exclude_current_user,
+            "reason" => &request.reason
+        );
         let mut total_revoked = 0u64;
         let affected_users: u64;
 
@@ -207,6 +237,14 @@ impl SecurityService {
             }
         }
 
+        log_with_context!(
+            tracing::Level::INFO,
+            "Tokens revoked successfully",
+            "revoked_count" => total_revoked,
+            "affected_users" => affected_users,
+            "reason" => &request.reason
+        );
+
         Ok(RevokeResult {
             revoked_count: total_revoked,
             affected_users,
@@ -217,6 +255,7 @@ impl SecurityService {
 
     /// セッション分析を取得
     pub async fn get_session_analytics(&self) -> AppResult<SessionAnalytics> {
+        log_with_context!(tracing::Level::DEBUG, "Getting session analytics");
         // 実際のデータをリポジトリから取得
         let refresh_stats = self.refresh_token_repo.get_token_stats().await?;
 
@@ -337,6 +376,12 @@ impl SecurityService {
         request: &AuditReportRequest,
         generated_by: Uuid,
     ) -> AppResult<AuditReport> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Generating audit report",
+            "report_type" => &request.report_type,
+            "generated_by" => generated_by
+        );
         let refresh_stats = self.refresh_token_repo.get_token_stats().await?;
         let password_stats = self.password_reset_repo.get_token_stats().await?;
 
@@ -446,8 +491,18 @@ impl SecurityService {
             _ => vec!["Review security policies regularly".to_string()],
         };
 
+        let report_id = Uuid::new_v4();
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Audit report generated successfully",
+            "report_id" => report_id,
+            "report_type" => &request.report_type,
+            "risk_level" => &summary.risk_level
+        );
+
         Ok(AuditReport {
-            report_id: Uuid::new_v4(),
+            report_id,
             report_type: request.report_type.clone(),
             generated_at: Timestamp::now(),
             generated_by,

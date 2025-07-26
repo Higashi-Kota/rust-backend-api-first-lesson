@@ -3,6 +3,7 @@ use crate::db::DbPool;
 use crate::domain::stripe_payment_history_model::PaymentStatus;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
+use crate::log_with_context;
 use crate::repository::stripe_payment_history_repository::{
     CreatePaymentHistory, StripePaymentHistoryRepository,
 };
@@ -54,7 +55,10 @@ impl PaymentService {
     ) -> AppResult<String> {
         // 開発モードの場合はモックURLを返す
         if self.stripe_config.development_mode {
-            tracing::info!("Development mode: returning mock checkout URL");
+            log_with_context!(
+                tracing::Level::INFO,
+                "Development mode: returning mock checkout URL"
+            );
             return Ok(format!(
                 "http://localhost:3000/mock-checkout?user_id={}&tier={}",
                 user_id,
@@ -87,7 +91,11 @@ impl PaymentService {
                 let customer = Customer::create(&STRIPE_CLIENT, customer_params)
                     .await
                     .map_err(|e| {
-                        tracing::error!("Failed to create Stripe customer: {}", e);
+                        log_with_context!(
+                            tracing::Level::ERROR,
+                            "Failed to create Stripe customer",
+                            "error" => &e.to_string()
+                        );
                         AppError::ExternalServiceError(format!("Stripe error: {}", e))
                     })?;
 
@@ -144,7 +152,11 @@ impl PaymentService {
         let checkout_session = CheckoutSession::create(&STRIPE_CLIENT, checkout_params)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to create checkout session: {}", e);
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to create checkout session",
+                    "error" => &e.to_string()
+                );
 
                 // 価格IDエラーの場合、より具体的なメッセージを提供
                 let error_message = if e.to_string().contains("No such price") {
@@ -168,16 +180,30 @@ impl PaymentService {
     pub async fn handle_webhook(&self, payload: &str, stripe_signature: &str) -> AppResult<()> {
         // 開発モードの場合は、ペイロードを直接処理
         let event = if self.stripe_config.development_mode {
-            tracing::info!("Development mode: processing webhook without signature verification");
+            log_with_context!(
+                tracing::Level::INFO,
+                "Development mode: processing webhook without signature verification"
+            );
             serde_json::from_str::<stripe::Event>(payload).map_err(|e| {
-                tracing::error!("Failed to parse webhook payload: {}", e);
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to parse webhook payload",
+                    "error" => &e.to_string()
+                );
                 AppError::BadRequest(format!("Invalid webhook payload: {}", e))
             })?
         } else if self.stripe_config.webhook_secret.is_empty() {
             // Webhook secretが設定されていない場合は、署名検証をスキップしてペイロードを直接パース
-            tracing::warn!("STRIPE_WEBHOOK_SECRET not set - skipping signature verification (NOT SAFE FOR PRODUCTION)");
+            log_with_context!(
+                tracing::Level::WARN,
+                "STRIPE_WEBHOOK_SECRET not set - skipping signature verification (NOT SAFE FOR PRODUCTION)"
+            );
             serde_json::from_str::<stripe::Event>(payload).map_err(|e| {
-                tracing::error!("Failed to parse webhook payload: {}", e);
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to parse webhook payload",
+                    "error" => &e.to_string()
+                );
                 AppError::BadRequest(format!("Invalid webhook payload: {}", e))
             })?
         } else {
@@ -188,12 +214,20 @@ impl PaymentService {
                 &self.stripe_config.webhook_secret,
             )
             .map_err(|e| {
-                tracing::warn!("Invalid webhook signature: {}", e);
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "Invalid webhook signature",
+                    "error" => &e.to_string()
+                );
                 AppError::BadRequest(format!("Invalid webhook: {}", e))
             })?
         };
 
-        tracing::info!("Processing webhook event: {:?}", event.type_);
+        log_with_context!(
+            tracing::Level::INFO,
+            "Processing webhook event",
+            "event_type" => &format!("{:?}", event.type_)
+        );
 
         // イベントタイプに応じて処理
         match event.type_ {
@@ -218,7 +252,11 @@ impl PaymentService {
                 }
             }
             _ => {
-                tracing::debug!("Unhandled webhook event type: {:?}", event.type_);
+                log_with_context!(
+                    tracing::Level::DEBUG,
+                    "Unhandled webhook event type",
+                    "event_type" => &format!("{:?}", event.type_)
+                );
             }
         }
 
@@ -233,7 +271,10 @@ impl PaymentService {
             .and_then(|m| m.get("user_id"))
             .and_then(|id| Uuid::parse_str(id).ok())
             .ok_or_else(|| {
-                tracing::error!("Invalid or missing user_id in checkout session metadata");
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Invalid or missing user_id in checkout session metadata"
+                );
                 AppError::BadRequest("Invalid user_id in metadata".to_string())
             })?;
 
@@ -242,7 +283,10 @@ impl PaymentService {
             .as_ref()
             .and_then(|m| m.get("tier"))
             .ok_or_else(|| {
-                tracing::error!("Missing tier in checkout session metadata");
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Missing tier in checkout session metadata"
+                );
                 AppError::BadRequest("Missing tier in metadata".to_string())
             })?;
 
@@ -267,7 +311,11 @@ impl PaymentService {
             .create(payment_history)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to create payment history: {}", e);
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to create payment history",
+                    "error" => &e.to_string()
+                );
                 internal_server_error(
                     e,
                     "payment_service::handle_checkout_session_completed",
@@ -285,10 +333,11 @@ impl PaymentService {
             )
             .await?;
 
-        tracing::info!(
-            "Subscription activated for user {} with tier {}",
-            user_id,
-            tier
+        log_with_context!(
+            tracing::Level::INFO,
+            "Subscription activated",
+            "user_id" => user_id,
+            "tier" => tier
         );
 
         Ok(())
@@ -304,7 +353,11 @@ impl PaymentService {
             .find_by_stripe_customer_id(&customer_id)
             .await?
             .ok_or_else(|| {
-                tracing::warn!("User not found for Stripe customer: {}", customer_id);
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "User not found for Stripe customer",
+                    "customer_id" => &customer_id
+                );
                 AppError::NotFound("User not found".to_string())
             })?;
 
@@ -330,10 +383,11 @@ impl PaymentService {
         match subscription.cancel_at_period_end {
             true => {
                 // 請求期間終了時にキャンセル（猶予期間あり）
-                tracing::info!(
-                    "Subscription set to cancel at period end for user {}, will remain active until {}",
-                    user.id,
-                    DateTime::<Utc>::from_timestamp(subscription.current_period_end, 0)
+                log_with_context!(
+                    tracing::Level::INFO,
+                    "Subscription set to cancel at period end",
+                    "user_id" => user.id,
+                    "active_until" => DateTime::<Utc>::from_timestamp(subscription.current_period_end, 0)
                         .map_or_else(|| "unknown".to_string(), |dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
                 );
 
@@ -351,9 +405,10 @@ impl PaymentService {
                     )
                     .await?;
 
-                tracing::info!(
-                    "Subscription cancelled immediately for user {}, reverted to Free tier",
-                    user.id
+                log_with_context!(
+                    tracing::Level::INFO,
+                    "Subscription cancelled immediately, reverted to Free tier",
+                    "user_id" => user.id
                 );
             }
         }
@@ -371,7 +426,11 @@ impl PaymentService {
             .find_by_stripe_customer_id(&customer_id)
             .await?
             .ok_or_else(|| {
-                tracing::warn!("User not found for Stripe customer: {}", customer_id);
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "User not found for Stripe customer",
+                    "customer_id" => &customer_id
+                );
                 AppError::NotFound("User not found".to_string())
             })?;
 
@@ -457,9 +516,10 @@ impl PaymentService {
                 )
                 .await?;
 
-            tracing::info!(
-                "Subscription period ended for user {}, reverted to Free tier",
-                user.id
+            log_with_context!(
+                tracing::Level::INFO,
+                "Subscription period ended, reverted to Free tier",
+                "user_id" => user.id
             );
         }
 
@@ -469,7 +529,7 @@ impl PaymentService {
     /// 支払い失敗処理
     async fn handle_payment_failed(&self, invoice: Invoice) -> AppResult<()> {
         let customer_id = invoice.customer.as_ref().map(|c| c.id()).ok_or_else(|| {
-            tracing::error!("No customer ID in failed invoice");
+            log_with_context!(tracing::Level::ERROR, "No customer ID in failed invoice");
             AppError::BadRequest("No customer ID in invoice".to_string())
         })?;
 
@@ -479,7 +539,11 @@ impl PaymentService {
             .find_by_stripe_customer_id(&customer_id)
             .await?
             .ok_or_else(|| {
-                tracing::warn!("User not found for Stripe customer: {}", customer_id);
+                log_with_context!(
+                    tracing::Level::WARN,
+                    "User not found for Stripe customer",
+                    "customer_id" => &customer_id
+                );
                 AppError::NotFound("User not found".to_string())
             })?;
 
@@ -504,7 +568,11 @@ impl PaymentService {
             .create(payment_history)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to create payment history: {}", e);
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to create payment history",
+                    "error" => &e.to_string()
+                );
                 internal_server_error(
                     e,
                     "payment_service::handle_payment_failed",
@@ -513,10 +581,11 @@ impl PaymentService {
             })?;
 
         // TODO: メール通知を送信
-        tracing::warn!(
-            "Payment failed for user {} (customer: {})",
-            user.id,
-            customer_id
+        log_with_context!(
+            tracing::Level::WARN,
+            "Payment failed for user",
+            "user_id" => user.id,
+            "customer_id" => &customer_id
         );
 
         Ok(())
@@ -566,7 +635,11 @@ impl PaymentService {
         let session = BillingPortalSession::create(&STRIPE_CLIENT, params)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to create customer portal session: {}", e);
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to create customer portal session",
+                    "error" => &e.to_string()
+                );
                 AppError::ExternalServiceError(format!("Stripe error: {}", e))
             })?;
 
@@ -584,7 +657,11 @@ impl PaymentService {
             .find_by_user_id_paginated(user_id, page, per_page)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to get payment history: {}", e);
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to get payment history",
+                    "error" => &e.to_string()
+                );
                 internal_server_error(e, "payment_service::get_payment_history", "Database error")
             })
     }

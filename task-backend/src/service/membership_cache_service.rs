@@ -7,6 +7,7 @@
 #![allow(dead_code)] // 将来のパフォーマンス最適化のために保持
 
 use crate::error::AppResult;
+use crate::log_with_context;
 use crate::repository::organization_repository::OrganizationRepository;
 use crate::repository::team_repository::TeamRepository;
 use std::collections::HashMap;
@@ -49,18 +50,34 @@ impl MembershipCacheService {
 
     /// ユーザーのメンバーシップ情報を取得（キャッシュ付き）
     pub async fn get_user_memberships(&self, user_id: Uuid) -> AppResult<MembershipInfo> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting user memberships",
+            "user_id" => user_id
+        );
         // キャッシュをチェック
         {
             let cache = self.cache.read().await;
             if let Some(info) = cache.get(&user_id) {
                 let age = chrono::Utc::now() - info.cached_at;
                 if age < self.cache_ttl {
+                    log_with_context!(
+                        tracing::Level::DEBUG,
+                        "Cache hit for user memberships",
+                        "user_id" => user_id,
+                        "cache_age_seconds" => age.num_seconds()
+                    );
                     return Ok(info.clone());
                 }
             }
         }
 
         // キャッシュミスの場合、DBから取得
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Cache miss, fetching from database",
+            "user_id" => user_id
+        );
         let membership_info = self.fetch_membership_info(user_id).await?;
 
         // キャッシュを更新
@@ -68,6 +85,14 @@ impl MembershipCacheService {
             let mut cache = self.cache.write().await;
             cache.insert(user_id, membership_info.clone());
         }
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "User memberships cached",
+            "user_id" => user_id,
+            "team_count" => membership_info.team_ids.len(),
+            "org_count" => membership_info.organization_ids.len()
+        );
 
         Ok(membership_info)
     }
@@ -125,12 +150,18 @@ impl MembershipCacheService {
 
     /// キャッシュをクリア（ユーザーのメンバーシップが変更された時に使用）
     pub async fn invalidate_user_cache(&self, user_id: Uuid) {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Invalidating user cache",
+            "user_id" => user_id
+        );
         let mut cache = self.cache.write().await;
         cache.remove(&user_id);
     }
 
     /// すべてのキャッシュをクリア
     pub async fn clear_all_cache(&self) {
+        log_with_context!(tracing::Level::INFO, "Clearing all membership cache");
         let mut cache = self.cache.write().await;
         cache.clear();
     }
