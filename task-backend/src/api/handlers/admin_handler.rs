@@ -691,17 +691,11 @@ pub async fn admin_list_all_tasks(
 pub async fn admin_list_tasks_paginated(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Query(params): Query<std::collections::HashMap<String, String>>,
+    Query(query): Query<PaginationQuery>,
 ) -> AppResult<ApiResponse<PaginatedTasksDto>> {
-    let page = params
-        .get("page")
-        .and_then(|p| p.parse::<u64>().ok())
-        .unwrap_or(1);
-    let per_page = params
-        .get("per_page")
-        .and_then(|p| p.parse::<u64>().ok())
-        .unwrap_or(10)
-        .clamp(1, 100);
+    let (page, per_page) = query.get_pagination();
+    let page = page as u64;
+    let per_page = per_page as u64;
 
     let task_service = &app_state.task_service;
     let paginated_tasks = task_service.list_tasks_paginated(page, per_page).await?;
@@ -1657,40 +1651,31 @@ mod tests {
     #[test]
     fn test_admin_pagination_logic() {
         // ページネーションパラメータのロジックテスト
-        let mut params = std::collections::HashMap::new();
-        params.insert("page".to_string(), "2".to_string());
-        params.insert("per_page".to_string(), "25".to_string());
-
-        let page = params
-            .get("page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(1);
-        let per_page = params
-            .get("per_page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(10)
-            .clamp(1, 100);
+        let query = PaginationQuery {
+            page: 2,
+            per_page: 25,
+        };
+        let (page, per_page) = query.get_pagination();
 
         assert_eq!(page, 2);
         assert_eq!(per_page, 25);
 
-        // 不正な値の場合のテスト
-        let mut invalid_params = std::collections::HashMap::new();
-        invalid_params.insert("page".to_string(), "invalid".to_string());
-        invalid_params.insert("per_page".to_string(), "150".to_string());
+        // デフォルト値のテスト
+        let default_query = PaginationQuery::default();
+        let (page, per_page) = default_query.get_pagination();
 
-        let invalid_page = invalid_params
-            .get("page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(1);
-        let invalid_per_page = invalid_params
-            .get("per_page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(10)
-            .clamp(1, 100);
+        assert_eq!(page, 1); // デフォルト値
+        assert_eq!(per_page, 20); // デフォルト値
 
-        assert_eq!(invalid_page, 1); // デフォルト値
-        assert_eq!(invalid_per_page, 100); // クランプされた最大値
+        // 最大値を超えた場合のテスト
+        let over_limit_query = PaginationQuery {
+            page: 1,
+            per_page: 150,
+        };
+        let (page, per_page) = over_limit_query.get_pagination();
+
+        assert_eq!(page, 1);
+        assert_eq!(per_page, 100); // クランプされた最大値
     }
 
     #[test]

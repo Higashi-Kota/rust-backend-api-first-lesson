@@ -1,5 +1,8 @@
 use serde::{Deserialize, Deserializer, Serialize};
 
+// Re-export pagination constants
+pub use crate::shared::types::{DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE};
+
 /// デフォルトページ番号
 fn default_page() -> u32 {
     1
@@ -7,7 +10,7 @@ fn default_page() -> u32 {
 
 /// デフォルトページサイズ
 fn default_per_page() -> u32 {
-    20
+    DEFAULT_PAGE_SIZE
 }
 
 /// 文字列または数値からu32をデシリアライズ
@@ -56,7 +59,7 @@ impl PaginationQuery {
     /// デフォルト値を適用してページとper_pageを取得
     pub fn get_pagination(&self) -> (i32, i32) {
         let page = self.page.max(1) as i32;
-        let per_page = self.per_page.clamp(1, 100) as i32;
+        let per_page = self.per_page.clamp(1, MAX_PAGE_SIZE) as i32;
         (page, per_page)
     }
 

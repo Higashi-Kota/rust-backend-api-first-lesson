@@ -1,6 +1,7 @@
 ## 実現トピック
 
-TBD
+ページネーションの統一処理
+task-backend/src/shared/types/pagination.rs
 
 ## 🧩 実装ガイドライン
 
@@ -414,6 +415,86 @@ self.repo.count_tasks()
 3. **型安全性の向上**: コンパイル時にUUID検証を保証
 4. **保守性の向上**: 検証ロジックの変更が容易
 5. **テストの簡素化**: Extractor自体のテストで網羅的な検証が可能
+
+### 12. **ページネーションの統一実装**
+
+#### 統一ページネーション型の使用
+
+* **すべてのページネーションでshared/types/pagination.rsの型を使用すること**
+  ```rust
+  use crate::shared::types::{PaginatedResponse, PaginationMeta};
+  use crate::types::query::PaginationQuery;
+  ```
+
+* **定数の定義と使用**
+  ```rust
+  // shared/types/pagination.rs
+  pub const DEFAULT_PAGE_SIZE: u32 = 20;
+  pub const MAX_PAGE_SIZE: u32 = 100;
+  ```
+
+#### APIハンドラーでの実装
+
+* **Query DTOでPaginationQueryを使用**
+  ```rust
+  // ✅ 推奨: フラット化して使用
+  #[derive(Debug, Deserialize)]
+  pub struct TaskSearchQuery {
+      #[serde(flatten)]
+      pub pagination: PaginationQuery,
+      // その他のフィルタ条件
+  }
+  
+  // ✅ 推奨: 直接使用
+  pub async fn get_resources_handler(
+      Query(query): Query<PaginationQuery>,
+      State(state): State<AppState>,
+  ) -> Result<ApiResponse<PaginatedResponse<ResourceDto>>>
+  
+  // ❌ 避けるべき: 独自実装
+  let page = params.get("page").and_then(|p| p.parse().ok()).unwrap_or(1);
+  ```
+
+#### サービス層での実装
+
+* **get_pagination()メソッドで統一的に値を取得**
+  ```rust
+  let (page, per_page) = query.pagination.get_pagination();
+  // pageは1ベース、per_pageは1〜100の範囲で自動的に制限される
+  ```
+
+* **PaginationMeta::new()でメタ情報を生成**
+  ```rust
+  let pagination = PaginationMeta::new(page, per_page, total_count);
+  let response = PaginatedResponse::new(items, page, per_page, total_count);
+  ```
+
+#### リポジトリ層での実装
+
+* **ページサイズの重複制限は不要**
+  ```rust
+  // ❌ 避けるべき: get_pagination()で既に制限済み
+  let page_size = std::cmp::min(page_size, 100);
+  
+  // ✅ 推奨: そのまま使用
+  let offset = (page - 1) * page_size;
+  ```
+
+#### レスポンス型の統一
+
+* **型エイリアスを使用してレスポンスを定義**
+  ```rust
+  pub type TaskPaginationResponse = PaginatedResponse<TaskDto>;
+  pub type UserListResponse = PaginatedResponse<UserSummary>;
+  ```
+
+#### 実装の利点
+
+1. **一貫性**: すべてのAPIで同じページネーション動作
+2. **保守性**: ページネーションロジックが一箇所に集約
+3. **型安全性**: コンパイル時にページネーション構造を保証
+4. **DRY原則**: 重複コードの排除
+5. **拡張性**: 将来的な変更が容易
 
 ---
 

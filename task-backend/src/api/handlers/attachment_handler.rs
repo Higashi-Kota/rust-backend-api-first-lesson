@@ -113,7 +113,7 @@ pub async fn list_attachments_handler(
 
     let (page, per_page) = query.pagination.get_pagination();
     let page = page as u64;
-    let per_page = (per_page as u64).min(100); // 最大100件まで
+    let per_page = per_page as u64; // ページサイズはget_pagination()で制限済み
 
     // Convert sort fields to match the service interface
     let sort_by = query
