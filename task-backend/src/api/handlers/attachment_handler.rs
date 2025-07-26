@@ -9,6 +9,7 @@ use crate::api::dto::attachment_query_dto::AttachmentSearchQuery;
 use crate::api::dto::common::PaginatedResponse;
 use crate::api::AppState;
 use crate::error::{AppError, AppResult};
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::AuthenticatedUser;
 use crate::types::{ApiResponse, Timestamp};
 use axum::body::Body;
@@ -22,13 +23,12 @@ use axum::{
 };
 use chrono::{Duration, Utc};
 use tracing::info;
-use uuid::Uuid;
 
 /// ファイルアップロードハンドラー
 pub async fn upload_attachment_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
     mut multipart: Multipart,
 ) -> AppResult<impl IntoResponse> {
     let attachment_service = &app_state.attachment_service;
@@ -100,7 +100,7 @@ pub async fn upload_attachment_handler(
 pub async fn list_attachments_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
     Query(query): Query<AttachmentSearchQuery>,
 ) -> AppResult<impl IntoResponse> {
     info!(
@@ -113,7 +113,7 @@ pub async fn list_attachments_handler(
 
     let (page, per_page) = query.pagination.get_pagination();
     let page = page as u64;
-    let per_page = (per_page as u64).min(100); // 最大100件まで
+    let per_page = per_page as u64; // ページサイズはget_pagination()で制限済み
 
     // Convert sort fields to match the service interface
     let sort_by = query
@@ -156,7 +156,7 @@ pub async fn list_attachments_handler(
 pub async fn download_attachment_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(attachment_id): Path<Uuid>,
+    ValidatedUuid(attachment_id): ValidatedUuid,
 ) -> AppResult<Response> {
     let attachment_service = &app_state.attachment_service;
 
@@ -189,7 +189,7 @@ pub async fn download_attachment_handler(
 pub async fn delete_attachment_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(attachment_id): Path<Uuid>,
+    ValidatedUuid(attachment_id): ValidatedUuid,
 ) -> AppResult<impl IntoResponse> {
     let attachment_service = &app_state.attachment_service;
 
@@ -211,7 +211,7 @@ pub async fn delete_attachment_handler(
 pub async fn generate_download_url_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(attachment_id): Path<Uuid>,
+    ValidatedUuid(attachment_id): ValidatedUuid,
     Query(request): Query<GenerateDownloadUrlRequest>,
 ) -> AppResult<impl IntoResponse> {
     let attachment_service = &app_state.attachment_service;
@@ -246,7 +246,7 @@ pub async fn generate_download_url_handler(
 pub async fn create_share_link_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(attachment_id): Path<Uuid>,
+    ValidatedUuid(attachment_id): ValidatedUuid,
     Json(request): Json<CreateShareLinkRequest>,
 ) -> AppResult<impl IntoResponse> {
     let attachment_service = &app_state.attachment_service;
@@ -287,7 +287,7 @@ pub async fn create_share_link_handler(
 pub async fn list_share_links_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(attachment_id): Path<Uuid>,
+    ValidatedUuid(attachment_id): ValidatedUuid,
 ) -> AppResult<impl IntoResponse> {
     let attachment_service = &app_state.attachment_service;
 
@@ -319,7 +319,7 @@ pub async fn list_share_links_handler(
 pub async fn revoke_share_link_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(share_link_id): Path<Uuid>,
+    ValidatedUuid(share_link_id): ValidatedUuid,
 ) -> AppResult<impl IntoResponse> {
     let attachment_service = &app_state.attachment_service;
 
@@ -440,7 +440,7 @@ pub fn attachment_routes(app_state: AppState) -> Router {
 pub async fn generate_upload_url_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
     Json(request): Json<GenerateUploadUrlRequest>,
 ) -> AppResult<ApiResponse<GenerateUploadUrlResponse>> {
     info!(

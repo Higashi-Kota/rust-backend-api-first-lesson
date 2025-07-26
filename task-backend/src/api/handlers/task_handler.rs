@@ -13,14 +13,15 @@ use crate::api::dto::team_task_dto::{
 use crate::api::AppState;
 use crate::domain::task_status::TaskStatus;
 use crate::error::{AppError, AppResult};
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::authorization::{resources, Action, PermissionContext};
 use crate::require_permission;
 use crate::types::ApiResponse;
 use crate::utils::error_helper::{convert_validation_errors, internal_server_error};
 use axum::{
-    extract::{Extension, FromRequestParts, Json, Path, Query, State},
-    http::{request::Parts, StatusCode},
+    extract::{Extension, Json, Query, State},
+    http::StatusCode,
     response::IntoResponse,
     routing::{delete, get, patch, post},
     Router,
@@ -29,30 +30,6 @@ use chrono::Utc;
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
-
-// カスタムUUID抽出器
-pub struct UuidPath(pub Uuid);
-
-// #[async_trait] を削除し、通常の async fn 構文を使用
-impl<S> FromRequestParts<S> for UuidPath
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        // パスパラメータを文字列として最初に抽出
-        let Path(path_str) = Path::<String>::from_request_parts(parts, state)
-            .await
-            .map_err(|_| AppError::BadRequest("Invalid path parameter".to_string()))?;
-
-        // UUIDをパースして検証エラー形式で返す
-        let uuid = Uuid::parse_str(&path_str)
-            .map_err(|_| AppError::BadRequest(format!("Invalid UUID format: '{}'", path_str)))?;
-
-        Ok(UuidPath(uuid))
-    }
-}
 
 // --- CRUD Handlers ---
 
@@ -130,7 +107,7 @@ pub async fn create_task_handler(
 pub async fn get_task_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    UuidPath(id): UuidPath,
+    ValidatedUuid(id): ValidatedUuid,
 ) -> AppResult<ApiResponse<TaskDto>> {
     info!(
         user_id = %user.claims.user_id,
@@ -153,7 +130,7 @@ pub async fn get_task_with_context_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Extension(permission_ctx): Extension<PermissionContext>,
-    UuidPath(id): UuidPath,
+    ValidatedUuid(id): ValidatedUuid,
 ) -> AppResult<ApiResponse<TaskDto>> {
     info!(
         user_id = %user.claims.user_id,
@@ -500,7 +477,7 @@ pub async fn list_tasks_with_scope(
 pub async fn create_team_task(
     State(app_state): State<AppState>,
     Extension(auth_user): Extension<AuthenticatedUser>,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
     Json(mut payload): Json<CreateTeamTaskRequest>,
 ) -> AppResult<impl IntoResponse> {
     // パスパラメータのteam_idをペイロードに設定
@@ -533,7 +510,7 @@ pub async fn create_team_task(
 pub async fn create_organization_task(
     State(app_state): State<AppState>,
     Extension(auth_user): Extension<AuthenticatedUser>,
-    Path(organization_id): Path<Uuid>,
+    ValidatedUuid(organization_id): ValidatedUuid,
     Json(mut payload): Json<CreateOrganizationTaskRequest>,
 ) -> AppResult<impl IntoResponse> {
     // パスパラメータのorganization_idをペイロードに設定
@@ -566,7 +543,7 @@ pub async fn create_organization_task(
 pub async fn assign_task(
     State(app_state): State<AppState>,
     Extension(auth_user): Extension<AuthenticatedUser>,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
     Json(payload): Json<AssignTaskRequest>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション
@@ -593,7 +570,7 @@ pub async fn assign_task(
 pub async fn update_multi_tenant_task(
     State(app_state): State<AppState>,
     Extension(auth_user): Extension<AuthenticatedUser>,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
     Json(payload): Json<UpdateTaskDto>,
 ) -> AppResult<impl IntoResponse> {
     // バリデーション
@@ -619,7 +596,7 @@ pub async fn update_multi_tenant_task(
 pub async fn delete_multi_tenant_task(
     State(app_state): State<AppState>,
     Extension(auth_user): Extension<AuthenticatedUser>,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
 ) -> AppResult<StatusCode> {
     info!(
         user_id = %auth_user.claims.user_id,
@@ -639,7 +616,7 @@ pub async fn delete_multi_tenant_task(
 pub async fn transfer_task(
     State(app_state): State<AppState>,
     Extension(auth_user): Extension<AuthenticatedUser>,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
     Json(payload): Json<TransferTaskRequest>,
 ) -> AppResult<impl IntoResponse> {
     payload

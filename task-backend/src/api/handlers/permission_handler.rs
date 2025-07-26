@@ -7,12 +7,13 @@ use crate::domain::permission::{
 };
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
+use crate::extractors::{ValidatedMultiPath, ValidatedUuid};
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::types::{ApiResponse, Timestamp};
 use crate::utils::error_helper::convert_validation_errors;
 use crate::utils::permission::PermissionType;
 use axum::{
-    extract::{Json, Path, Query, State},
+    extract::{Json, Query, State},
     routing::{get, post},
     Router,
 };
@@ -20,6 +21,13 @@ use serde::Deserialize;
 use tracing::{info, warn};
 use uuid::Uuid;
 use validator::Validate;
+
+// 複数パラメータ用のPath構造体
+#[derive(Deserialize)]
+pub struct ResourceActionPath {
+    pub resource: String,
+    pub action: String,
+}
 
 // --- Query Parameters ---
 
@@ -217,7 +225,7 @@ pub async fn validate_permissions_handler(
 pub async fn get_user_permissions_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(target_user_id): Path<Uuid>,
+    ValidatedUuid(target_user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<UserPermissionsResponse>> {
     // アクセス権限チェック（自分の情報または管理者のみ）
     if user.claims.user_id != target_user_id && !user.claims.is_admin() {
@@ -918,26 +926,26 @@ fn get_export_capabilities(tier: &SubscriptionTier) -> ExportCapabilities {
 pub async fn check_resource_permission_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path((resource, action)): Path<(String, String)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<ResourceActionPath>,
     Query(query): Query<UserEffectivePermissionsQuery>,
 ) -> AppResult<ApiResponse<ResourcePermissionResponse>> {
     info!(
         user_id = %user.claims.user_id,
-        resource = %resource,
-        action = %action,
+        resource = %params.resource,
+        action = %params.action,
         "Checking resource-specific permission"
     );
 
     // 権限チェックを実行
     let result = if let Some(ref role) = user.claims.role {
         role.can_perform_action(
-            &resource,
-            &action,
+            &params.resource,
+            &params.action,
             query.include_inherited.map(|_| user.claims.user_id),
         )
     } else {
         // Basic permission check - simplified version
-        if user.claims.is_admin() || resource == "tasks" {
+        if user.claims.is_admin() || params.resource == "tasks" {
             // PermissionResult::allowedメソッドを使用
             PermissionResult::allowed(None, PermissionScope::Own)
         } else {
@@ -955,7 +963,7 @@ pub async fn check_resource_permission_handler(
                 .claims
                 .subscription_tier
                 .is_at_least(&SubscriptionTier::Pro),
-            upgrade_message: format!("Pro subscription required for {} access", resource),
+            upgrade_message: format!("Pro subscription required for {} access", params.resource),
         })
     } else {
         None
@@ -964,8 +972,8 @@ pub async fn check_resource_permission_handler(
     let response = match result {
         PermissionResult::Allowed { scope, .. } => ResourcePermissionResponse {
             user_id: user.claims.user_id,
-            resource,
-            action,
+            resource: params.resource.clone(),
+            action: params.action.clone(),
             allowed: true,
             reason: None,
             permission_scope: Some(PermissionScopeInfo {
@@ -978,8 +986,8 @@ pub async fn check_resource_permission_handler(
         },
         PermissionResult::Denied { reason } => ResourcePermissionResponse {
             user_id: user.claims.user_id,
-            resource,
-            action,
+            resource: params.resource,
+            action: params.action,
             allowed: false,
             reason: Some(reason),
             permission_scope: None,
@@ -1099,7 +1107,7 @@ pub async fn bulk_permission_check_handler(
 pub async fn get_user_effective_permissions_handler(
     State(_app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(target_user_id): Path<Uuid>,
+    ValidatedUuid(target_user_id): ValidatedUuid,
     Query(query): Query<UserEffectivePermissionsQuery>,
 ) -> AppResult<ApiResponse<UserEffectivePermissionsResponse>> {
     // アクセス権限チェック（自分の情報または管理者のみ）

@@ -11,6 +11,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
+    api::dto::common::PaginationQuery,
     api::AppState,
     domain::activity_log_model,
     middleware::auth::AuthenticatedUser,
@@ -30,10 +31,9 @@ pub struct ActivityLogQuery {
     pub from: Option<DateTime<Utc>>,
     /// 終了日時
     pub to: Option<DateTime<Utc>>,
-    /// ページ番号（1始まり）
-    pub page: Option<u64>,
-    /// ページサイズ
-    pub per_page: Option<u64>,
+    /// ページネーションパラメータ
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
 }
 
 #[derive(Debug, Serialize)]
@@ -102,8 +102,9 @@ async fn get_activity_logs_internal(
     query: ActivityLogQuery,
     activity_log_repo: Arc<ActivityLogRepository>,
 ) -> Result<Response, Response> {
-    let page = query.page.unwrap_or(1).max(1);
-    let per_page = query.per_page.unwrap_or(20).min(100);
+    let (page, per_page) = query.pagination.get_pagination();
+    let page = page as u64;
+    let per_page = per_page as u64;
 
     // リポジトリのクエリ機能を使用してログを取得
     let filter = ActivityLogFilter {

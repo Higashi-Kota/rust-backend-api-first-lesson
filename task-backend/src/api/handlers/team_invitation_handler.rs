@@ -2,19 +2,37 @@
 
 use crate::api::dto::team_invitation_dto::*;
 use crate::error::{AppError, AppResult};
+use crate::extractors::{deserialize_uuid, ValidatedMultiPath, ValidatedUuid};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::types::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     Json,
 };
+use serde::Deserialize;
 use uuid::Uuid;
 use validator::Validate;
+
+// 複数パラメータ用のPath構造体
+#[derive(Deserialize)]
+pub struct TeamInvitationPath {
+    #[serde(deserialize_with = "deserialize_uuid")]
+    pub team_id: Uuid,
+    #[serde(deserialize_with = "deserialize_uuid")]
+    pub invitation_id: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct TeamEmailPath {
+    #[serde(deserialize_with = "deserialize_uuid")]
+    pub team_id: Uuid,
+    pub email: String,
+}
 
 pub async fn bulk_member_invite(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
     Json(request): Json<BulkTeamInviteRequest>,
 ) -> AppResult<ApiResponse<BulkInviteResponse>> {
     let service = &app_state.team_invitation_service;
@@ -69,7 +87,7 @@ pub async fn bulk_member_invite(
 pub async fn get_team_invitations(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
     Query(query): Query<TeamInvitationQuery>,
 ) -> AppResult<ApiResponse<TeamInvitationsListResponse>> {
     let service = &app_state.team_invitation_service;
@@ -111,7 +129,7 @@ pub async fn get_team_invitations(
 
 pub async fn decline_invitation(
     State(app_state): State<crate::api::AppState>,
-    Path((team_id, invitation_id)): Path<(Uuid, Uuid)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<TeamInvitationPath>,
     Json(request): Json<DeclineInvitationRequest>,
 ) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
@@ -120,7 +138,7 @@ pub async fn decline_invitation(
         .map_err(|e| AppError::BadRequest(e.to_string()))?;
 
     let updated_invitation = service
-        .decline_invitation(team_id, invitation_id, request.reason)
+        .decline_invitation(params.team_id, params.invitation_id, request.reason)
         .await?;
 
     let response = TeamInvitationResponse::from(updated_invitation);
@@ -130,7 +148,7 @@ pub async fn decline_invitation(
 pub async fn accept_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(invitation_id): Path<Uuid>,
+    ValidatedUuid(invitation_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
     let updated_invitation = service
@@ -144,11 +162,11 @@ pub async fn accept_invitation(
 pub async fn cancel_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path((team_id, invitation_id)): Path<(Uuid, Uuid)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<TeamInvitationPath>,
 ) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
     let updated_invitation = service
-        .cancel_invitation(team_id, invitation_id, user.user_id())
+        .cancel_invitation(params.team_id, params.invitation_id, user.user_id())
         .await?;
 
     let response = TeamInvitationResponse::from(updated_invitation);
@@ -158,7 +176,7 @@ pub async fn cancel_invitation(
 pub async fn resend_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(invitation_id): Path<Uuid>,
+    ValidatedUuid(invitation_id): ValidatedUuid,
     Json(request): Json<ResendInvitationRequest>,
 ) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
@@ -192,7 +210,7 @@ pub async fn get_user_invitations(
 pub async fn get_invitation_statistics(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<InvitationStatisticsResponse>> {
     let service = &app_state.team_invitation_service;
     if !service
@@ -272,7 +290,7 @@ pub async fn delete_old_invitations(
 pub async fn create_single_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
     Json(request): Json<CreateInvitationRequest>,
 ) -> AppResult<ApiResponse<TeamInvitationResponse>> {
     let service = &app_state.team_invitation_service;
@@ -317,13 +335,13 @@ pub async fn get_invitations_by_email(
 pub async fn check_team_invitation(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path((team_id, email)): Path<(Uuid, String)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<TeamEmailPath>,
 ) -> AppResult<ApiResponse<CheckInvitationResponse>> {
     let service = &app_state.team_invitation_service;
 
     // 権限確認
     if !service
-        .validate_invitation_permissions(team_id, user.user_id())
+        .validate_invitation_permissions(params.team_id, user.user_id())
         .await?
     {
         return Err(AppError::Forbidden(
@@ -331,7 +349,9 @@ pub async fn check_team_invitation(
         ));
     }
 
-    let invitation = service.check_team_invitation(team_id, &email).await?;
+    let invitation = service
+        .check_team_invitation(params.team_id, &params.email)
+        .await?;
 
     let response = CheckInvitationResponse {
         exists: invitation.is_some(),
@@ -345,7 +365,7 @@ pub async fn check_team_invitation(
 pub async fn get_invitations_with_pagination(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(team_id): Path<Uuid>,
+    ValidatedUuid(team_id): ValidatedUuid,
     Query(query): Query<TeamInvitationQuery>,
 ) -> AppResult<ApiResponse<InvitationPaginationResponse>> {
     let service = &app_state.team_invitation_service;

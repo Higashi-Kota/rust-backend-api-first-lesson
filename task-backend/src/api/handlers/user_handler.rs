@@ -12,6 +12,7 @@ use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::domain::user_model::SafeUser;
 use crate::error::{AppError, AppResult};
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::auth::AuthenticatedUserWithRole;
 use crate::middleware::authorization::{resources, Action};
@@ -20,37 +21,13 @@ use crate::types::{ApiResponse, Timestamp};
 use crate::utils::error_helper::convert_validation_errors;
 use crate::utils::permission::PermissionChecker;
 use axum::{
-    extract::{FromRequestParts, Json, Path, Query, State},
-    http::{request::Parts, StatusCode},
+    extract::{Json, Path, Query, State},
+    http::StatusCode,
     routing::{delete, get, patch, post},
     Router,
 };
 use tracing::{info, warn};
-use uuid::Uuid;
 use validator::Validate;
-
-// カスタムUUID抽出器
-pub struct UuidPath(pub Uuid);
-
-impl<S> FromRequestParts<S> for UuidPath
-where
-    S: Send + Sync,
-{
-    type Rejection = AppError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        // パスパラメータを文字列として最初に抽出
-        let Path(path_str) = Path::<String>::from_request_parts(parts, state)
-            .await
-            .map_err(|_| AppError::BadRequest("Invalid path parameter".to_string()))?;
-
-        // UUIDをパースして検証エラー形式で返す
-        let uuid = Uuid::parse_str(&path_str)
-            .map_err(|_| AppError::BadRequest(format!("Invalid UUID format: '{}'", path_str)))?;
-
-        Ok(UuidPath(uuid))
-    }
-}
 
 // --- ユーザープロフィール管理 ---
 
@@ -392,7 +369,7 @@ pub async fn delete_user_settings_handler(
 /// アカウント状態更新（管理者用）
 pub async fn update_account_status_handler(
     State(app_state): State<AppState>,
-    UuidPath(user_id): UuidPath,
+    ValidatedUuid(user_id): ValidatedUuid,
     admin_user: AuthenticatedUserWithRole,
     Json(payload): Json<UpdateAccountStatusRequest>,
 ) -> AppResult<ApiResponse<AccountStatusUpdateResponse>> {
@@ -809,7 +786,7 @@ pub async fn list_users_handler(
 /// 特定ユーザー情報取得（管理者用）
 pub async fn get_user_by_id_handler(
     State(app_state): State<AppState>,
-    UuidPath(user_id): UuidPath,
+    ValidatedUuid(user_id): ValidatedUuid,
     admin_user: AuthenticatedUserWithRole,
 ) -> AppResult<ApiResponse<UserProfileResponse>> {
     // 権限チェックはミドルウェアで実施済み
@@ -919,7 +896,7 @@ async fn user_health_check_handler() -> &'static str {
 pub async fn upgrade_user_subscription_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(payload): Json<serde_json::Value>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
     // 権限チェック：自分自身または管理者のみ

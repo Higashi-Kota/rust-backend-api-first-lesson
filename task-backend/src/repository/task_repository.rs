@@ -81,8 +81,7 @@ impl TaskRepository {
     ) -> Result<(Vec<task_model::Model>, u64), DbErr> {
         self.prepare_connection().await?;
 
-        // ページサイズを制限（過大なページサイズを防止）
-        let page_size = std::cmp::min(page_size, 100);
+        // ページサイズはget_pagination()で制限済み
         let offset = (page - 1) * page_size;
 
         // ページネーションされたタスクを取得
@@ -237,8 +236,7 @@ impl TaskRepository {
         let offset = ((page - 1) * per_page) as u64;
         let limit = per_page as u64;
 
-        // 最大ページサイズを制限
-        let limit = std::cmp::min(limit, 100);
+        // ページサイズはget_pagination()で制限済み
 
         // 結果を取得
         let tasks = db_query.limit(limit).offset(offset).all(&self.db).await?;
@@ -255,8 +253,7 @@ impl TaskRepository {
     ) -> Result<(Vec<task_model::Model>, u64), DbErr> {
         self.prepare_connection().await?;
 
-        // ページサイズを制限（過大なページサイズを防止）
-        let page_size = std::cmp::min(page_size, 100);
+        // ページサイズはget_pagination()で制限済み
         let offset = (page - 1) * page_size;
 
         // ページネーションされたタスクを取得（ユーザーIDでフィルタリング）

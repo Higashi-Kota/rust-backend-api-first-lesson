@@ -7,23 +7,20 @@ use crate::api::dto::gdpr_dto::{
 };
 use crate::api::AppState;
 use crate::error::AppResult;
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::middleware::authorization::{resources, Action};
 use crate::require_permission;
 use crate::service::gdpr_service::GdprService;
 use crate::types::ApiResponse;
-use axum::{
-    extract::{Path, State},
-    Json,
-};
+use axum::{extract::State, Json};
 use std::sync::Arc;
-use uuid::Uuid;
 
 /// Export user data (user can export their own data, admin can export any user's data)
 pub async fn export_user_data_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<DataExportRequest>,
 ) -> AppResult<ApiResponse<DataExportResponse>> {
     // Check if user is accessing their own data or if they're an admin
@@ -43,7 +40,7 @@ pub async fn export_user_data_handler(
 pub async fn delete_user_data_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<DataDeletionRequest>,
 ) -> AppResult<ApiResponse<DataDeletionResponse>> {
     // Check if user is deleting their own data or if they're an admin
@@ -63,7 +60,7 @@ pub async fn delete_user_data_handler(
 pub async fn get_compliance_status_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<ComplianceStatusResponse>> {
     // Check if user is checking their own status or if they're an admin
     if user.user_id() != user_id && !user.is_admin() {
@@ -82,7 +79,7 @@ pub async fn get_compliance_status_handler(
 pub async fn admin_export_user_data_handler(
     State(app_state): State<AppState>,
     _admin: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<DataExportRequest>,
 ) -> AppResult<ApiResponse<DataExportResponse>> {
     let gdpr_service = Arc::new(GdprService::new((*app_state.db).clone()));
@@ -95,7 +92,7 @@ pub async fn admin_export_user_data_handler(
 pub async fn admin_delete_user_data_handler(
     State(app_state): State<AppState>,
     _admin: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<DataDeletionRequest>,
 ) -> AppResult<ApiResponse<DataDeletionResponse>> {
     let gdpr_service = Arc::new(GdprService::new((*app_state.db).clone()));
@@ -115,7 +112,7 @@ use axum::{
 pub async fn get_consent_status_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<ConsentStatusResponse>> {
     // Check if user is accessing their own data or if they're an admin
     if user.user_id() != user_id && !user.is_admin() {
@@ -134,7 +131,7 @@ pub async fn get_consent_status_handler(
 pub async fn update_consents_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<ConsentUpdateRequest>,
 ) -> AppResult<ApiResponse<ConsentStatusResponse>> {
     // Users can only update their own consents
@@ -156,7 +153,7 @@ pub async fn update_consents_handler(
 pub async fn update_single_consent_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<SingleConsentUpdateRequest>,
 ) -> AppResult<ApiResponse<ConsentStatusResponse>> {
     // Users can only update their own consents
@@ -178,7 +175,7 @@ pub async fn update_single_consent_handler(
 pub async fn get_consent_history_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<ConsentHistoryResponse>> {
     // Check if user is accessing their own data or if they're an admin
     if user.user_id() != user_id && !user.is_admin() {

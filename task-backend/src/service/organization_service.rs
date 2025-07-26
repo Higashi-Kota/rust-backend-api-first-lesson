@@ -143,7 +143,8 @@ impl OrganizationService {
         user_id: Option<Uuid>,
     ) -> AppResult<(Vec<OrganizationListResponse>, usize)> {
         let (page, per_page) = query.pagination.get_pagination();
-        let page_size = std::cmp::min(per_page, 100); // 最大100件に制限
+        // ページサイズはget_pagination()で制限済み
+        let page_size = per_page;
 
         // 組織を取得
         let all_organizations = if user_id.is_none() {

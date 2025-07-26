@@ -59,7 +59,8 @@ impl RoleService {
         })?;
 
         let total_count = all_roles.len();
-        let page_size = std::cmp::min(per_page as usize, 100); // 最大100件に制限
+        // ページサイズはget_pagination()で制限済み
+        let page_size = per_page as usize;
         let offset = ((page - 1) * per_page) as usize;
 
         let paginated_roles = all_roles.into_iter().skip(offset).take(page_size).collect();
@@ -90,7 +91,8 @@ impl RoleService {
         })?;
 
         let total_count = all_roles.len();
-        let page_size = std::cmp::min(per_page as usize, 100); // 最大100件に制限
+        // ページサイズはget_pagination()で制限済み
+        let page_size = per_page as usize;
         let offset = ((page - 1) * per_page) as usize;
 
         let paginated_roles = all_roles.into_iter().skip(offset).take(page_size).collect();

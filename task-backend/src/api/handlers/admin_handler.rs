@@ -13,12 +13,13 @@ use crate::api::dto::user_dto::{
 };
 use crate::domain::subscription_history_model::SubscriptionChangeInfo;
 use crate::error::{AppError, AppResult};
+use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
 use crate::types::ApiResponse;
 use crate::types::{optional_timestamp, Timestamp};
 use crate::utils::permission::{PermissionChecker, PermissionType};
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     Json,
 };
@@ -113,7 +114,7 @@ pub struct ChangeUserSubscriptionResponse {
 pub async fn admin_get_task(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<TaskResponse>> {
     let task_service = &app_state.task_service;
 
@@ -654,7 +655,7 @@ pub async fn admin_create_task(
 pub async fn admin_update_task(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
     Json(request): Json<UpdateTaskDto>,
 ) -> AppResult<ApiResponse<TaskDto>> {
     let task_service = &app_state.task_service;
@@ -667,7 +668,7 @@ pub async fn admin_update_task(
 pub async fn admin_delete_task(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Path(task_id): Path<Uuid>,
+    ValidatedUuid(task_id): ValidatedUuid,
 ) -> AppResult<axum::http::StatusCode> {
     let task_service = &app_state.task_service;
     task_service.delete_task(task_id).await?;
@@ -690,17 +691,11 @@ pub async fn admin_list_all_tasks(
 pub async fn admin_list_tasks_paginated(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Query(params): Query<std::collections::HashMap<String, String>>,
+    Query(query): Query<PaginationQuery>,
 ) -> AppResult<ApiResponse<PaginatedTasksDto>> {
-    let page = params
-        .get("page")
-        .and_then(|p| p.parse::<u64>().ok())
-        .unwrap_or(1);
-    let per_page = params
-        .get("per_page")
-        .and_then(|p| p.parse::<u64>().ok())
-        .unwrap_or(10)
-        .clamp(1, 100);
+    let (page, per_page) = query.get_pagination();
+    let page = page as u64;
+    let per_page = per_page as u64;
 
     let task_service = &app_state.task_service;
     let paginated_tasks = task_service.list_tasks_paginated(page, per_page).await?;
@@ -714,7 +709,7 @@ pub async fn admin_list_tasks_paginated(
 pub async fn admin_list_user_tasks(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUser,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<Vec<TaskDto>>> {
     let task_service = &app_state.task_service;
     let tasks = task_service.list_tasks_for_user(user_id).await?;
@@ -785,7 +780,7 @@ pub async fn admin_list_roles(
 pub async fn admin_get_role_with_subscription(
     State(app_state): State<crate::api::AppState>,
     _user: AuthenticatedUserWithRole,
-    Path(role_id): Path<Uuid>,
+    ValidatedUuid(role_id): ValidatedUuid,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<RoleWithSubscriptionResponse>> {
     let role_service = &app_state.role_service;
@@ -944,7 +939,7 @@ pub async fn admin_list_users_with_roles(
 pub async fn admin_check_user_member_status(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
     info!(
         admin_id = %admin_user.user_id(),
@@ -1009,7 +1004,7 @@ pub async fn admin_check_user_member_status(
 pub async fn change_user_subscription(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<ChangeUserSubscriptionRequest>,
 ) -> AppResult<ApiResponse<ChangeUserSubscriptionResponse>> {
     request.validate()?;
@@ -1165,7 +1160,7 @@ pub async fn admin_list_bulk_operations(
 pub async fn admin_get_user_bulk_operations(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Query(params): Query<HashMap<String, String>>,
 ) -> AppResult<ApiResponse<Vec<BulkOperationHistoryResponse>>> {
     let limit = params
@@ -1656,40 +1651,31 @@ mod tests {
     #[test]
     fn test_admin_pagination_logic() {
         // ページネーションパラメータのロジックテスト
-        let mut params = std::collections::HashMap::new();
-        params.insert("page".to_string(), "2".to_string());
-        params.insert("per_page".to_string(), "25".to_string());
-
-        let page = params
-            .get("page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(1);
-        let per_page = params
-            .get("per_page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(10)
-            .clamp(1, 100);
+        let query = PaginationQuery {
+            page: 2,
+            per_page: 25,
+        };
+        let (page, per_page) = query.get_pagination();
 
         assert_eq!(page, 2);
         assert_eq!(per_page, 25);
 
-        // 不正な値の場合のテスト
-        let mut invalid_params = std::collections::HashMap::new();
-        invalid_params.insert("page".to_string(), "invalid".to_string());
-        invalid_params.insert("per_page".to_string(), "150".to_string());
+        // デフォルト値のテスト
+        let default_query = PaginationQuery::default();
+        let (page, per_page) = default_query.get_pagination();
 
-        let invalid_page = invalid_params
-            .get("page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(1);
-        let invalid_per_page = invalid_params
-            .get("per_page")
-            .and_then(|p| p.parse::<u64>().ok())
-            .unwrap_or(10)
-            .clamp(1, 100);
+        assert_eq!(page, 1); // デフォルト値
+        assert_eq!(per_page, 20); // デフォルト値
 
-        assert_eq!(invalid_page, 1); // デフォルト値
-        assert_eq!(invalid_per_page, 100); // クランプされた最大値
+        // 最大値を超えた場合のテスト
+        let over_limit_query = PaginationQuery {
+            page: 1,
+            per_page: 150,
+        };
+        let (page, per_page) = over_limit_query.get_pagination();
+
+        assert_eq!(page, 1);
+        assert_eq!(per_page, 100); // クランプされた最大値
     }
 
     #[test]
@@ -1893,7 +1879,7 @@ pub async fn get_subscription_analytics_handler(
 pub async fn delete_user_subscription_history_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<(StatusCode, ApiResponse<DeleteHistoryResponse>)> {
     info!(
         admin_id = %admin_user.user_id(),
@@ -1919,7 +1905,7 @@ pub async fn delete_user_subscription_history_handler(
 pub async fn delete_subscription_history_by_id_handler(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(history_id): Path<Uuid>,
+    ValidatedUuid(history_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<bool>> {
     info!(
         admin_id = %admin_user.user_id(),
@@ -1974,7 +1960,7 @@ pub struct DeleteHistoryResponse {
 pub async fn admin_get_user_settings(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<UserSettingsDto>> {
     info!(
         admin_id = %admin_user.user_id(),
@@ -1996,7 +1982,7 @@ pub async fn admin_get_user_settings(
 pub async fn admin_update_user_settings(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
     Json(request): Json<UpdateUserSettingsRequest>,
 ) -> AppResult<ApiResponse<UserSettingsDto>> {
     request.validate()?;
@@ -2091,7 +2077,7 @@ pub async fn admin_get_users_with_notification(
 pub async fn admin_delete_user_settings(
     State(app_state): State<crate::api::AppState>,
     admin_user: AuthenticatedUserWithRole,
-    Path(user_id): Path<Uuid>,
+    ValidatedUuid(user_id): ValidatedUuid,
 ) -> AppResult<StatusCode> {
     info!(
         admin_id = %admin_user.user_id(),

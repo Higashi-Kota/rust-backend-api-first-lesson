@@ -2,6 +2,12 @@
 
 use serde::{Deserialize, Serialize};
 
+/// デフォルトページサイズ
+pub const DEFAULT_PAGE_SIZE: u32 = 20;
+
+/// 最大ページサイズ
+pub const MAX_PAGE_SIZE: u32 = 100;
+
 /// ページネーション情報
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaginationMeta {

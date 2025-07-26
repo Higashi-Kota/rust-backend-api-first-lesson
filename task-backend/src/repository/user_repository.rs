@@ -283,7 +283,8 @@ impl UserRepository {
     ) -> Result<Vec<SafeUserWithRole>, DbErr> {
         self.prepare_connection().await?;
 
-        let page_size = std::cmp::min(per_page as u64, 100); // 最大100件に制限
+        // ページサイズはget_pagination()で制限済み
+        let page_size = per_page as u64;
         let offset = ((page - 1) * per_page) as u64;
 
         let results = UserEntity::find()
@@ -522,7 +523,8 @@ impl UserRepository {
             condition = condition.add(user_model::Column::EmailVerified.eq(verified));
         }
 
-        let page_size = std::cmp::min(per_page as u64, 100);
+        // ページサイズはget_pagination()で制限済み
+        let page_size = per_page as u64;
         let offset = ((page - 1) * per_page) as u64;
 
         let results = UserEntity::find()

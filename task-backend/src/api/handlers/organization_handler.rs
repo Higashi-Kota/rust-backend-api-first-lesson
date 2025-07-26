@@ -4,21 +4,32 @@ use crate::api::dto::organization_dto::*;
 use crate::api::dto::organization_query_dto::OrganizationSearchQuery;
 use crate::domain::organization_model::Organization;
 use crate::error::AppResult;
+use crate::extractors::{deserialize_uuid, ValidatedMultiPath, ValidatedUuid};
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::authorization::{resources, Action};
 use crate::require_permission;
 use crate::shared::types::PaginatedResponse;
 use crate::types::ApiResponse;
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     routing::{delete, get, patch, post, put},
     Json, Router,
 };
+use serde::Deserialize;
 use serde_json::json;
 use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
+
+// 複数パラメータ用のPath構造体
+#[derive(Deserialize)]
+pub struct OrganizationMemberPath {
+    #[serde(deserialize_with = "deserialize_uuid")]
+    pub organization_id: Uuid,
+    #[serde(deserialize_with = "deserialize_uuid")]
+    pub member_id: Uuid,
+}
 
 /// 組織作成
 pub async fn create_organization_handler(
@@ -44,7 +55,7 @@ pub async fn create_organization_handler(
 pub async fn get_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(organization_id): Path<Uuid>,
+    ValidatedUuid(organization_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<OrganizationResponse>> {
     let organization_response = app_state
         .organization_service
@@ -72,7 +83,7 @@ pub async fn get_organizations_handler(
 pub async fn update_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(organization_id): Path<Uuid>,
+    ValidatedUuid(organization_id): ValidatedUuid,
     Json(payload): Json<UpdateOrganizationRequest>,
 ) -> AppResult<ApiResponse<OrganizationResponse>> {
     // バリデーション
@@ -92,7 +103,7 @@ pub async fn update_organization_handler(
 pub async fn delete_organization_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(organization_id): Path<Uuid>,
+    ValidatedUuid(organization_id): ValidatedUuid,
 ) -> AppResult<(StatusCode, ApiResponse<serde_json::Value>)> {
     // 権限チェックはミドルウェアで実施済み
 
@@ -113,7 +124,7 @@ pub async fn delete_organization_handler(
 pub async fn invite_organization_member_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(organization_id): Path<Uuid>,
+    ValidatedUuid(organization_id): ValidatedUuid,
     Json(payload): Json<InviteOrganizationMemberRequest>,
 ) -> AppResult<(StatusCode, ApiResponse<serde_json::Value>)> {
     // バリデーション
@@ -137,12 +148,17 @@ pub async fn invite_organization_member_handler(
 pub async fn update_organization_member_role_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<OrganizationMemberPath>,
     Json(payload): Json<UpdateOrganizationMemberRoleRequest>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
     let member_response = app_state
         .organization_service
-        .update_organization_member_role(organization_id, member_id, payload, user.user_id())
+        .update_organization_member_role(
+            params.organization_id,
+            params.member_id,
+            payload,
+            user.user_id(),
+        )
         .await?;
 
     Ok(ApiResponse::success(json!({
@@ -155,11 +171,11 @@ pub async fn update_organization_member_role_handler(
 pub async fn remove_organization_member_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<OrganizationMemberPath>,
 ) -> AppResult<(StatusCode, ApiResponse<serde_json::Value>)> {
     app_state
         .organization_service
-        .remove_organization_member(organization_id, member_id, user.user_id())
+        .remove_organization_member(params.organization_id, params.member_id, user.user_id())
         .await?;
 
     Ok((
@@ -174,7 +190,7 @@ pub async fn remove_organization_member_handler(
 pub async fn update_organization_settings_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(organization_id): Path<Uuid>,
+    ValidatedUuid(organization_id): ValidatedUuid,
     Json(payload): Json<UpdateOrganizationSettingsRequest>,
 ) -> AppResult<ApiResponse<serde_json::Value>> {
     // 権限チェックはミドルウェアで実施済み
@@ -207,11 +223,11 @@ pub async fn get_organization_stats_handler(
 pub async fn get_organization_member_details_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path((organization_id, member_id)): Path<(Uuid, Uuid)>,
+    ValidatedMultiPath(params): ValidatedMultiPath<OrganizationMemberPath>,
 ) -> AppResult<ApiResponse<OrganizationMemberDetailResponse>> {
     let member_detail = app_state
         .organization_service
-        .get_organization_member_detail(organization_id, member_id, user.user_id())
+        .get_organization_member_detail(params.organization_id, params.member_id, user.user_id())
         .await?;
 
     Ok(ApiResponse::success(member_detail))
@@ -221,7 +237,7 @@ pub async fn get_organization_member_details_handler(
 pub async fn check_organization_capacity_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(organization_id): Path<Uuid>,
+    ValidatedUuid(organization_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<OrganizationCapacityResponse>> {
     let capacity = app_state
         .organization_service
@@ -254,7 +270,7 @@ pub async fn get_organizations_paginated_handler(
 pub async fn update_organization_subscription_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(organization_id): Path<Uuid>,
+    ValidatedUuid(organization_id): ValidatedUuid,
     Json(payload): Json<UpdateOrganizationSubscriptionRequest>,
 ) -> AppResult<ApiResponse<OrganizationResponse>> {
     let organization_response = app_state
@@ -273,7 +289,7 @@ pub async fn update_organization_subscription_handler(
 pub async fn get_organization_subscription_history_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
-    Path(organization_id): Path<Uuid>,
+    ValidatedUuid(organization_id): ValidatedUuid,
 ) -> AppResult<ApiResponse<Vec<serde_json::Value>>> {
     // 権限チェックはミドルウェアで実施済み
 
