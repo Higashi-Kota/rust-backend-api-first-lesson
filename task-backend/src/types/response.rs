@@ -3,12 +3,12 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::ErrorDetail;
 use crate::shared::types::PaginationMeta;
+use crate::types::Timestamp;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ApiResponse<T> {
@@ -23,7 +23,7 @@ pub struct ApiResponse<T> {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ResponseMeta {
     pub request_id: String,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: Timestamp,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pagination: Option<ResponsePaginationMeta>,
 }
@@ -51,7 +51,7 @@ impl ResponseMeta {
     pub fn new() -> Self {
         Self {
             request_id: Uuid::new_v4().to_string(),
-            timestamp: Utc::now(),
+            timestamp: Timestamp::now(),
             pagination: None,
         }
     }
@@ -94,6 +94,7 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
 
     #[test]
     fn test_success_response() {
@@ -119,5 +120,20 @@ mod tests {
         assert!(response.data.is_none());
         assert_eq!(response.error.as_ref().unwrap().code, error.code);
         assert!(response.meta.is_some());
+    }
+
+    #[test]
+    fn test_response_meta_timestamp_is_unix_timestamp() {
+        let response = ApiResponse::success("test");
+        let meta = response.meta.unwrap();
+
+        // timestampがUnix timestamp形式でシリアライズされることを確認
+        let serialized = serde_json::to_value(&meta).unwrap();
+        assert!(serialized["timestamp"].is_i64());
+
+        // 現在時刻に近い値であることを確認（±5秒の範囲）
+        let timestamp_value = serialized["timestamp"].as_i64().unwrap();
+        let now = Utc::now().timestamp();
+        assert!((timestamp_value - now).abs() <= 5);
     }
 }

@@ -1,7 +1,7 @@
 ## 実現トピック
 
-ページネーションの統一処理
-task-backend/src/shared/types/pagination.rs
+レスポンスフォーマットの統一
+task-backend/src/types/response.rs
 
 ## 🧩 実装ガイドライン
 
@@ -495,6 +495,157 @@ self.repo.count_tasks()
 3. **型安全性**: コンパイル時にページネーション構造を保証
 4. **DRY原則**: 重複コードの排除
 5. **拡張性**: 将来的な変更が容易
+
+### 13. **レスポンスフォーマットの統一実装**
+
+#### 統一レスポンス構造（ApiResponse）
+
+* **すべてのAPIレスポンスで`ApiResponse<T>`型を使用すること**
+  ```rust
+  use crate::types::ApiResponse;
+  
+  #[derive(Serialize, Deserialize, Debug)]
+  pub struct ApiResponse<T> {
+      pub success: bool,
+      pub data: Option<T>,
+      #[serde(skip_serializing_if = "Option::is_none")]
+      pub error: Option<ErrorDetail>,
+      #[serde(skip_serializing_if = "Option::is_none")]
+      pub meta: Option<ResponseMeta>,
+  }
+  ```
+
+* **レスポンス作成パターン**
+  ```rust
+  // ✅ 成功レスポンス
+  Ok(ApiResponse::success(response_data))
+  
+  // ✅ エラーレスポンス（AppError経由で自動変換）
+  Err(AppError::NotFound("Resource not found".to_string()))
+  ```
+
+#### レスポンスメタデータ
+
+* **ResponseMetaの構造**
+  ```rust
+  pub struct ResponseMeta {
+      pub request_id: String,        // UUID v4
+      pub timestamp: Timestamp,      // Unix timestamp（秒）
+      pub pagination: Option<ResponsePaginationMeta>,
+  }
+  ```
+
+* **日時フィールドはすべてUnix timestamp形式**
+  - `Timestamp`型により自動的にUnix timestamp（秒単位）にシリアライズ
+  - フロントエンドでは `new Date(timestamp * 1000)` で変換
+
+#### ハンドラーの戻り値型
+
+* **基本的な戻り値型**
+  ```rust
+  // ✅ 標準的なケース
+  pub async fn get_resource_handler(
+      // ...
+  ) -> AppResult<ApiResponse<ResourceDto>> {
+      Ok(ApiResponse::success(resource))
+  }
+  ```
+
+* **特殊なケース（カスタムヘッダー・Cookie操作が必要な場合）**
+  ```rust
+  // ✅ 認証系など特殊な要件がある場合のみ
+  pub async fn signin_handler(
+      // ...
+  ) -> AppResult<impl IntoResponse> {
+      let api_response = ApiResponse::success(auth_response);
+      let mut response = api_response.into_response();
+      // Cookieやヘッダーを追加
+      add_cookies_to_response(&mut response, cookie_jar);
+      Ok(response)
+  }
+  ```
+
+#### エラーレスポンスの自動変換
+
+* **AppErrorは自動的にApiResponse形式に変換される**
+  ```rust
+  impl IntoResponse for AppError {
+      fn into_response(self) -> Response {
+          let status = match &self {
+              AppError::NotFound(_) => StatusCode::NOT_FOUND,
+              AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
+              // ...
+          };
+          let error_response = ApiResponse::<()>::error(self);
+          (status, error_response).into_response()
+      }
+  }
+  ```
+
+#### レスポンス例
+
+* **成功レスポンス**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "Example",
+      "created_at": 1736922123
+    },
+    "meta": {
+      "request_id": "123e4567-e89b-12d3-a456-426614174000",
+      "timestamp": 1736922123
+    }
+  }
+  ```
+
+* **エラーレスポンス**
+  ```json
+  {
+    "success": false,
+    "data": null,
+    "error": {
+      "code": "NOT_FOUND",
+      "message": "Resource not found",
+      "field": null
+    },
+    "meta": {
+      "request_id": "123e4567-e89b-12d3-a456-426614174000",
+      "timestamp": 1736922123
+    }
+  }
+  ```
+
+* **ページネーションレスポンス**
+  ```json
+  {
+    "success": true,
+    "data": {
+      "items": [...],
+      "pagination": {
+        "current_page": 2,
+        "page_size": 20,
+        "total_pages": 5,
+        "total_items": 95,
+        "has_next": true,
+        "has_prev": true
+      }
+    },
+    "meta": {
+      "request_id": "123e4567-e89b-12d3-a456-426614174000",
+      "timestamp": 1736922123
+    }
+  }
+  ```
+
+#### 実装の利点
+
+1. **一貫性**: すべてのAPIで同じレスポンス構造
+2. **エラー処理の簡素化**: クライアント側で統一的なエラー処理が可能
+3. **デバッグの容易さ**: request_idによるリクエスト追跡
+4. **型安全性**: レスポンス構造がコンパイル時に保証される
+5. **拡張性**: metaフィールドで追加情報を柔軟に提供可能
 
 ---
 
