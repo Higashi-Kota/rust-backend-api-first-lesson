@@ -1,6 +1,6 @@
 // src/logging/mod.rs
 
-use axum::{body::Body, extract::Extension, http::Request, middleware::Next, response::Response};
+use axum::{body::Body, http::Request, middleware::Next, response::Response};
 use std::time::Instant;
 use uuid::Uuid;
 
@@ -47,38 +47,41 @@ pub struct RequestContext {
 }
 
 // ロギングミドルウェア
-pub async fn logging_middleware(
-    Extension(context): Extension<RequestContext>,
-    req: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn logging_middleware(req: Request<Body>, next: Next) -> Response {
     let start = Instant::now();
 
-    log_with_context!(
-        tracing::Level::INFO,
-        "Request started",
-        "request_id" => &context.request_id,
-        "method" => &context.method,
-        "path" => &context.path,
-        "user_id" => context.user_id,
-    );
+    // RequestContextを取得
+    let context = req.extensions().get::<RequestContext>().cloned();
+
+    if let Some(context) = &context {
+        log_with_context!(
+            tracing::Level::INFO,
+            "Request started",
+            "request_id" => &context.request_id,
+            "method" => &context.method,
+            "path" => &context.path,
+            "user_id" => context.user_id,
+        );
+    }
 
     let response = next.run(req).await;
     let duration = start.elapsed();
     let status = response.status().as_u16();
 
-    log_with_context!(
-        if status >= 500 { tracing::Level::ERROR }
-        else if status >= 400 { tracing::Level::WARN }
-        else { tracing::Level::INFO },
-        "Request completed",
-        "request_id" => &context.request_id,
-        "method" => &context.method,
-        "path" => &context.path,
-        "status" => status,
-        "duration_ms" => duration.as_millis(),
-        "user_id" => context.user_id,
-    );
+    if let Some(context) = &context {
+        log_with_context!(
+            if status >= 500 { tracing::Level::ERROR }
+            else if status >= 400 { tracing::Level::WARN }
+            else { tracing::Level::INFO },
+            "Request completed",
+            "request_id" => &context.request_id,
+            "method" => &context.method,
+            "path" => &context.path,
+            "status" => status,
+            "duration_ms" => duration.as_millis(),
+            "user_id" => context.user_id,
+        );
+    }
 
     response
 }

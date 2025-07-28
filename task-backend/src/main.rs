@@ -397,15 +397,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/",
             axum::routing::get(|| async { "Task Backend API v1.0" }),
         )
-        .layer(cors_layer())
-        .layer(axum_middleware::from_fn(security_headers_middleware))
-        .layer(axum_middleware::from_fn(
-            crate::logging::inject_request_context,
-        ))
-        .layer(axum_middleware::from_fn(crate::logging::logging_middleware))
+        .layer(TraceLayer::new_for_http())
         .layer(axum_middleware::from_fn_with_state(
-            middleware::activity_logger::ActivityLogger::new(activity_log_repo.clone()),
-            middleware::activity_logger::log_activity,
+            auth_middleware_config,
+            jwt_auth_middleware,
         ))
         // レート制限ミドルウェアは型の問題で一時的にコメントアウト
         // TODO: rate_limit_middlewareの型を修正
@@ -414,10 +409,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         //     rate_limit_middleware,
         // ))
         .layer(axum_middleware::from_fn_with_state(
-            auth_middleware_config,
-            jwt_auth_middleware,
+            middleware::activity_logger::ActivityLogger::new(activity_log_repo.clone()),
+            middleware::activity_logger::log_activity,
         ))
-        .layer(TraceLayer::new_for_http());
+        .layer(axum_middleware::from_fn(crate::logging::logging_middleware))
+        .layer(axum_middleware::from_fn(
+            crate::logging::inject_request_context,
+        ))
+        .layer(axum_middleware::from_fn(security_headers_middleware))
+        .layer(cors_layer());
 
     tracing::info!("🛣️  Routers configured:");
     tracing::info!("   • Authentication: /auth/*");
