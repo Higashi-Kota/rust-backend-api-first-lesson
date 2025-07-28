@@ -30,20 +30,34 @@ impl StripePaymentHistoryRepository {
 
     // --- 基本CRUD操作 ---
 
-    /// ユーザーIDで支払い履歴を検索（ページネーション付き）
-    pub async fn find_by_user_id_paginated(
+    /// ユーザーIDで支払い履歴を検索（ページネーションとソート付き）
+    pub async fn find_by_user_id_paginated_sorted(
         &self,
         user_id: Uuid,
         page: u64,
         per_page: u64,
+        sort_by: Option<&str>,
+        sort_order: Option<&str>,
     ) -> Result<(Vec<stripe_payment_history_model::Model>, u64), DbErr> {
         self.prepare_connection().await?;
 
-        let paginator = PaymentHistoryEntity::find()
-            .filter(stripe_payment_history_model::Column::UserId.eq(user_id))
-            .order_by(stripe_payment_history_model::Column::CreatedAt, Order::Desc)
-            .paginate(&self.db, per_page);
+        let mut query = PaymentHistoryEntity::find()
+            .filter(stripe_payment_history_model::Column::UserId.eq(user_id));
 
+        // ソートの適用
+        let order = match sort_order {
+            Some("asc") => Order::Asc,
+            _ => Order::Desc,
+        };
+
+        query = match sort_by {
+            Some("paid_at") => query.order_by(stripe_payment_history_model::Column::PaidAt, order),
+            Some("amount") => query.order_by(stripe_payment_history_model::Column::Amount, order),
+            Some("status") => query.order_by(stripe_payment_history_model::Column::Status, order),
+            _ => query.order_by(stripe_payment_history_model::Column::CreatedAt, order),
+        };
+
+        let paginator = query.paginate(&self.db, per_page);
         let total_pages = paginator.num_pages().await?;
         let items = paginator.fetch_page(page).await?;
 

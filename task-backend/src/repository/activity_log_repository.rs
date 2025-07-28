@@ -1,8 +1,10 @@
 // task-backend/src/repository/activity_log_repository.rs
 
+use crate::api::handlers::activity_log_handler::ActivityLogQuery;
 use crate::db::DbPool;
 use crate::domain::activity_log_model::{ActiveModel, Column, Entity, Model};
 use crate::error::AppResult;
+use crate::types::{SortOrder, SortQuery};
 use chrono::{DateTime, Utc};
 use sea_orm::*;
 use uuid::Uuid;
@@ -13,10 +15,11 @@ pub struct ActivityLogFilter {
     pub user_id: Option<Uuid>,
     pub resource_type: Option<String>,
     pub action: Option<String>,
-    pub from: Option<DateTime<Utc>>,
-    pub to: Option<DateTime<Utc>>,
+    pub created_after: Option<DateTime<Utc>>,
+    pub created_before: Option<DateTime<Utc>>,
     pub page: u64,
     pub per_page: u64,
+    pub sort: SortQuery,
 }
 
 #[derive(Clone)]
@@ -107,25 +110,75 @@ impl ActivityLogRepository {
         if let Some(action) = filter.action {
             query = query.filter(Column::Action.eq(action));
         }
-        if let Some(from) = filter.from {
+        if let Some(from) = filter.created_after {
             query = query.filter(Column::CreatedAt.gte(from));
         }
-        if let Some(to) = filter.to {
+        if let Some(to) = filter.created_before {
             query = query.filter(Column::CreatedAt.lte(to));
         }
 
         // 総件数を取得
         let total = query.clone().count(&self.db).await?;
 
+        // ソートの適用
+        query = self.apply_sorting(query, &filter.sort);
+
         // ページネーション
         let offset = (filter.page - 1) * filter.per_page;
         let logs = query
-            .order_by_desc(Column::CreatedAt)
             .limit(filter.per_page)
             .offset(offset)
             .all(&self.db)
             .await?;
 
         Ok((logs, total))
+    }
+
+    // ソート適用ヘルパー
+    fn apply_sorting(&self, mut query: Select<Entity>, sort: &SortQuery) -> Select<Entity> {
+        if let Some(sort_by) = &sort.sort_by {
+            let allowed_fields = ActivityLogQuery::allowed_sort_fields();
+
+            if allowed_fields.contains(&sort_by.as_str()) {
+                match sort_by.as_str() {
+                    "created_at" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => query.order_by_asc(Column::CreatedAt),
+                            SortOrder::Desc => query.order_by_desc(Column::CreatedAt),
+                        };
+                    }
+                    "action" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => query.order_by_asc(Column::Action),
+                            SortOrder::Desc => query.order_by_desc(Column::Action),
+                        };
+                    }
+                    "resource_type" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => query.order_by_asc(Column::ResourceType),
+                            SortOrder::Desc => query.order_by_desc(Column::ResourceType),
+                        };
+                    }
+                    "user_id" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => query.order_by_asc(Column::UserId),
+                            SortOrder::Desc => query.order_by_desc(Column::UserId),
+                        };
+                    }
+                    _ => {
+                        // デフォルトは作成日時の降順
+                        query = query.order_by_desc(Column::CreatedAt);
+                    }
+                }
+            } else {
+                // 許可されていないフィールドの場合はデフォルト
+                query = query.order_by_desc(Column::CreatedAt);
+            }
+        } else {
+            // sort_byが指定されていない場合はデフォルト
+            query = query.order_by_desc(Column::CreatedAt);
+        }
+
+        query
     }
 }

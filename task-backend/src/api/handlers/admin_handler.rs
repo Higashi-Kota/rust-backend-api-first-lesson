@@ -730,15 +730,28 @@ pub async fn admin_list_roles(
     // ページネーションパラメータを取得
     let (page, per_page) = query.pagination.get_pagination();
     let active_only = query.active_only.unwrap_or(false);
+    let sort_by = query.sort.sort_by.as_deref();
+    let sort_order = query.sort.sort_order.as_str();
 
-    // ロールを取得
+    // ソートフィールドの検証
+    if let Some(field) = sort_by {
+        if !AdminRoleListQuery::allowed_sort_fields().contains(&field) {
+            return Err(AppError::BadRequest(format!(
+                "Invalid sort field: {}. Allowed fields: {:?}",
+                field,
+                AdminRoleListQuery::allowed_sort_fields()
+            )));
+        }
+    }
+
+    // ロールを取得（データベースレベルでソート）
     let (roles, total_count) = if active_only {
         role_service
-            .list_active_roles_paginated(page, per_page)
+            .list_active_roles_paginated_sorted(page, per_page, sort_by, sort_order)
             .await?
     } else {
         role_service
-            .list_all_roles_paginated(page, per_page)
+            .list_all_roles_paginated_sorted(page, per_page, sort_by, sort_order)
             .await?
     };
 
@@ -815,22 +828,43 @@ pub async fn admin_list_organizations(
     // ページネーションパラメータ
     let (page, per_page) = query.pagination.get_pagination();
 
-    // 検索クエリを構築
+    // 統一されたOrganizationSearchQueryを構築
     let search_query = crate::api::dto::organization_query_dto::OrganizationSearchQuery {
-        name: None,
-        owner_id: None,
+        pagination: query.pagination,
+        sort: Default::default(),
+        search: None,
         subscription_tier: query.subscription_tier,
-        pagination: crate::api::dto::common::PaginationQuery {
-            page: page as u32,
-            per_page: per_page as u32,
-        },
         ..Default::default()
     };
 
-    // 組織一覧を取得（管理者なので全組織を取得）
-    let (organizations, total_count) = organization_service
-        .get_organizations_paginated(search_query, user.user_id())
+    // 組織一覧を取得（管理者用の検索メソッドを使用）
+    let (organizations_models, total_count) = organization_service
+        .search_organizations(&search_query, user.user_id())
         .await?;
+
+    // Organization ModelをOrganizationListResponseに変換
+    let mut organizations = Vec::new();
+    for org in organizations_models {
+        // 組織の詳細情報を取得してOrganizationListResponseに変換
+        let org_response = organization_service
+            .get_organization_by_id(org.id, user.user_id())
+            .await?;
+
+        organizations.push(
+            crate::api::dto::organization_dto::OrganizationListResponse {
+                id: org_response.id,
+                name: org_response.name,
+                description: org_response.description,
+                subscription_tier: org_response.subscription_tier,
+                owner_id: org_response.owner_id,
+                created_at: org_response.created_at,
+                current_member_count: org_response.current_member_count,
+                current_team_count: org_response.current_team_count,
+                max_members: org_response.max_members,
+                max_teams: org_response.max_teams,
+            },
+        );
+    }
 
     // サブスクリプション階層別の統計を計算
     let mut tier_stats: std::collections::HashMap<
@@ -864,7 +898,7 @@ pub async fn admin_list_organizations(
     };
 
     let response = AdminOrganizationsResponse {
-        organizations,
+        items: organizations,
         pagination,
         tier_summary,
     };
@@ -927,7 +961,7 @@ pub async fn admin_list_users_with_roles(
     };
 
     let response = AdminUsersWithRolesResponse {
-        users: user_responses,
+        items: user_responses,
         pagination,
         role_summary,
     };
@@ -1054,9 +1088,9 @@ pub struct BulkOperationListQuery {
     #[serde(flatten)]
     pub pagination: PaginationQuery,
     #[serde(default, with = "optional_timestamp")]
-    pub start_date: Option<DateTime<Utc>>,
+    pub created_after: Option<DateTime<Utc>>,
     #[serde(default, with = "optional_timestamp")]
-    pub end_date: Option<DateTime<Utc>>,
+    pub created_before: Option<DateTime<Utc>>,
 }
 
 /// バルク操作履歴レスポンス
@@ -1105,19 +1139,19 @@ pub async fn admin_list_bulk_operations(
     );
 
     // 日付範囲が指定されている場合は範囲検索、そうでなければ最新の履歴を取得
-    let operations = if let (Some(start_date), Some(end_date)) = (query.start_date, query.end_date)
-    {
-        app_state
-            .bulk_operation_history_repo
-            .get_by_date_range(start_date, end_date)
-            .await?
-    } else {
-        // デフォルトで最新100件を取得
-        app_state
-            .bulk_operation_history_repo
-            .get_recent(100)
-            .await?
-    };
+    let operations =
+        if let (Some(start_date), Some(end_date)) = (query.created_after, query.created_before) {
+            app_state
+                .bulk_operation_history_repo
+                .get_by_date_range(start_date, end_date)
+                .await?
+        } else {
+            // デフォルトで最新100件を取得
+            app_state
+                .bulk_operation_history_repo
+                .get_recent(100)
+                .await?
+        };
 
     // ユーザー情報を取得してレスポンスを構築
     let mut responses = Vec::new();
@@ -1788,12 +1822,12 @@ pub async fn search_subscription_history_handler(
             .subscription_history_repo
             .find_by_user_id(user_id)
             .await?
-    } else if search_query.start_date.is_some() && search_query.end_date.is_some() {
+    } else if search_query.created_after.is_some() && search_query.created_before.is_some() {
         app_state
             .subscription_history_repo
             .find_by_date_range(
-                search_query.start_date.unwrap(),
-                search_query.end_date.unwrap(),
+                search_query.created_after.unwrap(),
+                search_query.created_before.unwrap(),
             )
             .await?
     } else {

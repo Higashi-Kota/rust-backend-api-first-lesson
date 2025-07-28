@@ -2,7 +2,7 @@
 
 use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::domain::team_invitation_model::{Model as TeamInvitationModel, TeamInvitationStatus};
-use crate::types::{optional_timestamp, Timestamp};
+use crate::types::{optional_timestamp, SortQuery, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -72,6 +72,15 @@ pub struct TeamInvitationQuery {
     pub status: Option<TeamInvitationStatus>,
     #[serde(flatten)]
     pub pagination: PaginationQuery,
+    #[serde(flatten)]
+    pub sort: SortQuery,
+}
+
+impl TeamInvitationQuery {
+    /// 許可されたソートフィールド
+    pub fn allowed_sort_fields() -> &'static [&'static str] {
+        &["created_at", "expires_at", "invitee_email", "status"]
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate)]

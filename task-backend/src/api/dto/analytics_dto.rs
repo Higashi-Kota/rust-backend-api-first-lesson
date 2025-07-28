@@ -18,9 +18,9 @@ pub struct AnalyticsTimeRangeRequest {
     pub days: Option<u32>,
 
     #[serde(default, with = "optional_timestamp")]
-    pub start_date: Option<DateTime<Utc>>,
+    pub created_after: Option<DateTime<Utc>>,
     #[serde(default, with = "optional_timestamp")]
-    pub end_date: Option<DateTime<Utc>>,
+    pub created_before: Option<DateTime<Utc>>,
 
     #[validate(length(
         min = 1,
@@ -390,9 +390,9 @@ impl TaskStatsOverview {
 pub struct UserBehaviorAnalyticsQuery {
     pub user_id: Option<Uuid>,
     #[serde(default, with = "optional_timestamp")]
-    pub from_date: Option<DateTime<Utc>>,
+    pub created_after: Option<DateTime<Utc>>,
     #[serde(default, with = "optional_timestamp")]
-    pub to_date: Option<DateTime<Utc>>,
+    pub created_before: Option<DateTime<Utc>>,
     pub metrics: Option<Vec<String>>, // ["login_frequency", "task_activity", "feature_usage"]
     pub include_comparisons: Option<bool>,
 }
@@ -949,16 +949,16 @@ mod tests {
     fn test_analytics_time_range_validation() {
         let valid_request = AnalyticsTimeRangeRequest {
             days: Some(30),
-            start_date: None,
-            end_date: None,
+            created_after: None,
+            created_before: None,
             metric_type: Some("user_activity".to_string()),
         };
         assert!(valid_request.validate().is_ok());
 
         let invalid_request = AnalyticsTimeRangeRequest {
             days: Some(400), // Invalid: > 365
-            start_date: None,
-            end_date: None,
+            created_after: None,
+            created_before: None,
             metric_type: Some("x".repeat(100)), // Invalid: > 50 chars
         };
         assert!(invalid_request.validate().is_err());

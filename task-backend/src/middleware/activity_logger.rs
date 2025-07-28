@@ -79,7 +79,14 @@ pub async fn log_activity(
         // 非同期でログを記録（エラーがあってもレスポンスには影響しない）
         let logger_clone = logger.clone();
         tokio::spawn(async move {
-            let _ = logger_clone.activity_log_repo.create(&activity_log).await;
+            if let Err(e) = logger_clone.activity_log_repo.create(&activity_log).await {
+                tracing::error!("Failed to create activity log: {:?}", e);
+            } else {
+                tracing::debug!(
+                    "Activity log created successfully for action: {}",
+                    activity_log.action
+                );
+            }
         });
     }
 
@@ -186,6 +193,12 @@ fn parse_api_path(method: &str, path: &str) -> (String, String, Option<Uuid>) {
         ["admin", sub_resource, ..] => {
             resource_type = format!("admin_{}", sub_resource);
             action = format!("admin_{}_{}", action.to_lowercase(), sub_resource);
+        }
+
+        // アクティビティログ関連
+        ["activity-logs", "me"] => {
+            resource_type = "activity_log".to_string();
+            action = "view_my_activity_logs".to_string();
         }
 
         _ => {

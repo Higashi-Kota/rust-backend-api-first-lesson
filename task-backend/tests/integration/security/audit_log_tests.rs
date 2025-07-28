@@ -2,7 +2,8 @@
 use axum::{body, http::StatusCode};
 use serde_json::json;
 use task_backend::api::dto::team_task_dto::TransferTaskRequest;
-use task_backend::service::audit_log_service::PaginatedAuditLogs;
+use task_backend::service::audit_log_service::AuditLogDto;
+use task_backend::shared::types::PaginatedResponse;
 use task_backend::types::ApiResponse;
 use tower::ServiceExt;
 
@@ -96,12 +97,13 @@ async fn test_audit_log_task_transfer() {
     let body = body::to_bytes(audit_response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let api_response: ApiResponse<PaginatedAuditLogs> = serde_json::from_slice(&body).unwrap();
+    let api_response: ApiResponse<PaginatedResponse<AuditLogDto>> =
+        serde_json::from_slice(&body).unwrap();
     let logs = api_response.data.unwrap();
 
     // 最新のログがタスク引き継ぎログであることを確認
-    assert!(logs.total > 0);
-    let latest_log = &logs.logs[0];
+    assert!(logs.pagination.total_count > 0);
+    let latest_log = &logs.items[0];
     assert_eq!(latest_log.action, "task_transferred");
     assert_eq!(latest_log.resource_type, "task");
     assert_eq!(latest_log.resource_id, Some(task.id));
@@ -168,12 +170,13 @@ async fn test_audit_log_team_task_creation() {
     let body = body::to_bytes(audit_response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let api_response: ApiResponse<PaginatedAuditLogs> = serde_json::from_slice(&body).unwrap();
+    let api_response: ApiResponse<PaginatedResponse<AuditLogDto>> =
+        serde_json::from_slice(&body).unwrap();
     let logs = api_response.data.unwrap();
 
     // タスク作成ログが記録されていることを確認
     let creation_log = logs
-        .logs
+        .items
         .iter()
         .find(|log| log.action == "task_created")
         .expect("Task creation audit log not found");
@@ -298,43 +301,45 @@ async fn test_audit_log_pagination() {
     let body1 = body::to_bytes(page1_response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let api_response1: ApiResponse<PaginatedAuditLogs> = serde_json::from_slice(&body1).unwrap();
+    let api_response1: ApiResponse<PaginatedResponse<AuditLogDto>> =
+        serde_json::from_slice(&body1).unwrap();
     let logs1 = api_response1.data.unwrap();
 
-    assert_eq!(logs1.page, 1);
-    assert_eq!(logs1.per_page, 10);
+    assert_eq!(logs1.pagination.page, 1);
+    assert_eq!(logs1.pagination.per_page, 10);
 
     // デバッグ用にログ数を出力
     eprintln!(
         "Audit logs total: {}, logs on page 1: {}",
-        logs1.total,
-        logs1.logs.len()
+        logs1.pagination.total_count,
+        logs1.items.len()
     );
 
     // ログが少ない場合は、少なくとも作成したタスク数分のログがあることを確認
     assert!(
-        logs1.total >= 10,
+        logs1.pagination.total_count >= 10,
         "Expected at least 10 logs, got {}",
-        logs1.total
+        logs1.pagination.total_count
     );
-    assert!(logs1.logs.len() <= 10); // ページサイズは10以下
+    assert!(logs1.items.len() <= 10); // ページサイズは10以下
 
     // ページ2の結果を検証
     let body2 = body::to_bytes(page2_response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let api_response2: ApiResponse<PaginatedAuditLogs> = serde_json::from_slice(&body2).unwrap();
+    let api_response2: ApiResponse<PaginatedResponse<AuditLogDto>> =
+        serde_json::from_slice(&body2).unwrap();
     let logs2 = api_response2.data.unwrap();
 
-    assert_eq!(logs2.page, 2);
-    assert_eq!(logs2.per_page, 10);
+    assert_eq!(logs2.pagination.page, 2);
+    assert_eq!(logs2.pagination.per_page, 10);
 
     // ページ2のログ数も出力
-    eprintln!("Logs on page 2: {}", logs2.logs.len());
+    eprintln!("Logs on page 2: {}", logs2.items.len());
 
     // ページネーションが機能していることを確認（ページ1とページ2で異なるログ）
-    if logs1.total > 10 {
-        assert!(!logs2.logs.is_empty()); // 総数が10件を超える場合、ページ2にもログがある
+    if logs1.pagination.total_count > 10 {
+        assert!(!logs2.items.is_empty()); // 総数が10件を超える場合、ページ2にもログがある
     }
 }
 

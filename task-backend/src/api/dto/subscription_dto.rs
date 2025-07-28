@@ -158,9 +158,9 @@ pub struct RevenueInfo {
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct SubscriptionHistoryQuery {
     #[serde(default, with = "optional_timestamp")]
-    pub start_date: Option<DateTime<Utc>>,
+    pub created_after: Option<DateTime<Utc>>,
     #[serde(default, with = "optional_timestamp")]
-    pub end_date: Option<DateTime<Utc>>,
+    pub created_before: Option<DateTime<Utc>>,
     #[serde(rename = "type")]
     pub change_type: Option<SubscriptionChangeType>,
     #[serde(flatten)]

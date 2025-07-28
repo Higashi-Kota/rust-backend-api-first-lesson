@@ -117,16 +117,6 @@ impl SubscriptionService {
         Ok((history_info, total))
     }
 
-    /// ユーザーのサブスクリプション統計を取得
-    pub async fn get_user_subscription_stats(
-        &self,
-        user_id: Uuid,
-    ) -> AppResult<UserSubscriptionStats> {
-        self.subscription_history_repo
-            .get_user_change_stats(user_id)
-            .await
-    }
-
     /// サブスクリプション階層別統計を取得
     pub async fn get_subscription_tier_stats(&self) -> AppResult<Vec<SubscriptionTierStats>> {
         self.user_repo
@@ -187,6 +177,36 @@ impl SubscriptionService {
             .into_iter()
             .map(|stat| (stat.tier, stat.user_count))
             .collect())
+    }
+
+    /// ユーザーのサブスクリプション履歴を取得（ソート付き）
+    pub async fn get_user_subscription_history_sorted(
+        &self,
+        user_id: Uuid,
+        page: u64,
+        page_size: u64,
+        sort_by: Option<&str>,
+        sort_order: Option<&str>,
+    ) -> AppResult<(Vec<SubscriptionChangeInfo>, u64)> {
+        let (histories, total) = self
+            .subscription_history_repo
+            .find_by_user_id_paginated_sorted(user_id, page, page_size, sort_by, sort_order)
+            .await?;
+        let history_info: Vec<SubscriptionChangeInfo> = histories
+            .into_iter()
+            .map(SubscriptionChangeInfo::from)
+            .collect();
+        Ok((history_info, total))
+    }
+
+    /// ユーザーのサブスクリプション統計を取得
+    pub async fn get_user_subscription_stats(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<UserSubscriptionStats> {
+        self.subscription_history_repo
+            .get_user_subscription_stats(user_id)
+            .await
     }
 
     /// サブスクリプション履歴詳細を取得（find_by_idを活用）

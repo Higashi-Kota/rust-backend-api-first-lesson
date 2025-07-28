@@ -80,10 +80,12 @@ jobs:
           - integration::analytics
           - integration::auth
           - integration::gdpr
+          - integration::infrastructure
           - integration::organization
           - integration::organization_hierarchy
           - integration::payment
           - integration::permission
+          - integration::query
           - integration::roles
           - integration::security
           - integration::subscription

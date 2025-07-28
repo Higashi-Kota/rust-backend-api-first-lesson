@@ -32,7 +32,7 @@ async fn test_admin_users_with_roles_endpoint() {
 
     // Verify response structure
     assert!(response["success"].as_bool().unwrap());
-    assert!(response["data"]["users"].is_array());
+    assert!(response["data"]["items"].is_array());
     assert!(response["data"]["pagination"].is_object());
     assert!(response["data"]["role_summary"].is_array());
 }

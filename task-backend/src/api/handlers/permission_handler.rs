@@ -1216,17 +1216,19 @@ pub async fn get_system_permission_audit_handler(
         user_filter = ?query.user_id,
         resource_filter = ?query.resource,
         action_filter = ?query.action,
-        date_range = ?query.from_date,
+        date_range = ?query.created_after,
         "Getting system permission audit"
     );
 
     // 監査期間を設定
     let audit_period = AuditPeriod {
-        start_date: query.from_date.map_or_else(
+        start_date: query.created_after.map_or_else(
             || Timestamp::from(Timestamp::now().inner() - chrono::Duration::days(7)),
             Timestamp::from,
         ),
-        end_date: query.to_date.map_or_else(Timestamp::now, Timestamp::from),
+        end_date: query
+            .created_before
+            .map_or_else(Timestamp::now, Timestamp::from),
         duration_hours: 168, // 7 days default
     };
 

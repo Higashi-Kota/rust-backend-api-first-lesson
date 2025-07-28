@@ -87,7 +87,7 @@ async fn test_payment_history_creation_on_successful_payment() {
     // Assert - 決済履歴を確認
     let payment_history_repo = task_backend::repository::stripe_payment_history_repository::StripePaymentHistoryRepository::new(db.connection.clone());
     let (_history, _) = payment_history_repo
-        .find_by_user_id_paginated(user.id, 1, 10)
+        .find_by_user_id_paginated_sorted(user.id, 1, 10, None, None)
         .await
         .unwrap();
 
@@ -131,11 +131,11 @@ async fn test_get_payment_history_endpoint() {
     payment_history_repo.create(payment1).await.unwrap();
     payment_history_repo.create(payment2).await.unwrap();
 
-    // Act - 決済履歴を取得
+    // Act - 決済履歴を取得（created_at desc でソート）
     let response = app
         .oneshot(create_request(
             "GET",
-            "/payments/history?page=1&per_page=10",
+            "/payments/history?page=1&per_page=10&sort_by=created_at&sort_order=desc",
             &user.access_token,
             &json!({}),
         ))
@@ -301,7 +301,7 @@ async fn test_successful_payments_only() {
 
     // Act - 支払い履歴を取得（ページネーション付き）
     let (all_payments, _) = payment_history_repo
-        .find_by_user_id_paginated(user.id, 0, 10) // ページは0ベースかもしれない
+        .find_by_user_id_paginated_sorted(user.id, 0, 10, None, None) // ページは0ベースかもしれない
         .await
         .unwrap();
 

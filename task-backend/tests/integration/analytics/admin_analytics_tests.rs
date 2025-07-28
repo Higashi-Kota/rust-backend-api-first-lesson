@@ -263,7 +263,7 @@ async fn test_admin_get_subscription_history_with_date_range() {
     let end_timestamp = 1735689599; // 2024-12-31T23:59:59Z
     let request = Request::builder()
         .uri(format!(
-            "/admin/subscription/history?start_date={}&end_date={}",
+            "/admin/subscription/history?created_after={}&created_before={}",
             start_timestamp, end_timestamp
         ))
         .method("GET")

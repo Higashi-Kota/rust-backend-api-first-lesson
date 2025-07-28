@@ -1,12 +1,14 @@
 // task-backend/src/repository/organization_repository.rs
 
+use crate::api::dto::organization_query_dto::OrganizationSearchQuery;
 use crate::domain::organization_model::{
     Organization, OrganizationMember, OrganizationRole, OrganizationSettings,
 };
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
+use crate::types::{SortOrder, SortQuery};
 use chrono::{DateTime, Utc};
-use sea_orm::sea_query::{Expr, PostgresQueryBuilder, Query};
+use sea_orm::sea_query::{Alias, Asterisk, Expr, Order, PostgresQueryBuilder, Query};
 use sea_orm::{ConnectionTrait, DatabaseConnection, QueryResult};
 use serde_json;
 use uuid::Uuid;
@@ -255,6 +257,142 @@ impl OrganizationRepository {
         }
 
         Ok(organizations)
+    }
+
+    /// 組織を検索（ページネーション・ソート機能付き）
+    pub async fn search_organizations(
+        &self,
+        query: &OrganizationSearchQuery,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<Organization>, i64)> {
+        let offset = ((page - 1) * per_page) as u64;
+        let limit = per_page as u64;
+
+        // カウントクエリ
+        let mut count_query = Query::select();
+        count_query
+            .expr(Expr::col(Asterisk).count())
+            .from(Alias::new("organizations"));
+
+        // 検索条件の適用
+        let mut select_query = Query::select();
+        select_query
+            .columns([
+                Alias::new("id"),
+                Alias::new("name"),
+                Alias::new("description"),
+                Alias::new("owner_id"),
+                Alias::new("subscription_tier"),
+                Alias::new("max_teams"),
+                Alias::new("max_members"),
+                Alias::new("settings_json"),
+                Alias::new("created_at"),
+                Alias::new("updated_at"),
+            ])
+            .from(Alias::new("organizations"));
+
+        // 検索条件の適用
+        if let Some(search_term) = &query.search {
+            let search_pattern = format!("%{}%", search_term);
+            count_query.and_where(
+                Expr::col(Alias::new("name"))
+                    .like(&search_pattern)
+                    .or(Expr::col(Alias::new("description")).like(&search_pattern)),
+            );
+            select_query.and_where(
+                Expr::col(Alias::new("name"))
+                    .like(&search_pattern)
+                    .or(Expr::col(Alias::new("description")).like(&search_pattern)),
+            );
+        }
+
+        if let Some(name) = &query.name {
+            count_query.and_where(Expr::col(Alias::new("name")).eq(name));
+            select_query.and_where(Expr::col(Alias::new("name")).eq(name));
+        }
+
+        if let Some(owner_id) = &query.owner_id {
+            count_query.and_where(Expr::col(Alias::new("owner_id")).eq(*owner_id));
+            select_query.and_where(Expr::col(Alias::new("owner_id")).eq(*owner_id));
+        }
+
+        if let Some(tier) = &query.subscription_tier {
+            count_query.and_where(Expr::col(Alias::new("subscription_tier")).eq(tier.as_str()));
+            select_query.and_where(Expr::col(Alias::new("subscription_tier")).eq(tier.as_str()));
+        }
+
+        // ソートの適用
+        self.apply_sorting(&mut select_query, &query.sort);
+
+        // ページネーション
+        select_query.limit(limit).offset(offset);
+
+        // カウントクエリの実行
+        let count_sql = count_query.to_string(PostgresQueryBuilder);
+        let count_result = self
+            .db
+            .query_one(sea_orm::Statement::from_string(
+                self.db.get_database_backend(),
+                count_sql,
+            ))
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to count organizations: {}", e))
+            })?;
+
+        let total_count = match count_result {
+            Some(row) => row.try_get::<i64>("", "count").unwrap_or(0),
+            None => 0,
+        };
+
+        // データ取得クエリの実行
+        let select_sql = select_query.to_string(PostgresQueryBuilder);
+        let results = self
+            .db
+            .query_all(sea_orm::Statement::from_string(
+                self.db.get_database_backend(),
+                select_sql,
+            ))
+            .await
+            .map_err(|e| {
+                AppError::InternalServerError(format!("Failed to search organizations: {}", e))
+            })?;
+
+        let mut organizations = Vec::new();
+        for row in results {
+            organizations.push(self.row_to_organization(row)?);
+        }
+
+        Ok((organizations, total_count))
+    }
+
+    /// ソート適用ヘルパー
+    fn apply_sorting(&self, query: &mut sea_orm::sea_query::SelectStatement, sort: &SortQuery) {
+        if let Some(sort_by) = &sort.sort_by {
+            let allowed_fields = OrganizationSearchQuery::allowed_sort_fields();
+
+            if allowed_fields.contains(&sort_by.as_str()) {
+                let order = match sort.sort_order {
+                    SortOrder::Asc => Order::Asc,
+                    SortOrder::Desc => Order::Desc,
+                };
+
+                match sort_by.as_str() {
+                    "name" => query.order_by(Alias::new("name"), order),
+                    "created_at" => query.order_by(Alias::new("created_at"), order),
+                    "updated_at" => query.order_by(Alias::new("updated_at"), order),
+                    "owner_id" => query.order_by(Alias::new("owner_id"), order),
+                    _ => query.order_by(Alias::new("created_at"), Order::Desc),
+                };
+            } else {
+                // デフォルトソート
+                query.order_by(Alias::new("created_at"), Order::Desc);
+            }
+        } else {
+            // デフォルトソート
+            query.order_by(Alias::new("created_at"), Order::Desc);
+        }
     }
 
     /// 組織を更新
@@ -641,8 +779,6 @@ impl OrganizationRepository {
         })
     }
 }
-
-use sea_orm::sea_query::Alias;
 
 #[cfg(test)]
 mod tests {

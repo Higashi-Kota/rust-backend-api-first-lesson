@@ -3,10 +3,12 @@
 use crate::api::dto::common::{PaginatedResponse, PaginationQuery};
 use crate::domain::user_model::SafeUser;
 use crate::service::user_service::UserStats;
+use crate::types::query::SearchQuery;
 use crate::types::{optional_timestamp, SortQuery, Timestamp};
 use crate::utils::validation::common;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -236,7 +238,7 @@ pub struct UserSearchQuery {
     #[serde(flatten)]
     pub pagination: PaginationQuery,
     #[serde(flatten)]
-    pub sort: SortQuery, // TODO: Implement sorting in user search
+    pub sort: SortQuery,
 
     #[validate(length(
         min = 1,
@@ -247,6 +249,40 @@ pub struct UserSearchQuery {
 
     pub is_active: Option<bool>,
     pub email_verified: Option<bool>,
+}
+
+impl UserSearchQuery {
+    /// 許可されたソートフィールド
+    pub fn allowed_sort_fields() -> &'static [&'static str] {
+        &[
+            "username",
+            "email",
+            "created_at",
+            "updated_at",
+            "last_login_at",
+            "is_active",
+            "email_verified",
+        ]
+    }
+}
+
+impl SearchQuery for UserSearchQuery {
+    fn search_term(&self) -> Option<&str> {
+        self.search.as_deref()
+    }
+
+    fn filters(&self) -> HashMap<String, String> {
+        let mut filters = HashMap::new();
+
+        if let Some(is_active) = self.is_active {
+            filters.insert("is_active".to_string(), is_active.to_string());
+        }
+        if let Some(email_verified) = self.email_verified {
+            filters.insert("email_verified".to_string(), email_verified.to_string());
+        }
+
+        filters
+    }
 }
 
 // --- バリデーション ---

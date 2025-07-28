@@ -70,13 +70,16 @@ pub async fn get_organizations_handler(
     State(app_state): State<crate::api::AppState>,
     user: AuthenticatedUser,
     Query(query): Query<OrganizationSearchQuery>,
-) -> AppResult<ApiResponse<Vec<OrganizationListResponse>>> {
-    let (organizations, _) = app_state
+) -> AppResult<ApiResponse<PaginatedResponse<OrganizationListResponse>>> {
+    let (organizations, total) = app_state
         .organization_service
-        .get_organizations_paginated(query, user.user_id())
+        .get_organizations_paginated(query.clone(), user.user_id())
         .await?;
 
-    Ok(ApiResponse::success(organizations))
+    let (page, per_page) = query.pagination.get_pagination();
+    let response = PaginatedResponse::new(organizations, page, per_page, total as i64);
+
+    Ok(ApiResponse::success(response))
 }
 
 /// 組織更新
@@ -350,7 +353,12 @@ pub async fn search_organizations_handler(
 
 /// 組織ルーターを構築（統一権限チェックミドルウェアを使用）
 pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::Router {
-    use crate::api::handlers::organization_hierarchy_handler::get_organization_hierarchy;
+    use crate::api::handlers::organization_hierarchy_handler::{
+        add_department_member, create_analytics_metric, create_department, delete_department,
+        export_organization_data, get_departments, get_effective_permissions,
+        get_organization_analytics, get_organization_hierarchy, get_organization_permission_matrix,
+        remove_department_member, set_organization_permission_matrix, update_department,
+    };
 
     Router::new()
         // === 基本的な組織操作 ===
@@ -415,6 +423,54 @@ pub fn organization_router_with_state(app_state: crate::api::AppState) -> axum::
         .route(
             "/organizations/{id}/hierarchy",
             get(get_organization_hierarchy)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
+        )
+        .route(
+            "/organizations/{organization_id}/departments",
+            get(get_departments)
+                .post(create_department)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
+        )
+        .route(
+            "/organizations/{organization_id}/departments/{department_id}",
+            put(update_department)
+                .delete(delete_department)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
+        )
+        // 部門メンバー管理
+        .route(
+            "/organizations/{organization_id}/departments/{department_id}/members",
+            post(add_department_member)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
+        )
+        .route(
+            "/organizations/{organization_id}/departments/{department_id}/members/{user_id}",
+            delete(remove_department_member)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::Update)),
+        )
+        // 組織分析
+        .route(
+            "/organizations/{organization_id}/analytics",
+            get(get_organization_analytics)
+                .post(create_analytics_metric)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
+        )
+        // 権限マトリックス管理
+        .route(
+            "/organizations/{organization_id}/permission-matrix",
+            get(get_organization_permission_matrix)
+                .put(set_organization_permission_matrix)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
+        )
+        .route(
+            "/organizations/{organization_id}/effective-permissions",
+            get(get_effective_permissions)
+                .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
+        )
+        // データエクスポート
+        .route(
+            "/organizations/{organization_id}/data-export",
+            post(export_organization_data)
                 .route_layer(require_permission!(resources::ORGANIZATION, Action::View)),
         )
         // === 組織設定・容量管理 ===

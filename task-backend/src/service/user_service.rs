@@ -266,18 +266,44 @@ impl UserService {
         Ok(())
     }
 
-    /// ロール情報付きユーザー一覧をページネーション付きで取得（管理者用）
-    pub async fn list_users_with_roles_paginated(
+    /// ロール情報付きユーザー一覧をページネーション付きで取得（ソート機能付き、管理者用）
+    pub async fn list_users_with_roles_paginated_sorted(
         &self,
         page: i32,
         per_page: i32,
+        sort_by: Option<&str>,
+        sort_order: &str,
     ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
-        // データベースレベルでページネーションを適用
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Getting users with roles (sorted)",
+            "page" => page,
+            "per_page" => per_page,
+            "sort_by" => sort_by.unwrap_or("default"),
+            "sort_order" => sort_order
+        );
+
+        // データベースレベルでソート済みのユーザーを取得
         let users = self
             .user_repo
-            .find_all_with_roles_paginated(page, per_page)
-            .await?;
+            .find_all_with_roles_paginated_sorted(page, per_page, sort_by, sort_order)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "user_service::list_users_with_roles_paginated_sorted",
+                    "Failed to fetch users with roles",
+                )
+            })?;
+
         let total_count = self.user_repo.count_all_users_with_roles().await? as usize;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Users with roles fetched successfully",
+            "count" => users.len(),
+            "total_count" => total_count
+        );
 
         Ok((users, total_count))
     }
@@ -294,11 +320,24 @@ impl UserService {
         page: i32,
         per_page: i32,
     ) -> AppResult<(Vec<crate::domain::user_model::SafeUserWithRole>, usize)> {
-        // 現在はソート機能なしで実装（将来的にリポジトリ層で実装）
-        // TODO: リポジトリ層でソート機能を実装
+        let sort_query = sort_by.map(|sort_by| crate::types::SortQuery {
+            sort_by: Some(sort_by.to_string()),
+            sort_order: match sort_order {
+                "desc" => crate::types::SortOrder::Desc,
+                _ => crate::types::SortOrder::Asc,
+            },
+        });
+
         let users = self
             .user_repo
-            .search_users(query.clone(), is_active, email_verified, page, per_page)
+            .search_users_with_sort(
+                query.clone(),
+                is_active,
+                email_verified,
+                sort_query.as_ref(),
+                page,
+                per_page,
+            )
             .await?;
 
         let total_count = self
@@ -427,10 +466,10 @@ impl UserService {
                 .collect::<Vec<_>>();
             (paginated_users, total)
         } else {
-            // 全ユーザーを取得
+            // 全ユーザーを取得（デフォルトソート: created_at desc）
             let users = self
                 .user_repo
-                .find_all_with_roles_paginated(page, page_size)
+                .find_all_with_roles_paginated_sorted(page, page_size, None, "desc")
                 .await?;
             let total_count = self.user_repo.count_all_users_with_roles().await? as usize;
             (users, total_count)

@@ -1,7 +1,11 @@
+use crate::api::dto::organization_hierarchy_dto::DepartmentSearchQuery;
 use crate::domain::organization_department_model::{self, Entity as OrganizationDepartment};
 use crate::error::AppError;
+use crate::types::{SortOrder, SortQuery};
 use sea_orm::prelude::*;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+};
 use uuid::Uuid;
 
 pub struct OrganizationDepartmentRepository;
@@ -144,5 +148,112 @@ impl OrganizationDepartmentRepository {
         }
 
         Ok(false)
+    }
+
+    /// 部門を検索（ページネーション・ソート機能付き）
+    pub async fn search_departments(
+        db: &DatabaseConnection,
+        query: &DepartmentSearchQuery,
+        organization_id: Uuid,
+        page: i32,
+        per_page: i32,
+    ) -> Result<(Vec<organization_department_model::Model>, u64), AppError> {
+        let mut condition = Condition::all()
+            .add(organization_department_model::Column::OrganizationId.eq(organization_id));
+
+        // 検索条件の適用
+        if let Some(search_term) = &query.search {
+            let search_pattern = format!("%{}%", search_term);
+            condition = condition.add(
+                Condition::any()
+                    .add(organization_department_model::Column::Name.like(&search_pattern))
+                    .add(organization_department_model::Column::Description.like(&search_pattern)),
+            );
+        }
+
+        // アクティブのみフィルタ
+        if query.active_only.unwrap_or(true) {
+            condition = condition.add(organization_department_model::Column::IsActive.eq(true));
+        }
+
+        let mut db_query = OrganizationDepartment::find().filter(condition);
+
+        // ソートの適用
+        db_query = Self::apply_sorting(db_query, &query.sort);
+
+        // ページネーション
+        let page_size = per_page as u64;
+        let offset = ((page - 1) * per_page) as u64;
+
+        let paginator = db_query.paginate(db, page_size);
+        let total_count = paginator.num_items().await?;
+        let departments = paginator.fetch_page(offset / page_size).await?;
+
+        Ok((departments, total_count))
+    }
+
+    /// ソート適用ヘルパー
+    fn apply_sorting(
+        mut query: sea_orm::Select<organization_department_model::Entity>,
+        sort: &SortQuery,
+    ) -> sea_orm::Select<organization_department_model::Entity> {
+        if let Some(sort_by) = &sort.sort_by {
+            let allowed_fields = DepartmentSearchQuery::allowed_sort_fields();
+
+            if allowed_fields.contains(&sort_by.as_str()) {
+                match sort_by.as_str() {
+                    "name" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => {
+                                query.order_by_asc(organization_department_model::Column::Name)
+                            }
+                            SortOrder::Desc => {
+                                query.order_by_desc(organization_department_model::Column::Name)
+                            }
+                        };
+                    }
+                    "created_at" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => {
+                                query.order_by_asc(organization_department_model::Column::CreatedAt)
+                            }
+                            SortOrder::Desc => query
+                                .order_by_desc(organization_department_model::Column::CreatedAt),
+                        };
+                    }
+                    "updated_at" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => {
+                                query.order_by_asc(organization_department_model::Column::UpdatedAt)
+                            }
+                            SortOrder::Desc => query
+                                .order_by_desc(organization_department_model::Column::UpdatedAt),
+                        };
+                    }
+                    "path" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => query
+                                .order_by_asc(organization_department_model::Column::HierarchyPath),
+                            SortOrder::Desc => query.order_by_desc(
+                                organization_department_model::Column::HierarchyPath,
+                            ),
+                        };
+                    }
+                    _ => {
+                        // デフォルトは作成日時の降順
+                        query =
+                            query.order_by_desc(organization_department_model::Column::CreatedAt);
+                    }
+                }
+            } else {
+                // 許可されていないフィールドの場合はデフォルト
+                query = query.order_by_desc(organization_department_model::Column::CreatedAt);
+            }
+        } else {
+            // sort_byが指定されていない場合はデフォルト
+            query = query.order_by_desc(organization_department_model::Column::CreatedAt);
+        }
+
+        query
     }
 }

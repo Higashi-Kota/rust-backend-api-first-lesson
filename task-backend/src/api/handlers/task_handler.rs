@@ -425,6 +425,17 @@ pub async fn search_tasks_handler(
         "Searching tasks with unified query"
     );
 
+    // ソートフィールドの検証
+    if let Some(field) = query.sort.sort_by.as_deref() {
+        if !TaskSearchQuery::allowed_sort_fields().contains(&field) {
+            return Err(AppError::BadRequest(format!(
+                "Invalid sort field: {}. Allowed fields: {:?}",
+                field,
+                TaskSearchQuery::allowed_sort_fields()
+            )));
+        }
+    }
+
     let paginated_tasks = app_state
         .task_service
         .search_tasks_for_user(user.claims.user_id, query)

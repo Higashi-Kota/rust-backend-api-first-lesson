@@ -17,7 +17,7 @@ pub struct AdminOrganizationsRequest {
 /// 管理者向け組織一覧レスポンス
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AdminOrganizationsResponse {
-    pub organizations: Vec<OrganizationListResponse>,
+    pub items: Vec<OrganizationListResponse>,
     pub pagination: PaginationMeta,
     pub tier_summary: Vec<OrganizationTierStats>,
 }
@@ -33,7 +33,7 @@ pub struct AdminUsersWithRolesRequest {
 /// 管理者向けユーザー一覧レスポンス
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AdminUsersWithRolesResponse {
-    pub users: Vec<UserWithRoleResponse>,
+    pub items: Vec<UserWithRoleResponse>,
     pub pagination: PaginationMeta,
     pub role_summary: Vec<RoleSummary>,
 }

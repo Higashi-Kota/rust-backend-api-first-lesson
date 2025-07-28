@@ -5,6 +5,9 @@ use crate::common::{
 use axum::http::StatusCode;
 use serde_json::json;
 use serde_json::Value;
+use task_backend::api::handlers::activity_log_handler::ActivityLogDto;
+use task_backend::shared::types::PaginatedResponse;
+use task_backend::types::ApiResponse;
 use tower::ServiceExt;
 
 // ヘルパー関数：認証済みリクエストを作成（activity_log_testsのローカル版）
@@ -83,17 +86,19 @@ async fn test_activity_log_recording() {
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+    let api_response: ApiResponse<PaginatedResponse<ActivityLogDto>> =
+        serde_json::from_slice(&body_bytes).unwrap();
+    let data = api_response.data.unwrap();
 
     // ログが記録されていることを確認
-    assert!(body["total"].as_u64().unwrap() >= 1);
-    assert!(!body["logs"].as_array().unwrap().is_empty());
+    assert!(data.pagination.total_count >= 1);
+    assert!(!data.items.is_empty());
 
     // 最新のログを確認
-    let latest_log = &body["logs"][0];
-    assert_eq!(latest_log["user_id"], user.id.to_string());
-    assert_eq!(latest_log["action"], "create_task");
-    assert_eq!(latest_log["resource_type"], "task");
+    let latest_log = &data.items[0];
+    assert_eq!(latest_log.user_id, user.id);
+    assert_eq!(latest_log.action, "create_task");
+    assert_eq!(latest_log.resource_type, "task");
 }
 
 /// ユーザーは自分のログのみ取得できることを確認
@@ -141,12 +146,14 @@ async fn test_user_can_only_see_own_logs() {
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+    let api_response: ApiResponse<PaginatedResponse<ActivityLogDto>> =
+        serde_json::from_slice(&body_bytes).unwrap();
+    let data = api_response.data.unwrap();
 
     // User2のログにはUser1のアクティビティが含まれていないことを確認
-    let logs = body["logs"].as_array().unwrap();
+    let logs = &data.items;
     for log in logs {
-        assert_eq!(log["user_id"], user2.id.to_string());
+        assert_eq!(log.user_id, user2.id);
     }
 }
 
@@ -226,12 +233,14 @@ async fn test_admin_can_see_all_logs() {
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+    let api_response: ApiResponse<PaginatedResponse<ActivityLogDto>> =
+        serde_json::from_slice(&body_bytes).unwrap();
+    let data = api_response.data.unwrap();
 
     // レスポンスはActivityLogResponseの構造（logs, total, page, per_page）
     // 一般ユーザーのログが含まれていることを確認
-    let logs = body["logs"].as_array().unwrap();
-    let user_log_found = logs.iter().any(|log| log["user_id"] == user.id.to_string());
+    let logs = &data.items;
+    let user_log_found = logs.iter().any(|log| log.user_id == user.id);
     assert!(
         user_log_found,
         "User log not found in response. Available logs: {:?}",
@@ -357,12 +366,14 @@ async fn test_activity_log_filtering() {
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+    let api_response: ApiResponse<PaginatedResponse<ActivityLogDto>> =
+        serde_json::from_slice(&body_bytes).unwrap();
+    let data = api_response.data.unwrap();
 
     // すべてのログがtaskリソースであることを確認
-    let logs = body["logs"].as_array().unwrap();
+    let logs = &data.items;
     for log in logs {
-        assert_eq!(log["resource_type"], "task");
+        assert_eq!(log.resource_type, "task");
     }
 
     // actionでフィルタリング
@@ -381,11 +392,13 @@ async fn test_activity_log_filtering() {
     let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
-    let body: Value = serde_json::from_slice(&body_bytes).unwrap();
+    let api_response: ApiResponse<PaginatedResponse<ActivityLogDto>> =
+        serde_json::from_slice(&body_bytes).unwrap();
+    let data = api_response.data.unwrap();
 
     // すべてのログがupdate_taskアクションであることを確認
-    let logs = body["logs"].as_array().unwrap();
+    let logs = &data.items;
     for log in logs {
-        assert_eq!(log["action"], "update_task");
+        assert_eq!(log.action, "update_task");
     }
 }

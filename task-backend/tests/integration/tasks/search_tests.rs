@@ -316,13 +316,15 @@ async fn test_search_invalid_sort_field() {
         .await
         .unwrap();
 
-    // Assert: 無効なソートフィールドは無視される
-    assert_eq!(response.status(), StatusCode::OK);
+    // Assert: 無効なソートフィールドはエラーを返す
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let result: ApiResponse<PaginatedResponse<TaskDto>> = serde_json::from_slice(&body).unwrap();
 
-    assert!(result.success);
-    assert!(result.data.is_some());
+    assert!(!result.success);
+    assert!(result.error.is_some());
+    let error = result.error.unwrap();
+    assert!(error.message.contains("Invalid sort field"));
 }
 
 #[tokio::test]

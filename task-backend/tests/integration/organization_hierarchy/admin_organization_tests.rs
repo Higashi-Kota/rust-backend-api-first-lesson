@@ -68,30 +68,16 @@ async fn test_admin_list_organizations() {
     let response: Value = serde_json::from_slice(&body).unwrap();
     assert!(response["success"].as_bool().unwrap());
 
-    // Check if data is an array or has organizations property
-    let organizations = if response["data"].is_array() {
-        response["data"].as_array().unwrap()
-    } else if response["data"]["organizations"].is_array() {
-        response["data"]["organizations"].as_array().unwrap()
-    } else {
-        panic!("Unexpected response structure: {:?}", response);
-    };
+    // Now uses unified response format with "items"
+    let data = response["data"].as_object().unwrap();
+    let organizations = data["items"].as_array().unwrap();
 
     assert!(
         organizations.len() >= 3,
         "Expected at least 3 organizations, got {}",
         organizations.len()
     );
-    assert!(
-        response["data"]["pagination"]["total_count"]
-            .as_i64()
-            .unwrap()
-            >= 3
-    );
-    assert!(!response["data"]["tier_summary"]
-        .as_array()
-        .unwrap()
-        .is_empty());
+    assert!(data["pagination"]["total_count"].as_i64().unwrap() >= 3);
 
     // サブスクリプション階層でフィルタリング
     let req = auth_helper::create_authenticated_request(
@@ -106,7 +92,8 @@ async fn test_admin_list_organizations() {
 
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
-    let organizations = response["data"]["organizations"].as_array().unwrap();
+    let data = response["data"].as_object().unwrap();
+    let organizations = data["items"].as_array().unwrap();
     for org in organizations {
         assert_eq!(org["subscription_tier"].as_str().unwrap(), "pro");
     }
@@ -161,14 +148,11 @@ async fn test_admin_list_users_with_roles() {
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
     assert!(response["success"].as_bool().unwrap());
-    assert!(response["data"]["users"].as_array().unwrap().len() >= 4); // 管理者 + 3ユーザー
-    assert!(!response["data"]["role_summary"]
-        .as_array()
-        .unwrap()
-        .is_empty());
+    let data = response["data"].as_object().unwrap();
+    let users = data["items"].as_array().unwrap();
+    assert!(users.len() >= 4); // 管理者 + 3ユーザー
 
     // 各ユーザーにロール情報が含まれていることを確認
-    let users = response["data"]["users"].as_array().unwrap();
     for user in users {
         assert!(user["role"].is_object(), "role should be an object");
         assert!(
@@ -195,7 +179,8 @@ async fn test_admin_list_users_with_roles() {
 
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
-    let _users = response["data"]["users"].as_array().unwrap();
+    let data = response["data"].as_object().unwrap();
+    let _users = data["items"].as_array().unwrap();
     // モデレーターユーザーが存在しない可能性もあるため、チェックを調整
     // for user in users {
     //     assert_eq!(user["role"]["name"].as_str().unwrap(), "moderator");
@@ -264,14 +249,12 @@ async fn test_admin_organization_pagination() {
 
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
-    let organizations = response["data"]["organizations"].as_array().unwrap();
+    let data = response["data"].as_object().unwrap();
+    let organizations = data["items"].as_array().unwrap();
+    let pagination = data["pagination"].as_object().unwrap();
     assert_eq!(organizations.len(), 5);
-    assert!(response["data"]["pagination"]["has_next"]
-        .as_bool()
-        .unwrap());
-    assert!(!response["data"]["pagination"]["has_prev"]
-        .as_bool()
-        .unwrap());
+    assert!(pagination["has_next"].as_bool().unwrap());
+    assert!(!pagination["has_prev"].as_bool().unwrap());
 
     // 2ページ目を取得
     let req = auth_helper::create_authenticated_request(
@@ -286,12 +269,10 @@ async fn test_admin_organization_pagination() {
 
     let body = body::to_bytes(res.into_body(), usize::MAX).await.unwrap();
     let response: Value = serde_json::from_slice(&body).unwrap();
-    let organizations = response["data"]["organizations"].as_array().unwrap();
+    let data = response["data"].as_object().unwrap();
+    let organizations = data["items"].as_array().unwrap();
+    let pagination = data["pagination"].as_object().unwrap();
     assert_eq!(organizations.len(), 5);
-    assert!(response["data"]["pagination"]["has_next"]
-        .as_bool()
-        .unwrap());
-    assert!(response["data"]["pagination"]["has_prev"]
-        .as_bool()
-        .unwrap());
+    assert!(pagination["has_next"].as_bool().unwrap());
+    assert!(pagination["has_prev"].as_bool().unwrap());
 }

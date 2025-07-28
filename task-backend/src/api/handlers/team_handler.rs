@@ -71,13 +71,16 @@ pub async fn list_teams_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     Query(query): Query<TeamSearchQuery>,
-) -> AppResult<ApiResponse<Vec<TeamListResponse>>> {
-    let teams = app_state
+) -> AppResult<ApiResponse<PaginatedResponse<TeamListResponse>>> {
+    let (teams, total) = app_state
         .team_service
-        .get_teams(query, user.user_id())
+        .search_teams(&query, user.user_id())
         .await?;
 
-    Ok(ApiResponse::success(teams))
+    let (page, per_page) = query.pagination.get_pagination();
+    let response = PaginatedResponse::new(teams, page, per_page, total as i64);
+
+    Ok(ApiResponse::success(response))
 }
 
 /// チーム更新

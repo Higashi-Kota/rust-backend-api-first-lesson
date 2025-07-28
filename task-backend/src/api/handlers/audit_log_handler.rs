@@ -5,8 +5,9 @@ use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::AuthenticatedUser;
 use crate::middleware::authorization::{resources, Action};
 use crate::require_permission;
-use crate::service::audit_log_service::PaginatedAuditLogs;
-use crate::types::ApiResponse;
+use crate::shared::types::PaginatedResponse;
+use crate::types::query::{PaginationQuery, SearchQuery};
+use crate::types::{ApiResponse, SortQuery};
 use crate::utils::error_helper::{forbidden_error, internal_server_error};
 use axum::{
     extract::{Query, State},
@@ -14,23 +15,58 @@ use axum::{
     routing::get,
     Router,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tracing::info;
 
 #[derive(Debug, Deserialize)]
 pub struct AuditLogQuery {
-    #[serde(default = "default_page")]
-    pub page: u64,
-    #[serde(default = "default_per_page")]
-    pub per_page: u64,
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
+    #[serde(flatten)]
+    pub sort: SortQuery,
+    pub search: Option<String>,
+    pub action: Option<String>,
+    pub resource_type: Option<String>,
+    /// 作成日時の開始（以降）
+    #[serde(default, with = "crate::types::optional_timestamp")]
+    pub created_after: Option<DateTime<Utc>>,
+    /// 作成日時の終了（以前）
+    #[serde(default, with = "crate::types::optional_timestamp")]
+    pub created_before: Option<DateTime<Utc>>,
 }
 
-fn default_page() -> u64 {
-    1
+impl AuditLogQuery {
+    /// 許可されたソートフィールド
+    pub fn allowed_sort_fields() -> &'static [&'static str] {
+        &["created_at", "action", "resource_type", "user_id"]
+    }
 }
 
-fn default_per_page() -> u64 {
-    20
+impl SearchQuery for AuditLogQuery {
+    fn search_term(&self) -> Option<&str> {
+        self.search.as_deref()
+    }
+
+    fn filters(&self) -> HashMap<String, String> {
+        let mut filters = HashMap::new();
+
+        if let Some(action) = &self.action {
+            filters.insert("action".to_string(), action.clone());
+        }
+        if let Some(resource_type) = &self.resource_type {
+            filters.insert("resource_type".to_string(), resource_type.clone());
+        }
+        if let Some(created_after) = &self.created_after {
+            filters.insert("created_after".to_string(), created_after.to_rfc3339());
+        }
+        if let Some(created_before) = &self.created_before {
+            filters.insert("created_before".to_string(), created_before.to_rfc3339());
+        }
+
+        filters
+    }
 }
 
 /// ユーザー自身の監査ログを取得
@@ -39,19 +75,33 @@ pub async fn get_my_audit_logs(
     auth_user: AuthenticatedUser,
     Query(query): Query<AuditLogQuery>,
 ) -> AppResult<impl IntoResponse> {
+    let (page, per_page) = query.pagination.get_pagination();
     info!(
         user_id = %auth_user.claims.user_id,
-        page = %query.page,
-        per_page = %query.per_page,
+        page = %page,
+        per_page = %per_page,
         "Getting user's own audit logs"
     );
 
     let logs = app_state
         .audit_log_service
-        .get_user_audit_logs(auth_user.claims.user_id, query.page, query.per_page)
+        .get_user_audit_logs(
+            auth_user.claims.user_id,
+            page as u64,
+            per_page as u64,
+            &query.sort,
+            query.created_after,
+            query.created_before,
+        )
         .await?;
 
-    Ok(ApiResponse::<PaginatedAuditLogs>::success(logs))
+    let response = PaginatedResponse::new(
+        logs.logs,
+        logs.page as i32,
+        logs.per_page as i32,
+        logs.total as i64,
+    );
+    Ok(ApiResponse::success(response))
 }
 
 /// 特定ユーザーの監査ログを取得（管理者のみ）
@@ -63,20 +113,34 @@ pub async fn get_user_audit_logs(
 ) -> AppResult<impl IntoResponse> {
     // 権限チェックはミドルウェアで実施済み
 
+    let (page, per_page) = query.pagination.get_pagination();
     info!(
         admin_id = %auth_user.claims.user_id,
         target_user_id = %user_id,
-        page = %query.page,
-        per_page = %query.per_page,
+        page = %page,
+        per_page = %per_page,
         "Admin getting user audit logs"
     );
 
     let logs = app_state
         .audit_log_service
-        .get_user_audit_logs(user_id, query.page, query.per_page)
+        .get_user_audit_logs(
+            user_id,
+            page as u64,
+            per_page as u64,
+            &query.sort,
+            query.created_after,
+            query.created_before,
+        )
         .await?;
 
-    Ok(ApiResponse::<PaginatedAuditLogs>::success(logs))
+    let response = PaginatedResponse::new(
+        logs.logs,
+        logs.page as i32,
+        logs.per_page as i32,
+        logs.total as i64,
+    );
+    Ok(ApiResponse::success(response))
 }
 
 /// チームの監査ログを取得（チームメンバーのみ）
@@ -109,20 +173,34 @@ pub async fn get_team_audit_logs(
         ));
     }
 
+    let (page, per_page) = query.pagination.get_pagination();
     info!(
         user_id = %auth_user.claims.user_id,
         team_id = %team_id,
-        page = %query.page,
-        per_page = %query.per_page,
+        page = %page,
+        per_page = %per_page,
         "Getting team audit logs"
     );
 
     let logs = app_state
         .audit_log_service
-        .get_team_audit_logs(team_id, query.page, query.per_page)
+        .get_team_audit_logs(
+            team_id,
+            page as u64,
+            per_page as u64,
+            &query.sort,
+            query.created_after,
+            query.created_before,
+        )
         .await?;
 
-    Ok(ApiResponse::<PaginatedAuditLogs>::success(logs))
+    let response = PaginatedResponse::new(
+        logs.logs,
+        logs.page as i32,
+        logs.per_page as i32,
+        logs.total as i64,
+    );
+    Ok(ApiResponse::success(response))
 }
 
 #[derive(Debug, Serialize, Deserialize)]

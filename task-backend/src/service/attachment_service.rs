@@ -1,6 +1,6 @@
 // task-backend/src/service/attachment_service.rs
 
-use crate::api::dto::attachment_dto::{AttachmentSortBy, SortOrder};
+use crate::api::dto::attachment_query_dto::AttachmentSearchQuery;
 use crate::db::DbPool;
 use crate::domain::attachment_share_link_model;
 use crate::domain::subscription_tier::SubscriptionTier;
@@ -272,36 +272,49 @@ impl AttachmentService {
         Ok(())
     }
 
-    /// タスクの添付ファイル一覧を取得（ページング付き）
-    pub async fn list_task_attachments_paginated(
+    /// 統一クエリパラメータを使用した添付ファイル検索
+    pub async fn search_attachments(
         &self,
-        task_id: Uuid,
+        query: &AttachmentSearchQuery,
         user_id: Uuid,
-        page: u64,
-        per_page: u64,
-        sort_by: Option<AttachmentSortBy>,
-        sort_order: Option<SortOrder>,
     ) -> AppResult<(Vec<task_attachment_model::Model>, u64)> {
-        // アクセス権限チェック
-        self.check_task_access(task_id, user_id).await?;
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Searching attachments",
+            "user_id" => user_id,
+            "search_term" => query.search.as_deref().unwrap_or(""),
+            "task_id" => query.task_id.map(|id| id.to_string()).unwrap_or_default()
+        );
 
-        // ページングのバリデーション
-        if page == 0 {
-            return Err(AppError::BadRequest(
-                "Page must be greater than 0".to_string(),
-            ));
-        }
-        if per_page > 100 {
-            return Err(AppError::BadRequest(
-                "Per page must not exceed 100".to_string(),
-            ));
+        // タスクIDが指定されている場合はアクセス権限をチェック
+        if let Some(task_id) = query.task_id {
+            self.check_task_access(task_id, user_id).await?;
         }
 
-        // 添付ファイル一覧を取得
+        // ページネーション値の取得
+        let (page, per_page) = query.pagination.get_pagination();
+
+        // リポジトリのsearch_attachmentsメソッドを呼び出し
         let (attachments, total) = self
             .attachment_repo
-            .find_by_task_id_paginated(task_id, page, per_page, sort_by, sort_order)
-            .await?;
+            .search_attachments(query, page, per_page)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "attachment_service::search_attachments",
+                    "Failed to search attachments",
+                )
+            })?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Attachments search completed",
+            "user_id" => user_id,
+            "total_found" => total,
+            "page" => page,
+            "per_page" => per_page
+        );
 
         Ok((attachments, total))
     }

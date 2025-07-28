@@ -76,6 +76,42 @@ impl SubscriptionHistoryRepository {
         Ok((histories, total_count))
     }
 
+    /// ユーザーのサブスクリプション履歴を取得（ページネーションとソート付き）
+    pub async fn find_by_user_id_paginated_sorted(
+        &self,
+        user_id: Uuid,
+        page: u64,
+        page_size: u64,
+        sort_by: Option<&str>,
+        sort_order: Option<&str>,
+    ) -> AppResult<(Vec<Model>, u64)> {
+        let offset = (page - 1) * page_size;
+        let mut query = Entity::find().filter(Column::UserId.eq(user_id));
+
+        // ソートの適用
+        let order = match sort_order {
+            Some("asc") => Order::Asc,
+            _ => Order::Desc,
+        };
+
+        query = match sort_by {
+            Some("created_at") => query.order_by(Column::CreatedAt, order),
+            Some("changed_at") => query.order_by(Column::ChangedAt, order),
+            Some("previous_tier") => query.order_by(Column::PreviousTier, order),
+            Some("new_tier") => query.order_by(Column::NewTier, order),
+            _ => query.order_by(Column::ChangedAt, order),
+        };
+
+        let histories = query.offset(offset).limit(page_size).all(&self.db).await?;
+
+        let total_count = Entity::find()
+            .filter(Column::UserId.eq(user_id))
+            .count(&self.db)
+            .await?;
+
+        Ok((histories, total_count))
+    }
+
     /// 最新のサブスクリプション変更履歴を取得
     pub async fn find_latest_by_user_id(&self, user_id: Uuid) -> AppResult<Option<Model>> {
         let latest = Entity::find()
@@ -165,6 +201,14 @@ impl SubscriptionHistoryRepository {
             .collect();
 
         Ok(stats)
+    }
+
+    /// ユーザーのサブスクリプション統計を取得
+    pub async fn get_user_subscription_stats(
+        &self,
+        user_id: Uuid,
+    ) -> AppResult<UserSubscriptionStats> {
+        self.get_user_change_stats(user_id).await
     }
 
     /// 特定ユーザーの統計情報

@@ -3,6 +3,7 @@ use crate::domain::audit_log_model::{AuditAction, AuditLogBuilder, AuditResult};
 use crate::error::AppResult;
 use crate::log_with_context;
 use crate::repository::audit_log_repository::AuditLogRepository;
+use crate::types::SortQuery;
 use crate::utils::error_helper::internal_server_error;
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -189,6 +190,9 @@ impl AuditLogService {
         user_id: Uuid,
         page: u64,
         per_page: u64,
+        sort: &SortQuery,
+        created_after: Option<chrono::DateTime<chrono::Utc>>,
+        created_before: Option<chrono::DateTime<chrono::Utc>>,
     ) -> AppResult<PaginatedAuditLogs> {
         log_with_context!(
             tracing::Level::DEBUG,
@@ -202,7 +206,7 @@ impl AuditLogService {
 
         let logs = self
             .audit_log_repo
-            .find_by_user(user_id, limit, offset)
+            .find_by_user(user_id, limit, offset, sort, created_after, created_before)
             .await
             .map_err(|e| {
                 log_with_context!(
@@ -251,6 +255,9 @@ impl AuditLogService {
         team_id: Uuid,
         page: u64,
         per_page: u64,
+        sort: &SortQuery,
+        created_after: Option<chrono::DateTime<chrono::Utc>>,
+        created_before: Option<chrono::DateTime<chrono::Utc>>,
     ) -> AppResult<PaginatedAuditLogs> {
         log_with_context!(
             tracing::Level::DEBUG,
@@ -264,7 +271,7 @@ impl AuditLogService {
 
         let logs = self
             .audit_log_repo
-            .find_by_team(team_id, limit, offset)
+            .find_by_team(team_id, limit, offset, sort, created_after, created_before)
             .await
             .map_err(|e| {
                 log_with_context!(

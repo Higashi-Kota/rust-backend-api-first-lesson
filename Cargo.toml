@@ -93,6 +93,9 @@ axum-extra = { version = "0.10", features = ["cookie"] }
 # Pattern matching and lazy statics
 regex = "1.10"
 
+# URL encoding for query parameters
+urlencoding = "2.1"
+
 # File upload and storage
 aws-config = "1.5"
 aws-sdk-s3 = "1.57"
