@@ -7,7 +7,7 @@ use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::extractors::ValidatedUuid;
 use crate::middleware::auth::{AuthenticatedUser, AuthenticatedUserWithRole};
-use crate::types::{optional_timestamp, ApiResponse, Timestamp};
+use crate::types::{optional_timestamp, ApiResponse, SortQuery, Timestamp};
 use crate::utils::error_helper::convert_validation_errors;
 use axum::{
     extract::{Json, Query, State},
@@ -197,25 +197,61 @@ pub async fn downgrade_subscription_handler(
     )))
 }
 
+// SubscriptionHistoryQuery with pagination and sorting support
+#[derive(Debug, Deserialize)]
+pub struct SubscriptionHistoryQuery {
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
+    #[serde(flatten)]
+    pub sort: SortQuery,
+}
+
+impl SubscriptionHistoryQuery {
+    pub fn allowed_sort_fields() -> &'static [&'static str] {
+        &["created_at", "changed_at", "previous_tier", "new_tier"]
+    }
+}
+
 /// サブスクリプション履歴取得
 pub async fn get_subscription_history_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Query(query): Query<PaginationQuery>,
+    Query(query): Query<SubscriptionHistoryQuery>,
 ) -> AppResult<ApiResponse<SubscriptionHistoryResponse>> {
-    let (page, per_page) = query.get_pagination();
+    let (page, per_page) = query.pagination.get_pagination();
+    let sort_by = query.sort.sort_by.as_deref();
+    let sort_order = Some(query.sort.sort_order.as_str());
+
+    // ソートフィールドの検証
+    if let Some(field) = sort_by {
+        if !SubscriptionHistoryQuery::allowed_sort_fields().contains(&field) {
+            return Err(AppError::BadRequest(format!(
+                "Invalid sort field: {}. Allowed fields: {:?}",
+                field,
+                SubscriptionHistoryQuery::allowed_sort_fields()
+            )));
+        }
+    }
 
     info!(
         user_id = %user.claims.user_id,
         page = %page,
         per_page = %per_page,
+        sort_by = ?sort_by,
+        sort_order = ?sort_order,
         "Subscription history request"
     );
 
     // サブスクリプション履歴を取得
     let (history, total_count) = app_state
         .subscription_service
-        .get_user_subscription_history(user.claims.user_id, page as u64, per_page as u64)
+        .get_user_subscription_history_sorted(
+            user.claims.user_id,
+            page as u64,
+            per_page as u64,
+            sort_by,
+            sort_order,
+        )
         .await?;
 
     let stats = app_state
@@ -302,6 +338,16 @@ pub async fn get_subscription_stats_handler(
     Ok(ApiResponse::success(response))
 }
 
+/// 拡張版サブスクリプション履歴クエリ
+#[derive(Debug, Deserialize)]
+pub struct SubscriptionHistoryExtendedQuery {
+    #[serde(default, with = "optional_timestamp")]
+    pub created_after: Option<DateTime<Utc>>,
+    #[serde(default, with = "optional_timestamp")]
+    pub created_before: Option<DateTime<Utc>>,
+    pub filter: Option<String>, // "upgrades" | "downgrades"
+}
+
 /// 管理者向けサブスクリプション履歴取得（拡張版）
 pub async fn get_admin_subscription_history_extended_handler(
     State(app_state): State<AppState>,
@@ -312,9 +358,9 @@ pub async fn get_admin_subscription_history_extended_handler(
     let subscription_history_repo = &app_state.subscription_history_repo;
 
     // 日付範囲の設定
-    let end_date = query.end_date.unwrap_or_else(Utc::now);
+    let end_date = query.created_before.unwrap_or_else(Utc::now);
     let start_date = query
-        .start_date
+        .created_after
         .unwrap_or_else(|| end_date - Duration::days(30));
 
     // フィルタによって履歴を取得
@@ -423,21 +469,23 @@ pub async fn get_admin_subscription_history_extended_handler(
     Ok(ApiResponse::success(response))
 }
 
-/// クエリパラメータ（拡張版）
-#[derive(Debug, Deserialize)]
-pub struct SubscriptionHistoryExtendedQuery {
+/// 管理者向けサブスクリプション履歴クエリ
+#[derive(Debug, Deserialize, validator::Validate)]
+pub struct AdminSubscriptionHistoryQuery {
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
     #[serde(default, with = "optional_timestamp")]
-    pub start_date: Option<DateTime<Utc>>,
+    pub created_after: Option<DateTime<Utc>>,
     #[serde(default, with = "optional_timestamp")]
-    pub end_date: Option<DateTime<Utc>>,
-    pub filter: Option<String>, // "upgrades" | "downgrades"
+    pub created_before: Option<DateTime<Utc>>,
+    pub change_type: Option<String>, // "upgrades" | "downgrades"
 }
 
 /// 管理者向けサブスクリプション履歴取得
 pub async fn get_admin_subscription_history_handler(
     State(app_state): State<AppState>,
     _admin_user: AuthenticatedUserWithRole,
-    Query(query): Query<SubscriptionHistoryQuery>,
+    Query(query): Query<AdminSubscriptionHistoryQuery>,
 ) -> AppResult<ApiResponse<AdminSubscriptionHistoryResponse>> {
     // バリデーション
     query.validate().map_err(|e| {
@@ -449,9 +497,9 @@ pub async fn get_admin_subscription_history_handler(
     let page_size = per_page as u64;
 
     // 日付範囲の設定（デフォルトは過去30日）
-    let end_date = query.end_date.unwrap_or_else(Utc::now);
+    let end_date = query.created_before.unwrap_or_else(Utc::now);
     let start_date = query
-        .start_date
+        .created_after
         .unwrap_or_else(|| end_date - Duration::days(30));
 
     info!(
@@ -471,13 +519,9 @@ pub async fn get_admin_subscription_history_handler(
         .await?;
 
     // 変更タイプでフィルタリング
-    let filtered_changes: Vec<_> = match query.change_type {
-        Some(SubscriptionChangeType::Upgrade) => {
-            all_changes.into_iter().filter(|c| c.is_upgrade).collect()
-        }
-        Some(SubscriptionChangeType::Downgrade) => {
-            all_changes.into_iter().filter(|c| c.is_downgrade).collect()
-        }
+    let filtered_changes: Vec<_> = match query.change_type.as_deref() {
+        Some("upgrades") => all_changes.into_iter().filter(|c| c.is_upgrade).collect(),
+        Some("downgrades") => all_changes.into_iter().filter(|c| c.is_downgrade).collect(),
         _ => all_changes,
     };
 

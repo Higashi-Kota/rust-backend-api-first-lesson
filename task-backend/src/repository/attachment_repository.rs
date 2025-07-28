@@ -1,12 +1,13 @@
 // task-backend/src/repository/attachment_repository.rs
 
-use crate::api::dto::attachment_dto::{AttachmentSortBy, SortOrder};
+use crate::api::dto::attachment_query_dto::AttachmentSearchQuery;
 use crate::db;
 use crate::domain::task_attachment_model::{
     self, ActiveModel as AttachmentActiveModel, Entity as AttachmentEntity,
 };
+use crate::types::{SortOrder as TypesSortOrder, SortQuery};
 use chrono::Utc;
-use sea_orm::{entity::*, DbConn, DbErr, DeleteResult, Set};
+use sea_orm::{entity::*, Condition, DbConn, DbErr, DeleteResult, Set};
 use sea_orm::{PaginatorTrait, QueryFilter, QueryOrder};
 use uuid::Uuid;
 
@@ -78,56 +79,127 @@ impl AttachmentRepository {
         Ok(total_size)
     }
 
-    /// ページング付きで添付ファイル一覧を取得
-    pub async fn find_by_task_id_paginated(
+    /// 添付ファイルを検索（統一クエリパターン版）
+    pub async fn search_attachments(
         &self,
-        task_id: Uuid,
-        page: u64,
-        per_page: u64,
-        sort_by: Option<AttachmentSortBy>,
-        sort_order: Option<SortOrder>,
+        query: &AttachmentSearchQuery,
+        page: i32,
+        per_page: i32,
     ) -> Result<(Vec<task_attachment_model::Model>, u64), DbErr> {
         self.prepare_connection().await?;
 
-        let mut query =
-            AttachmentEntity::find().filter(task_attachment_model::Column::TaskId.eq(task_id));
+        let mut condition = Condition::all();
 
-        // ソート設定
-        let sort_order = sort_order.unwrap_or(SortOrder::Desc);
-        let sort_by = sort_by.unwrap_or(AttachmentSortBy::CreatedAt);
+        // 検索条件の適用
+        if let Some(search_term) = &query.search {
+            let search_pattern = format!("%{}%", search_term);
+            condition =
+                condition.add(task_attachment_model::Column::FileName.like(&search_pattern));
+        }
 
-        query = match (sort_by, sort_order) {
-            (AttachmentSortBy::CreatedAt, SortOrder::Asc) => {
-                query.order_by_asc(task_attachment_model::Column::CreatedAt)
-            }
-            (AttachmentSortBy::CreatedAt, SortOrder::Desc) => {
-                query.order_by_desc(task_attachment_model::Column::CreatedAt)
-            }
-            (AttachmentSortBy::UpdatedAt, SortOrder::Asc) => {
-                query.order_by_asc(task_attachment_model::Column::UpdatedAt)
-            }
-            (AttachmentSortBy::UpdatedAt, SortOrder::Desc) => {
-                query.order_by_desc(task_attachment_model::Column::UpdatedAt)
-            }
-            (AttachmentSortBy::FileName, SortOrder::Asc) => {
-                query.order_by_asc(task_attachment_model::Column::FileName)
-            }
-            (AttachmentSortBy::FileName, SortOrder::Desc) => {
-                query.order_by_desc(task_attachment_model::Column::FileName)
-            }
-            (AttachmentSortBy::FileSize, SortOrder::Asc) => {
-                query.order_by_asc(task_attachment_model::Column::FileSize)
-            }
-            (AttachmentSortBy::FileSize, SortOrder::Desc) => {
-                query.order_by_desc(task_attachment_model::Column::FileSize)
-            }
-        };
+        if let Some(task_id) = &query.task_id {
+            condition = condition.add(task_attachment_model::Column::TaskId.eq(*task_id));
+        }
 
-        let paginator = query.paginate(&self.db, per_page);
-        let total = paginator.num_items().await?;
-        let items = paginator.fetch_page(page - 1).await?;
+        if let Some(uploaded_by) = &query.uploaded_by {
+            condition = condition.add(task_attachment_model::Column::UploadedBy.eq(*uploaded_by));
+        }
 
-        Ok((items, total))
+        if let Some(file_type) = &query.file_type {
+            condition = condition
+                .add(task_attachment_model::Column::MimeType.like(format!("{}%", file_type)));
+        }
+
+        if let Some(min_size) = query.min_size {
+            condition = condition.add(task_attachment_model::Column::FileSize.gte(min_size));
+        }
+
+        if let Some(max_size) = query.max_size {
+            condition = condition.add(task_attachment_model::Column::FileSize.lte(max_size));
+        }
+
+        let mut db_query = AttachmentEntity::find().filter(condition);
+
+        // ソートの適用
+        db_query = self.apply_sorting(db_query, &query.sort);
+
+        // ページネーション
+        let page_size = per_page as u64;
+        let offset = ((page - 1) * per_page) as u64;
+
+        let paginator = db_query.paginate(&self.db, page_size);
+        let total_count = paginator.num_items().await?;
+        let items = paginator.fetch_page(offset / page_size).await?;
+
+        Ok((items, total_count))
+    }
+
+    /// ソート適用ヘルパー
+    fn apply_sorting(
+        &self,
+        mut query: sea_orm::Select<task_attachment_model::Entity>,
+        sort: &SortQuery,
+    ) -> sea_orm::Select<task_attachment_model::Entity> {
+        if let Some(sort_by) = &sort.sort_by {
+            let allowed_fields = AttachmentSearchQuery::allowed_sort_fields();
+
+            if allowed_fields.contains(&sort_by.as_str()) {
+                match sort_by.as_str() {
+                    "file_name" => {
+                        query = match sort.sort_order {
+                            TypesSortOrder::Asc => {
+                                query.order_by_asc(task_attachment_model::Column::FileName)
+                            }
+                            TypesSortOrder::Desc => {
+                                query.order_by_desc(task_attachment_model::Column::FileName)
+                            }
+                        };
+                    }
+                    "file_size" => {
+                        query = match sort.sort_order {
+                            TypesSortOrder::Asc => {
+                                query.order_by_asc(task_attachment_model::Column::FileSize)
+                            }
+                            TypesSortOrder::Desc => {
+                                query.order_by_desc(task_attachment_model::Column::FileSize)
+                            }
+                        };
+                    }
+                    "uploaded_at" => {
+                        query = match sort.sort_order {
+                            TypesSortOrder::Asc => {
+                                query.order_by_asc(task_attachment_model::Column::CreatedAt)
+                            }
+                            TypesSortOrder::Desc => {
+                                query.order_by_desc(task_attachment_model::Column::CreatedAt)
+                            }
+                        };
+                    }
+                    "file_type" => {
+                        query = match sort.sort_order {
+                            TypesSortOrder::Asc => {
+                                query.order_by_asc(task_attachment_model::Column::MimeType)
+                            }
+                            TypesSortOrder::Desc => {
+                                query.order_by_desc(task_attachment_model::Column::MimeType)
+                            }
+                        };
+                    }
+                    _ => {
+                        // デフォルトは作成日時の降順
+                        query = query.order_by_desc(task_attachment_model::Column::CreatedAt);
+                    }
+                }
+            } else {
+                // 許可されていないフィールドの場合はデフォルト
+                query = query.order_by_desc(task_attachment_model::Column::CreatedAt);
+            }
+        } else {
+            // sort_byが指定されていない場合はデフォルト
+            query = query.order_by_desc(task_attachment_model::Column::CreatedAt);
+        }
+
+        query
     }
 }
 

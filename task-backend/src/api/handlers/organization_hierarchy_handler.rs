@@ -5,6 +5,7 @@ use crate::{
     extractors::{deserialize_uuid, ValidatedMultiPath, ValidatedUuid},
     middleware::auth::AuthenticatedUser,
     service::organization_hierarchy_service::OrganizationHierarchyService,
+    shared::types::PaginatedResponse,
     types::{ApiResponse, Timestamp},
     utils::error_helper::convert_validation_errors,
 };
@@ -41,7 +42,7 @@ pub async fn get_organization_hierarchy(
     State(app_state): State<crate::api::AppState>,
     ValidatedUuid(organization_id): ValidatedUuid,
     user: AuthenticatedUser,
-    Query(params): Query<DepartmentQueryParams>,
+    Query(params): Query<DepartmentSearchQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     // 権限チェック（組織メンバーまたは管理者）
     user.ensure_can_read_organization(organization_id)?;
@@ -114,13 +115,15 @@ pub async fn get_departments(
     State(app_state): State<crate::api::AppState>,
     ValidatedUuid(organization_id): ValidatedUuid,
     user: AuthenticatedUser,
-    Query(params): Query<DepartmentQueryParams>,
+    Query(params): Query<DepartmentSearchQuery>,
 ) -> Result<impl IntoResponse, AppError> {
     // 権限チェック
     user.ensure_can_read_organization(organization_id)?;
 
-    let departments = OrganizationHierarchyService::get_organization_hierarchy(
+    // 統一されたsearch_departmentsメソッドを使用
+    let (departments, total) = OrganizationHierarchyService::search_departments(
         &app_state.db_pool,
+        &params,
         organization_id,
     )
     .await?;
@@ -135,7 +138,10 @@ pub async fn get_departments(
         response_data.retain(|dept| dept.is_active);
     }
 
-    let api_response = ApiResponse::success(response_data);
+    let (page, per_page) = params.pagination.get_pagination();
+    let response = PaginatedResponse::new(response_data, page, per_page, total as i64);
+
+    let api_response = ApiResponse::success(response);
     Ok(api_response)
 }
 
@@ -469,54 +475,9 @@ pub async fn create_analytics_metric(
     Ok(api_response)
 }
 
-// ルーター設定
-pub fn organization_hierarchy_router(app_state: crate::api::AppState) -> axum::Router {
-    use axum::routing::{delete, get, post, put};
-
-    axum::Router::new()
-        // 組織階層管理
-        .route(
-            "/organizations/{organization_id}/hierarchy",
-            get(get_organization_hierarchy),
-        )
-        .route(
-            "/organizations/{organization_id}/departments",
-            get(get_departments).post(create_department),
-        )
-        .route(
-            "/organizations/{organization_id}/departments/{department_id}",
-            put(update_department).delete(delete_department),
-        )
-        // 部門メンバー管理
-        .route(
-            "/organizations/{organization_id}/departments/{department_id}/members",
-            post(add_department_member),
-        )
-        .route(
-            "/organizations/{organization_id}/departments/{department_id}/members/{user_id}",
-            delete(remove_department_member),
-        )
-        // 組織分析
-        .route(
-            "/organizations/{organization_id}/analytics",
-            get(get_organization_analytics).post(create_analytics_metric),
-        )
-        // 権限マトリックス管理
-        .route(
-            "/organizations/{organization_id}/permission-matrix",
-            get(get_organization_permission_matrix).put(set_organization_permission_matrix),
-        )
-        .route(
-            "/organizations/{organization_id}/effective-permissions",
-            get(get_effective_permissions),
-        )
-        // データエクスポート
-        .route(
-            "/organizations/{organization_id}/data-export",
-            post(export_organization_data),
-        )
-        .with_state(app_state)
-}
+// NOTE: ルーターの定義はorganization_handler.rsに統合されました
+// 組織階層関連のルートは/organizations/{id}/*の競合を避けるため
+// organization_router_with_state()で定義されています
 
 /// 部門のフラットリストから階層構造を構築するヘルパー関数
 fn build_department_hierarchy(

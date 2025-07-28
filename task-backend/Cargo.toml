@@ -94,6 +94,7 @@ async-stripe = { workspace = true }
 # Development and testing dependencies - using workspace dependencies
 testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true }
+urlencoding = { workspace = true }
 
 # Inherit workspace lints
 [lints]

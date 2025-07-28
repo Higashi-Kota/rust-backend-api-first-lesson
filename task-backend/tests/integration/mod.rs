@@ -2,16 +2,14 @@
 
 pub mod admin;
 pub mod analytics;
-pub mod audit_log_tests;
 pub mod auth;
-pub mod extractors;
 pub mod gdpr;
-pub mod middleware;
+pub mod infrastructure;
 pub mod organization;
 pub mod organization_hierarchy;
 pub mod payment;
 pub mod permission;
-pub mod query_tests;
+pub mod query;
 pub mod roles;
 pub mod security;
 pub mod subscription;

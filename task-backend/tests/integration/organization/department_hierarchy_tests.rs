@@ -462,7 +462,9 @@ async fn test_department_data_isolation() {
     let teams_response: Value = serde_json::from_slice(&body).unwrap();
 
     // 組織オーナーは両部署のチームを見ることができる
-    let teams = teams_response["data"].as_array().unwrap();
+    // レスポンスは統一フォーマット（ApiResponse<PaginatedResponse<T>>）を使用
+    let data = teams_response["data"].as_object().unwrap();
+    let teams = data["items"].as_array().unwrap();
     assert!(teams.len() >= 2); // 少なくとも2つのチームが存在
 }
 

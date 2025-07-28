@@ -3,7 +3,7 @@ use crate::api::dto::common::{PaginationMeta, PaginationQuery};
 use crate::api::dto::role_dto::RoleResponse;
 use crate::domain::role_model::RoleWithPermissions;
 use crate::domain::subscription_tier::SubscriptionTier;
-use crate::types::Timestamp;
+use crate::types::{SortQuery, Timestamp};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use uuid::Uuid;
@@ -13,7 +13,16 @@ use uuid::Uuid;
 pub struct AdminRoleListQuery {
     #[serde(flatten)]
     pub pagination: PaginationQuery,
+    #[serde(flatten)]
+    pub sort: SortQuery,
     pub active_only: Option<bool>,
+}
+
+impl AdminRoleListQuery {
+    /// 許可されたソートフィールド
+    pub fn allowed_sort_fields() -> &'static [&'static str] {
+        &["name", "display_name", "created_at", "updated_at"]
+    }
 }
 
 /// 管理者向けロール一覧レスポンス

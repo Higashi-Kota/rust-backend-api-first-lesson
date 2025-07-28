@@ -1,7 +1,6 @@
 ## 実現トピック
 
-レスポンスフォーマットの統一
-task-backend/src/types/response.rs
+TBD
 
 ## 🧩 実装ガイドライン
 
@@ -646,6 +645,150 @@ self.repo.count_tasks()
 3. **デバッグの容易さ**: request_idによるリクエスト追跡
 4. **型安全性**: レスポンス構造がコンパイル時に保証される
 5. **拡張性**: metaフィールドで追加情報を柔軟に提供可能
+
+### 14. **クエリパラメータパターンの統一実装**
+
+#### 統一クエリパラメータ型の使用
+
+* **すべてのAPIエンドポイントで統一されたクエリパラメータ型を使用すること**
+  ```rust
+  use crate::types::query::{PaginationQuery, SortQuery, SearchQuery};
+  
+  #[derive(Debug, Deserialize)]
+  pub struct ResourceSearchQuery {
+      #[serde(flatten)]
+      pub pagination: PaginationQuery,
+      #[serde(flatten)]
+      pub sort: SortQuery,
+      pub search: Option<String>,
+      // リソース固有のフィルタ
+  }
+  ```
+
+#### SearchQueryトレイトの実装
+
+* **すべての検索クエリDTOでSearchQueryトレイトを実装**
+  ```rust
+  impl SearchQuery for ResourceSearchQuery {
+      fn search_term(&self) -> Option<&str> {
+          self.search.as_deref()
+      }
+      
+      fn filters(&self) -> HashMap<String, String> {
+          let mut filters = HashMap::new();
+          // フィルタ条件を追加
+          filters
+      }
+  }
+  ```
+
+#### ページネーションの適用
+
+* **PaginationQuery型の使用**
+  ```rust
+  // ✅ 推奨: 統一型を使用
+  #[derive(Deserialize)]
+  pub struct MyQuery {
+      #[serde(flatten)]
+      pub pagination: PaginationQuery,
+  }
+  
+  // ❌ 避けるべき: 独自実装
+  pub struct MyQuery {
+      pub page: u64,
+      pub per_page: u64,
+  }
+  ```
+
+* **get_pagination()メソッドの使用**
+  ```rust
+  let (page, per_page) = query.pagination.get_pagination();
+  // pageは1ベース、per_pageは自動的に1〜100の範囲に制限される
+  ```
+
+#### ソート機能の実装
+
+* **SortQuery型の使用**
+  ```rust
+  // 許可されたソートフィールドを定義
+  impl MySearchQuery {
+      pub fn allowed_sort_fields() -> &'static [&'static str] {
+          &["created_at", "updated_at", "name", "priority"]
+      }
+  }
+  ```
+
+#### 日付範囲フィルタの命名規則
+
+* **統一された命名規則を使用**
+  ```rust
+  // ✅ 推奨: 統一された命名
+  pub created_after: Option<DateTime<Utc>>,
+  pub created_before: Option<DateTime<Utc>>,
+  
+  // ❌ 避けるべき: 不統一な命名
+  pub from: Option<DateTime<Utc>>,
+  pub to: Option<DateTime<Utc>>,
+  pub start_date: Option<DateTime<Utc>>,
+  pub end_date: Option<DateTime<Utc>>,
+  ```
+
+#### SeaORMのベストプラクティス
+
+* **型安全なクエリ構築にはSeaORMの機能を活用**
+  ```rust
+  // 共通フィルタ適用ヘルパー
+  fn apply_common_filters(
+      &self,
+      mut conditions: Condition,
+      query: &TaskSearchQuery,
+  ) -> Condition {
+      // 検索条件
+      if let Some(search_term) = &query.search {
+          conditions = conditions.add(
+              Condition::any()
+                  .add(task_model::Column::Title.contains(search_term))
+                  .add(task_model::Column::Description.contains(search_term))
+          );
+      }
+      // フィルタ条件
+      if let Some(status) = &query.status {
+          conditions = conditions.add(task_model::Column::Status.eq(status.as_str()));
+      }
+      conditions
+  }
+  
+  // ソート適用ヘルパー
+  fn apply_sorting(
+      &self,
+      mut db_query: Select<TaskEntity>,
+      query: &TaskSearchQuery,
+  ) -> Select<TaskEntity> {
+      if let Some(sort_by) = &query.sort.sort_by {
+          // allowed_sort_fields()で許可されたフィールドのみソート
+          if TaskSearchQuery::allowed_sort_fields().contains(&sort_by.as_str()) {
+              // ソート適用
+          }
+      }
+      db_query
+  }
+  ```
+
+* **SeaORMの利点**
+  - 型安全性: コンパイル時にエラーを検出
+  - SQLインジェクション対策済み
+  - パフォーマンス最適化機能
+  - トランザクション管理
+  - 接続プール管理
+
+#### 実装の利点
+
+1. **一貫性**: すべてのAPIで同じクエリパラメータ動作
+2. **保守性**: クエリロジックが一箇所に集約
+3. **型安全性**: コンパイル時にクエリ構造を保証
+4. **DRY原則**: 重複コードの排除
+5. **拡張性**: 新しいフィルタやソート条件の追加が容易
+6. **テスト容易性**: 統一されたインターフェースにより、テストが簡潔に
 
 ---
 

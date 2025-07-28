@@ -4,7 +4,7 @@ use crate::api::AppState;
 use crate::domain::subscription_tier::SubscriptionTier;
 use crate::error::{AppError, AppResult};
 use crate::middleware::auth::AuthenticatedUser;
-use crate::types::ApiResponse;
+use crate::types::{ApiResponse, SortQuery};
 use axum::{
     extract::{Json, Query, State},
     http::HeaderMap,
@@ -38,7 +38,20 @@ pub struct CustomerPortalResponse {
     pub portal_url: String,
 }
 
-// PaymentHistoryQuery is now replaced by unified PaginationQuery from common module
+// PaymentHistoryQuery with pagination and sorting support
+#[derive(Debug, Deserialize)]
+pub struct PaymentHistoryQuery {
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
+    #[serde(flatten)]
+    pub sort: SortQuery,
+}
+
+impl PaymentHistoryQuery {
+    pub fn allowed_sort_fields() -> &'static [&'static str] {
+        &["created_at", "paid_at", "amount", "status"]
+    }
+}
 
 #[derive(Debug, Serialize)]
 pub struct PaymentHistoryItem {
@@ -259,21 +272,42 @@ pub async fn get_upgrade_options_handler(
 pub async fn get_payment_history_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
-    Query(query): Query<PaginationQuery>,
+    Query(query): Query<PaymentHistoryQuery>,
 ) -> AppResult<ApiResponse<PaymentHistoryResponse>> {
-    let (page, per_page) = query.get_pagination();
+    let (page, per_page) = query.pagination.get_pagination();
+    let sort_by = query.sort.sort_by.as_deref();
+    let sort_order = Some(query.sort.sort_order.as_str());
+
+    // ソートフィールドの検証
+    if let Some(field) = sort_by {
+        if !PaymentHistoryQuery::allowed_sort_fields().contains(&field) {
+            return Err(AppError::BadRequest(format!(
+                "Invalid sort field: {}. Allowed fields: {:?}",
+                field,
+                PaymentHistoryQuery::allowed_sort_fields()
+            )));
+        }
+    }
 
     info!(
         user_id = %user.claims.user_id,
         page = %page,
         per_page = %per_page,
+        sort_by = ?sort_by,
+        sort_order = ?sort_order,
         "Getting payment history"
     );
 
     // 支払い履歴を取得（0-indexed）
     let (history_items, total_pages) = app_state
         .payment_service
-        .get_payment_history(user.claims.user_id, (page - 1) as u64, per_page as u64)
+        .get_payment_history_sorted(
+            user.claims.user_id,
+            (page - 1) as u64,
+            per_page as u64,
+            sort_by,
+            sort_order,
+        )
         .await?;
 
     // DTOに変換

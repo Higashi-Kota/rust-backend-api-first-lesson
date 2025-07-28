@@ -1,5 +1,6 @@
 // task-backend/src/repository/team_repository.rs
 
+use crate::api::dto::team_query_dto::TeamSearchQuery;
 use crate::domain::team_member_model::{
     ActiveModel as TeamMemberActiveModel, Column as TeamMemberColumn, Entity as TeamMemberEntity,
     Model as TeamMember,
@@ -8,9 +9,10 @@ use crate::domain::team_model::{
     ActiveModel as TeamActiveModel, Column as TeamColumn, Entity as TeamEntity, Model as Team,
 };
 use crate::error::{AppError, AppResult};
+use crate::types::{SortOrder, SortQuery};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, DbErr, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use uuid::Uuid;
 
@@ -277,5 +279,111 @@ impl TeamRepository {
             .await
             .map_err(map_db_error)?;
         Ok(count)
+    }
+
+    /// チームを検索（統一クエリパターン版）
+    pub async fn search_teams(
+        &self,
+        query: &TeamSearchQuery,
+        page: i32,
+        per_page: i32,
+    ) -> AppResult<(Vec<Team>, u64)> {
+        let mut condition = Condition::all();
+
+        // 検索条件の適用
+        if let Some(search_term) = &query.search {
+            let search_pattern = format!("%{}%", search_term);
+            condition = condition.add(
+                Condition::any()
+                    .add(TeamColumn::Name.like(&search_pattern))
+                    .add(TeamColumn::Description.like(&search_pattern)),
+            );
+        }
+
+        if let Some(name) = &query.name {
+            condition = condition.add(TeamColumn::Name.eq(name));
+        }
+
+        if let Some(org_id) = &query.organization_id {
+            condition = condition.add(TeamColumn::OrganizationId.eq(*org_id));
+        }
+
+        if let Some(owner_id) = &query.owner_id {
+            condition = condition.add(TeamColumn::OwnerId.eq(*owner_id));
+        }
+
+        if let Some(tier) = &query.subscription_tier {
+            condition = condition.add(TeamColumn::SubscriptionTier.eq(tier.as_str()));
+        }
+
+        let mut db_query = TeamEntity::find().filter(condition);
+
+        // ソートの適用
+        db_query = self.apply_sorting(db_query, &query.sort);
+
+        // ページネーション
+        let page_size = per_page as u64;
+        let offset = ((page - 1) * per_page) as u64;
+
+        let paginator = db_query.paginate(&self.db, page_size);
+        let total_count = paginator.num_items().await.map_err(map_db_error)?;
+        let teams = paginator
+            .fetch_page(offset / page_size)
+            .await
+            .map_err(map_db_error)?;
+
+        Ok((teams, total_count))
+    }
+
+    /// ソート適用ヘルパー
+    fn apply_sorting(
+        &self,
+        mut query: sea_orm::Select<TeamEntity>,
+        sort: &SortQuery,
+    ) -> sea_orm::Select<TeamEntity> {
+        if let Some(sort_by) = &sort.sort_by {
+            let allowed_fields = TeamSearchQuery::allowed_sort_fields();
+
+            if allowed_fields.contains(&sort_by.as_str()) {
+                match sort_by.as_str() {
+                    "name" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => query.order_by_asc(TeamColumn::Name),
+                            SortOrder::Desc => query.order_by_desc(TeamColumn::Name),
+                        };
+                    }
+                    "created_at" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => query.order_by_asc(TeamColumn::CreatedAt),
+                            SortOrder::Desc => query.order_by_desc(TeamColumn::CreatedAt),
+                        };
+                    }
+                    "updated_at" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => query.order_by_asc(TeamColumn::UpdatedAt),
+                            SortOrder::Desc => query.order_by_desc(TeamColumn::UpdatedAt),
+                        };
+                    }
+                    "organization_id" => {
+                        query = match sort.sort_order {
+                            SortOrder::Asc => query.order_by_asc(TeamColumn::OrganizationId),
+                            SortOrder::Desc => query.order_by_desc(TeamColumn::OrganizationId),
+                        };
+                    }
+                    _ => {
+                        // デフォルトは作成日時の降順
+                        query = query.order_by_desc(TeamColumn::CreatedAt);
+                    }
+                }
+            } else {
+                // 許可されていないフィールドの場合はデフォルト
+                query = query.order_by_desc(TeamColumn::CreatedAt);
+            }
+        } else {
+            // sort_byが指定されていない場合はデフォルト
+            query = query.order_by_desc(TeamColumn::CreatedAt);
+        }
+
+        query
     }
 }

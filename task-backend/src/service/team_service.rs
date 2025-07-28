@@ -9,6 +9,7 @@ use crate::log_with_context;
 use crate::middleware::subscription_guard::check_feature_limit;
 use crate::service::audit_log_service::{AuditLogService, LogActionParams};
 use crate::utils::email::EmailService;
+use crate::utils::error_helper::internal_server_error;
 
 // Type aliases for domain models
 pub type Team = TeamModel;
@@ -192,41 +193,6 @@ impl TeamService {
         let member_responses = self.build_team_member_responses(&members).await?;
 
         Ok(TeamResponse::from((team, member_responses)))
-    }
-
-    /// チーム一覧を取得
-    pub async fn get_teams(
-        &self,
-        query: TeamSearchQuery,
-        user_id: Uuid,
-    ) -> AppResult<Vec<TeamListResponse>> {
-        log_with_context!(
-            tracing::Level::DEBUG,
-            "Getting teams",
-            "user_id" => user_id,
-            "organization_id" => query.organization_id,
-            "owner_id" => query.owner_id
-        );
-        let teams = if let Some(org_id) = query.organization_id {
-            // 組織のチーム一覧
-            self.team_repository.find_by_organization_id(org_id).await?
-        } else if let Some(owner_id) = query.owner_id {
-            // 特定ユーザーが所有するチーム一覧
-            self.team_repository.find_by_owner_id(owner_id).await?
-        } else {
-            // ユーザーが参加しているチーム一覧
-            self.team_repository.find_teams_by_member(user_id).await?
-        };
-
-        let mut team_responses = Vec::new();
-        for team in teams {
-            let member_count = self.team_repository.count_members(team.id).await? as i32;
-            let mut team_response = TeamListResponse::from(team);
-            team_response.current_member_count = member_count;
-            team_responses.push(team_response);
-        }
-
-        Ok(team_responses)
     }
 
     /// チームを更新
@@ -717,10 +683,85 @@ impl TeamService {
         query: &TeamSearchQuery,
         user_id: Uuid,
     ) -> AppResult<(Vec<TeamListResponse>, u64)> {
-        // 既存のメソッドを使用してページネーションとフィルタリング
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Searching teams",
+            "user_id" => user_id,
+            "search_term" => query.search.as_deref().unwrap_or(""),
+            "organization_id" => query.organization_id.map(|id| id.to_string()).unwrap_or_default()
+        );
+
+        // ページネーション値の取得
         let (page, per_page) = query.pagination.get_pagination();
-        self.get_teams_with_pagination(page as u64, per_page as u64, query.organization_id, user_id)
+
+        // リポジトリのsearch_teamsメソッドを呼び出し
+        let (teams, total) = self
+            .team_repository
+            .search_teams(query, page, per_page)
             .await
+            .map_err(|e| {
+                internal_server_error(e, "team_service::search_teams", "Failed to search teams")
+            })?;
+
+        // TeamモデルをTeamListResponseに変換
+        let mut team_responses = Vec::new();
+        for team in teams {
+            // アクセス権限チェック
+            if self.check_team_access(&team, user_id).await.is_ok() {
+                let member_count =
+                    self.team_repository
+                        .count_members(team.id)
+                        .await
+                        .map_err(|e| {
+                            internal_server_error(
+                                e,
+                                "team_service::search_teams",
+                                "Failed to count team members",
+                            )
+                        })? as u32;
+
+                // 組織情報を取得してサブスクリプション情報を取得
+                let (subscription_tier, max_members) = if let Some(org_id) = team.organization_id {
+                    match self.organization_repository.find_by_id(org_id).await {
+                        Ok(Some(org)) => {
+                            let tier = org.subscription_tier;
+                            let max_members = match tier {
+                                SubscriptionTier::Free => 5,
+                                SubscriptionTier::Pro => 20,
+                                SubscriptionTier::Enterprise => 100,
+                            };
+                            (tier, max_members)
+                        }
+                        _ => (SubscriptionTier::Free, 5),
+                    }
+                } else {
+                    (SubscriptionTier::Free, 5)
+                };
+
+                team_responses.push(TeamListResponse {
+                    id: team.id,
+                    name: team.name,
+                    description: team.description,
+                    organization_id: team.organization_id,
+                    owner_id: team.owner_id,
+                    subscription_tier,
+                    max_members,
+                    current_member_count: member_count as i32,
+                    created_at: Timestamp::from_datetime(team.created_at),
+                });
+            }
+        }
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Teams search completed",
+            "user_id" => user_id,
+            "total_found" => total,
+            "page" => page,
+            "per_page" => per_page
+        );
+
+        Ok((team_responses, total))
     }
 
     /// アクティブなチーム数を取得

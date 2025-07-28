@@ -646,15 +646,17 @@ impl PaymentService {
         Ok(session.url)
     }
 
-    /// ユーザーの支払い履歴を取得
-    pub async fn get_payment_history(
+    /// ユーザーの支払い履歴を取得（ソート付き）
+    pub async fn get_payment_history_sorted(
         &self,
         user_id: Uuid,
         page: u64,
         per_page: u64,
+        sort_by: Option<&str>,
+        sort_order: Option<&str>,
     ) -> AppResult<(Vec<crate::domain::stripe_payment_history_model::Model>, u64)> {
         self.payment_history_repo
-            .find_by_user_id_paginated(user_id, page, per_page)
+            .find_by_user_id_paginated_sorted(user_id, page, per_page, sort_by, sort_order)
             .await
             .map_err(|e| {
                 log_with_context!(
@@ -662,7 +664,11 @@ impl PaymentService {
                     "Failed to get payment history",
                     "error" => &e.to_string()
                 );
-                internal_server_error(e, "payment_service::get_payment_history", "Database error")
+                internal_server_error(
+                    e,
+                    "payment_service::get_payment_history_sorted",
+                    "Database error",
+                )
             })
     }
 }

@@ -155,11 +155,17 @@ pub async fn get_system_stats_handler(
         .validate()
         .map_err(|e| convert_validation_errors(e, "analytics_handler::get_system_stats"))?;
 
-    let days = query.days.unwrap_or(30);
+    let period_end = query.created_before.unwrap_or_else(Utc::now);
+    let period_start = query
+        .created_after
+        .unwrap_or_else(|| period_end - Duration::days(30));
+    let days = (period_end - period_start).num_days() as u32;
     let include_trends = query.include_trends.unwrap_or(false);
 
     info!(
         admin_id = %_admin_user.user_id(),
+        period_start = %period_start,
+        period_end = %period_end,
         days = %days,
         include_trends = %include_trends,
         "System stats requested"
@@ -397,9 +403,11 @@ pub async fn get_user_activity_handler(
         .validate()
         .map_err(|e| convert_validation_errors(e, "analytics_handler::get_user_activity_stats"))?;
 
-    let days = query.days.unwrap_or(30);
-    let period_end = Utc::now();
-    let period_start = period_end - Duration::days(days as i64);
+    let period_end = query.created_before.unwrap_or_else(Utc::now);
+    let period_start = query
+        .created_after
+        .unwrap_or_else(|| period_end - Duration::days(30));
+    let days = (period_end - period_start).num_days() as u32;
 
     info!(
         user_id = %user.claims.user_id,
@@ -497,9 +505,11 @@ pub async fn get_user_activity_admin_handler(
         convert_validation_errors(e, "analytics_handler::admin_get_user_activity_stats")
     })?;
 
-    let days = query.days.unwrap_or(30);
-    let period_end = Utc::now();
-    let period_start = period_end - Duration::days(days as i64);
+    let period_end = query.created_before.unwrap_or_else(Utc::now);
+    let period_start = query
+        .created_after
+        .unwrap_or_else(|| period_end - Duration::days(30));
+    let days = (period_end - period_start).num_days() as u32;
 
     info!(
         admin_id = %_admin_user.user_id(),
@@ -587,7 +597,11 @@ pub async fn get_task_stats_handler(
         convert_validation_errors(e, "analytics_handler::get_task_completion_stats")
     })?;
 
-    let days = query.days.unwrap_or(30);
+    let period_end = query.created_before.unwrap_or_else(Utc::now);
+    let period_start = query
+        .created_after
+        .unwrap_or_else(|| period_end - Duration::days(30));
+    let days = (period_end - period_start).num_days() as u32;
     let detailed = query.detailed.unwrap_or(false);
 
     info!(
@@ -710,9 +724,9 @@ pub async fn get_user_behavior_analytics_handler(
     }
 
     let from_date = query
-        .from_date
+        .created_after
         .unwrap_or_else(|| Utc::now() - Duration::days(30));
-    let to_date = query.to_date.unwrap_or_else(Utc::now);
+    let to_date = query.created_before.unwrap_or_else(Utc::now);
     let include_comparisons = query.include_comparisons.unwrap_or(false);
 
     info!(
@@ -1212,7 +1226,11 @@ pub async fn get_advanced_analytics_handler(
         ));
     }
 
-    let days = query.days.unwrap_or(30);
+    let period_end = query.created_before.unwrap_or_else(Utc::now);
+    let period_start = query
+        .created_after
+        .unwrap_or_else(|| period_end - Duration::days(30));
+    let days = (period_end - period_start).num_days() as u32;
 
     info!(
         user_id = %user.user_id(),
@@ -1806,7 +1824,11 @@ pub async fn get_feature_usage_stats_handler(
 ) -> AppResult<ApiResponse<FeatureUsageStatsResponse>> {
     // 権限チェックはミドルウェアで実施済み
 
-    let days = query.days.unwrap_or(30) as i64;
+    let period_end = query.created_before.unwrap_or_else(Utc::now);
+    let period_start = query
+        .created_after
+        .unwrap_or_else(|| period_end - Duration::days(30));
+    let days = (period_end - period_start).num_days();
 
     info!(
         admin_id = %_admin_user.user_id(),
@@ -1896,7 +1918,11 @@ pub async fn get_user_feature_usage_handler(
 ) -> AppResult<ApiResponse<UserFeatureUsageResponse>> {
     // 権限チェックはミドルウェアで実施済み
 
-    let days = query.days.unwrap_or(30) as i64;
+    let period_end = query.created_before.unwrap_or_else(Utc::now);
+    let period_start = query
+        .created_after
+        .unwrap_or_else(|| period_end - Duration::days(30));
+    let days = (period_end - period_start).num_days();
 
     info!(
         admin_id = %_admin_user.user_id(),
@@ -2119,18 +2145,20 @@ mod tests {
     #[test]
     fn test_stats_period_query_validation() {
         let valid_query = StatsPeriodQuery {
-            days: Some(30),
+            created_after: Some(Utc::now() - Duration::days(30)),
+            created_before: Some(Utc::now()),
             include_trends: Some(true),
             detailed: Some(false),
         };
         assert!(valid_query.validate().is_ok());
 
-        let invalid_query = StatsPeriodQuery {
-            days: Some(400), // Invalid: > 365
+        let query_with_defaults = StatsPeriodQuery {
+            created_after: None,
+            created_before: None,
             include_trends: Some(true),
             detailed: Some(false),
         };
-        assert!(invalid_query.validate().is_err());
+        assert!(query_with_defaults.validate().is_ok());
     }
 
     #[test]

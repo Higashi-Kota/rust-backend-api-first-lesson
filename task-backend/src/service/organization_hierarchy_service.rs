@@ -1,3 +1,4 @@
+use crate::api::dto::organization_hierarchy_dto::DepartmentSearchQuery;
 use crate::domain::{
     department_member_model::{self, DepartmentRole},
     organization_analytics_model::{self, AnalyticsType, MetricValue, Period},
@@ -29,6 +30,51 @@ impl OrganizationHierarchyService {
     ) -> Result<Vec<organization_department_model::Model>, AppError> {
         OrganizationDepartmentRepository::find_hierarchy_by_organization_id(db, organization_id)
             .await
+    }
+
+    // 統一クエリパラメータを使用した部門検索
+    pub async fn search_departments(
+        db: &DatabaseConnection,
+        query: &DepartmentSearchQuery,
+        organization_id: Uuid,
+    ) -> Result<(Vec<organization_department_model::Model>, u64), AppError> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Searching departments",
+            "organization_id" => organization_id,
+            "search_term" => query.search.as_deref().unwrap_or("")
+        );
+
+        // ページネーション値の取得
+        let (page, per_page) = query.pagination.get_pagination();
+
+        // リポジトリのsearch_departmentsメソッドを呼び出し
+        let (departments, total) = OrganizationDepartmentRepository::search_departments(
+            db,
+            query,
+            organization_id,
+            page,
+            per_page,
+        )
+        .await
+        .map_err(|e| {
+            internal_server_error(
+                e,
+                "organization_hierarchy_service::search_departments",
+                "Failed to search departments",
+            )
+        })?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Departments search completed",
+            "organization_id" => organization_id,
+            "total_found" => total,
+            "page" => page,
+            "per_page" => per_page
+        );
+
+        Ok((departments, total))
     }
 
     // 部門の作成

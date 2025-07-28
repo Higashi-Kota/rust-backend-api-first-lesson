@@ -3,9 +3,11 @@ use crate::domain::{
     organization_analytics_model::{AnalyticsType, MetricValue, Period},
     permission_matrix_model::{ComplianceSettings, InheritanceSettings, PermissionMatrix},
 };
-use crate::types::{optional_timestamp, Timestamp};
+use crate::types::query::{PaginationQuery, SearchQuery};
+use crate::types::{optional_timestamp, SortQuery, Timestamp};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -194,19 +196,53 @@ pub struct BulkDepartmentOperationResponseDto {
 }
 
 // Query Parameters DTOs
-#[derive(Debug, Serialize, Deserialize, Validate)]
-pub struct DepartmentQueryParams {
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Validate)]
+pub struct DepartmentSearchQuery {
+    #[serde(flatten)]
+    pub pagination: PaginationQuery,
+    #[serde(flatten)]
+    pub sort: SortQuery,
+    pub search: Option<String>,
     pub include_children: Option<bool>,
     pub include_members: Option<bool>,
     pub active_only: Option<bool>,
 }
 
+impl DepartmentSearchQuery {
+    /// 許可されたソートフィールド
+    pub fn allowed_sort_fields() -> &'static [&'static str] {
+        &["name", "created_at", "updated_at", "path"]
+    }
+}
+
+impl SearchQuery for DepartmentSearchQuery {
+    fn search_term(&self) -> Option<&str> {
+        self.search.as_deref()
+    }
+
+    fn filters(&self) -> HashMap<String, String> {
+        let mut filters = HashMap::new();
+
+        if let Some(include_children) = &self.include_children {
+            filters.insert("include_children".to_string(), include_children.to_string());
+        }
+        if let Some(include_members) = &self.include_members {
+            filters.insert("include_members".to_string(), include_members.to_string());
+        }
+        if let Some(active_only) = &self.active_only {
+            filters.insert("active_only".to_string(), active_only.to_string());
+        }
+
+        filters
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct AnalyticsQueryParams {
     #[serde(default, with = "optional_timestamp")]
-    pub start_date: Option<DateTime<Utc>>,
+    pub created_after: Option<DateTime<Utc>>,
     #[serde(default, with = "optional_timestamp")]
-    pub end_date: Option<DateTime<Utc>>,
+    pub created_before: Option<DateTime<Utc>>,
     pub department_id: Option<Uuid>,
     pub metric_names: Option<Vec<String>>,
 }

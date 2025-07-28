@@ -13,6 +13,7 @@ use crate::repository::team_repository::TeamRepository;
 use crate::repository::user_repository::UserRepository;
 use crate::service::audit_log_service::{AuditLogService, LogActionParams};
 use crate::types::Timestamp;
+use crate::utils::error_helper::internal_server_error;
 use serde_json;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -654,25 +655,39 @@ impl OrganizationService {
         query: &OrganizationSearchQuery,
         user_id: Uuid,
     ) -> AppResult<(Vec<Organization>, u64)> {
-        // 現在は既存のメソッドを使用してフィルタリング
-        let organizations = self
-            .organization_repository
-            .find_organizations_by_member(user_id)
-            .await?;
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Searching organizations",
+            "user_id" => user_id,
+            "search_term" => query.search.as_deref().unwrap_or("")
+        );
 
-        let total = organizations.len() as u64;
-
-        // ページネーション適用
+        // ページネーション値の取得
         let (page, per_page) = query.pagination.get_pagination();
-        let start = ((page - 1) * per_page) as usize;
-        let end = (start + per_page as usize).min(organizations.len());
-        let paginated = organizations
-            .into_iter()
-            .skip(start)
-            .take(end - start)
-            .collect();
 
-        Ok((paginated, total))
+        // リポジトリのsearch_organizationsメソッドを呼び出し
+        let (organizations, total) = self
+            .organization_repository
+            .search_organizations(query, page, per_page)
+            .await
+            .map_err(|e| {
+                internal_server_error(
+                    e,
+                    "organization_service::search_organizations",
+                    "Failed to search organizations",
+                )
+            })?;
+
+        log_with_context!(
+            tracing::Level::INFO,
+            "Organizations search completed",
+            "user_id" => user_id,
+            "total_found" => total,
+            "page" => page,
+            "per_page" => per_page
+        );
+
+        Ok((organizations, total as u64))
     }
 
     /// 組織統計を取得

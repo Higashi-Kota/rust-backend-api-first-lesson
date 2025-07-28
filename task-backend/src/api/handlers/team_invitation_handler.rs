@@ -371,6 +371,19 @@ pub async fn get_invitations_with_pagination(
     let service = &app_state.team_invitation_service;
 
     let (page, page_size) = query.pagination.get_pagination();
+    let sort_by = query.sort.sort_by.as_deref();
+    let sort_order = query.sort.sort_order.as_str();
+
+    // ソートフィールドの検証
+    if let Some(field) = sort_by {
+        if !TeamInvitationQuery::allowed_sort_fields().contains(&field) {
+            return Err(AppError::BadRequest(format!(
+                "Invalid sort field: {}. Allowed fields: {:?}",
+                field,
+                TeamInvitationQuery::allowed_sort_fields()
+            )));
+        }
+    }
 
     let (invitations, total_count) = service
         .get_invitations_with_pagination(
@@ -379,6 +392,8 @@ pub async fn get_invitations_with_pagination(
             page_size as u64,
             query.status.clone(),
             user.user_id(),
+            sort_by,
+            sort_order,
         )
         .await?;
 

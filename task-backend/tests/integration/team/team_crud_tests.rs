@@ -172,7 +172,9 @@ async fn test_list_teams() {
 
     assert!(list_response["success"].as_bool().unwrap());
 
-    let teams = list_response["data"].as_array().unwrap();
+    // 統一フォーマット: ApiResponse<PaginatedResponse<T>>
+    let data = list_response["data"].as_object().unwrap();
+    let teams = data["items"].as_array().unwrap();
     assert_eq!(teams.len(), 1); // Freeティアでは1チームのみ
 }
 

@@ -154,22 +154,6 @@ where
     Uuid::parse_str(&s).map_err(serde::de::Error::custom)
 }
 
-/// オプショナルUUID用のカスタムデシリアライザ
-#[allow(dead_code)]
-pub fn deserialize_option_uuid<'de, D>(deserializer: D) -> Result<Option<Uuid>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s: Option<String> = Option::deserialize(deserializer)?;
-    match s {
-        Some(uuid_str) => {
-            let uuid = Uuid::parse_str(&uuid_str).map_err(serde::de::Error::custom)?;
-            Ok(Some(uuid))
-        }
-        None => Ok(None),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

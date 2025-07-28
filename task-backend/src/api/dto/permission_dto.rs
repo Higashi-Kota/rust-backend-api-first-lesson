@@ -452,9 +452,9 @@ pub struct SystemPermissionAuditQuery {
     pub resource: Option<String>,
     pub action: Option<String>,
     #[serde(default, with = "optional_timestamp")]
-    pub from_date: Option<DateTime<Utc>>,
+    pub created_after: Option<DateTime<Utc>>,
     #[serde(default, with = "optional_timestamp")]
-    pub to_date: Option<DateTime<Utc>>,
+    pub created_before: Option<DateTime<Utc>>,
 }
 
 /// リソース固有権限チェックレスポンス

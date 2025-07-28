@@ -68,6 +68,45 @@ impl RoleService {
         Ok((paginated_roles, total_count))
     }
 
+    /// ページネーション付きでロールを取得（ソート機能付き）
+    pub async fn list_all_roles_paginated_sorted(
+        &self,
+        page: i32,
+        per_page: i32,
+        sort_by: Option<&str>,
+        sort_order: &str,
+    ) -> AppResult<(Vec<RoleWithPermissions>, usize)> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Fetching all roles with pagination and sorting",
+            "page" => page,
+            "per_page" => per_page,
+            "sort_by" => sort_by.unwrap_or("default"),
+            "sort_order" => sort_order
+        );
+
+        // データベースレベルでソート済みのロールを取得
+        let all_roles = self
+            .role_repository
+            .find_all_sorted(sort_by, sort_order)
+            .await
+            .map_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to fetch all sorted roles",
+                    "error" => &e.to_string()
+                );
+                AppError::InternalServerError("Failed to fetch roles".to_string())
+            })?;
+
+        let total_count = all_roles.len();
+        let page_size = per_page as usize;
+        let offset = ((page - 1) * per_page) as usize;
+        let paginated_roles = all_roles.into_iter().skip(offset).take(page_size).collect();
+
+        Ok((paginated_roles, total_count))
+    }
+
     /// ページネーション付きでアクティブなロールを取得
     pub async fn list_active_roles_paginated(
         &self,
@@ -95,6 +134,45 @@ impl RoleService {
         let page_size = per_page as usize;
         let offset = ((page - 1) * per_page) as usize;
 
+        let paginated_roles = all_roles.into_iter().skip(offset).take(page_size).collect();
+
+        Ok((paginated_roles, total_count))
+    }
+
+    /// ページネーション付きでアクティブなロールを取得（ソート機能付き）
+    pub async fn list_active_roles_paginated_sorted(
+        &self,
+        page: i32,
+        per_page: i32,
+        sort_by: Option<&str>,
+        sort_order: &str,
+    ) -> AppResult<(Vec<RoleWithPermissions>, usize)> {
+        log_with_context!(
+            tracing::Level::DEBUG,
+            "Fetching active roles with pagination and sorting",
+            "page" => page,
+            "per_page" => per_page,
+            "sort_by" => sort_by.unwrap_or("default"),
+            "sort_order" => sort_order
+        );
+
+        // データベースレベルでソート済みのアクティブロールを取得
+        let all_roles = self
+            .role_repository
+            .find_all_active_sorted(sort_by, sort_order)
+            .await
+            .map_err(|e| {
+                log_with_context!(
+                    tracing::Level::ERROR,
+                    "Failed to fetch active sorted roles",
+                    "error" => &e.to_string()
+                );
+                AppError::InternalServerError("Failed to fetch active roles".to_string())
+            })?;
+
+        let total_count = all_roles.len();
+        let page_size = per_page as usize;
+        let offset = ((page - 1) * per_page) as usize;
         let paginated_roles = all_roles.into_iter().skip(offset).take(page_size).collect();
 
         Ok((paginated_roles, total_count))

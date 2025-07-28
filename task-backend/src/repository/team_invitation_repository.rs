@@ -189,6 +189,8 @@ impl TeamInvitationRepository {
         page: u64,
         page_size: u64,
         status_filter: Option<TeamInvitationStatus>,
+        sort_by: Option<&str>,
+        sort_order: &str,
     ) -> AppResult<(Vec<TeamInvitation>, u64)> {
         let mut query =
             TeamInvitationEntity::find().filter(TeamInvitationColumn::TeamId.eq(team_id));
@@ -197,9 +199,40 @@ impl TeamInvitationRepository {
             query = query.filter(TeamInvitationColumn::Status.eq(status.to_string()));
         }
 
-        let paginator = query
-            .order_by_desc(TeamInvitationColumn::CreatedAt)
-            .paginate(&self.db, page_size);
+        // データベースレベルでのソート適用
+        query = match sort_by {
+            Some("created_at") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(TeamInvitationColumn::CreatedAt)
+                } else {
+                    query.order_by_asc(TeamInvitationColumn::CreatedAt)
+                }
+            }
+            Some("expires_at") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(TeamInvitationColumn::ExpiresAt)
+                } else {
+                    query.order_by_asc(TeamInvitationColumn::ExpiresAt)
+                }
+            }
+            Some("invitee_email") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(TeamInvitationColumn::InvitedEmail)
+                } else {
+                    query.order_by_asc(TeamInvitationColumn::InvitedEmail)
+                }
+            }
+            Some("status") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(TeamInvitationColumn::Status)
+                } else {
+                    query.order_by_asc(TeamInvitationColumn::Status)
+                }
+            }
+            _ => query.order_by_desc(TeamInvitationColumn::CreatedAt), // デフォルト
+        };
+
+        let paginator = query.paginate(&self.db, page_size);
 
         let total_items = paginator.num_items().await.map_err(map_db_error)?;
         let models = paginator.fetch_page(page - 1).await.map_err(map_db_error)?;

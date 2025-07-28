@@ -23,7 +23,6 @@ use crate::api::handlers::{
     analytics_handler::analytics_router_with_state, attachment_handler::attachment_routes,
     audit_log_handler::audit_log_router, auth_handler::auth_router_with_state,
     gdpr_handler::gdpr_router_with_state, organization_handler::organization_router_with_state,
-    organization_hierarchy_handler::organization_hierarchy_router,
     payment_handler::payment_router_with_state, permission_handler::permission_router_with_state,
     role_handler::role_router_with_state, security_handler::security_router,
     subscription_handler::subscription_router_with_state, system_handler::system_router_with_state,
@@ -370,7 +369,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let security_router = security_router(app_state.clone());
     let system_router = system_router_with_state(Arc::new(app_state.clone()));
     let admin_router = admin_router(app_state.clone());
-    let hierarchy_router = organization_hierarchy_router(app_state.clone());
+    // hierarchy_routerのルートはorganization_routerに統合された
+    // let hierarchy_router = organization_hierarchy_router(app_state.clone());
     let gdpr_router = gdpr_router_with_state(app_state.clone());
 
     // メインアプリケーションルーターの構築
@@ -388,7 +388,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .merge(security_router)
         .merge(system_router)
         .merge(admin_router)
-        .merge(hierarchy_router)
+        // .merge(hierarchy_router) // organization_routerに統合済み
         .merge(gdpr_router)
         .merge(attachment_routes(app_state.clone()))
         .merge(activity_log_router(app_state.clone()))
@@ -397,15 +397,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "/",
             axum::routing::get(|| async { "Task Backend API v1.0" }),
         )
-        .layer(cors_layer())
-        .layer(axum_middleware::from_fn(security_headers_middleware))
-        .layer(axum_middleware::from_fn(
-            crate::logging::inject_request_context,
-        ))
-        .layer(axum_middleware::from_fn(crate::logging::logging_middleware))
+        .layer(TraceLayer::new_for_http())
         .layer(axum_middleware::from_fn_with_state(
-            middleware::activity_logger::ActivityLogger::new(activity_log_repo.clone()),
-            middleware::activity_logger::log_activity,
+            auth_middleware_config,
+            jwt_auth_middleware,
         ))
         // レート制限ミドルウェアは型の問題で一時的にコメントアウト
         // TODO: rate_limit_middlewareの型を修正
@@ -414,10 +409,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         //     rate_limit_middleware,
         // ))
         .layer(axum_middleware::from_fn_with_state(
-            auth_middleware_config,
-            jwt_auth_middleware,
+            middleware::activity_logger::ActivityLogger::new(activity_log_repo.clone()),
+            middleware::activity_logger::log_activity,
         ))
-        .layer(TraceLayer::new_for_http());
+        .layer(axum_middleware::from_fn(crate::logging::logging_middleware))
+        .layer(axum_middleware::from_fn(
+            crate::logging::inject_request_context,
+        ))
+        .layer(axum_middleware::from_fn(security_headers_middleware))
+        .layer(cors_layer());
 
     tracing::info!("🛣️  Routers configured:");
     tracing::info!("   • Authentication: /auth/*");

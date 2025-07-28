@@ -75,6 +75,128 @@ impl RoleRepository {
         Ok(role_permissions)
     }
 
+    /// すべてのロールを取得（ソート機能付き）
+    pub async fn find_all_sorted(
+        &self,
+        sort_by: Option<&str>,
+        sort_order: &str,
+    ) -> AppResult<Vec<RoleWithPermissions>> {
+        let mut query = Role::find();
+
+        // データベースレベルでのソート適用
+        query = match sort_by {
+            Some("name") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(role_model::Column::Name)
+                } else {
+                    query.order_by_asc(role_model::Column::Name)
+                }
+            }
+            Some("display_name") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(role_model::Column::DisplayName)
+                } else {
+                    query.order_by_asc(role_model::Column::DisplayName)
+                }
+            }
+            Some("created_at") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(role_model::Column::CreatedAt)
+                } else {
+                    query.order_by_asc(role_model::Column::CreatedAt)
+                }
+            }
+            Some("updated_at") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(role_model::Column::UpdatedAt)
+                } else {
+                    query.order_by_asc(role_model::Column::UpdatedAt)
+                }
+            }
+            _ => query.order_by_asc(role_model::Column::Name), // デフォルト
+        };
+
+        let roles = query.all(self.db.as_ref()).await.map_err(|e| {
+            error!(error = %e, "Failed to fetch all roles");
+            AppError::InternalServerError("Failed to fetch roles".to_string())
+        })?;
+
+        let mut role_permissions = Vec::new();
+        for role in roles {
+            match RoleWithPermissions::from_model(role) {
+                Ok(role_with_perms) => role_permissions.push(role_with_perms),
+                Err(e) => {
+                    warn!(error = %e, "Invalid role data in database");
+                    continue;
+                }
+            }
+        }
+
+        info!(count = %role_permissions.len(), "Successfully fetched all sorted roles");
+        Ok(role_permissions)
+    }
+
+    /// アクティブなロールのみ取得（ソート機能付き）
+    pub async fn find_all_active_sorted(
+        &self,
+        sort_by: Option<&str>,
+        sort_order: &str,
+    ) -> AppResult<Vec<RoleWithPermissions>> {
+        let mut query = Role::find().filter(role_model::Column::IsActive.eq(true));
+
+        // データベースレベルでのソート適用
+        query = match sort_by {
+            Some("name") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(role_model::Column::Name)
+                } else {
+                    query.order_by_asc(role_model::Column::Name)
+                }
+            }
+            Some("display_name") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(role_model::Column::DisplayName)
+                } else {
+                    query.order_by_asc(role_model::Column::DisplayName)
+                }
+            }
+            Some("created_at") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(role_model::Column::CreatedAt)
+                } else {
+                    query.order_by_asc(role_model::Column::CreatedAt)
+                }
+            }
+            Some("updated_at") => {
+                if sort_order == "desc" {
+                    query.order_by_desc(role_model::Column::UpdatedAt)
+                } else {
+                    query.order_by_asc(role_model::Column::UpdatedAt)
+                }
+            }
+            _ => query.order_by_asc(role_model::Column::Name), // デフォルト
+        };
+
+        let roles = query.all(self.db.as_ref()).await.map_err(|e| {
+            error!(error = %e, "Failed to fetch active roles");
+            AppError::InternalServerError("Failed to fetch active roles".to_string())
+        })?;
+
+        let mut role_permissions = Vec::new();
+        for role in roles {
+            match RoleWithPermissions::from_model(role) {
+                Ok(role_with_perms) => role_permissions.push(role_with_perms),
+                Err(e) => {
+                    warn!(error = %e, "Invalid active role data in database");
+                    continue;
+                }
+            }
+        }
+
+        info!(count = %role_permissions.len(), "Successfully fetched active sorted roles");
+        Ok(role_permissions)
+    }
+
     /// IDでロールを取得
     pub async fn find_by_id(&self, id: Uuid) -> AppResult<Option<RoleWithPermissions>> {
         let role = Role::find_by_id(id)

@@ -397,7 +397,9 @@ async fn test_team_visibility_in_list() {
         .await
         .unwrap();
     let list_response1: Value = serde_json::from_slice(&list_body1).unwrap();
-    let teams1 = list_response1["data"].as_array().unwrap();
+    // 統一フォーマット: ApiResponse<PaginatedResponse<T>>
+    let data1 = list_response1["data"].as_object().unwrap();
+    let teams1 = data1["items"].as_array().unwrap();
 
     // User1は少なくとも自分のチームを見ることができる
     assert!(teams1.iter().any(|team| team["name"] == team1_name));
@@ -413,7 +415,9 @@ async fn test_team_visibility_in_list() {
         .await
         .unwrap();
     let list_response2: Value = serde_json::from_slice(&list_body2).unwrap();
-    let teams2 = list_response2["data"].as_array().unwrap();
+    // 統一フォーマット: ApiResponse<PaginatedResponse<T>>
+    let data2 = list_response2["data"].as_object().unwrap();
+    let teams2 = data2["items"].as_array().unwrap();
 
     // User2は自分のチームとUser1のチームを見ることができる
     assert!(teams2.iter().any(|team| team["name"] == team2_name));
@@ -430,7 +434,9 @@ async fn test_team_visibility_in_list() {
         .await
         .unwrap();
     let list_response3: Value = serde_json::from_slice(&list_body3).unwrap();
-    let teams3 = list_response3["data"].as_array().unwrap();
+    // 統一フォーマット: ApiResponse<PaginatedResponse<T>>
+    let data3 = list_response3["data"].as_object().unwrap();
+    let teams3 = data3["items"].as_array().unwrap();
 
     // User3は他人のチームを見ることができない
     assert!(!teams3.iter().any(|team| team["name"] == team1_name));

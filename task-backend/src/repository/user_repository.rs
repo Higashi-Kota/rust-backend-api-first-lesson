@@ -1,10 +1,12 @@
 // src/repository/user_repository.rs
 
+use crate::api::dto::user_dto::UserSearchQuery;
 use crate::db;
 use crate::domain::role_model::{self, Entity as RoleEntity, RoleWithPermissions};
 use crate::domain::user_model::{
     self, ActiveModel as UserActiveModel, Entity as UserEntity, SafeUserWithRole,
 };
+use crate::types::{SortOrder, SortQuery};
 use sea_orm::entity::*;
 use sea_orm::{Condition, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
 use sea_orm::{DbConn, DbErr, DeleteResult, JoinType, Set};
@@ -275,11 +277,13 @@ impl UserRepository {
         }
     }
 
-    /// ページネーション付きで全ユーザーをロール情報と一緒に取得
-    pub async fn find_all_with_roles_paginated(
+    /// ページネーション付きで全ユーザーをロール情報と一緒に取得（ソート機能付き）
+    pub async fn find_all_with_roles_paginated_sorted(
         &self,
         page: i32,
         per_page: i32,
+        sort_by: Option<&str>,
+        sort_order: &str,
     ) -> Result<Vec<SafeUserWithRole>, DbErr> {
         self.prepare_connection().await?;
 
@@ -287,14 +291,37 @@ impl UserRepository {
         let page_size = per_page as u64;
         let offset = ((page - 1) * per_page) as u64;
 
-        let results = UserEntity::find()
+        let mut query = UserEntity::find()
             .join(JoinType::InnerJoin, user_model::Relation::Role.def())
-            .select_also(RoleEntity)
-            .order_by(user_model::Column::CreatedAt, Order::Desc)
-            .limit(page_size)
-            .offset(offset)
-            .all(&self.db)
-            .await?;
+            .select_also(RoleEntity);
+
+        // データベースレベルでのソート適用
+        query = match sort_by {
+            Some("username") => {
+                if sort_order == "desc" {
+                    query.order_by(user_model::Column::Username, Order::Desc)
+                } else {
+                    query.order_by(user_model::Column::Username, Order::Asc)
+                }
+            }
+            Some("email") => {
+                if sort_order == "desc" {
+                    query.order_by(user_model::Column::Email, Order::Desc)
+                } else {
+                    query.order_by(user_model::Column::Email, Order::Asc)
+                }
+            }
+            Some("created_at") => {
+                if sort_order == "desc" {
+                    query.order_by(user_model::Column::CreatedAt, Order::Desc)
+                } else {
+                    query.order_by(user_model::Column::CreatedAt, Order::Asc)
+                }
+            }
+            _ => query.order_by(user_model::Column::CreatedAt, Order::Desc), // デフォルト
+        };
+
+        let results = query.limit(page_size).offset(offset).all(&self.db).await?;
 
         let mut users_with_roles = Vec::new();
         for (user, role_opt) in results {
@@ -493,12 +520,13 @@ impl UserRepository {
         Ok(role_stats.into_values().collect())
     }
 
-    /// ユーザー検索（管理者用）
-    pub async fn search_users(
+    /// ユーザー検索（ソート機能付き、管理者用）
+    pub async fn search_users_with_sort(
         &self,
         query: Option<String>,
         is_active: Option<bool>,
         email_verified: Option<bool>,
+        sort: Option<&SortQuery>,
         page: i32,
         per_page: i32,
     ) -> Result<Vec<SafeUserWithRole>, DbErr> {
@@ -527,15 +555,15 @@ impl UserRepository {
         let page_size = per_page as u64;
         let offset = ((page - 1) * per_page) as u64;
 
-        let results = UserEntity::find()
+        let mut query = UserEntity::find()
             .filter(condition)
             .join(JoinType::InnerJoin, user_model::Relation::Role.def())
-            .select_also(RoleEntity)
-            .order_by(user_model::Column::CreatedAt, Order::Desc)
-            .limit(page_size)
-            .offset(offset)
-            .all(&self.db)
-            .await?;
+            .select_also(RoleEntity);
+
+        // ソートの適用
+        query = self.apply_sorting(query, sort);
+
+        let results = query.limit(page_size).offset(offset).all(&self.db).await?;
 
         let mut users_with_roles = Vec::new();
         for (user, role_opt) in results {
@@ -550,6 +578,96 @@ impl UserRepository {
         }
 
         Ok(users_with_roles)
+    }
+
+    // ソート適用ヘルパー
+    fn apply_sorting<F>(&self, mut query: F, sort: Option<&SortQuery>) -> F
+    where
+        F: QueryOrder,
+    {
+        if let Some(sort) = sort {
+            if let Some(sort_by) = &sort.sort_by {
+                let allowed_fields = UserSearchQuery::allowed_sort_fields();
+
+                if allowed_fields.contains(&sort_by.as_str()) {
+                    match sort_by.as_str() {
+                        "username" => {
+                            query = match sort.sort_order {
+                                SortOrder::Asc => query.order_by_asc(user_model::Column::Username),
+                                SortOrder::Desc => {
+                                    query.order_by_desc(user_model::Column::Username)
+                                }
+                            };
+                        }
+                        "email" => {
+                            query = match sort.sort_order {
+                                SortOrder::Asc => query.order_by_asc(user_model::Column::Email),
+                                SortOrder::Desc => query.order_by_desc(user_model::Column::Email),
+                            };
+                        }
+                        "created_at" => {
+                            query = match sort.sort_order {
+                                SortOrder::Asc => query.order_by_asc(user_model::Column::CreatedAt),
+                                SortOrder::Desc => {
+                                    query.order_by_desc(user_model::Column::CreatedAt)
+                                }
+                            };
+                        }
+                        "updated_at" => {
+                            query = match sort.sort_order {
+                                SortOrder::Asc => query.order_by_asc(user_model::Column::UpdatedAt),
+                                SortOrder::Desc => {
+                                    query.order_by_desc(user_model::Column::UpdatedAt)
+                                }
+                            };
+                        }
+                        "last_login_at" => {
+                            query = match sort.sort_order {
+                                SortOrder::Asc => {
+                                    query.order_by_asc(user_model::Column::LastLoginAt)
+                                }
+                                SortOrder::Desc => {
+                                    query.order_by_desc(user_model::Column::LastLoginAt)
+                                }
+                            };
+                        }
+                        "is_active" => {
+                            query = match sort.sort_order {
+                                SortOrder::Asc => query.order_by_asc(user_model::Column::IsActive),
+                                SortOrder::Desc => {
+                                    query.order_by_desc(user_model::Column::IsActive)
+                                }
+                            };
+                        }
+                        "email_verified" => {
+                            query = match sort.sort_order {
+                                SortOrder::Asc => {
+                                    query.order_by_asc(user_model::Column::EmailVerified)
+                                }
+                                SortOrder::Desc => {
+                                    query.order_by_desc(user_model::Column::EmailVerified)
+                                }
+                            };
+                        }
+                        _ => {
+                            // デフォルトは作成日時の降順
+                            query = query.order_by_desc(user_model::Column::CreatedAt);
+                        }
+                    }
+                } else {
+                    // 許可されていないフィールドの場合はデフォルト
+                    query = query.order_by_desc(user_model::Column::CreatedAt);
+                }
+            } else {
+                // sort_byが指定されていない場合はデフォルト
+                query = query.order_by_desc(user_model::Column::CreatedAt);
+            }
+        } else {
+            // sortが指定されていない場合はデフォルト
+            query = query.order_by_desc(user_model::Column::CreatedAt);
+        }
+
+        query
     }
 
     /// ユーザー検索の総件数を取得（管理者用）

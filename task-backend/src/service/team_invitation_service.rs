@@ -474,6 +474,7 @@ impl TeamInvitationService {
     }
 
     /// 招待一覧をページング付きで取得
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_invitations_with_pagination(
         &self,
         team_id: Uuid,
@@ -481,6 +482,8 @@ impl TeamInvitationService {
         page_size: u64,
         status_filter: Option<TeamInvitationStatus>,
         requester_id: Uuid,
+        sort_by: Option<&str>,
+        sort_order: &str,
     ) -> AppResult<(Vec<TeamInvitationModel>, u64)> {
         // チーム権限確認
         if !self
@@ -493,7 +496,7 @@ impl TeamInvitationService {
         }
 
         self.team_invitation_repository
-            .find_with_pagination(team_id, page, page_size, status_filter)
+            .find_with_pagination(team_id, page, page_size, status_filter, sort_by, sort_order)
             .await
     }
 

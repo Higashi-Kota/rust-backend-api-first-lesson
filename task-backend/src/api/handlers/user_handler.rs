@@ -465,41 +465,30 @@ pub async fn advanced_search_users_handler(
         "Advanced user search request"
     );
 
-    // 詳細検索機能付きでユーザー一覧を取得
-    let (mut users_with_roles, total_count) = app_state
-        .user_service
-        .list_users_with_roles_paginated(page, per_page)
-        .await?;
-
-    // ソート処理を適用
-    if let Some(sort_field) = &query.sort.sort_by {
-        use crate::types::SortOrder;
-
-        match sort_field.as_str() {
-            "username" => {
-                users_with_roles.sort_by(|a, b| match query.sort.sort_order {
-                    SortOrder::Asc => a.username.cmp(&b.username),
-                    SortOrder::Desc => b.username.cmp(&a.username),
-                });
-            }
-            "email" => {
-                users_with_roles.sort_by(|a, b| match query.sort.sort_order {
-                    SortOrder::Asc => a.email.cmp(&b.email),
-                    SortOrder::Desc => b.email.cmp(&a.email),
-                });
-            }
-            "created_at" => {
-                users_with_roles.sort_by(|a, b| match query.sort.sort_order {
-                    SortOrder::Asc => a.created_at.cmp(&b.created_at),
-                    SortOrder::Desc => b.created_at.cmp(&a.created_at),
-                });
-            }
-            _ => {
-                // デフォルトはcreated_atでソート
-                users_with_roles.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-            }
+    // ソートフィールドの検証
+    if let Some(field) = query.sort.sort_by.as_deref() {
+        const ALLOWED_SORT_FIELDS: &[&str] = &["username", "email", "created_at"];
+        if !ALLOWED_SORT_FIELDS.contains(&field) {
+            return Err(AppError::BadRequest(format!(
+                "Invalid sort field: {}. Allowed fields: {:?}",
+                field, ALLOWED_SORT_FIELDS
+            )));
         }
     }
+
+    // 詳細検索機能付きでユーザー一覧を取得（データベースレベルでソート）
+    let (users_with_roles, total_count) = app_state
+        .user_service
+        .list_users_with_roles_paginated_sorted(
+            page,
+            per_page,
+            query.sort.sort_by.as_deref(),
+            match query.sort.sort_order {
+                crate::types::SortOrder::Asc => "asc",
+                crate::types::SortOrder::Desc => "desc",
+            },
+        )
+        .await?;
 
     // SafeUserWithRoleをUserSummaryに変換（タスク数を含む）
     let mut user_summaries: Vec<UserSummary> = Vec::new();

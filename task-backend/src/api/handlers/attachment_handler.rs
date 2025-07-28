@@ -101,7 +101,7 @@ pub async fn list_attachments_handler(
     State(app_state): State<AppState>,
     user: AuthenticatedUser,
     ValidatedUuid(task_id): ValidatedUuid,
-    Query(query): Query<AttachmentSearchQuery>,
+    Query(mut query): Query<AttachmentSearchQuery>,
 ) -> AppResult<impl IntoResponse> {
     info!(
         user_id = %user.user_id(),
@@ -111,43 +111,18 @@ pub async fn list_attachments_handler(
 
     let attachment_service = &app_state.attachment_service;
 
-    let (page, per_page) = query.pagination.get_pagination();
-    let page = page as u64;
-    let per_page = per_page as u64; // ページサイズはget_pagination()で制限済み
+    // タスクIDをクエリに設定
+    query.task_id = Some(task_id);
 
-    // Convert sort fields to match the service interface
-    let sort_by = query
-        .sort
-        .sort_by
-        .as_ref()
-        .and_then(|field| match field.as_str() {
-            "file_name" => Some(crate::api::dto::attachment_dto::AttachmentSortBy::FileName),
-            "file_size" => Some(crate::api::dto::attachment_dto::AttachmentSortBy::FileSize),
-            "created_at" => Some(crate::api::dto::attachment_dto::AttachmentSortBy::CreatedAt),
-            "updated_at" => Some(crate::api::dto::attachment_dto::AttachmentSortBy::UpdatedAt),
-            _ => None,
-        });
-    let sort_order = match query.sort.sort_order {
-        crate::types::SortOrder::Asc => crate::api::dto::attachment_dto::SortOrder::Asc,
-        crate::types::SortOrder::Desc => crate::api::dto::attachment_dto::SortOrder::Desc,
-    };
-
-    // ページング付きで取得
+    // 統一されたsearch_attachmentsメソッドを使用
     let (attachments, total) = attachment_service
-        .list_task_attachments_paginated(
-            task_id,
-            user.user_id(),
-            page,
-            per_page,
-            sort_by,
-            Some(sort_order),
-        )
+        .search_attachments(&query, user.user_id())
         .await?;
 
     let attachments_dto: Vec<AttachmentDto> = attachments.into_iter().map(Into::into).collect();
 
-    let response =
-        PaginatedResponse::new(attachments_dto, page as i32, per_page as i32, total as i64);
+    let (page, per_page) = query.pagination.get_pagination();
+    let response = PaginatedResponse::new(attachments_dto, page, per_page, total as i64);
 
     Ok((StatusCode::OK, ApiResponse::success(response)))
 }
