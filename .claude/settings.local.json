@@ -39,7 +39,11 @@
       "Bash(RUSTFLAGS=\"-W dead_code\" cargo check --all-targets)",
       "Bash(git checkout:*)",
       "Bash(timeout 5 cargo run)",
-      "Bash(rg -c \"#\\[allow\\(dead_code\\)\\]\" --type rust | awk -F: '{sum+=$2} END {print \"Total dead_code annotations: \" sum}')"
+      "Bash(rg -c \"#\\[allow\\(dead_code\\)\\]\" --type rust | awk -F: '{sum+=$2} END {print \"Total dead_code annotations: \" sum}')",
+      "mcp__serena__list_dir",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__write_memory",
+      "mcp__serena__list_memories"
     ],
     "deny": [
       "Bash(docker:*)"
