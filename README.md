@@ -54,6 +54,10 @@ cargo test --package task-backend --lib      # 単体テストのみ（高速）
 cargo test integration::tasks::crud_tests    # 特定の統合テストを実行
 make test-integration GROUP=integration::auth # 特定グループの統合テスト実行
 
+# パフォーマンステスト（手動実行）
+cargo test -- --ignored                      # パフォーマンステストのみ実行
+cargo test integration::infrastructure -- --ignored  # 特定のパフォーマンステスト実行
+
 # ビルド最適化
 make build-ci                 # CI用最適化ビルド（thin LTO）
 make build-dev                # 開発用高速ビルド
