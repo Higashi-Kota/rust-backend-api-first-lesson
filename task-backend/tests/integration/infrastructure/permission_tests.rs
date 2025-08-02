@@ -243,6 +243,7 @@ async fn test_permission_hierarchy() {
 // ==============================
 
 #[tokio::test]
+#[ignore = "Performance test - may be unstable in CI. Run with --ignored flag to execute"]
 async fn test_permission_check_performance() {
     let (app, _schema, _db) = setup_full_app().await;
     let user = create_and_authenticate_user(&app).await;
